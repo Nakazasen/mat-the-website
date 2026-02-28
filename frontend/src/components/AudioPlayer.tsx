@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Play, Pause, Square, Volume2, VolumeX, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import Script from 'next/script';
 
 interface AudioPlayerProps {
     content: string;
@@ -13,6 +14,31 @@ interface AudioPlayerProps {
 }
 
 type PlayState = 'stopped' | 'playing' | 'paused';
+
+// ResponsiveVoice type stub
+interface ResponsiveVoice {
+    speak: (text: string, voice: string, options?: {
+        rate?: number;
+        pitch?: number;
+        volume?: number;
+        onstart?: () => void;
+        onend?: () => void;
+        onerror?: () => void;
+        onpause?: () => void;
+        onresume?: () => void;
+    }) => void;
+    pause: () => void;
+    resume: () => void;
+    cancel: () => void;
+    isPlaying: () => boolean;
+    voiceSupport: () => boolean;
+}
+
+declare global {
+    interface Window {
+        responsiveVoice?: ResponsiveVoice;
+    }
+}
 
 export default function AudioPlayer({
     content,
@@ -25,313 +51,208 @@ export default function AudioPlayer({
     const [playState, setPlayState] = useState<PlayState>('stopped');
     const [speed, setSpeed] = useState(1);
     const [isMuted, setIsMuted] = useState(false);
-    const [isSupported, setIsSupported] = useState(false);
-    const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+    const [rvLoaded, setRvLoaded] = useState(false);
     const textRef = useRef<string>('');
-    // Preload Vietnamese voice on mount
-    const viVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
-    const [hasViVoice, setHasViVoice] = useState<boolean | null>(null); // null = checking
 
-    // Check browser support + eagerly load Vietnamese voice
-    useEffect(() => {
-        if (!('speechSynthesis' in window)) return;
-        setIsSupported(true);
-
-        const loadVoice = () => {
-            const voices = window.speechSynthesis.getVoices();
-            if (voices.length === 0) return; // not ready yet
-            const vi = voices.find(
-                (v) => v.lang.startsWith('vi') && v.name.toLowerCase().includes('google')
-            ) || voices.find((v) => v.lang.startsWith('vi')) || null;
-            viVoiceRef.current = vi;
-            setHasViVoice(vi !== null);
-        };
-
-        loadVoice();
-        // Chrome fires this event when voices are ready
-        window.speechSynthesis.addEventListener('voiceschanged', loadVoice);
-        return () => {
-            window.speechSynthesis.removeEventListener('voiceschanged', loadVoice);
-        };
-    }, []);
-
-    // Prepare full text to read
     useEffect(() => {
         textRef.current = `Chương ${chapterNumber}: ${chapterTitle}. ${content}`;
     }, [content, chapterTitle, chapterNumber]);
 
-    // Cleanup on unmount or chapter change
+    // Stop on unmount
     useEffect(() => {
         return () => {
-            if (window.speechSynthesis) {
-                window.speechSynthesis.cancel();
-            }
+            window.responsiveVoice?.cancel();
         };
     }, []);
 
     const setupMediaSession = useCallback(() => {
         if (!('mediaSession' in navigator)) return;
-
         navigator.mediaSession.metadata = new MediaMetadata({
             title: `Chương ${chapterNumber}: ${chapterTitle}`,
             artist: 'Mạt Thế - Sinh Hoá Nguy Cơ ☣️',
-            album: 'Đọc truyện tự động',
+            album: 'Nghe truyện',
         });
-
-        navigator.mediaSession.setActionHandler('play', () => {
-            window.speechSynthesis.resume();
-            setPlayState('playing');
-            navigator.mediaSession.playbackState = 'playing';
-        });
-
         navigator.mediaSession.setActionHandler('pause', () => {
-            window.speechSynthesis.pause();
+            window.responsiveVoice?.pause();
             setPlayState('paused');
             navigator.mediaSession.playbackState = 'paused';
         });
-
-        navigator.mediaSession.setActionHandler('stop', () => {
-            stop();
+        navigator.mediaSession.setActionHandler('play', () => {
+            window.responsiveVoice?.resume();
+            setPlayState('playing');
+            navigator.mediaSession.playbackState = 'playing';
         });
-
         navigator.mediaSession.setActionHandler('previoustrack', () => {
-            if (prevId) {
-                stop();
-                router.push(`/chapters/${prevId}`);
-            }
+            if (prevId) { window.responsiveVoice?.cancel(); router.push(`/chapters/${prevId}`); }
         });
-
         navigator.mediaSession.setActionHandler('nexttrack', () => {
-            if (nextId) {
-                stop();
-                router.push(`/chapters/${nextId}`);
-            }
+            if (nextId) { window.responsiveVoice?.cancel(); router.push(`/chapters/${nextId}`); }
         });
-
         navigator.mediaSession.playbackState = 'playing';
     }, [chapterNumber, chapterTitle, prevId, nextId, router]);
 
     const stop = useCallback(() => {
-        if (window.speechSynthesis) {
-            window.speechSynthesis.cancel();
-        }
+        window.responsiveVoice?.cancel();
         setPlayState('stopped');
-        if ('mediaSession' in navigator) {
-            navigator.mediaSession.playbackState = 'none';
-        }
+        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'none';
     }, []);
 
     const play = useCallback(() => {
-        if (!window.speechSynthesis) return;
+        if (!window.responsiveVoice) return;
+        window.responsiveVoice.cancel();
 
-        window.speechSynthesis.cancel();
-
-        const doSpeak = (voice: SpeechSynthesisVoice | null) => {
-            const utterance = new SpeechSynthesisUtterance(textRef.current);
-            utterance.lang = 'vi-VN';
-            utterance.rate = speed;
-            utterance.volume = isMuted ? 0 : 1;
-            utterance.pitch = 1;
-
-            if (voice) {
-                utterance.voice = voice;
-            }
-
-            utterance.onstart = () => {
+        window.responsiveVoice.speak(textRef.current, 'Vietnamese Female', {
+            rate: speed,
+            volume: isMuted ? 0 : 1,
+            pitch: 1,
+            onstart: () => {
                 setPlayState('playing');
                 setupMediaSession();
-            };
-            utterance.onpause = () => setPlayState('paused');
-            utterance.onresume = () => setPlayState('playing');
-            utterance.onerror = (e) => {
-                if (e.error !== 'interrupted') setPlayState('stopped');
-            };
-
-            // Workaround for Chrome mobile bug: speech stops after ~15s
-            const keepAlive = setInterval(() => {
-                if (window.speechSynthesis.paused) return;
-                if (window.speechSynthesis.speaking) {
-                    window.speechSynthesis.pause();
-                    window.speechSynthesis.resume();
-                } else {
-                    clearInterval(keepAlive);
-                }
-            }, 10000);
-
-            utterance.onend = () => {
-                clearInterval(keepAlive);
+            },
+            onend: () => {
                 setPlayState('stopped');
-                if ('mediaSession' in navigator) {
-                    navigator.mediaSession.playbackState = 'none';
-                }
-                if (nextId) {
-                    setTimeout(() => router.push(`/chapters/${nextId}`), 500);
-                }
-            };
-
-            utteranceRef.current = utterance;
-            window.speechSynthesis.speak(utterance);
-        };
-
-        // Dùng giọng đã preload từ trước (hoặc fallback không có giọng)
-        doSpeak(viVoiceRef.current);
+                if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'none';
+                if (nextId) setTimeout(() => router.push(`/chapters/${nextId}`), 500);
+            },
+            onerror: () => setPlayState('stopped'),
+        });
     }, [speed, isMuted, setupMediaSession, nextId, router]);
 
     const pause = useCallback(() => {
-        if (window.speechSynthesis) {
-            window.speechSynthesis.pause();
-            setPlayState('paused');
-            if ('mediaSession' in navigator) {
-                navigator.mediaSession.playbackState = 'paused';
-            }
-        }
+        window.responsiveVoice?.pause();
+        setPlayState('paused');
+        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
     }, []);
 
     const resume = useCallback(() => {
-        if (window.speechSynthesis) {
-            window.speechSynthesis.resume();
-            setPlayState('playing');
-            if ('mediaSession' in navigator) {
-                navigator.mediaSession.playbackState = 'playing';
-            }
-        }
+        window.responsiveVoice?.resume();
+        setPlayState('playing');
+        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
     }, []);
 
-    // Update speech rate without restarting
-    const changeSpeed = (newSpeed: number) => {
-        setSpeed(newSpeed);
-        if (playState !== 'stopped') {
-            stop();
-            setSpeed(newSpeed);
-            // Will restart with new speed via user action
-        }
+    const changeSpeed = (s: number) => {
+        setSpeed(s);
+        if (playState !== 'stopped') stop();
     };
 
-    if (!isSupported) return null;
-
     return (
-        <div className="mt-6 rounded-lg border border-toxic-green-DEFAULT/20 bg-[#141414] p-4 text-gray-200">
-            {/* Header */}
-            <div className="flex items-center gap-2 mb-3 pb-3 border-b border-ash-800">
-                <Volume2 size={14} className="text-toxic-green-DEFAULT" />
-                <span className="text-[10px] font-mono text-toxic-green-DEFAULT tracking-[0.2em] uppercase">
-                    Nghe Truyện
-                </span>
-                <span className="text-[10px] font-mono text-ash-400 ml-auto">
-                    {playState === 'playing' && '▶ Đang đọc...'}
-                    {playState === 'paused' && '⏸ Tạm dừng'}
-                    {playState === 'stopped' && '■ Dừng'}
-                </span>
-            </div>
+        <>
+            {/* Load ResponsiveVoice CDN */}
+            <Script
+                src="https://code.responsivevoice.org/responsivevoice.js?key=FREE"
+                strategy="lazyOnload"
+                onLoad={() => setRvLoaded(true)}
+            />
 
-            {/* Warning: no Vietnamese voice */}
-            {hasViVoice === false && (
-                <div className="mb-3 px-3 py-2 rounded border border-yellow-600/40 bg-yellow-900/20 text-yellow-400 text-[10px] font-mono">
-                    ⚠️ Máy chưa cài giọng Tiếng Việt → đang dùng giọng mặc định.
-                    <br />Cài: <strong>Settings → Language → Add Vietnamese</strong> rồi khởi động lại Chrome.
-                </div>
-            )}
-
-            {/* Controls */}
-            <div className="flex items-center gap-3">
-                {/* Play/Pause/Stop */}
-                <div className="flex items-center gap-2">
-                    {playState === 'stopped' && (
-                        <button
-                            onClick={play}
-                            className="flex items-center gap-2 px-4 py-2 bg-toxic-green-DEFAULT/10 border border-toxic-green-DEFAULT/40 rounded-lg text-toxic-green-DEFAULT hover:bg-toxic-green-DEFAULT/20 hover:border-toxic-green-DEFAULT transition-all font-biohazard tracking-widest text-sm"
-                            title="Bắt đầu nghe"
-                        >
-                            <Play size={15} fill="currentColor" />
-                            <span>PHÁT</span>
-                        </button>
-                    )}
-                    {playState === 'playing' && (
-                        <button
-                            onClick={pause}
-                            className="flex items-center gap-2 px-4 py-2 bg-ash-800 border border-ash-700 rounded-lg text-ash-200 hover:border-toxic-green-DEFAULT hover:text-toxic-green-DEFAULT transition-all font-biohazard tracking-widest text-sm"
-                            title="Tạm dừng"
-                        >
-                            <Pause size={15} fill="currentColor" />
-                            <span>DỪNG</span>
-                        </button>
-                    )}
-                    {playState === 'paused' && (
-                        <button
-                            onClick={resume}
-                            className="flex items-center gap-2 px-4 py-2 bg-toxic-green-DEFAULT/10 border border-toxic-green-DEFAULT/40 rounded-lg text-toxic-green-DEFAULT hover:bg-toxic-green-DEFAULT/20 hover:border-toxic-green-DEFAULT transition-all font-biohazard tracking-widest text-sm"
-                            title="Tiếp tục"
-                        >
-                            <Play size={15} fill="currentColor" />
-                            <span>TIẾP</span>
-                        </button>
-                    )}
-
-                    {playState !== 'stopped' && (
-                        <button
-                            onClick={stop}
-                            className="p-2 border border-ash-700 rounded-lg text-ash-400 hover:border-blood-red-bright hover:text-blood-red-bright transition-all"
-                            title="Dừng hẳn"
-                        >
-                            <Square size={15} fill="currentColor" />
-                        </button>
-                    )}
-                </div>
-
-                {/* Divider */}
-                <div className="w-px h-8 bg-ash-800" />
-
-                {/* Speed Control */}
-                <div className="flex items-center gap-1">
-                    {[0.75, 1, 1.25, 1.5, 1.75].map((s) => (
-                        <button
-                            key={s}
-                            onClick={() => changeSpeed(s)}
-                            className={`px-2 py-1 rounded text-[10px] font-mono transition-all ${speed === s
-                                ? 'bg-toxic-green-DEFAULT text-black font-bold'
-                                : 'text-ash-500 hover:text-ash-200'
-                                }`}
-                        >
-                            {s}x
-                        </button>
-                    ))}
-                </div>
-
-                {/* Mute */}
-                <button
-                    onClick={() => setIsMuted(!isMuted)}
-                    className="ml-auto p-2 text-ash-500 hover:text-ash-200 transition-colors"
-                    title={isMuted ? 'Bật âm' : 'Tắt tiếng'}
-                >
-                    {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-                </button>
-            </div>
-
-            {/* Chapter nav shortcuts */}
-            {playState !== 'stopped' && (
-                <div className="flex items-center gap-3 mt-3 pt-3 border-t border-ash-800">
-                    <span className="text-[10px] font-mono text-ash-600">Chuyển chương:</span>
-                    {prevId && (
-                        <button
-                            onClick={() => { stop(); router.push(`/chapters/${prevId}`); }}
-                            className="flex items-center gap-1 text-[10px] font-mono text-ash-400 hover:text-toxic-green-DEFAULT transition-colors"
-                        >
-                            <ChevronLeft size={12} /> Trước
-                        </button>
-                    )}
-                    {nextId && (
-                        <button
-                            onClick={() => { stop(); router.push(`/chapters/${nextId}`); }}
-                            className="flex items-center gap-1 text-[10px] font-mono text-ash-400 hover:text-toxic-green-DEFAULT transition-colors"
-                        >
-                            Tiếp <ChevronRight size={12} />
-                        </button>
-                    )}
-                    <span className="ml-auto text-[10px] font-mono text-ash-600 animate-pulse">
-                        💡 Tắt màn hình vẫn nghe được
+            <div className="mt-6 rounded-lg border border-toxic-green-DEFAULT/20 bg-[#141414] p-4 text-gray-200">
+                {/* Header */}
+                <div className="flex items-center gap-2 mb-3 pb-3 border-b border-ash-800">
+                    <Volume2 size={14} className="text-toxic-green-DEFAULT" />
+                    <span className="text-[10px] font-mono text-toxic-green-DEFAULT tracking-[0.2em] uppercase">
+                        Nghe Truyện
+                    </span>
+                    <span className="text-[10px] font-mono text-gray-500 ml-auto">
+                        {!rvLoaded && '⏳ Đang tải...'}
+                        {rvLoaded && playState === 'playing' && '▶ Đang đọc...'}
+                        {rvLoaded && playState === 'paused' && '⏸ Tạm dừng'}
+                        {rvLoaded && playState === 'stopped' && '■ Dừng'}
                     </span>
                 </div>
-            )}
-        </div>
+
+                {/* Controls */}
+                <div className="flex items-center gap-3 flex-wrap">
+                    <div className="flex items-center gap-2">
+                        {playState === 'stopped' && (
+                            <button
+                                onClick={play}
+                                disabled={!rvLoaded}
+                                className="flex items-center gap-2 px-4 py-2 bg-toxic-green-DEFAULT/10 border border-toxic-green-DEFAULT/40 rounded-lg text-toxic-green-DEFAULT hover:bg-toxic-green-DEFAULT/20 hover:border-toxic-green-DEFAULT transition-all font-biohazard tracking-widest text-sm disabled:opacity-40 disabled:cursor-wait"
+                            >
+                                <Play size={15} fill="currentColor" />
+                                <span>PHÁT</span>
+                            </button>
+                        )}
+                        {playState === 'playing' && (
+                            <button
+                                onClick={pause}
+                                className="flex items-center gap-2 px-4 py-2 bg-[#252525] border border-gray-700 rounded-lg text-gray-200 hover:border-toxic-green-DEFAULT hover:text-toxic-green-DEFAULT transition-all font-biohazard tracking-widest text-sm"
+                            >
+                                <Pause size={15} fill="currentColor" />
+                                <span>DỪNG</span>
+                            </button>
+                        )}
+                        {playState === 'paused' && (
+                            <button
+                                onClick={resume}
+                                className="flex items-center gap-2 px-4 py-2 bg-toxic-green-DEFAULT/10 border border-toxic-green-DEFAULT/40 rounded-lg text-toxic-green-DEFAULT hover:bg-toxic-green-DEFAULT/20 transition-all font-biohazard tracking-widest text-sm"
+                            >
+                                <Play size={15} fill="currentColor" />
+                                <span>TIẾP</span>
+                            </button>
+                        )}
+                        {playState !== 'stopped' && (
+                            <button
+                                onClick={stop}
+                                className="p-2 border border-gray-700 rounded-lg text-gray-400 hover:border-red-500 hover:text-red-400 transition-all"
+                            >
+                                <Square size={15} fill="currentColor" />
+                            </button>
+                        )}
+                    </div>
+
+                    <div className="w-px h-8 bg-gray-800" />
+
+                    {/* Speed */}
+                    <div className="flex items-center gap-1">
+                        {[0.75, 1, 1.25, 1.5, 1.75].map((s) => (
+                            <button
+                                key={s}
+                                onClick={() => changeSpeed(s)}
+                                className={`px-2 py-1 rounded text-[10px] font-mono transition-all ${speed === s
+                                        ? 'bg-toxic-green-DEFAULT text-black font-bold'
+                                        : 'text-gray-500 hover:text-gray-200'
+                                    }`}
+                            >
+                                {s}x
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Mute */}
+                    <button
+                        onClick={() => setIsMuted(!isMuted)}
+                        className="ml-auto p-2 text-gray-500 hover:text-gray-200 transition-colors"
+                    >
+                        {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                    </button>
+                </div>
+
+                {/* Chapter nav (when playing) */}
+                {playState !== 'stopped' && (
+                    <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-800">
+                        <span className="text-[10px] font-mono text-gray-600">Chuyển chương:</span>
+                        {prevId && (
+                            <button
+                                onClick={() => { stop(); router.push(`/chapters/${prevId}`); }}
+                                className="flex items-center gap-1 text-[10px] font-mono text-gray-400 hover:text-toxic-green-DEFAULT transition-colors"
+                            >
+                                <ChevronLeft size={12} /> Trước
+                            </button>
+                        )}
+                        {nextId && (
+                            <button
+                                onClick={() => { stop(); router.push(`/chapters/${nextId}`); }}
+                                className="flex items-center gap-1 text-[10px] font-mono text-gray-400 hover:text-toxic-green-DEFAULT transition-colors"
+                            >
+                                Tiếp <ChevronRight size={12} />
+                            </button>
+                        )}
+                        <span className="ml-auto text-[10px] font-mono text-gray-600 animate-pulse">
+                            💡 Tắt màn hình vẫn nghe được
+                        </span>
+                    </div>
+                )}
+            </div>
+        </>
     );
 }
