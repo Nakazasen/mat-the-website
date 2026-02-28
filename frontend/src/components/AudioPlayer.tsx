@@ -105,78 +105,79 @@ export default function AudioPlayer({
 
         window.speechSynthesis.cancel();
 
-        const utterance = new SpeechSynthesisUtterance(textRef.current);
-        utterance.lang = 'vi-VN';
-        utterance.rate = speed;
-        utterance.volume = isMuted ? 0 : 1;
-        utterance.pitch = 1;
+        const doSpeak = (voice: SpeechSynthesisVoice | null) => {
+            const utterance = new SpeechSynthesisUtterance(textRef.current);
+            utterance.lang = 'vi-VN';
+            utterance.rate = speed;
+            utterance.volume = isMuted ? 0 : 1;
+            utterance.pitch = 1;
 
-        // Wait for voices to load (especially on mobile)
-        const setVoice = () => {
-            const voices = window.speechSynthesis.getVoices();
-            const viVoice = voices.find(
-                (v) => v.lang.startsWith('vi') && v.name.toLowerCase().includes('google')
-            ) || voices.find((v) => v.lang.startsWith('vi'));
-            if (viVoice) utterance.voice = viVoice;
-        };
-        setVoice();
-        window.speechSynthesis.addEventListener('voiceschanged', setVoice, { once: true });
-
-        utterance.onstart = () => {
-            setPlayState('playing');
-            setupMediaSession();
-        };
-
-        utterance.onpause = () => {
-            setPlayState('paused');
-        };
-
-        utterance.onresume = () => {
-            setPlayState('playing');
-        };
-
-        utterance.onend = () => {
-            setPlayState('stopped');
-            if ('mediaSession' in navigator) {
-                navigator.mediaSession.playbackState = 'none';
+            if (voice) {
+                utterance.voice = voice;
             }
-            // Auto-next chapter when done
-            if (nextId) {
-                router.push(`/chapters/${nextId}`);
-            }
-        };
 
-        utterance.onerror = (e) => {
-            if (e.error !== 'interrupted') {
+            utterance.onstart = () => {
+                setPlayState('playing');
+                setupMediaSession();
+            };
+            utterance.onpause = () => setPlayState('paused');
+            utterance.onresume = () => setPlayState('playing');
+            utterance.onerror = (e) => {
+                if (e.error !== 'interrupted') setPlayState('stopped');
+            };
+
+            // Workaround for Chrome mobile bug: speech stops after ~15s
+            const keepAlive = setInterval(() => {
+                if (window.speechSynthesis.paused) return;
+                if (window.speechSynthesis.speaking) {
+                    window.speechSynthesis.pause();
+                    window.speechSynthesis.resume();
+                } else {
+                    clearInterval(keepAlive);
+                }
+            }, 10000);
+
+            utterance.onend = () => {
+                clearInterval(keepAlive);
                 setPlayState('stopped');
-            }
+                if ('mediaSession' in navigator) {
+                    navigator.mediaSession.playbackState = 'none';
+                }
+                if (nextId) {
+                    setTimeout(() => router.push(`/chapters/${nextId}`), 500);
+                }
+            };
+
+            utteranceRef.current = utterance;
+            window.speechSynthesis.speak(utterance);
         };
 
-        utteranceRef.current = utterance;
+        // --- Tìm giọng tiếng Việt ---
+        const findViVoice = (voices: SpeechSynthesisVoice[]) =>
+            voices.find((v) => v.lang.startsWith('vi') && v.name.toLowerCase().includes('google'))
+            || voices.find((v) => v.lang.startsWith('vi'))
+            || null;
 
-        // Workaround for Chrome bug where speech stops after ~15s on mobile
-        const keepAliveInterval = setInterval(() => {
-            if (window.speechSynthesis.paused) return;
-            if (window.speechSynthesis.speaking) {
-                window.speechSynthesis.pause();
-                window.speechSynthesis.resume();
-            } else {
-                clearInterval(keepAliveInterval);
-            }
-        }, 10000);
-
-        utterance.onend = () => {
-            clearInterval(keepAliveInterval);
-            setPlayState('stopped');
-            if ('mediaSession' in navigator) {
-                navigator.mediaSession.playbackState = 'none';
-            }
-            if (nextId) {
-                setTimeout(() => router.push(`/chapters/${nextId}`), 500);
-            }
-        };
-
-        window.speechSynthesis.speak(utterance);
+        const voices = window.speechSynthesis.getVoices();
+        if (voices.length > 0) {
+            // Voices đã load rồi → dùng luôn
+            doSpeak(findViVoice(voices));
+        } else {
+            // Chưa load → chờ event rồi mới speak
+            window.speechSynthesis.addEventListener(
+                'voiceschanged',
+                () => {
+                    doSpeak(findViVoice(window.speechSynthesis.getVoices()));
+                },
+                { once: true }
+            );
+            // Fallback: nếu trình duyệt không bao giờ fire voiceschanged (hiếm)
+            setTimeout(() => {
+                if (!window.speechSynthesis.speaking) {
+                    doSpeak(findViVoice(window.speechSynthesis.getVoices()));
+                }
+            }, 500);
+        }
     }, [speed, isMuted, setupMediaSession, nextId, router]);
 
     const pause = useCallback(() => {
@@ -282,8 +283,8 @@ export default function AudioPlayer({
                             key={s}
                             onClick={() => changeSpeed(s)}
                             className={`px-2 py-1 rounded text-[10px] font-mono transition-all ${speed === s
-                                    ? 'bg-toxic-green-DEFAULT text-black font-bold'
-                                    : 'text-ash-500 hover:text-ash-200'
+                                ? 'bg-toxic-green-DEFAULT text-black font-bold'
+                                : 'text-ash-500 hover:text-ash-200'
                                 }`}
                         >
                             {s}x
