@@ -8,6 +8,7 @@ export const metadata: Metadata = {
     description: "Danh sách toàn bộ 813+ chương truyện Mạt Thế Sinh Hoá Nguy Cơ",
 };
 
+export const dynamic = "force-dynamic";
 export const revalidate = 300;
 
 interface Props {

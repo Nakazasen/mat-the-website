@@ -3,6 +3,7 @@ import Link from "next/link";
 import { BookOpen, ChevronRight, AlertTriangle, Skull, Zap } from "lucide-react";
 import { getLatestChapters, formatChapterTitle, type Chapter } from "@/lib/api";
 
+export const dynamic = "force-dynamic";
 export const revalidate = 300; // ISR every 5 minutes
 
 export default async function HomePage() {

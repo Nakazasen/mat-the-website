@@ -8,6 +8,8 @@ import {
 import ReadingClient from "@/components/ReadingClient";
 import type { Metadata } from "next";
 
+export const dynamic = "force-dynamic";
+
 interface Props {
     params: { id: string };
 }
@@ -67,7 +69,4 @@ export default async function ReadingPage({
     );
 }
 
-// Generate static paths for first 20 chapters (others on-demand)
-export async function generateStaticParams() {
-    return Array.from({ length: 20 }, (_, i) => ({ id: String(i + 1) }));
-}
+// Removed generateStaticParams to avoid build timeouts when backend is offline
