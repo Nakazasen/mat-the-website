@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Pause, Play, Square, Volume2, VolumeX } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { splitIntoChunks } from '@/lib/tts-utils';
 
 interface AudioPlayerProps {
     content: string;
@@ -10,29 +11,12 @@ interface AudioPlayerProps {
     chapterNumber: number;
     prevId: number | null;
     nextId: number | null;
+    onIndexChange?: (index: number | null) => void;
 }
 
 type PlayState = 'stopped' | 'playing' | 'paused';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mat-the-api.onrender.com';
-
-function splitIntoChunks(text: string, maxLen = 180): string[] {
-    const chunks: string[] = [];
-    let remaining = text;
-    while (remaining.length > 0) {
-        if (remaining.length <= maxLen) { chunks.push(remaining.trim()); break; }
-        let cutAt = -1;
-        const slice = remaining.substring(0, maxLen);
-        for (const sep of ['. ', '! ', '? ', ', ', '; ', ' ']) {
-            const idx = slice.lastIndexOf(sep);
-            if (idx > 40) { cutAt = idx + sep.length; break; }
-        }
-        if (cutAt === -1) cutAt = maxLen;
-        chunks.push(remaining.substring(0, cutAt).trim());
-        remaining = remaining.substring(cutAt).trim();
-    }
-    return chunks.filter(c => c.length > 0);
-}
 
 function ttsUrl(text: string, speed: number): string {
     return `${API_URL}/api/tts?lang=vi&speed=${speed}&text=${encodeURIComponent(text)}`;
@@ -44,6 +28,7 @@ export default function AudioPlayer({
     chapterNumber,
     prevId,
     nextId,
+    onIndexChange,
 }: AudioPlayerProps) {
     const router = useRouter();
     const [playState, setPlayState] = useState<PlayState>('stopped');
@@ -59,17 +44,21 @@ export default function AudioPlayer({
     useEffect(() => { speedRef.current = speed; }, [speed]);
 
     useEffect(() => {
-        const fullText = `Chương ${chapterNumber}: ${chapterTitle}. ${content}`;
-        chunksRef.current = splitIntoChunks(fullText);
-    }, [content, chapterTitle, chapterNumber]);
+        // Chỉ chunk nội dung chính để Karaoke khớp với text hiển thị
+        // Phần Tiêu đề sẽ được đọc riêng hoặc bỏ qua trong highlight
+        chunksRef.current = splitIntoChunks(content);
+    }, [content]);
 
     useEffect(() => {
         if (audioRef.current) audioRef.current.muted = isMuted;
     }, [isMuted]);
 
     useEffect(() => {
-        return () => { stoppedRef.current = true; };
-    }, []);
+        return () => {
+            stoppedRef.current = true;
+            if (onIndexChange) onIndexChange(null);
+        };
+    }, [onIndexChange]);
 
     const updateMetadata = useCallback(() => {
         if (!('mediaSession' in navigator)) return;
@@ -118,6 +107,8 @@ export default function AudioPlayer({
         }
 
         chunkIndexRef.current = index;
+        if (onIndexChange) onIndexChange(index);
+
         const url = ttsUrl(chunksRef.current[index], speedRef.current);
 
         // Cố gắng không gán src nếu nó giống hệt (tránh flicker session)
@@ -130,7 +121,7 @@ export default function AudioPlayer({
             console.error("Playback failed", e);
             if (!stoppedRef.current) playChunk(index + 1);
         });
-    }, [nextId, router]);
+    }, [nextId, router, onIndexChange]);
 
     useEffect(() => {
         const audio = audioRef.current;
@@ -198,11 +189,12 @@ export default function AudioPlayer({
             audioRef.current.src = '';
         }
         chunkIndexRef.current = 0;
+        if (onIndexChange) onIndexChange(null);
         setPlayState('stopped');
         if ('mediaSession' in navigator) {
             navigator.mediaSession.playbackState = 'none';
         }
-    }, []);
+    }, [onIndexChange]);
 
     return (
         <>

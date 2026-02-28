@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight, Settings, Home, List, Sun, Moon, Coffee } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
 import AudioPlayer from "./AudioPlayer";
+import { splitIntoChunks } from "@/lib/tts-utils";
 
 interface ReadingClientProps {
     chapterId: number;
@@ -28,7 +29,22 @@ export default function ReadingClient({
     const { theme, setTheme, fontSize, setFontSize } = useTheme();
     const [showSettings, setShowSettings] = useState(false);
     const [readingProgress, setReadingProgress] = useState(0);
+    const [activeChunkIndex, setActiveChunkIndex] = useState<number | null>(null);
     const contentRef = useRef<HTMLDivElement>(null);
+    const activeChunkRef = useRef<HTMLSpanElement>(null);
+
+    // Split content into chunks for Karaoke
+    const chunks = splitIntoChunks(content);
+
+    // Auto-scroll to active chunk
+    useEffect(() => {
+        if (activeChunkIndex !== null && activeChunkRef.current) {
+            activeChunkRef.current.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center'
+            });
+        }
+    }, [activeChunkIndex]);
 
     // Reading progress bar
     useEffect(() => {
@@ -55,11 +71,6 @@ export default function ReadingClient({
         window.addEventListener("keydown", handleKey);
         return () => window.removeEventListener("keydown", handleKey);
     }, [prevId, nextId]);
-
-    // Split content into paragraphs
-    const paragraphs = content
-        .split(/\n+/)
-        .filter((p) => p.trim().length > 0);
 
     return (
         <div className="min-h-screen bg-reader-bg text-reader-text transition-colors duration-300">
@@ -185,6 +196,7 @@ export default function ReadingClient({
                         chapterNumber={chapterNumber}
                         prevId={prevId}
                         nextId={nextId}
+                        onIndexChange={setActiveChunkIndex}
                     />
 
                     {/* Top Navigation Buttons */}
@@ -231,7 +243,18 @@ export default function ReadingClient({
                     className="reading-container !bg-transparent !text-inherit"
                     style={{ fontSize: `${fontSize}px`, whiteSpace: "pre-wrap", lineHeight: 1.8 }}
                 >
-                    {content}
+                    {chunks.map((chunk, index) => (
+                        <span
+                            key={index}
+                            ref={activeChunkIndex === index ? activeChunkRef : null}
+                            className={`transition-all duration-300 rounded ${activeChunkIndex === index
+                                ? "bg-toxic-green-DEFAULT/20 text-toxic-green-light px-1 mx-[-2px] shadow-[0_0_15px_rgba(0,255,159,0.2)]"
+                                : "opacity-100"
+                                }`}
+                        >
+                            {chunk}
+                        </span>
+                    ))}
                 </div>
 
                 {/* Bottom divider */}

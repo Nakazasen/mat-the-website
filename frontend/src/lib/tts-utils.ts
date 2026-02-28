@@ -1,0 +1,18 @@
+export function splitIntoChunks(text: string, maxLen = 180): string[] {
+    const chunks: string[] = [];
+    let remaining = text;
+    while (remaining.length > 0) {
+        if (remaining.length <= maxLen) { chunks.push(remaining.trim()); break; }
+        let cutAt = -1;
+        const slice = remaining.substring(0, maxLen);
+        // Ưu tiên cắt ở dấu kết thúc câu hoặc dấu phẩy
+        for (const sep of ['. ', '! ', '? ', ', ', '; ', ' ']) {
+            const idx = slice.lastIndexOf(sep);
+            if (idx > 40) { cutAt = idx + sep.length; break; }
+        }
+        if (cutAt === -1) cutAt = maxLen;
+        chunks.push(remaining.substring(0, cutAt));
+        remaining = remaining.substring(cutAt);
+    }
+    return chunks.filter(c => c.length > 0);
+}
