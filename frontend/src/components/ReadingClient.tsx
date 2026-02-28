@@ -247,9 +247,11 @@ export default function ReadingClient({
                         <span
                             key={index}
                             ref={activeChunkIndex === index ? activeChunkRef : null}
-                            className={`transition-all duration-300 rounded ${activeChunkIndex === index
-                                ? "bg-toxic-green-DEFAULT/20 text-toxic-green-light px-1 mx-[-2px] shadow-[0_0_15px_rgba(0,255,159,0.2)]"
-                                : "opacity-100"
+                            className={`transition-all duration-300 rounded-sm ${activeChunkIndex === index
+                                    ? theme === 'dark'
+                                        ? "bg-toxic-green-DEFAULT/40 text-white shadow-[0_0_25px_rgba(0,255,159,0.4)] ring-1 ring-toxic-green-DEFAULT/50 scale-[1.02] inline-block"
+                                        : "bg-toxic-green-DEFAULT/50 text-black ring-1 ring-toxic-green-DEFAULT/60 scale-[1.02] inline-block"
+                                    : "opacity-100"
                                 }`}
                         >
                             {chunk}
