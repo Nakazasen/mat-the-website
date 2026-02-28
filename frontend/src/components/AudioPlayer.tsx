@@ -52,11 +52,28 @@ export default function AudioPlayer({
     const [speed, setSpeed] = useState(1);
     const [isMuted, setIsMuted] = useState(false);
     const [rvLoaded, setRvLoaded] = useState(false);
+    const [rvError, setRvError] = useState(false);
     const textRef = useRef<string>('');
 
     useEffect(() => {
         textRef.current = `Chương ${chapterNumber}: ${chapterTitle}. ${content}`;
     }, [content, chapterTitle, chapterNumber]);
+
+    // Poll cho đến khi ResponsiveVoice sẵn sàng
+    useEffect(() => {
+        let attempts = 0;
+        const check = setInterval(() => {
+            attempts++;
+            if (window.responsiveVoice) {
+                setRvLoaded(true);
+                clearInterval(check);
+            } else if (attempts > 150) { // 15s timeout
+                setRvError(true);
+                clearInterval(check);
+            }
+        }, 100);
+        return () => clearInterval(check);
+    }, []);
 
     // Stop on unmount
     useEffect(() => {
@@ -140,8 +157,7 @@ export default function AudioPlayer({
             {/* Load ResponsiveVoice CDN */}
             <Script
                 src="https://code.responsivevoice.org/responsivevoice.js?key=FREE"
-                strategy="lazyOnload"
-                onLoad={() => setRvLoaded(true)}
+                strategy="afterInteractive"
             />
 
             <div className="mt-6 rounded-lg border border-toxic-green-DEFAULT/20 bg-[#141414] p-4 text-gray-200">
@@ -152,12 +168,20 @@ export default function AudioPlayer({
                         Nghe Truyện
                     </span>
                     <span className="text-[10px] font-mono text-gray-500 ml-auto">
-                        {!rvLoaded && '⏳ Đang tải...'}
+                        {rvError && '❌ Không load được thư viện'}
+                        {!rvError && !rvLoaded && '⏳ Đang tải...'}
                         {rvLoaded && playState === 'playing' && '▶ Đang đọc...'}
                         {rvLoaded && playState === 'paused' && '⏸ Tạm dừng'}
                         {rvLoaded && playState === 'stopped' && '■ Dừng'}
                     </span>
                 </div>
+
+                {/* Error / Play button disabled when not loaded */}
+                {rvError && (
+                    <div className="mb-3 px-3 py-2 rounded border border-red-600/40 bg-red-900/20 text-red-400 text-[10px] font-mono">
+                        ❌ Không tải được thư viện giọng đọc. Vui lòng thử tắt VPN hoặc reload trang.
+                    </div>
+                )}
 
                 {/* Controls */}
                 <div className="flex items-center gap-3 flex-wrap">
@@ -209,8 +233,8 @@ export default function AudioPlayer({
                                 key={s}
                                 onClick={() => changeSpeed(s)}
                                 className={`px-2 py-1 rounded text-[10px] font-mono transition-all ${speed === s
-                                        ? 'bg-toxic-green-DEFAULT text-black font-bold'
-                                        : 'text-gray-500 hover:text-gray-200'
+                                    ? 'bg-toxic-green-DEFAULT text-black font-bold'
+                                    : 'text-gray-500 hover:text-gray-200'
                                     }`}
                             >
                                 {s}x
