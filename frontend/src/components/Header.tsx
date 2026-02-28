@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { BookOpen, List, Home, Menu, X, Zap } from "lucide-react";
+import ThemeSwitcher from "./ThemeSwitcher";
 
 export default function Header() {
     const [scrolled, setScrolled] = useState(false);
@@ -23,8 +24,8 @@ export default function Header() {
         <>
             <header
                 className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled
-                        ? "bg-ash-950/95 backdrop-blur-md border-b border-toxic-green-DEFAULT/20 shadow-lg shadow-black/50"
-                        : "bg-transparent"
+                    ? "bg-ash-950/95 backdrop-blur-md border-b border-toxic-green-DEFAULT/20 shadow-lg shadow-black/50"
+                    : "bg-transparent"
                     }`}
             >
                 <div className="max-w-7xl mx-auto px-4 sm:px-6">
@@ -69,16 +70,22 @@ export default function Header() {
                                     </Link>
                                 )
                             )}
+                            <div className="ml-4 border-l border-ash-800 pl-4">
+                                <ThemeSwitcher />
+                            </div>
                         </nav>
 
-                        {/* Mobile menu button */}
-                        <button
-                            className="md:hidden text-ash-300 hover:text-toxic-green-DEFAULT transition-colors p-2"
-                            onClick={() => setMenuOpen(!menuOpen)}
-                            aria-label="Toggle menu"
-                        >
-                            {menuOpen ? <X size={22} /> : <Menu size={22} />}
-                        </button>
+                        {/* Mobile action & menu button */}
+                        <div className="flex items-center gap-2 md:hidden">
+                            <ThemeSwitcher />
+                            <button
+                                className="text-ash-300 hover:text-toxic-green-DEFAULT transition-colors p-2"
+                                onClick={() => setMenuOpen(!menuOpen)}
+                                aria-label="Toggle menu"
+                            >
+                                {menuOpen ? <X size={22} /> : <Menu size={22} />}
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -92,8 +99,8 @@ export default function Header() {
                                     href={href}
                                     onClick={() => setMenuOpen(false)}
                                     className={`flex items-center gap-3 px-4 py-3 font-biohazard tracking-widest text-base transition-colors ${highlight
-                                            ? "text-white bg-blood-red-DEFAULT border border-blood-red-bright/40 rounded"
-                                            : "text-ash-300 hover:text-toxic-green-DEFAULT border border-ash-800 rounded hover:border-toxic-green-DEFAULT/30"
+                                        ? "text-white bg-blood-red-DEFAULT border border-blood-red-bright/40 rounded"
+                                        : "text-ash-300 hover:text-toxic-green-DEFAULT border border-ash-800 rounded hover:border-toxic-green-DEFAULT/30"
                                         }`}
                                 >
                                     <Icon size={16} />

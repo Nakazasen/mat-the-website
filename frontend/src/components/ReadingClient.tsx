@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Settings, Home, List } from "lucide-react";
+import { ChevronLeft, ChevronRight, Settings, Home, List, Sun, Moon, Coffee } from "lucide-react";
+import { useTheme } from "@/context/ThemeContext";
 
 interface ReadingClientProps {
     chapterId: number;
@@ -23,10 +24,9 @@ export default function ReadingClient({
     nextId,
     totalChapters,
 }: ReadingClientProps) {
-    const [fontSize, setFontSize] = useState(18);
+    const { theme, setTheme, fontSize, setFontSize } = useTheme();
     const [showSettings, setShowSettings] = useState(false);
     const [readingProgress, setReadingProgress] = useState(0);
-    const [theme, setTheme] = useState<"dark" | "sepia">("dark");
     const contentRef = useRef<HTMLDivElement>(null);
 
     // Reading progress bar
@@ -55,18 +55,13 @@ export default function ReadingClient({
         return () => window.removeEventListener("keydown", handleKey);
     }, [prevId, nextId]);
 
-    const themeStyles =
-        theme === "sepia"
-            ? { background: "#2c2318", color: "#d4b896" }
-            : { background: "#161616", color: "#d4d0c8" };
-
     // Split content into paragraphs
     const paragraphs = content
         .split(/\n+/)
         .filter((p) => p.trim().length > 0);
 
     return (
-        <div className="min-h-screen" style={themeStyles}>
+        <div className="min-h-screen bg-reader-bg text-reader-text transition-colors duration-300">
             {/* Progress bar */}
             <div
                 className="reading-progress"
@@ -122,7 +117,7 @@ export default function ReadingClient({
                             <div className="flex items-center gap-3">
                                 <span className="text-ash-400 text-xs font-mono">CỠ CHỮ</span>
                                 <button
-                                    onClick={() => setFontSize((s) => Math.max(14, s - 2))}
+                                    onClick={() => setFontSize(Math.max(14, fontSize - 2))}
                                     className="w-7 h-7 border border-ash-700 text-ash-300 hover:border-toxic-green-DEFAULT hover:text-toxic-green-DEFAULT transition-colors rounded text-sm"
                                 >
                                     A-
@@ -131,7 +126,7 @@ export default function ReadingClient({
                                     {fontSize}
                                 </span>
                                 <button
-                                    onClick={() => setFontSize((s) => Math.min(28, s + 2))}
+                                    onClick={() => setFontSize(Math.min(28, fontSize + 2))}
                                     className="w-7 h-7 border border-ash-700 text-ash-300 hover:border-toxic-green-DEFAULT hover:text-toxic-green-DEFAULT transition-colors rounded text-sm"
                                 >
                                     A+
@@ -141,18 +136,25 @@ export default function ReadingClient({
                             {/* Theme */}
                             <div className="flex items-center gap-3">
                                 <span className="text-ash-400 text-xs font-mono">NỀN</span>
-                                {(["dark", "sepia"] as const).map((t) => (
-                                    <button
-                                        key={t}
-                                        onClick={() => setTheme(t)}
-                                        className={`px-3 py-1 text-xs font-mono rounded border transition-colors ${theme === t
-                                            ? "border-toxic-green-DEFAULT text-toxic-green-DEFAULT bg-toxic-green-DEFAULT/10"
-                                            : "border-ash-700 text-ash-400 hover:border-ash-500"
-                                            }`}
-                                    >
-                                        {t === "dark" ? "TỐI" : "NGỦ"}
-                                    </button>
-                                ))}
+                                <div className="flex bg-ash-900/50 p-1 rounded-lg border border-ash-800">
+                                    {[
+                                        { id: 'dark', icon: Moon, label: 'TỐI' },
+                                        { id: 'light', icon: Sun, label: 'SÁNG' },
+                                        { id: 'sepia', icon: Coffee, label: 'VÀNG' }
+                                    ].map((t) => (
+                                        <button
+                                            key={t.id}
+                                            onClick={() => setTheme(t.id as any)}
+                                            className={`flex items-center gap-2 px-3 py-1.5 text-[10px] font-biohazard tracking-widest rounded transition-all ${theme === t.id
+                                                ? "bg-toxic-green-DEFAULT text-black shadow-lg shadow-toxic-green-DEFAULT/20"
+                                                : "text-ash-500 hover:text-ash-200"
+                                                }`}
+                                        >
+                                            <t.icon size={12} />
+                                            <span className="hidden xs:inline">{t.label}</span>
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
 
                             {/* Progress */}
@@ -171,7 +173,7 @@ export default function ReadingClient({
                     <div className="font-mono text-xs text-toxic-green-DEFAULT tracking-[0.3em] mb-3">
                         CHƯƠNG {chapterNumber} / {totalChapters}
                     </div>
-                    <h1 className="font-biohazard text-3xl sm:text-4xl text-worn-white tracking-wide leading-tight">
+                    <h1 className="font-biohazard text-3xl sm:text-4xl text-reader-text tracking-wide leading-tight">
                         {chapterTitle}
                     </h1>
 
@@ -216,7 +218,7 @@ export default function ReadingClient({
                 {/* Reading content */}
                 <div
                     ref={contentRef}
-                    className="reading-container"
+                    className="reading-container !bg-transparent !text-inherit"
                     style={{ fontSize: `${fontSize}px`, whiteSpace: "pre-wrap", lineHeight: 1.8 }}
                 >
                     {content}

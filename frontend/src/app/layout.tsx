@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import { ThemeProvider } from "@/context/ThemeContext";
 
 export const metadata: Metadata = {
     title: {
@@ -31,7 +32,7 @@ export default function RootLayout({
     children: React.ReactNode;
 }) {
     return (
-        <html lang="vi" className="dark">
+        <html lang="vi">
             <head>
                 <link rel="preconnect" href="https://fonts.googleapis.com" />
                 <link
@@ -41,9 +42,11 @@ export default function RootLayout({
                 />
             </head>
             <body className="bg-ash-dark min-h-screen antialiased">
-                <Header />
-                <main>{children}</main>
-                <Footer />
+                <ThemeProvider>
+                    <Header />
+                    <main>{children}</main>
+                    <Footer />
+                </ThemeProvider>
             </body>
         </html>
     );

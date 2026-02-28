@@ -42,6 +42,10 @@ const config: Config = {
                 "worn-white": "#d4d0c8",
                 "bone": "#e8e0d0",
                 "haze": "#8a8878",
+                // === READER THEMES ===
+                "reader-bg": "var(--reader-bg)",
+                "reader-text": "var(--reader-text)",
+                "reader-accent": "var(--reader-accent)",
             },
             fontFamily: {
                 biohazard: ["Bebas Neue", "Impact", "sans-serif"],
