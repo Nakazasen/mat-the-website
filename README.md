@@ -44,4 +44,4 @@ uvicorn main:app --reload
 
 ---
 **Status:** ✅ Đã hoàn tất cấu hình tên miền chính thức.
-**Last Update:** 02/28/2026
+**Last Update:** 02/28/2026.
