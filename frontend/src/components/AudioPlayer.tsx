@@ -78,29 +78,31 @@ export default function AudioPlayer({
     const setupMediaSession = useCallback(() => {
         if (!('mediaSession' in navigator)) return;
 
+        // Artwork là yếu tố SỐ 1 để Android hiện Notification
         navigator.mediaSession.metadata = new MediaMetadata({
             title: `Chương ${chapterNumber}: ${chapterTitle}`,
             artist: 'Mạt Thế - Sinh Hoá Nguy Cơ ☣️',
-            album: 'Nghe truyện',
+            album: 'Nghe Truyện Audio',
+            artwork: [
+                { src: 'https://img.icons8.com/color/512/biohazard.png', sizes: '512x512', type: 'image/png' },
+                { src: 'https://img.icons8.com/color/192/biohazard.png', sizes: '192x192', type: 'image/png' }
+            ]
         });
 
-        navigator.mediaSession.setActionHandler('play', () => {
-            audioRef.current?.play();
-            setPlayState('playing');
-            navigator.mediaSession.playbackState = 'playing';
-        });
-        navigator.mediaSession.setActionHandler('pause', () => {
-            stoppedRef.current = true;
-            audioRef.current?.pause();
-            setPlayState('paused');
-            navigator.mediaSession.playbackState = 'paused';
-        });
-        navigator.mediaSession.setActionHandler('previoustrack', () => {
-            if (prevId) { stoppedRef.current = true; audioRef.current?.pause(); router.push(`/chapters/${prevId}`); }
-        });
-        navigator.mediaSession.setActionHandler('nexttrack', () => {
-            if (nextId) { stoppedRef.current = true; audioRef.current?.pause(); router.push(`/chapters/${nextId}`); }
-        });
+        const actionHandlers: [MediaSessionAction, MediaSessionActionHandler][] = [
+            ['play', () => { audioRef.current?.play(); setPlayState('playing'); }],
+            ['pause', () => { stoppedRef.current = true; audioRef.current?.pause(); setPlayState('paused'); }],
+            ['previoustrack', () => { if (prevId) { stoppedRef.current = true; audioRef.current?.pause(); router.push(`/chapters/${prevId}`); } }],
+            ['nexttrack', () => { if (nextId) { stoppedRef.current = true; audioRef.current?.pause(); router.push(`/chapters/${nextId}`); } }]
+        ];
+
+        for (const [action, handler] of actionHandlers) {
+            try {
+                navigator.mediaSession.setActionHandler(action, handler);
+            } catch (error) {
+                console.log(`Action ${action} not supported.`);
+            }
+        }
 
         navigator.mediaSession.playbackState = 'playing';
     }, [chapterNumber, chapterTitle, prevId, nextId, router]);
@@ -123,18 +125,24 @@ export default function AudioPlayer({
         audio.load();
 
         // Re-confirm Media Session state mỗi khi chunk mới bắt đầu phát
-        // (Android Chrome reset khi src thay đổi)
         audio.onplay = () => {
             if ('mediaSession' in navigator) {
                 navigator.mediaSession.playbackState = 'playing';
+                // Cung cấp vị trí "giả" để Android hiện Seeker/Controls
+                try {
+                    navigator.mediaSession.setPositionState?.({
+                        duration: chunksRef.current.length * 5, // Ước tính 5s/chunk
+                        playbackRate: speedRef.current,
+                        position: index * 5
+                    });
+                } catch (e) { /* ignore */ }
             }
         };
 
         audio.play().catch(() => {
-            // Nếu chunk lỗi, chuyển sang chunk tiếp
             if (!stoppedRef.current) playChunk(index + 1);
         });
-    }, [nextId, router]);
+    }, [nextId, router, setupMediaSession]);
 
     // Gắn onended vào DOM audio element
     useEffect(() => {
