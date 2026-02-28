@@ -1,0 +1,25 @@
+{
+  "project": {
+    "name": "mat-the-website",
+    "description": "Fanpage đọc truyện chữ 'Mạt Thế - Sinh Hoá Nguy Cơ' - Zero-cost, 1000+ CCU",
+    "created_at": "2026-02-28T11:28:00+07:00"
+  },
+  "tech_stack": [
+    "Next.js 15 (App Router)",
+    "Tailwind CSS",
+    "FastAPI Python",
+    "Supabase (PostgreSQL)",
+    "Cloudflare R2"
+  ],
+  "features": [
+    "Trang chủ với Hero section Biohazard/Apocalypse",
+    "Mục lục 800+ chương với virtual scroll",
+    "Trang đọc tối ưu mobile",
+    "CDN delivery qua Cloudflare R2"
+  ],
+  "decisions": [
+    "Nội dung chương lưu file .txt trên R2 (không dùng DB) để lách giới hạn 500MB Supabase",
+    "Frontend fetch file R2 trực tiếp - backend chỉ cung cấp URL",
+    "Dark theme Biohazard: Toxic Green + Blood Red + Ash Black"
+  ]
+}
