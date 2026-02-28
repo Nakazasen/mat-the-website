@@ -14,6 +14,32 @@ interface AudioPlayerProps {
 
 type PlayState = 'stopped' | 'playing' | 'paused';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'https://mat-the-api.onrender.com';
+
+// Split text thành chunks ≤ 180 ký tự tại điểm câu/dấu phẩy
+function splitIntoChunks(text: string, maxLen = 180): string[] {
+    const chunks: string[] = [];
+    let remaining = text;
+    while (remaining.length > 0) {
+        if (remaining.length <= maxLen) { chunks.push(remaining.trim()); break; }
+        let cutAt = -1;
+        const slice = remaining.substring(0, maxLen);
+        for (const sep of ['. ', '! ', '? ', ', ', '; ', ' ']) {
+            const idx = slice.lastIndexOf(sep);
+            if (idx > 40) { cutAt = idx + sep.length; break; }
+        }
+        if (cutAt === -1) cutAt = maxLen;
+        chunks.push(remaining.substring(0, cutAt).trim());
+        remaining = remaining.substring(cutAt).trim();
+    }
+    return chunks.filter(c => c.length > 0);
+}
+
+// Tạo URL gọi TTS qua backend proxy
+function ttsUrl(text: string, speed: number): string {
+    return `${API_URL}/api/tts?lang=vi&speed=${speed}&text=${encodeURIComponent(text)}`;
+}
+
 export default function AudioPlayer({
     content,
     chapterTitle,
@@ -25,23 +51,31 @@ export default function AudioPlayer({
     const [playState, setPlayState] = useState<PlayState>('stopped');
     const [speed, setSpeed] = useState(1);
     const [isMuted, setIsMuted] = useState(false);
-    const [isSupported, setIsSupported] = useState(false);
 
-    const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
-    const keepAliveRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const audioRef = useRef<HTMLAudioElement | null>(null);
+    const chunksRef = useRef<string[]>([]);
+    const chunkIndexRef = useRef(0);
     const speedRef = useRef(speed);
+    const mutedRef = useRef(isMuted);
+    const stoppedRef = useRef(true);
 
     useEffect(() => { speedRef.current = speed; }, [speed]);
-
     useEffect(() => {
-        setIsSupported('speechSynthesis' in window);
-    }, []);
+        mutedRef.current = isMuted;
+        if (audioRef.current) audioRef.current.muted = isMuted;
+    }, [isMuted]);
+
+    // Chuẩn bị chunks khi content thay đổi
+    useEffect(() => {
+        const fullText = `Chương ${chapterNumber}: ${chapterTitle}. ${content}`;
+        chunksRef.current = splitIntoChunks(fullText);
+    }, [content, chapterTitle, chapterNumber]);
 
     // Dừng khi rời trang
     useEffect(() => {
         return () => {
-            if (window.speechSynthesis) window.speechSynthesis.cancel();
-            if (keepAliveRef.current) clearInterval(keepAliveRef.current);
+            stoppedRef.current = true;
+            audioRef.current?.pause();
         };
     }, []);
 
@@ -53,117 +87,75 @@ export default function AudioPlayer({
             album: 'Nghe truyện',
         });
         navigator.mediaSession.setActionHandler('play', () => {
-            window.speechSynthesis.resume();
+            audioRef.current?.play();
             setPlayState('playing');
             navigator.mediaSession.playbackState = 'playing';
         });
         navigator.mediaSession.setActionHandler('pause', () => {
-            window.speechSynthesis.pause();
+            audioRef.current?.pause();
             setPlayState('paused');
             navigator.mediaSession.playbackState = 'paused';
         });
         navigator.mediaSession.setActionHandler('previoustrack', () => {
-            if (prevId) { window.speechSynthesis.cancel(); router.push(`/chapters/${prevId}`); }
+            if (prevId) { stoppedRef.current = true; audioRef.current?.pause(); router.push(`/chapters/${prevId}`); }
         });
         navigator.mediaSession.setActionHandler('nexttrack', () => {
-            if (nextId) { window.speechSynthesis.cancel(); router.push(`/chapters/${nextId}`); }
+            if (nextId) { stoppedRef.current = true; audioRef.current?.pause(); router.push(`/chapters/${nextId}`); }
         });
         navigator.mediaSession.playbackState = 'playing';
     }, [chapterNumber, chapterTitle, prevId, nextId, router]);
 
-    const doSpeak = useCallback((voice: SpeechSynthesisVoice | null) => {
-        const fullText = `Chương ${chapterNumber}: ${chapterTitle}. ${content}`;
-        const utterance = new SpeechSynthesisUtterance(fullText);
-        utterance.lang = 'vi-VN';
-        utterance.rate = speedRef.current;
-        utterance.volume = isMuted ? 0 : 1;
-        utterance.pitch = 1;
-        if (voice) utterance.voice = voice;
-
-        utterance.onstart = () => {
-            setPlayState('playing');
-            setupMediaSession();
-        };
-        utterance.onpause = () => setPlayState('paused');
-        utterance.onresume = () => setPlayState('playing');
-        utterance.onerror = (e) => {
-            if (e.error !== 'interrupted' && e.error !== 'canceled') {
-                setPlayState('stopped');
-            }
-        };
-
-        // Chrome mobile bug: speech stops after ~15s unless we ping it
-        if (keepAliveRef.current) clearInterval(keepAliveRef.current);
-        keepAliveRef.current = setInterval(() => {
-            if (!window.speechSynthesis.speaking) {
-                clearInterval(keepAliveRef.current!);
-                return;
-            }
-            if (!window.speechSynthesis.paused) {
-                window.speechSynthesis.pause();
-                window.speechSynthesis.resume();
-            }
-        }, 10000);
-
-        utterance.onend = () => {
-            if (keepAliveRef.current) clearInterval(keepAliveRef.current);
+    const playChunk = useCallback((index: number) => {
+        if (stoppedRef.current) return;
+        if (index >= chunksRef.current.length) {
             setPlayState('stopped');
             if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'none';
-            if (nextId) setTimeout(() => router.push(`/chapters/${nextId}`), 500);
-        };
+            if (nextId) setTimeout(() => router.push(`/chapters/${nextId}`), 800);
+            return;
+        }
 
-        utteranceRef.current = utterance;
-        window.speechSynthesis.speak(utterance);
-    }, [chapterNumber, chapterTitle, content, isMuted, setupMediaSession, nextId, router]);
+        const url = ttsUrl(chunksRef.current[index], speedRef.current);
+        const audio = new Audio(url);
+        audio.muted = mutedRef.current;
+        audioRef.current = audio;
+        chunkIndexRef.current = index;
+
+        audio.onended = () => { if (!stoppedRef.current) playChunk(index + 1); };
+        audio.onerror = () => { if (!stoppedRef.current) playChunk(index + 1); };
+        audio.play().catch(() => setPlayState('stopped'));
+    }, [nextId, router]);
 
     const play = useCallback(() => {
-        if (!window.speechSynthesis) return;
-        window.speechSynthesis.cancel();
-
-        const voices = window.speechSynthesis.getVoices();
-
-        const findViVoice = (list: SpeechSynthesisVoice[]) =>
-            list.find(v => v.lang.startsWith('vi') && v.name.toLowerCase().includes('google'))
-            ?? list.find(v => v.lang.startsWith('vi'))
-            ?? null;
-
-        if (voices.length > 0) {
-            doSpeak(findViVoice(voices));
-        } else {
-            // Voices chưa load → đợi event voiceschanged
-            const handler = () => {
-                doSpeak(findViVoice(window.speechSynthesis.getVoices()));
-            };
-            window.speechSynthesis.addEventListener('voiceschanged', handler, { once: true });
-            // Fallback 1s nếu event không bao giờ kích
-            setTimeout(() => {
-                if (!window.speechSynthesis.speaking) {
-                    doSpeak(findViVoice(window.speechSynthesis.getVoices()));
-                }
-            }, 1000);
-        }
-    }, [doSpeak]);
+        stoppedRef.current = false;
+        chunkIndexRef.current = 0;
+        setPlayState('playing');
+        setupMediaSession();
+        playChunk(0);
+    }, [playChunk, setupMediaSession]);
 
     const pause = useCallback(() => {
-        window.speechSynthesis?.pause();
+        audioRef.current?.pause();
+        stoppedRef.current = true; // stop new chunks from loading
         setPlayState('paused');
         if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
     }, []);
 
     const resume = useCallback(() => {
-        window.speechSynthesis?.resume();
+        stoppedRef.current = false;
         setPlayState('playing');
         if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
-    }, []);
+        // Phát lại từ chunk hiện tại (chunk mới bắt đầu)
+        playChunk(chunkIndexRef.current);
+    }, [playChunk]);
 
     const stop = useCallback(() => {
-        window.speechSynthesis?.cancel();
-        if (keepAliveRef.current) clearInterval(keepAliveRef.current);
+        stoppedRef.current = true;
+        audioRef.current?.pause();
+        audioRef.current = null;
+        chunkIndexRef.current = 0;
         setPlayState('stopped');
         if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'none';
     }, []);
-
-    if (!isSupported) return null;
 
     return (
         <div className="mt-6 rounded-lg border border-toxic-green-DEFAULT/20 bg-[#141414] p-4 text-gray-200">
@@ -229,7 +221,7 @@ export default function AudioPlayer({
                 </button>
             </div>
 
-            {/* Chapter nav (khi đang phát) */}
+            {/* Chapter nav khi đang phát */}
             {playState !== 'stopped' && (
                 <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-800">
                     <span className="text-[10px] font-mono text-gray-600">Chuyển chương:</span>

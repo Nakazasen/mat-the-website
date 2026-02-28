@@ -3,10 +3,14 @@ FastAPI Backend - Mạt Thế Sinh Hoá Nguy Cơ
 Cung cấp API metadata chương. Nội dung chương được fetch từ Cloudflare R2.
 """
 
+import io
 import os
 from typing import Optional
+from urllib.parse import quote
+import httpx
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from supabase import create_client, Client
 from dotenv import load_dotenv
@@ -152,3 +156,56 @@ async def get_chapter(chapter_number: int):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+
+# === TTS PROXY ===
+@app.get("/api/tts", summary="Google Translate TTS Proxy")
+async def tts_proxy(
+    text: str = Query(..., max_length=200, description="Văn bản cần đọc (tối đa 200 ký tự)"),
+    lang: str = Query("vi", description="Ngôn ngữ (vi, en, ...)"),
+    speed: float = Query(1.0, ge=0.5, le=2.0, description="Tốc độ đọc"),
+):
+    """
+    Proxy Google Translate TTS để tránh bị chặn khi gọi trực tiếp từ browser.
+    Trả về audio MP3 stream.
+    """
+    url = (
+        f"https://translate.google.com/translate_tts"
+        f"?ie=UTF-8&client=tw-ob&tl={lang}&ttsspeed={speed}"
+        f"&q={quote(text)}"
+    )
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
+        ),
+        "Referer": "https://translate.google.com/",
+        "Accept": "audio/webm,audio/ogg,audio/wav,audio/*;q=0.9,*/*;q=0.5",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(url, headers=headers, follow_redirects=True)
+
+        if resp.status_code != 200:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Google TTS trả về {resp.status_code}"
+            )
+
+        return StreamingResponse(
+            io.BytesIO(resp.content),
+            media_type="audio/mpeg",
+            headers={
+                "Cache-Control": "public, max-age=3600",
+                "Access-Control-Allow-Origin": "*",
+            },
+        )
+
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="Google TTS timeout")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
