@@ -219,7 +219,7 @@ export default async function HomePage() {
                             {latestChapters.map((chapter, i) => (
                                 <Link
                                     key={chapter.id}
-                                    href={`/chapters/${chapter.id}`}
+                                    href={`/chapters/${chapter.chapter_number}`}
                                     className="card-biohazard rounded p-4 group cursor-pointer relative hazard-corner chapter-item"
                                     style={{ animationDelay: `${i * 0.05}s` }}
                                 >
