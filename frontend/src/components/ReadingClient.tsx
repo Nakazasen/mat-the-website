@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Settings, Home, List, Sun, Moon, Coffee } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
+import AudioPlayer from "./AudioPlayer";
 
 interface ReadingClientProps {
     chapterId: number;
@@ -176,6 +177,15 @@ export default function ReadingClient({
                     <h1 className="font-biohazard text-3xl sm:text-4xl text-reader-text tracking-wide leading-tight">
                         {chapterTitle}
                     </h1>
+
+                    {/* Audio Player */}
+                    <AudioPlayer
+                        content={content}
+                        chapterTitle={chapterTitle}
+                        chapterNumber={chapterNumber}
+                        prevId={prevId}
+                        nextId={nextId}
+                    />
 
                     {/* Top Navigation Buttons */}
                     <div className="flex items-center justify-center gap-4 mt-8">
