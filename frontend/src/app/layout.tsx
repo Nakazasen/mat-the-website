@@ -3,6 +3,7 @@ import "./globals.css";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { ThemeProvider } from "@/context/ThemeContext";
+import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 
 export const metadata: Metadata = {
     title: {
@@ -64,6 +65,7 @@ export default function RootLayout({
                     <Header />
                     <main>{children}</main>
                     <Footer />
+                    <PWAInstallPrompt />
                 </ThemeProvider>
             </body>
         </html>
