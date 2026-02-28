@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ChevronRight, BookOpen, Search } from "lucide-react";
 import { getChapters, type Chapter } from "@/lib/api";
 import type { Metadata } from "next";
+import ChapterJump from "@/components/ChapterJump";
 
 export const metadata: Metadata = {
     title: "Mục Lục",
@@ -65,10 +66,7 @@ export default async function ChaptersPage({
 
                 {/* === QUICK JUMP BOX === */}
                 <div className="card-biohazard rounded-lg p-4 mb-8 flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-                    <div className="flex items-center gap-2 text-ash-400 text-sm shrink-0">
-                        <Search size={14} />
-                        <span className="font-mono">NHẢY ĐẾN CHƯƠNG</span>
-                    </div>
+                    <ChapterJump />
                     <div className="flex gap-3 flex-wrap">
                         {[1, 100, 200, 400, 600, 800].map((n) => (
                             <Link
