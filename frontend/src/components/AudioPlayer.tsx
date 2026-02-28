@@ -28,10 +28,31 @@ export default function AudioPlayer({
     const [isSupported, setIsSupported] = useState(false);
     const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
     const textRef = useRef<string>('');
+    // Preload Vietnamese voice on mount
+    const viVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
+    const [hasViVoice, setHasViVoice] = useState<boolean | null>(null); // null = checking
 
-    // Check browser support
+    // Check browser support + eagerly load Vietnamese voice
     useEffect(() => {
-        setIsSupported('speechSynthesis' in window);
+        if (!('speechSynthesis' in window)) return;
+        setIsSupported(true);
+
+        const loadVoice = () => {
+            const voices = window.speechSynthesis.getVoices();
+            if (voices.length === 0) return; // not ready yet
+            const vi = voices.find(
+                (v) => v.lang.startsWith('vi') && v.name.toLowerCase().includes('google')
+            ) || voices.find((v) => v.lang.startsWith('vi')) || null;
+            viVoiceRef.current = vi;
+            setHasViVoice(vi !== null);
+        };
+
+        loadVoice();
+        // Chrome fires this event when voices are ready
+        window.speechSynthesis.addEventListener('voiceschanged', loadVoice);
+        return () => {
+            window.speechSynthesis.removeEventListener('voiceschanged', loadVoice);
+        };
     }, []);
 
     // Prepare full text to read
@@ -152,32 +173,8 @@ export default function AudioPlayer({
             window.speechSynthesis.speak(utterance);
         };
 
-        // --- Tìm giọng tiếng Việt ---
-        const findViVoice = (voices: SpeechSynthesisVoice[]) =>
-            voices.find((v) => v.lang.startsWith('vi') && v.name.toLowerCase().includes('google'))
-            || voices.find((v) => v.lang.startsWith('vi'))
-            || null;
-
-        const voices = window.speechSynthesis.getVoices();
-        if (voices.length > 0) {
-            // Voices đã load rồi → dùng luôn
-            doSpeak(findViVoice(voices));
-        } else {
-            // Chưa load → chờ event rồi mới speak
-            window.speechSynthesis.addEventListener(
-                'voiceschanged',
-                () => {
-                    doSpeak(findViVoice(window.speechSynthesis.getVoices()));
-                },
-                { once: true }
-            );
-            // Fallback: nếu trình duyệt không bao giờ fire voiceschanged (hiếm)
-            setTimeout(() => {
-                if (!window.speechSynthesis.speaking) {
-                    doSpeak(findViVoice(window.speechSynthesis.getVoices()));
-                }
-            }, 500);
-        }
+        // Dùng giọng đã preload từ trước (hoặc fallback không có giọng)
+        doSpeak(viVoiceRef.current);
     }, [speed, isMuted, setupMediaSession, nextId, router]);
 
     const pause = useCallback(() => {
@@ -213,19 +210,27 @@ export default function AudioPlayer({
     if (!isSupported) return null;
 
     return (
-        <div className="mt-6 rounded-lg border border-toxic-green-DEFAULT/20 bg-ash-950/80 backdrop-blur-sm p-4">
+        <div className="mt-6 rounded-lg border border-toxic-green-DEFAULT/20 bg-[#141414] p-4 text-gray-200">
             {/* Header */}
             <div className="flex items-center gap-2 mb-3 pb-3 border-b border-ash-800">
                 <Volume2 size={14} className="text-toxic-green-DEFAULT" />
                 <span className="text-[10px] font-mono text-toxic-green-DEFAULT tracking-[0.2em] uppercase">
                     Nghe Truyện
                 </span>
-                <span className="text-[10px] font-mono text-ash-600 ml-auto">
+                <span className="text-[10px] font-mono text-ash-400 ml-auto">
                     {playState === 'playing' && '▶ Đang đọc...'}
                     {playState === 'paused' && '⏸ Tạm dừng'}
                     {playState === 'stopped' && '■ Dừng'}
                 </span>
             </div>
+
+            {/* Warning: no Vietnamese voice */}
+            {hasViVoice === false && (
+                <div className="mb-3 px-3 py-2 rounded border border-yellow-600/40 bg-yellow-900/20 text-yellow-400 text-[10px] font-mono">
+                    ⚠️ Máy chưa cài giọng Tiếng Việt → đang dùng giọng mặc định.
+                    <br />Cài: <strong>Settings → Language → Add Vietnamese</strong> rồi khởi động lại Chrome.
+                </div>
+            )}
 
             {/* Controls */}
             <div className="flex items-center gap-3">
