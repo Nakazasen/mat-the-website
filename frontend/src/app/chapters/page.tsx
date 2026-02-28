@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ChevronRight, BookOpen, Search } from "lucide-react";
-import { getChapters } from "@/lib/api";
+import { getChapters, type Chapter } from "@/lib/api";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -24,7 +24,7 @@ export default async function ChaptersPage({
     const LIMIT = 60;
 
     let data: {
-        chapters: any[];
+        chapters: Chapter[];
         total: number;
         page: number;
         total_pages: number;

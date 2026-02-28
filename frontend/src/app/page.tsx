@@ -1,12 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import { BookOpen, ChevronRight, AlertTriangle, Skull, Zap } from "lucide-react";
-import { getLatestChapters, formatChapterTitle } from "@/lib/api";
+import { getLatestChapters, formatChapterTitle, type Chapter } from "@/lib/api";
 
 export const revalidate = 300; // ISR every 5 minutes
 
 export default async function HomePage() {
-    let latestChapters = [];
+    let latestChapters: Chapter[] = [];
     try {
         latestChapters = await getLatestChapters(12);
     } catch {

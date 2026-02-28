@@ -3,6 +3,7 @@ import {
     getChapter,
     getChapterContent,
     getChapters,
+    type Chapter,
 } from "@/lib/api";
 import ReadingClient from "@/components/ReadingClient";
 import type { Metadata } from "next";
@@ -37,7 +38,9 @@ export default async function ReadingPage({
     const chapterNumber = parseInt(resolvedParams.id, 10);
     if (isNaN(chapterNumber) || chapterNumber < 1) notFound();
 
-    let chapter, content: string, totalChapters: number;
+    let chapter: Chapter;
+    let content: string;
+    let totalChapters: number;
     try {
         chapter = await getChapter(chapterNumber);
         content = await getChapterContent(chapter.content_url);
