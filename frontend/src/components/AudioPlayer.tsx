@@ -14,7 +14,7 @@ interface AudioPlayerProps {
 
 type PlayState = 'stopped' | 'playing' | 'paused';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? '';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mat-the-api.onrender.com';
 
 function splitIntoChunks(text: string, maxLen = 180): string[] {
     const chunks: string[] = [];
@@ -50,7 +50,6 @@ export default function AudioPlayer({
     const [speed, setSpeed] = useState(1);
     const [isMuted, setIsMuted] = useState(false);
 
-    // DOM audio element — key to making Media Session work on lock screen
     const audioRef = useRef<HTMLAudioElement>(null);
     const chunksRef = useRef<string[]>([]);
     const chunkIndexRef = useRef(0);
@@ -64,27 +63,24 @@ export default function AudioPlayer({
         chunksRef.current = splitIntoChunks(fullText);
     }, [content, chapterTitle, chapterNumber]);
 
-    // Update mute live
     useEffect(() => {
         if (audioRef.current) audioRef.current.muted = isMuted;
     }, [isMuted]);
 
-    // Clean up on unmount
     useEffect(() => {
         return () => { stoppedRef.current = true; };
     }, []);
 
-    // --- Media Session (màn hình khóa) ---
     const updateMetadata = useCallback(() => {
         if (!('mediaSession' in navigator)) return;
 
         navigator.mediaSession.metadata = new MediaMetadata({
-            title: `Chương ${chapterNumber}: ${chapterTitle}`,
-            artist: 'Mạt Thế - Sinh Hoá Nguy Cơ ☣️',
-            album: 'Nghe Truyện Audio',
+            title: `Chương ${chapterNumber}`,
+            artist: chapterTitle,
+            album: 'Mạt Thế - Sinh Hoá Nguy Cơ ☣️',
             artwork: [
-                { src: 'https://img.icons8.com/color/512/biohazard.png', sizes: '512x512', type: 'image/png' },
-                { src: 'https://img.icons8.com/color/192/biohazard.png', sizes: '192x192', type: 'image/png' }
+                { src: 'https://cdn-icons-png.flaticon.com/512/2583/2583216.png', sizes: '512x512', type: 'image/png' },
+                { src: 'https://cdn-icons-png.flaticon.com/512/2583/2583216.png', sizes: '192x192', type: 'image/png' }
             ]
         });
     }, [chapterNumber, chapterTitle]);
@@ -95,10 +91,10 @@ export default function AudioPlayer({
         updateMetadata();
 
         const actionHandlers: [MediaSessionAction, MediaSessionActionHandler][] = [
-            ['play', () => { audioRef.current?.play(); setPlayState('playing'); }],
-            ['pause', () => { stoppedRef.current = true; audioRef.current?.pause(); setPlayState('paused'); }],
-            ['previoustrack', () => { if (prevId) { stoppedRef.current = true; audioRef.current?.pause(); router.push(`/chapters/${prevId}`); } }],
-            ['nexttrack', () => { if (nextId) { stoppedRef.current = true; audioRef.current?.pause(); router.push(`/chapters/${nextId}`); } }]
+            ['play', () => { audioRef.current?.play(); }],
+            ['pause', () => { audioRef.current?.pause(); }],
+            ['previoustrack', () => { if (prevId) { stop(); router.push(`/chapters/${prevId}`); } }],
+            ['nexttrack', () => { if (nextId) { stop(); router.push(`/chapters/${nextId}`); } }]
         ];
 
         for (const [action, handler] of actionHandlers) {
@@ -110,96 +106,102 @@ export default function AudioPlayer({
         }
     }, [prevId, nextId, router, updateMetadata]);
 
-    // --- Play chunk bằng DOM audio element ---
     const playChunk = useCallback((index: number) => {
         if (stoppedRef.current) return;
         const audio = audioRef.current;
         if (!audio) return;
 
         if (index >= chunksRef.current.length) {
-            setPlayState('stopped');
-            if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'none';
-            if (nextId) setTimeout(() => router.push(`/chapters/${nextId}`), 800);
+            stop();
+            if (nextId) setTimeout(() => router.push(`/chapters/${nextId}`), 1000);
             return;
         }
 
         chunkIndexRef.current = index;
-        audio.src = ttsUrl(chunksRef.current[index], speedRef.current);
-        audio.load();
+        const url = ttsUrl(chunksRef.current[index], speedRef.current);
 
-        // Re-confirm Media Session state và metadata mỗi khi chunk mới bắt đầu phát
-        audio.onplaying = () => {
-            if ('mediaSession' in navigator) {
-                updateMetadata();
-                navigator.mediaSession.playbackState = 'playing';
-                try {
-                    navigator.mediaSession.setPositionState?.({
-                        duration: chunksRef.current.length * 5,
-                        playbackRate: speedRef.current,
-                        position: index * 5
-                    });
-                } catch (e) { /* ignore */ }
-            }
-        };
+        // Cố gắng không gán src nếu nó giống hệt (tránh flicker session)
+        if (audio.src !== url) {
+            audio.src = url;
+            audio.load();
+        }
 
-        audio.play().catch(() => {
+        audio.play().catch(e => {
+            console.error("Playback failed", e);
             if (!stoppedRef.current) playChunk(index + 1);
         });
-    }, [nextId, router, updateMetadata]);
+    }, [nextId, router]);
 
-    // Gắn onended vào DOM audio element
     useEffect(() => {
         const audio = audioRef.current;
         if (!audio) return;
+
+        const syncPlaying = () => {
+            if ('mediaSession' in navigator) {
+                navigator.mediaSession.playbackState = 'playing';
+            }
+            setPlayState('playing');
+        };
+
+        const syncPaused = () => {
+            if ('mediaSession' in navigator) {
+                navigator.mediaSession.playbackState = 'paused';
+            }
+            setPlayState('paused');
+        };
 
         const handleEnded = () => {
             if (!stoppedRef.current) {
                 playChunk(chunkIndexRef.current + 1);
             }
         };
-        const handleError = () => {
-            if (!stoppedRef.current) {
-                playChunk(chunkIndexRef.current + 1);
-            }
-        };
 
+        audio.addEventListener('play', syncPlaying);
+        audio.addEventListener('playing', syncPlaying);
+        audio.addEventListener('pause', syncPaused);
         audio.addEventListener('ended', handleEnded);
-        audio.addEventListener('error', handleError);
+        audio.addEventListener('error', handleEnded);
+
         return () => {
+            audio.removeEventListener('play', syncPlaying);
+            audio.removeEventListener('playing', syncPlaying);
+            audio.removeEventListener('pause', syncPaused);
             audio.removeEventListener('ended', handleEnded);
-            audio.removeEventListener('error', handleError);
+            audio.removeEventListener('error', handleEnded);
         };
     }, [playChunk]);
 
     const play = useCallback(() => {
         stoppedRef.current = false;
         chunkIndexRef.current = 0;
-        setPlayState('playing');
         setupMediaSession();
         playChunk(0);
     }, [playChunk, setupMediaSession]);
 
     const pause = useCallback(() => {
-        stoppedRef.current = true;
         audioRef.current?.pause();
-        setPlayState('paused');
-        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
     }, []);
 
     const resume = useCallback(() => {
         stoppedRef.current = false;
-        setPlayState('playing');
-        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
-        // Reload chunk hiện tại
-        playChunk(chunkIndexRef.current);
+        if (audioRef.current?.paused) {
+            audioRef.current.play();
+        } else {
+            playChunk(chunkIndexRef.current);
+        }
     }, [playChunk]);
 
     const stop = useCallback(() => {
         stoppedRef.current = true;
-        if (audioRef.current) { audioRef.current.pause(); audioRef.current.src = ''; }
+        if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current.src = '';
+        }
         chunkIndexRef.current = 0;
         setPlayState('stopped');
-        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'none';
+        if ('mediaSession' in navigator) {
+            navigator.mediaSession.playbackState = 'none';
+        }
     }, []);
 
     return (
