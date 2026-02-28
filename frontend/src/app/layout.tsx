@@ -40,6 +40,24 @@ export default function RootLayout({
                     href="https://fonts.gstatic.com"
                     crossOrigin="anonymous"
                 />
+                <link rel="manifest" href="/manifest.json" />
+                <meta name="theme-color" content="#161616" />
+                <meta name="apple-mobile-web-app-capable" content="yes" />
+                <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+                <script
+                    dangerouslySetInnerHTML={{
+                        __html: `
+                        if ('serviceWorker' in navigator) {
+                            window.addEventListener('load', function() {
+                                navigator.serviceWorker.register('/sw.js').then(
+                                    function(registration) { console.log('SW success'); },
+                                    function(err) { console.log('SW fail', err); }
+                                );
+                            });
+                        }
+                        `,
+                    }}
+                />
             </head>
             <body className="bg-ash-dark min-h-screen antialiased">
                 <ThemeProvider>
