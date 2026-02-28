@@ -75,10 +75,9 @@ export default function AudioPlayer({
     }, []);
 
     // --- Media Session (màn hình khóa) ---
-    const setupMediaSession = useCallback(() => {
+    const updateMetadata = useCallback(() => {
         if (!('mediaSession' in navigator)) return;
 
-        // Artwork là yếu tố SỐ 1 để Android hiện Notification
         navigator.mediaSession.metadata = new MediaMetadata({
             title: `Chương ${chapterNumber}: ${chapterTitle}`,
             artist: 'Mạt Thế - Sinh Hoá Nguy Cơ ☣️',
@@ -88,6 +87,12 @@ export default function AudioPlayer({
                 { src: 'https://img.icons8.com/color/192/biohazard.png', sizes: '192x192', type: 'image/png' }
             ]
         });
+    }, [chapterNumber, chapterTitle]);
+
+    const setupMediaSession = useCallback(() => {
+        if (!('mediaSession' in navigator)) return;
+
+        updateMetadata();
 
         const actionHandlers: [MediaSessionAction, MediaSessionActionHandler][] = [
             ['play', () => { audioRef.current?.play(); setPlayState('playing'); }],
@@ -103,9 +108,7 @@ export default function AudioPlayer({
                 console.log(`Action ${action} not supported.`);
             }
         }
-
-        navigator.mediaSession.playbackState = 'playing';
-    }, [chapterNumber, chapterTitle, prevId, nextId, router]);
+    }, [prevId, nextId, router, updateMetadata]);
 
     // --- Play chunk bằng DOM audio element ---
     const playChunk = useCallback((index: number) => {
@@ -124,14 +127,14 @@ export default function AudioPlayer({
         audio.src = ttsUrl(chunksRef.current[index], speedRef.current);
         audio.load();
 
-        // Re-confirm Media Session state mỗi khi chunk mới bắt đầu phát
-        audio.onplay = () => {
+        // Re-confirm Media Session state và metadata mỗi khi chunk mới bắt đầu phát
+        audio.onplaying = () => {
             if ('mediaSession' in navigator) {
+                updateMetadata();
                 navigator.mediaSession.playbackState = 'playing';
-                // Cung cấp vị trí "giả" để Android hiện Seeker/Controls
                 try {
                     navigator.mediaSession.setPositionState?.({
-                        duration: chunksRef.current.length * 5, // Ước tính 5s/chunk
+                        duration: chunksRef.current.length * 5,
                         playbackRate: speedRef.current,
                         position: index * 5
                     });
@@ -142,7 +145,7 @@ export default function AudioPlayer({
         audio.play().catch(() => {
             if (!stoppedRef.current) playChunk(index + 1);
         });
-    }, [nextId, router, setupMediaSession]);
+    }, [nextId, router, updateMetadata]);
 
     // Gắn onended vào DOM audio element
     useEffect(() => {
