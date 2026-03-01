@@ -5,17 +5,16 @@ import { createBrowserClient } from '@supabase/ssr';
 
 // Client for use in browser-side admin components
 export function createAdminClient() {
+    // Build Version tag to verify deployment
+    const BUILD_VERSION = "2026-03-01-0925";
+
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
     if (typeof window !== 'undefined') {
-        console.log("--- Supabase Client Diagnostics ---");
-        console.log("Window exists: true");
-        console.log("NEXT_PUBLIC_SUPABASE_URL detected:", !!url);
-        console.log("NEXT_PUBLIC_SUPABASE_ANON_KEY detected:", !!key);
-
-        // Log the first few chars of URL for verification (safely)
-        if (url) console.log("URL starts with:", url.substring(0, 8));
+        console.log(`--- Supabase Diagnostics (Build: ${BUILD_VERSION}) ---`);
+        console.log("NEXT_PUBLIC_SUPABASE_URL:", url ? "DETECTED" : "MISSING");
+        console.log("NEXT_PUBLIC_SUPABASE_ANON_KEY:", key ? "DETECTED" : "MISSING");
     }
 
     if (!url || !key) {
