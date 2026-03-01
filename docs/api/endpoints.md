@@ -111,3 +111,39 @@ Cập nhật bài viết.
 
 ### DELETE /api/wiki/{id} (Admin)
 Xóa bài viết.
+
+---
+
+## 🗺️ Interactive Map
+
+### GET /api/map-locations
+Lấy danh sách tất cả các điểm ghim trên bản đồ.
+
+### POST /api/admin/map-locations
+(Admin) Tạo điểm ghim mới. Gửi `lat`, `lng`, `type`, `name`.
+
+### PUT /api/admin/map-locations/{id}
+(Admin) Cập nhật thông tin điểm ghim.
+
+### DELETE /api/admin/map-locations/{id}
+(Admin) Xóa điểm ghim.
+
+---
+
+## 👤 Personnel & RBAC
+
+### GET /api/admin/users
+(SuperAdmin) Lấy danh sách hồ sơ nhân sự.
+
+### POST /api/admin/invite
+(SuperAdmin) Tạo tài khoản mới cho Editor/Admin. Yêu cầu Service Role Key.
+
+---
+
+## 🏠 Homepage Settings
+
+### GET /api/homepage
+Lấy cấu hình nội dung trang chủ.
+
+### PUT /api/admin/homepage
+(Admin) Cập nhật cấu hình trang chủ.

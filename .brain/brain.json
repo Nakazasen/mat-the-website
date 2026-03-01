@@ -2,7 +2,7 @@
   "meta": {
     "schema_version": "1.1.0",
     "awf_version": "4.0.2",
-    "last_updated": "2026-03-01T17:35:00+07:00"
+    "last_updated": "2026-03-02T01:05:00+07:00"
   },
   "project": {
     "name": "Mạt Thế - Sinh Hoá Nguy Cơ",
@@ -18,7 +18,8 @@
       "styling": "Tailwind CSS + CSS Variables",
       "icons": "lucide-react",
       "deployment": "Vercel",
-      "pwa": "Supported (Custom Manifest + Basic Service Worker)"
+      "pwa": "Supported (Custom Manifest + Basic Service Worker)",
+      "maps": "react-leaflet + Leaflet"
     },
     "backend": {
       "framework": "FastAPI (Python)",
@@ -31,15 +32,19 @@
       "tables": [
         "chapters",
         "novel_settings",
-        "comments"
+        "comments",
+        "wiki_entries",
+        "homepage_settings",
+        "profiles",
+        "map_locations"
       ]
     },
-    "storage": "Cloudflare R2 (lưu file nội dung chương .txt, public CDN)"
+    "storage": "Cloudflare R2 (lưu file nội dung chương .txt, bách khoa, bản đồ, public CDN)"
   },
   "api_endpoints": [
     {
       "path": "GET /api/chapters",
-      "explained": "Lấy danh sách tất cả chương (id, chapter_number, title, word_count)"
+      "explained": "Lấy danh sách tất cả chương (id, chapter_number, title, word_count, is_side_story)"
     },
     {
       "path": "GET /api/chapters/{chapter_number}",
@@ -82,119 +87,67 @@
     },
     {
       "path": "GET /api/tts",
-      "explained": "TTS Proxy - nhận text (≤200 ký tự), gọi Google Translate TTS server-side, trả về audio/mpeg. Params: text, lang=vi, speed=1.0"
+      "explained": "TTS Proxy - nhận text (≤200 ký tự), gọi Google Translate TTS server-side, trả về audio/mpeg"
+    },
+    {
+      "path": "GET /api/homepage",
+      "explained": "Lấy cấu hình nội dung trang chủ (Warning, Features)"
+    },
+    {
+      "path": "GET /api/admin/users",
+      "explained": "Quản lý nhân sự (SuperAdmin only)"
+    },
+    {
+      "path": "GET /api/map-locations",
+      "explained": "Lấy danh sách điểm ghim trên bản đồ chiến sự"
     }
   ],
   "features": [
     {
-      "name": "Theme System",
+      "name": "Side Stories",
       "status": "complete",
-      "description": "3 themes: Dark (mặc định), Light, Sepia. Lưu localStorage",
-      "files": [
-        "frontend/src/context/ThemeContext.tsx",
-        "frontend/src/components/ThemeSwitcher.tsx"
-      ]
+      "description": "Phân loại Mạch chính / Ngoại truyện. Tích hợp Tab lọc ở frontend và Checkbox ở Admin."
     },
     {
-      "name": "AudioPlayer TTS + Media Session",
+      "name": "Dynamic Homepage",
       "status": "complete",
-      "description": "Nghe truyện giọng Việt qua Google TTS proxy. Hỗ trợ điều khiển màn hình khóa Android/iOS (Play/Pause/Next/Prev)",
-      "strategy": "Frontend gọi /api/tts → Backend proxy Google TTS → audio/mpeg. Media Session tích hợp Artwork Biohazard và Sync Metadata liên tục cho MIUI",
-      "files": [
-        "frontend/src/components/AudioPlayer.tsx",
-        "backend/main.py"
-      ]
+      "description": "Quản lý toàn bộ text trang chủ qua Database, không cẩn sửa code khi muốn đổi thông báo."
     },
     {
-      "name": "Karaoke (Highlight chữ)",
+      "name": "Personnel RBAC",
       "status": "complete",
-      "description": "Highlight đoạn văn bản đang đọc với hiệu ứng Vivid Toxic Neon. Tự động cuộn trang (Auto-scroll) theo đoạn đang đọc",
-      "files": [
-        "frontend/src/lib/tts-utils.ts",
-        "frontend/src/components/ReadingClient.tsx"
-      ]
+      "description": "Hệ thống phân quyền SuperAdmin/Editor dựa trên Supabase Profiles + JWT Verification."
     },
     {
-      "name": "PWA (Ứng dụng Web)",
+      "name": "Interactive War Map",
       "status": "complete",
-      "description": "Cài đặt như App thực thụ trên điện thoại. Có logo riêng, thông báo mời cài đặt (Install Prompt) và giải quyết bảo mật điều hướng màn hình khóa",
-      "files": [
-        "frontend/public/manifest.json",
-        "frontend/public/sw.js",
-        "frontend/src/components/PWAInstallPrompt.tsx"
-      ]
+      "description": "Bản đồ vệ tinh mạt thế full-screen. Admin ghim tọa độ Safe/Danger kèm ảnh và mô tả."
     },
     {
-      "name": "Analytics & Dashboard",
+      "name": "Rich Text Editor (Tiptap)",
       "status": "complete",
-      "description": "Hệ thống track lượt xem chương và hiển thị thống kê Top Chapters cho Admin",
-      "files": [
-        "backend/main.py",
-        "frontend/src/app/admin/(dashboard)/page.tsx"
-      ]
-    },
-    {
-      "name": "Reading History (Continue Reading)",
-      "status": "complete",
-      "description": "Tự động ghi nhớ chương đang đọc dở vào localStorage và hiển thị nút TIẾP TỤC ở trang chủ",
-      "files": [
-        "frontend/src/components/ContinueButton.tsx",
-        "frontend/src/components/ReadingClient.tsx"
-      ]
-    },
-    {
-      "name": "Comment System",
-      "status": "complete",
-      "description": "Người đọc có thể để lại cảm cảm nghĩ dưới mỗi chương. Hỗ trợ hiển thị tên và thời gian",
-      "files": [
-        "frontend/src/components/CommentSection.tsx",
-        "backend/main.py"
-      ]
+      "description": "Soạn thảo văn bản chuyên nghiệp cho Chương truyện và Wiki, tích hợp upload R2 trực tiếp."
     }
   ],
-  "design_system": {
-    "themes": {
-      "dark": {
-        "bg": "#161616",
-        "text": "#d4d0c8"
-      },
-      "light": {
-        "bg": "#f9f7f4",
-        "text": "#1a1a1a"
-      },
-      "sepia": {
-        "bg": "#f4ecd8",
-        "text": "#3d2b1a"
-      }
-    },
-    "colors": {
-      "toxic-green": "#00ff9f",
-      "blood-red": "#8b0000"
-    }
-  },
   "knowledge_items": {
     "gotchas": [
       {
-        "title": "Xiaomi MIUI Security vs Lock Screen Navigation",
-        "detail": "MIUI chặn chuyển bài trên màn hình khóa (yêu cầu mật khẩu) nếu là trang web thường. Phải chạy dưới dạng PWA (Install App) để có quyền hạn cao hơn + Cấp quyền 'Show on Lock screen' trong App Info"
+        "title": "Supabase Service Role Requirement",
+        "detail": "Khi thực hiện các tác vụ Admin như auth.admin.create_user, PHẢI dùng SUPABASE_KEY là service_role key, không được dùng anon key."
       },
       {
-        "title": "SyntaxError: unterminated string literal in Python",
-        "detail": "Đôi khi do ký tự lạ hoặc lỗi encoding trong file. Cần viết lại khối code bằng ký tự chuẩn để khắc phục."
+        "title": "FastAPI NameError with List",
+        "detail": "Khi dùng response_model=List[Model], phải import List từ typing. Nếu không sẽ crash log Render."
       },
       {
-        "title": "Vercel Webhook Deployment Delay",
-        "detail": "Đôi khi Vercel không tự re-deploy khi nhận push. Cần tạo một commit rỗng hoặc commit nhỏ để ép Vercel nhận diện lại tín hiệu webhook."
-      },
-      {
-        "title": "Vercel Daily Deployment Limit (Free Tier)",
-        "detail": "Gói Vercel Free có giới hạn 100 lần deploy/ngày. Nếu vượt quá sẽ báo lỗi 'Resource is limited'. Cần đợi reset hoặc dùng manual deploy (nếu còn quota)."
+        "title": "Leaflet SSR Issues",
+        "detail": "Leaflet chỉ chạy trên trình duyệt. Phải dùng dynamic import với { ssr: false } trong Next.js."
       }
     ]
   },
   "git": {
     "github_user": "Nakazasen",
     "git_email": "buiducvinhct1102@gmail.com",
-    "last_commit": "Fix: Final author name fix in metadata and layout"
+    "last_commit": "fix: update verify_admin to support Supabase JWT"
   }
 }
