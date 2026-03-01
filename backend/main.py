@@ -33,9 +33,11 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 # === CLOUDFLARE R2 CLIENT ===
 R2_ACCESS_KEY = os.getenv("R2_ACCESS_KEY_ID")
 R2_SECRET_KEY = os.getenv("R2_SECRET_ACCESS_KEY")
-R2_ENDPOINT = os.getenv("R2_ENDPOINT_URL")
+# Support both R2_ENDPOINT_URL (old) and R2_ENDPOINT (new on Render)
+R2_ENDPOINT = os.getenv("R2_ENDPOINT_URL") or os.getenv("R2_ENDPOINT")
 R2_BUCKET = os.getenv("R2_BUCKET_NAME", "mat-the")
-R2_PUBLIC_URL = os.getenv("R2_PUBLIC_URL", "")  # Base URL for public access
+# Support both R2_PUBLIC_URL and R2_PUBLIC_BASE_URL
+R2_PUBLIC_URL = os.getenv("R2_PUBLIC_URL") or os.getenv("R2_PUBLIC_BASE_URL") or ""
 
 r2_client = None
 if R2_ACCESS_KEY and R2_SECRET_KEY and R2_ENDPOINT:
