@@ -55,7 +55,11 @@ export default function EditChapterPage() {
             try {
                 // Fetch chapter metadata
                 const metaRes = await fetch(`${API_BASE_URL}/api/chapters/${chapterNumber}`);
-                if (!metaRes.ok) { setError('Không tìm thấy chương'); setInitialLoading(false); return; }
+                if (!metaRes.ok) {
+                    setError(`Không tìm thấy thông tin chương ${chapterNumber} (Status: ${metaRes.status})`);
+                    setInitialLoading(false);
+                    return;
+                }
                 const meta = await metaRes.json();
                 setTitle(meta.title || `Chương ${chapterNumber}`);
 
@@ -67,15 +71,22 @@ export default function EditChapterPage() {
 
                 if (contentRes.ok) {
                     const text = await contentRes.text();
-                    // Convert plain text to simple HTML for Quill if needed
-                    // (Assuming content is mostly plain text/paragraphs)
-                    setContent(text.split('\n').map(line => `<p>${line}</p>`).join(''));
+                    // Convert plain text to simple HTML for Quill
+                    const htmlContent = text.split('\n')
+                        .map(line => line.trim())
+                        .filter(line => line.length > 0)
+                        .map(line => `<p>${line}</p>`)
+                        .join('');
+
+                    setContent(htmlContent || '<p></p>');
                 } else {
-                    console.error("Failed to load content from proxy");
+                    const errData = await contentRes.json().catch(() => ({}));
+                    console.error("Failed to load content from proxy:", errData);
+                    setError(`Lỗi khi tải nội dung chương: ${errData.detail || contentRes.statusText || 'Lỗi proxy'}`);
                 }
-            } catch (err) {
+            } catch (err: any) {
                 console.error("Error loading chapter:", err);
-                setError("Lỗi khi tải dữ liệu chương");
+                setError(`Lỗi hệ thống khi tải dữ liệu: ${err.message}`);
             } finally {
                 setInitialLoading(false);
             }
