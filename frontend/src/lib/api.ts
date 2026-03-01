@@ -101,6 +101,21 @@ export async function getNovelSettings(): Promise<NovelSettings> {
     return res.json();
 }
 
+/**
+ * Analytics: Gửi tín hiệu đã đọc chương về backend.
+ * Sẽ được gọi sau 15-20s khi người dùng ở lại trang đọc.
+ */
+export async function reportView(chapterNumber: number): Promise<void> {
+    try {
+        await fetch(`${API_BASE_URL}/api/chapters/${chapterNumber}/view`, {
+            method: "POST",
+            keepalive: true,
+        });
+    } catch (e) {
+        console.warn("Analytics Error:", e);
+    }
+}
+
 // Utility
 export function formatChapterTitle(chapter: Chapter): string {
     return `Chương ${chapter.chapter_number}: ${chapter.title}`;

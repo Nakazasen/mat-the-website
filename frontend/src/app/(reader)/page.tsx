@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { BookOpen, ChevronRight, AlertTriangle, Skull, Zap } from "lucide-react";
 import { getLatestChapters, getNovelSettings, formatChapterTitle, type Chapter, type NovelSettings } from "@/lib/api";
+import ContinueButton from "@/components/ContinueButton";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 300; // ISR every 5 minutes
@@ -104,9 +105,11 @@ export default async function HomePage() {
                                 <BookOpen size={16} />
                                 <span>ĐỌC TỪ ĐẦU</span>
                             </Link>
+                            {/* Continue reading button (client-side only logic) */}
+                            <ContinueButton />
                             <Link href="/chapters" className="btn-toxic flex items-center gap-2 text-base py-3 px-6">
                                 <span>XEM MỤC LỤC</span>
-                                <ChevronRight size={16} />
+                                <ChevronRight size={14} />
                             </Link>
                         </div>
 
@@ -284,7 +287,8 @@ export default async function HomePage() {
                     )}
 
                     {/* CTA */}
-                    <div className="text-center mt-12">
+                    <div className="text-center mt-12 flex flex-col items-center gap-4">
+                        <ContinueButton />
                         <Link href="/chapters/1" className="btn-blood inline-flex items-center gap-2 text-base py-3 px-8">
                             <Zap size={16} />
                             <span>BẮT ĐẦU ĐỌC NGAY</span>

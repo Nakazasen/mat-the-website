@@ -13,16 +13,15 @@ export const dynamic = "force-dynamic";
 export const revalidate = 300;
 
 interface Props {
-    searchParams: { page?: string };
+    searchParams: Promise<{ page?: string; search?: string }>;
 }
 
 export default async function ChaptersPage({
     searchParams,
-}: {
-    searchParams: Promise<{ page?: string }>;
-}) {
+}: Props) {
     const resolvedSearchParams = await searchParams;
     const page = Math.max(1, parseInt(resolvedSearchParams.page || "1", 10));
+    const search = resolvedSearchParams.search || "";
     const LIMIT = 60;
 
     let data: {
@@ -33,9 +32,15 @@ export default async function ChaptersPage({
         max_chapter: number;
     } = { chapters: [], total: 0, page: 1, total_pages: 1, max_chapter: 0 };
     try {
-        data = await getChapters(page, LIMIT);
+        // Update api client call if I add search param to it, or just use fetch here
+        const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+        const res = await fetch(
+            `${API_BASE_URL}/api/chapters?page=${page}&limit=${LIMIT}&search=${encodeURIComponent(search)}`,
+            { cache: "no-store" }
+        );
+        if (res.ok) data = await res.json();
     } catch {
-        // API not available, show empty
+        // API not available
     }
 
     const { chapters, total, total_pages, max_chapter } = data;
@@ -49,8 +54,17 @@ export default async function ChaptersPage({
                         ☣ DANH SÁCH CHƯƠNG
                     </div>
                     <h1 className="font-biohazard text-5xl sm:text-6xl text-worn-white tracking-wide mb-4">
-                        MỤC LỤC
+                        {search ? "KẾT QUẢ" : "MỤC LỤC"}
                     </h1>
+                    {search && (
+                        <div className="mb-6 flex items-center gap-2 text-toxic-green-DEFAULT font-mono text-sm group">
+                            <span className="opacity-50 tracking-tighter">{" >>> "}</span>
+                            TÌM KIẾM: <span className="bg-toxic-green-DEFAULT/20 px-2 py-0.5 rounded border border-toxic-green-DEFAULT/30">{search.toUpperCase()}</span>
+                            <Link href="/chapters" className="ml-4 text-ash-500 hover:text-ash-300 underline decoration-ash-800 text-xs">
+                                XÓA TÌM KIẾM
+                            </Link>
+                        </div>
+                    )}
                     <div className="flex flex-wrap items-center gap-4">
                         <div className="flex items-center gap-2 text-ash-400 text-sm font-mono">
                             <BookOpen size={14} />

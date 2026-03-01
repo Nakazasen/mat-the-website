@@ -26,7 +26,7 @@ export default function ReadingClient({
     nextId,
     totalChapters,
 }: ReadingClientProps) {
-    const { theme, setTheme, fontSize, setFontSize } = useTheme();
+    const { theme, setTheme, fontSize, setFontSize, fontFamily, setFontFamily } = useTheme();
     const [showSettings, setShowSettings] = useState(false);
     const [readingProgress, setReadingProgress] = useState(0);
     const [activeChunkIndex, setActiveChunkIndex] = useState<number | null>(null);
@@ -59,6 +59,15 @@ export default function ReadingClient({
         return () => window.removeEventListener("scroll", handleScroll);
     }, []);
 
+    // Analytics: Report view after a delay
+    useEffect(() => {
+        const { reportView } = require("@/lib/api");
+        const timer = setTimeout(() => {
+            reportView(chapterNumber);
+        }, 15000); // Report after 15 seconds of reading
+        return () => clearTimeout(timer);
+    }, [chapterNumber]);
+
     // Keyboard navigation
     useEffect(() => {
         const handleKey = (e: KeyboardEvent) => {
@@ -72,8 +81,15 @@ export default function ReadingClient({
         return () => window.removeEventListener("keydown", handleKey);
     }, [prevId, nextId]);
 
+    // History: Mark last read chapter
+    useEffect(() => {
+        localStorage.setItem('lastReadChapter', chapterNumber.toString());
+        localStorage.setItem('lastReadTitle', chapterTitle);
+        localStorage.setItem('lastReadAt', new Date().toISOString());
+    }, [chapterNumber, chapterTitle]);
+
     return (
-        <div className="min-h-screen bg-reader-bg text-reader-text transition-colors duration-300">
+        <div className={`min-h-screen bg-reader-bg text-reader-text transition-colors duration-300 ${fontFamily === 'serif' ? 'font-serif' : 'font-sans'}`}>
             {/* Progress bar */}
             <div
                 className="reading-progress"
@@ -123,54 +139,75 @@ export default function ReadingClient({
 
                 {/* Settings panel */}
                 {showSettings && (
-                    <div className="border-t border-ash-800/60 bg-ash-950/95 px-4 py-3">
-                        <div className="max-w-4xl mx-auto flex flex-wrap gap-6 items-center">
-                            {/* Font size */}
-                            <div className="flex items-center gap-3">
-                                <span className="text-ash-400 text-xs font-mono">CỠ CHỮ</span>
-                                <button
-                                    onClick={() => setFontSize(Math.max(14, fontSize - 2))}
-                                    className="w-7 h-7 border border-ash-700 text-ash-300 hover:border-toxic-green-DEFAULT hover:text-toxic-green-DEFAULT transition-colors rounded text-sm"
-                                >
-                                    A-
-                                </button>
-                                <span className="text-toxic-green-DEFAULT font-mono text-sm w-6 text-center">
-                                    {fontSize}
-                                </span>
-                                <button
-                                    onClick={() => setFontSize(Math.min(28, fontSize + 2))}
-                                    className="w-7 h-7 border border-ash-700 text-ash-300 hover:border-toxic-green-DEFAULT hover:text-toxic-green-DEFAULT transition-colors rounded text-sm"
-                                >
-                                    A+
-                                </button>
-                            </div>
-
-                            {/* Theme */}
-                            <div className="flex items-center gap-3">
-                                <span className="text-ash-400 text-xs font-mono">NỀN</span>
-                                <div className="flex bg-ash-900/50 p-1 rounded-lg border border-ash-800">
-                                    {[
-                                        { id: 'dark', icon: Moon, label: 'TỐI' },
-                                        { id: 'light', icon: Sun, label: 'SÁNG' },
-                                        { id: 'sepia', icon: Coffee, label: 'VÀNG' }
-                                    ].map((t) => (
+                    <div className="border-t border-ash-800/60 bg-ash-950/95 px-4 py-4">
+                        <div className="max-w-4xl mx-auto flex flex-col gap-6">
+                            <div className="flex flex-wrap gap-8 items-center justify-center sm:justify-start">
+                                {/* Font family */}
+                                <div className="flex items-center gap-3">
+                                    <span className="text-ash-400 text-xs font-mono">FONT</span>
+                                    <div className="flex bg-ash-900/50 p-1 rounded border border-ash-800">
                                         <button
-                                            key={t.id}
-                                            onClick={() => setTheme(t.id as any)}
-                                            className={`flex items-center gap-2 px-3 py-1.5 text-[10px] font-biohazard tracking-widest rounded transition-all ${theme === t.id
-                                                ? "bg-toxic-green-DEFAULT text-black shadow-lg shadow-toxic-green-DEFAULT/20"
-                                                : "text-ash-500 hover:text-ash-200"
-                                                }`}
+                                            onClick={() => setFontFamily('sans')}
+                                            className={`px-3 py-1.5 text-[10px] font-mono tracking-widest rounded transition-all ${fontFamily === 'sans' ? "bg-ash-700 text-toxic-green-DEFAULT" : "text-ash-500 hover:text-ash-300"}`}
                                         >
-                                            <t.icon size={12} />
-                                            <span className="hidden xs:inline">{t.label}</span>
+                                            SANS
                                         </button>
-                                    ))}
+                                        <button
+                                            onClick={() => setFontFamily('serif')}
+                                            className={`px-3 py-1.5 text-[10px] font-mono tracking-widest rounded transition-all ${fontFamily === 'serif' ? "bg-ash-700 text-toxic-green-DEFAULT" : "text-ash-500 hover:text-ash-300"}`}
+                                        >
+                                            SERIF
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Font size */}
+                                <div className="flex items-center gap-3">
+                                    <span className="text-ash-400 text-xs font-mono">CỠ CHỮ</span>
+                                    <button
+                                        onClick={() => setFontSize(Math.max(14, fontSize - 2))}
+                                        className="w-7 h-7 border border-ash-700 text-ash-300 hover:border-toxic-green-DEFAULT hover:text-toxic-green-DEFAULT transition-colors rounded text-sm"
+                                    >
+                                        A-
+                                    </button>
+                                    <span className="text-toxic-green-DEFAULT font-mono text-sm w-6 text-center">
+                                        {fontSize}
+                                    </span>
+                                    <button
+                                        onClick={() => setFontSize(Math.min(28, fontSize + 2))}
+                                        className="w-7 h-7 border border-ash-700 text-ash-300 hover:border-toxic-green-DEFAULT hover:text-toxic-green-DEFAULT transition-colors rounded text-sm"
+                                    >
+                                        A+
+                                    </button>
+                                </div>
+
+                                {/* Theme */}
+                                <div className="flex items-center gap-3">
+                                    <span className="text-ash-400 text-xs font-mono">NỀN</span>
+                                    <div className="flex bg-ash-900/50 p-1 rounded border border-ash-800">
+                                        {[
+                                            { id: 'dark', icon: Moon, label: 'TỐI' },
+                                            { id: 'light', icon: Sun, label: 'SÁNG' },
+                                            { id: 'sepia', icon: Coffee, label: 'VÀNG' }
+                                        ].map((t) => (
+                                            <button
+                                                key={t.id}
+                                                onClick={() => setTheme(t.id as any)}
+                                                className={`flex items-center gap-2 px-3 py-1.5 text-[10px] font-mono tracking-widest rounded transition-all ${theme === t.id
+                                                    ? "bg-toxic-green-DEFAULT text-black"
+                                                    : "text-ash-500 hover:text-ash-200"
+                                                    }`}
+                                            >
+                                                <t.icon size={12} />
+                                                <span className="hidden xs:inline">{t.label}</span>
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
 
-                            {/* Progress */}
-                            <div className="text-ash-500 text-xs font-mono ml-auto">
+                            {/* Progress info */}
+                            <div className="text-ash-500 text-[10px] font-mono text-center sm:text-right">
                                 {Math.round(readingProgress)}% đã đọc
                             </div>
                         </div>
@@ -248,10 +285,10 @@ export default function ReadingClient({
                             key={index}
                             ref={activeChunkIndex === index ? activeChunkRef : null}
                             className={`transition-all duration-300 rounded-sm ${activeChunkIndex === index
-                                    ? theme === 'dark'
-                                        ? "bg-toxic-green-DEFAULT/40 text-white shadow-[0_0_25px_rgba(0,255,159,0.4)] ring-1 ring-toxic-green-DEFAULT/50 scale-[1.02] inline-block"
-                                        : "bg-toxic-green-DEFAULT/50 text-black ring-1 ring-toxic-green-DEFAULT/60 scale-[1.02] inline-block"
-                                    : "opacity-100"
+                                ? theme === 'dark'
+                                    ? "bg-toxic-green-DEFAULT/40 text-white shadow-[0_0_25px_rgba(0,255,159,0.4)] ring-1 ring-toxic-green-DEFAULT/50 scale-[1.02] inline-block"
+                                    : "bg-toxic-green-DEFAULT/50 text-black ring-1 ring-toxic-green-DEFAULT/60 scale-[1.02] inline-block"
+                                : "opacity-100"
                                 }`}
                         >
                             {chunk}

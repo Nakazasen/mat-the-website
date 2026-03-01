@@ -129,6 +129,7 @@ class Chapter(BaseModel):
     content_url: str  # Cloudflare R2 public URL
     created_at: str
     word_count: Optional[int] = None
+    view_count: int = 0
 
 class ChaptersResponse(BaseModel):
     chapters: list[Chapter]
@@ -153,6 +154,7 @@ async def get_chapters(
     page: int = Query(1, ge=1, description="Số trang"),
     limit: int = Query(50, ge=1, le=100, description="Số chương mỗi trang"),
     sort: str = Query("asc", pattern="^(asc|desc)$", description="Thứ tự sắp xếp: asc hoặc desc"),
+    search: Optional[str] = Query(None, description="Tìm kiếm theo tiêu đề hoặc số chương"),
 ):
     """
     Lấy danh sách chương có phân trang.
@@ -164,20 +166,25 @@ async def get_chapters(
     try:
         offset = (page - 1) * limit
 
-        # Count total
-        count_resp = supabase.table("chapters").select("id", count="exact").execute()
-        total = count_resp.count or 0
-        total_pages = (total + limit - 1) // limit if total > 0 else 1
+        # Build base query
+        query = supabase.table("chapters").select("id, chapter_number, title, content_url, created_at, word_count", count="exact")
+        
+        # Apply search if provided
+        if search:
+            if search.isdigit():
+                query = query.eq("chapter_number", int(search))
+            else:
+                query = query.ilike("title", f"%{search}%")
 
         # Fetch page
         ascending = sort == "asc"
         resp = (
-            supabase.table("chapters")
-            .select("id, chapter_number, title, content_url, created_at, word_count")
-            .order("chapter_number", desc=not ascending)
+            query.order("chapter_number", desc=not ascending)
             .range(offset, offset + limit - 1)
             .execute()
         )
+
+        total = resp.count or 0
 
         # Fetch max chapter number for realistic pagination bounding
         max_chapter_resp = (
@@ -520,3 +527,50 @@ async def admin_delete_chapter(
     supabase.table("chapters").delete().eq("chapter_number", chapter_number).execute()
 
     return {"message": f"Đã xóa chương {chapter_number}"}
+
+
+# === ANALYTICS ROUTES ===
+
+@app.post("/api/chapters/{chapter_number}/view", summary="Tăng lượt đọc chương")
+async def increment_view(chapter_number: int):
+    """
+    Tăng số lượt đọc cho một chương.
+    Sử dụng RPC trên Supabase để đảm bảo tính nguyên tử (atomic increment).
+    """
+    try:
+        # Gọi RPC function đã được tạo trong Supabase
+        # Function: increment_chapter_view(chapter_num int)
+        supabase.rpc("increment_chapter_view", {"chapter_num": chapter_number}).execute()
+        return {"status": "success"}
+    except Exception as e:
+        # Fallback: Nếu RPC chưa được cài đặt, thực hiện update thủ công (không atomic nhưng vẫn chạy được)
+        try:
+            resp = supabase.table("chapters").select("view_count").eq("chapter_number", chapter_number).single().execute()
+            if resp.data:
+                current_views = resp.data.get("view_count", 0)
+                supabase.table("chapters").update({"view_count": current_views + 1}).eq("chapter_number", chapter_number).execute()
+                return {"status": "success", "note": "manual_update"}
+        except:
+            pass
+        return {"status": "error", "detail": str(e)}
+
+
+@app.get("/api/admin/analytics/top-chapters", summary="[Admin] Top chương đọc nhiều nhất")
+async def admin_get_top_chapters(
+    limit: int = Query(10, ge=1, le=50),
+    authorization: Optional[str] = Header(None),
+):
+    """Lấy danh sách các chương có lượt đọc cao nhất."""
+    await verify_admin(authorization)
+    
+    try:
+        resp = (
+            supabase.table("chapters")
+            .select("chapter_number, title, view_count")
+            .order("view_count", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        return resp.data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

@@ -10,9 +10,15 @@ export default function ChapterJump() {
 
     const handleJump = (e: React.FormEvent) => {
         e.preventDefault();
+        if (!chapter.trim()) return;
+
         const num = parseInt(chapter, 10);
         if (!isNaN(num) && num > 0) {
+            // If it's a number, jump straight to that chapter
             router.push(`/chapters/${num}`);
+        } else {
+            // If it's text, redirect to chapters list with search param
+            router.push(`/chapters?search=${encodeURIComponent(chapter)}`);
         }
     };
 
@@ -23,11 +29,11 @@ export default function ChapterJump() {
         >
             <Search size={14} className="text-ash-600" />
             <input
-                type="number"
+                type="text"
                 value={chapter}
                 onChange={(e) => setChapter(e.target.value)}
-                placeholder="NHẢY ĐẾN CHƯƠNG..."
-                className="bg-transparent border-none outline-none font-mono text-xs w-32 placeholder:text-ash-700 text-ash-200"
+                placeholder="SỐ CHƯƠNG HOẶC TÊN..."
+                className="bg-transparent border-none outline-none font-mono text-xs w-48 placeholder:text-ash-700 text-ash-200"
             />
             <button
                 type="submit"
