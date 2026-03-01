@@ -73,3 +73,41 @@ Lấy danh sách 5 chương có lượt xem cao nhất.
 
 ### GET /api/novel
 Lấy thông tin cấu hình truyện (Tên, Tác giả, Ảnh bìa, Thể loại).
+
+---
+
+## ❤️ Like System
+
+### POST /api/chapters/{chapter_number}/like
+Thả tim cho một chương truyện.
+
+**Response (200):**
+```json
+{
+  "status": "ok",
+  "likes_count": 42
+}
+```
+
+---
+
+## 📚 Wiki / Bách Khoa
+
+### GET /api/wiki
+Lấy danh sách bách khoa.
+
+**Query Parameters:**
+- `category`: Lọc theo loại (Nhân vật, Sinh vật...)
+- `search`: Tìm kiếm theo tiêu đề
+
+### GET /api/wiki/{slug}
+Chi tiết một mục bách khoa.
+
+### POST /api/wiki (Admin)
+Tạo bài viết mới.
+
+### PUT /api/wiki/{id} (Admin)
+Cập nhật bài viết.
+
+### DELETE /api/wiki/{id} (Admin)
+Xóa bài viết.

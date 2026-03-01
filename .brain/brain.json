@@ -62,6 +62,21 @@
       "explained": "Đăng bình luận mới cho chương (ẩn danh hoặc có tên)"
     },
     {
+      "path": "/api/chapters/{chapter_number}/like",
+      "method": "POST",
+      "explained": "Thả tim cho chương"
+    },
+    {
+      "path": "/api/wiki",
+      "method": "GET/POST",
+      "explained": "Quản lý danh sách bách khoa"
+    },
+    {
+      "path": "/api/wiki/{slug}",
+      "method": "GET",
+      "explained": "Chi tiết bách khoa"
+    },
+    {
       "path": "GET /api/novel",
       "explained": "Lấy thông tin chung của truyện (Tiêu đề, Tác giả, Mô tả...)"
     },

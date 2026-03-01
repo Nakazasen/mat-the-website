@@ -2,8 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
-## [2026-03-01] - Part 2
+## [2026-03-01] - Phase 2: Wiki & Thả Tim
+### Added
+- **Cẩm Nang Mạt Thế (Wiki):** Hệ thống tra cứu Nhân vật, Sinh vật, Thế lực.
+  - Backend: Endpoints CRUD đầy đủ + Model `wiki_entries`.
+  - Admin: Tab quản lý wiki, form thêm mới/sửa với slug tự động.
+  - Reader: Trang `/wiki` với sidebar lọc theo Category.
+- **Hệ thống Thả Tim ❤️:** Độc giả có thể like từng chương.
+  - Backend: Endpoint `/like` tăng count trong database.
+  - Frontend: Component `LikeButton` với hiệu ứng animation và ghi nhớ qua `localStorage`.
+- **Database:** Bảng `wiki_entries` mới và cột `likes_count` cho bảng `chapters`.
 
+## [2026-03-01] - Part 3: Interaction & Features
 ### Added
 - **Analytics System**: Tracked chapter views and metadata. Added "Top Chapters" dashboard for Admin.
 - **Interaction Features**:
