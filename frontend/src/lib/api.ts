@@ -255,3 +255,62 @@ export async function getHomepageSettings(): Promise<HomepageSettings> {
     if (!res.ok) throw new Error("Failed to fetch homepage settings");
     return res.json();
 }
+// ============================================================
+// MAP LOCATIONS API (Phase 09)
+// ============================================================
+
+export type MapLocationType = 'safe_zone' | 'danger_zone' | 'neutral' | 'outpost' | 'ruins';
+
+export interface MapLocation {
+    id: string;
+    name: string;
+    type: MapLocationType;
+    description?: string;
+    lat: number;
+    lng: number;
+    image_url?: string;
+    created_at: string;
+}
+
+export interface AdminMapLocationIn {
+    name: string;
+    type: MapLocationType;
+    description?: string;
+    lat: number;
+    lng: number;
+    image_url?: string;
+}
+
+export async function getMapLocations(): Promise<MapLocation[]> {
+    const res = await fetch(`${API_BASE_URL}/api/map-locations`, { cache: "no-store" });
+    if (!res.ok) throw new Error("Failed to fetch map locations");
+    return res.json();
+}
+
+export async function createMapLocation(data: AdminMapLocationIn, token: string): Promise<MapLocation> {
+    const res = await fetch(`${API_BASE_URL}/api/admin/map-locations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error("Failed to create map location");
+    return res.json();
+}
+
+export async function updateMapLocation(id: string, data: AdminMapLocationIn, token: string): Promise<MapLocation> {
+    const res = await fetch(`${API_BASE_URL}/api/admin/map-locations/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error("Failed to update map location");
+    return res.json();
+}
+
+export async function deleteMapLocation(id: string, token: string): Promise<void> {
+    const res = await fetch(`${API_BASE_URL}/api/admin/map-locations/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error("Failed to delete map location");
+}

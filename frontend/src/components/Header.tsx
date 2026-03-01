@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { BookOpen, List, Home, Menu, X, Zap } from "lucide-react";
+import { BookOpen, List, Home, Menu, X, Zap, Map as MapIcon } from "lucide-react";
 import ThemeSwitcher from "./ThemeSwitcher";
 
 export default function Header() {
@@ -18,6 +18,7 @@ export default function Header() {
         { href: "/", label: "TRANG CHỦ", icon: Home },
         { href: "/chapters", label: "MỤC LỤC", icon: List },
         { href: "/wiki", label: "BÁCH KHOA", icon: BookOpen },
+        { href: "/map", label: "BẢN ĐỒ", icon: MapIcon },
         { href: "/chapters/1", label: "ĐỌC NGAY", icon: BookOpen, highlight: true },
     ];
 

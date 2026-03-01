@@ -523,6 +523,78 @@ async def admin_delete_user(
     return {"message": "Đã xoá nhân sự thành công"}
 
 
+# ============================================================
+# MAP LOCATIONS API (Phase 09)
+# ============================================================
+
+class MapLocation(BaseModel):
+    id: str
+    name: str
+    type: str  # safe_zone, danger_zone, neutral, outpost, ruins
+    description: Optional[str] = None
+    lat: float
+    lng: float
+    image_url: Optional[str] = None
+    created_at: str
+
+
+class AdminMapLocationIn(BaseModel):
+    name: str
+    type: str
+    description: Optional[str] = None
+    lat: float
+    lng: float
+    image_url: Optional[str] = None
+
+
+@app.get("/api/map-locations", response_model=List[MapLocation], summary="Lấy danh sách điểm bản đồ")
+async def get_map_locations():
+    """Lấy tất cả các điểm đánh dấu trên bản đồ (Công khai)."""
+    resp = supabase.table("map_locations").select("*").order("created_at", desc=True).execute()
+    return resp.data
+
+
+@app.post("/api/admin/map-locations", response_model=MapLocation, summary="[Admin] Tạo điểm bản đồ mới")
+async def admin_create_map_location(
+    body: AdminMapLocationIn,
+    authorization: Optional[str] = Header(None)
+):
+    """Tạo điểm đánh dấu mới trên bản đồ. Chỉ dành cho Admin."""
+    await verify_admin(authorization)
+    
+    resp = supabase.table("map_locations").insert(body.dict()).execute()
+    if not resp.data:
+        raise HTTPException(status_code=500, detail="Không thể tạo điểm bản đồ")
+    return resp.data[0]
+
+
+@app.put("/api/admin/map-locations/{location_id}", response_model=MapLocation, summary="[Admin] Cập nhật điểm bản đồ")
+async def admin_update_map_location(
+    location_id: str,
+    body: AdminMapLocationIn,
+    authorization: Optional[str] = Header(None)
+):
+    """Cập nhật thông tin điểm đánh dấu. Chỉ dành cho Admin."""
+    await verify_admin(authorization)
+    
+    resp = supabase.table("map_locations").update(body.dict()).eq("id", location_id).execute()
+    if not resp.data:
+        raise HTTPException(status_code=404, detail="Không tìm thấy điểm bản đồ để cập nhật")
+    return resp.data[0]
+
+
+@app.delete("/api/admin/map-locations/{location_id}", summary="[Admin] Xoá điểm bản đồ")
+async def admin_delete_map_location(
+    location_id: str,
+    authorization: Optional[str] = Header(None)
+):
+    """Xoá điểm đánh dấu khỏi bản đồ. Chỉ dành cho Admin."""
+    await verify_admin(authorization)
+    
+    supabase.table("map_locations").delete().eq("id", location_id).execute()
+    return {"message": "Đã xoá điểm bản đồ thành công"}
+
+
 @app.get("/api/homepage", response_model=HomepageSettings)
 async def get_homepage_settings():
     """Lấy cấu hình nội dung hiển thị trên trang chủ."""
