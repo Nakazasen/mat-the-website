@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { BookOpen, Settings, LogOut, BarChart3, Home, LibraryBig } from 'lucide-react';
+import { BookOpen, Settings, LogOut, BarChart3, Home, LibraryBig, Users } from 'lucide-react';
 import { createAdminClient } from '@/lib/supabase-admin';
 
 const navItems = [
@@ -11,6 +11,7 @@ const navItems = [
     { href: '/admin/chapters', label: 'Chương Truyện', icon: BookOpen },
     { href: '/admin/novel', label: 'Thông Tin Truyện', icon: Settings },
     { href: '/admin/wiki', label: 'Wiki / Bách Khoa', icon: LibraryBig },
+    { href: '/admin/personnel', label: 'Nhân Sự', icon: Users },
 ];
 
 export default function AdminNav() {

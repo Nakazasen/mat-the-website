@@ -457,6 +457,72 @@ class HomepageSettings(BaseModel):
     features_json: Optional[list] = None
 
 
+class Profile(BaseModel):
+    id: str
+    email: str
+    role: str
+    display_name: Optional[str] = None
+    created_at: str
+
+
+class AccountInvite(BaseModel):
+    email: str
+    password: str
+    display_name: str
+    role: str = "editor"
+
+
+@app.get("/api/admin/users", response_model=List[Profile], summary="[Admin] Danh sách nhân sự")
+async def admin_get_users(authorization: Optional[str] = Header(None)):
+    """Lấy danh sách tất cả nhân sự (Profiles). Chỉ dành cho SuperAdmin."""
+    user = await verify_admin(authorization)
+    
+    # Ở đây chúng ta tạm thời cho phép token hiện tại (ADMIN_TOKEN) xem hết.
+    # Nhưng trong tương lai nếu dùng JWT, chúng ta sẽ check profile.role == 'superadmin'
+    
+    resp = supabase.table("profiles").select("*").order("created_at", desc=True).execute()
+    return resp.data
+
+
+@app.post("/api/admin/invite", summary="[Admin] Tạo tài khoản nhân sự mới")
+async def admin_invite_user(
+    body: AccountInvite,
+    authorization: Optional[str] = Header(None)
+):
+    """Tạo tài khoản Auth và Profile mới cho nhân viên. Chỉ dành cho SuperAdmin."""
+    await verify_admin(authorization)
+    
+    # 1. Tạo user trong hệ thống Auth của Supabase bằng Service Role
+    # Lưu ý: auth.admin.create_user cần service_role key (đã config trong backend/.env)
+    
+    auth_resp = supabase.auth.admin.create_user({
+        "email": body.email,
+        "password": body.password,
+        "email_confirm": True,
+        "user_metadata": {"full_name": body.display_name}
+    })
+    
+    # 2. Update role trong bảng profiles (Trigger sẽ tự tạo profile, ta chỉ cần update role if not default)
+    if body.role != "editor":
+        supabase.table("profiles").update({"role": body.role}).eq("id", auth_resp.user.id).execute()
+        
+    return {"message": "Đã tạo tài khoản thành công", "user_id": auth_resp.user.id}
+
+
+@app.delete("/api/admin/users/{user_id}", summary="[Admin] Xoá nhân sự")
+async def admin_delete_user(
+    user_id: str,
+    authorization: Optional[str] = Header(None)
+):
+    """Xoá tài khoản nhân sự. Chỉ dành cho SuperAdmin."""
+    await verify_admin(authorization)
+    
+    # Xoá trong Auth (bảng profiles sẽ tự động xoá do CASCADE)
+    supabase.auth.admin.delete_user(user_id)
+    
+    return {"message": "Đã xoá nhân sự thành công"}
+
+
 @app.get("/api/homepage", response_model=HomepageSettings)
 async def get_homepage_settings():
     """Lấy cấu hình nội dung hiển thị trên trang chủ."""
