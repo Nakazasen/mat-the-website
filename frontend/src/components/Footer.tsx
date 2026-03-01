@@ -34,7 +34,7 @@ export default function Footer({ novel }: FooterProps) {
                         </div>
                         <p className="text-ash-400 text-sm leading-relaxed font-reading">
                             Trong bóng tối của ngày tận thế, ý chí con người là ánh sáng
-                            cuối cùng. Theo chân {novelInfo.author} trong cuộc chiến sinh tử.
+                            cuối cùng. Theo chân Hàn Phong trong cuộc chiến sinh tử.
                         </p>
                     </div>
 
