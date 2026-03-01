@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { createAdminClient } from '@/lib/supabase-admin';
 import { ArrowLeft, Save, AlertTriangle, CheckCircle2 } from 'lucide-react';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mat-the-api.onrender.com';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mat-the-website.onrender.com';
 
 export default function NewChapterPage() {
     const router = useRouter();

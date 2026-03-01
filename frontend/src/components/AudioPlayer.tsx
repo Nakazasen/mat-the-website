@@ -16,7 +16,7 @@ interface AudioPlayerProps {
 
 type PlayState = 'stopped' | 'playing' | 'paused';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mat-the-api.onrender.com';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mat-the-website.onrender.com';
 
 function ttsUrl(text: string, speed: number): string {
     return `${API_URL}/api/tts?lang=vi&speed=${speed}&text=${encodeURIComponent(text)}`;

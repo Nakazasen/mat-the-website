@@ -3,7 +3,7 @@ import { cookies } from 'next/headers';
 import { BarChart3, BookOpen, TrendingUp, PlusCircle } from 'lucide-react';
 import Link from 'next/link';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mat-the-api.onrender.com';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mat-the-website.onrender.com';
 
 async function getStats() {
     try {

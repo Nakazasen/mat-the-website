@@ -6,7 +6,7 @@ import { createAdminClient } from '@/lib/supabase-admin';
 import { useRouter } from 'next/navigation';
 import { PlusCircle, Pencil, Trash2, RefreshCw, AlertTriangle, ChevronLeft, ChevronRight, Search, Hash, ArrowRight } from 'lucide-react';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mat-the-api.onrender.com';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mat-the-website.onrender.com';
 
 interface Chapter {
     id: number;

@@ -6,7 +6,7 @@ import { createAdminClient } from '@/lib/supabase-admin';
 import { getNovelSettings, NovelSettings } from '@/lib/api';
 import { Save, AlertTriangle, CheckCircle2, Loader2, BookOpen, User, FileText, Image as ImageIcon, Tag } from 'lucide-react';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mat-the-api.onrender.com';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mat-the-website.onrender.com';
 
 export default function AdminNovelPage() {
     const router = useRouter();
