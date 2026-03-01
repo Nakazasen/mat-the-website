@@ -79,17 +79,34 @@ app = FastAPI(
     redoc_url=None,  # disable redoc để giảm memory trên Render free tier
 )
 
-# === CORS MIDDLEWARE ===
-allowed_origins_raw = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000")
-allowed_origins = [o.strip() for o in allowed_origins_raw.split(",")]
+# === CUSTOM LOGGING & CORS MIDDLEWARE (NUCLEAR OPTION) ===
+@app.middleware("http")
+async def add_cors_and_logging(request, call_next):
+    # Log incoming request
+    print(f"Request: {request.method} {request.url}")
+    
+    # Handle preflight (OPTIONS) requests manually
+    if request.method == "OPTIONS":
+        response = StreamingResponse(io.BytesIO(b""), status_code=204)
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        response.headers["Access-Control-Max-Age"] = "86400"
+        return response
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+    # Process request
+    try:
+        response = await call_next(request)
+    except Exception as e:
+        print(f"ERROR processing request: {str(e)}")
+        raise
+
+    # Add CORS headers to ALL responses
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    
+    return response
 
 # === DATA MODELS ===
 class Chapter(BaseModel):
