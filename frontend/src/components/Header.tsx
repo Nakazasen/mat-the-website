@@ -17,6 +17,7 @@ export default function Header() {
     const navLinks = [
         { href: "/", label: "TRANG CHỦ", icon: Home },
         { href: "/chapters", label: "MỤC LỤC", icon: List },
+        { href: "/wiki", label: "BÁCH KHOA", icon: BookOpen },
         { href: "/chapters/1", label: "ĐỌC NGAY", icon: BookOpen, highlight: true },
     ];
 

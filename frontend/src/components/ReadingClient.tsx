@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, Settings, Home, List, Sun, Moon, Coffee, Sha
 import { useTheme } from "@/context/ThemeContext";
 import AudioPlayer from "./AudioPlayer";
 import CommentSection from "./CommentSection";
+import LikeButton from "./LikeButton";
 import { splitIntoChunks } from "@/lib/tts-utils";
 
 interface ReadingClientProps {
@@ -362,6 +363,14 @@ export default function ReadingClient({
                             HẾT TRUYỆN (TẠM THỜI)
                         </div>
                     )}
+                </div>
+
+                {/* === LIKE BUTTON === */}
+                <div className="flex justify-center py-8 border-t border-ash-800/30 mt-8">
+                    <div className="flex flex-col items-center gap-3">
+                        <p className="text-xs font-mono text-ash-600">Chương hay? Để lại một trái tim nhé! ☣️</p>
+                        <LikeButton chapterNumber={chapterNumber} />
+                    </div>
                 </div>
 
                 {/* === COMMENTS === */}

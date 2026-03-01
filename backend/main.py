@@ -622,3 +622,161 @@ async def get_comments(chapter_number: int, limit: int = 50):
         return resp.data
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================
+# LIKE SYSTEM
+# ============================================================
+
+@app.post("/api/chapters/{chapter_number}/like", summary="Thả tim cho chương")
+async def like_chapter(chapter_number: int):
+    """Tăng likes_count của chương lên 1."""
+    try:
+        # Fetch current like count
+        resp = (
+            supabase.table("chapters")
+            .select("id, likes_count")
+            .eq("chapter_number", chapter_number)
+            .single()
+            .execute()
+        )
+        if not resp.data:
+            raise HTTPException(status_code=404, detail="Chương không tồn tại")
+
+        current_likes = resp.data.get("likes_count") or 0
+        chapter_id = resp.data["id"]
+
+        # Increment
+        supabase.table("chapters").update(
+            {"likes_count": current_likes + 1}
+        ).eq("id", chapter_id).execute()
+
+        return {"status": "ok", "likes_count": current_likes + 1}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================
+# WIKI - BÁCH KHOA TOÀN THƯ
+# ============================================================
+
+VALID_WIKI_CATEGORIES = ["Nhân vật", "Sinh vật", "Thế lực", "Vật phẩm", "Địa điểm"]
+
+
+class WikiEntryOut(BaseModel):
+    id: str
+    title: str
+    category: str
+    slug: str
+    summary: Optional[str] = None
+    content: Optional[str] = None
+    image_url: Optional[str] = None
+    tags: Optional[list[str]] = None
+    created_at: str
+    updated_at: str
+
+
+class WikiEntryIn(BaseModel):
+    title: str
+    category: str
+    slug: str
+    summary: Optional[str] = None
+    content: Optional[str] = None
+    image_url: Optional[str] = None
+    tags: Optional[list[str]] = None
+
+
+@app.get("/api/wiki", summary="Lấy danh sách Wiki")
+async def get_wiki_entries(
+    category: Optional[str] = Query(None, description="Lọc theo category"),
+    search: Optional[str] = Query(None, description="Tìm kiếm theo tiêu đề"),
+    limit: int = Query(50, ge=1, le=200),
+):
+    """Lấy danh sách tất cả wiki entries, có thể lọc theo category hoặc tìm kiếm."""
+    try:
+        query = supabase.table("wiki_entries").select("*")
+        if category:
+            query = query.eq("category", category)
+        if search:
+            query = query.ilike("title", f"%{search}%")
+        resp = query.order("category").order("title").limit(limit).execute()
+        return resp.data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/wiki/{slug}", summary="Lấy chi tiết Wiki entry")
+async def get_wiki_entry(slug: str):
+    """Lấy một wiki entry theo slug."""
+    try:
+        resp = (
+            supabase.table("wiki_entries")
+            .select("*")
+            .eq("slug", slug)
+            .single()
+            .execute()
+        )
+        if not resp.data:
+            raise HTTPException(status_code=404, detail="Không tìm thấy entry")
+        return resp.data
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/wiki", summary="Tạo Wiki entry mới (Admin)")
+async def create_wiki_entry(
+    body: WikiEntryIn,
+    authorization: Optional[str] = Header(None),
+):
+    """Tạo wiki entry mới. Yêu cầu quyền Admin."""
+    await verify_admin(authorization)
+    try:
+        if body.category not in VALID_WIKI_CATEGORIES:
+            raise HTTPException(status_code=400, detail=f"Category không hợp lệ. Chọn trong: {VALID_WIKI_CATEGORIES}")
+        data = body.model_dump(exclude_none=True)
+        result = supabase.table("wiki_entries").insert(data).execute()
+        return result.data[0]
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/wiki/{entry_id}", summary="Sửa Wiki entry (Admin)")
+async def update_wiki_entry(
+    entry_id: str,
+    body: WikiEntryIn,
+    authorization: Optional[str] = Header(None),
+):
+    """Cập nhật wiki entry theo id. Yêu cầu quyền Admin."""
+    await verify_admin(authorization)
+    try:
+        from datetime import datetime, timezone
+        data = body.model_dump(exclude_none=True)
+        data["updated_at"] = datetime.now(timezone.utc).isoformat()
+        result = supabase.table("wiki_entries").update(data).eq("id", entry_id).execute()
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Entry không tồn tại")
+        return result.data[0]
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/wiki/{entry_id}", summary="Xóa Wiki entry (Admin)")
+async def delete_wiki_entry(
+    entry_id: str,
+    authorization: Optional[str] = Header(None),
+):
+    """Xóa wiki entry theo id. Yêu cầu quyền Admin."""
+    await verify_admin(authorization)
+    try:
+        supabase.table("wiki_entries").delete().eq("id", entry_id).execute()
+        return {"status": "deleted", "id": entry_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

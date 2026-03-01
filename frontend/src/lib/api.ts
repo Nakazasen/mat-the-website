@@ -120,3 +120,88 @@ export async function reportView(chapterNumber: number): Promise<void> {
 export function formatChapterTitle(chapter: Chapter): string {
     return `Chương ${chapter.chapter_number}: ${chapter.title}`;
 }
+
+// ============================================================
+// WIKI API
+// ============================================================
+
+export interface WikiEntry {
+    id: string;
+    title: string;
+    category: string;
+    slug: string;
+    summary?: string;
+    content?: string;
+    image_url?: string;
+    tags?: string[];
+    created_at: string;
+    updated_at: string;
+}
+
+export interface WikiEntryIn {
+    title: string;
+    category: string;
+    slug: string;
+    summary?: string;
+    content?: string;
+    image_url?: string;
+    tags?: string[];
+}
+
+export const WIKI_CATEGORIES = ["Nhân vật", "Sinh vật", "Thế lực", "Vật phẩm", "Địa điểm"] as const;
+
+export async function getWikiEntries(category?: string, search?: string): Promise<WikiEntry[]> {
+    const params = new URLSearchParams();
+    if (category) params.set("category", category);
+    if (search) params.set("search", search);
+    const res = await fetch(`${API_BASE_URL}/api/wiki?${params}`, { cache: "no-store" });
+    if (!res.ok) throw new Error("Failed to fetch wiki entries");
+    return res.json();
+}
+
+export async function getWikiEntry(slug: string): Promise<WikiEntry> {
+    const res = await fetch(`${API_BASE_URL}/api/wiki/${slug}`, { next: { revalidate: 300 } });
+    if (!res.ok) throw new Error(`Wiki entry '${slug}' not found`);
+    return res.json();
+}
+
+export async function createWikiEntry(data: WikiEntryIn, token: string): Promise<WikiEntry> {
+    const res = await fetch(`${API_BASE_URL}/api/wiki`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error("Failed to create wiki entry");
+    return res.json();
+}
+
+export async function updateWikiEntry(id: string, data: WikiEntryIn, token: string): Promise<WikiEntry> {
+    const res = await fetch(`${API_BASE_URL}/api/wiki/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error("Failed to update wiki entry");
+    return res.json();
+}
+
+export async function deleteWikiEntry(id: string, token: string): Promise<void> {
+    const res = await fetch(`${API_BASE_URL}/api/wiki/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error("Failed to delete wiki entry");
+}
+
+// ============================================================
+// LIKE / HEART SYSTEM
+// ============================================================
+
+export async function likeChapter(chapterNumber: number): Promise<{ likes_count: number }> {
+    const res = await fetch(`${API_BASE_URL}/api/chapters/${chapterNumber}/like`, {
+        method: "POST",
+        keepalive: true,
+    });
+    if (!res.ok) throw new Error("Failed to like chapter");
+    return res.json();
+}
