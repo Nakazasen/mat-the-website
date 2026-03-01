@@ -60,18 +60,18 @@ def slugify(text: str) -> str:
     return re.sub(r'[-\s]+', '-', text).strip('-')
 
 
-async def verify_admin(authorization: Optional[str]) -> dict:
-    """Verify the Supabase Bearer JWT token from the request header."""
+# === ADMIN AUTH (Simple token-based) ===
+ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "mat-the-admin-2026")
+
+
+async def verify_admin(authorization: Optional[str]) -> None:
+    """Verify the admin token from the Authorization header. (Bearer <token>)"""
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Thiếu token xác thực")
-    token = authorization.replace("Bearer ", "")
-    try:
-        response = supabase.auth.get_user(token)
-        if not response.user:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token không hợp lệ")
-        return {"user": response.user}
-    except Exception:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token hết hạn hoặc không hợp lệ")
+    token = authorization.replace("Bearer ", "").strip()
+    if token != ADMIN_TOKEN:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token không hợp lệ")
+
 
 # === FASTAPI APP ===
 app = FastAPI(
