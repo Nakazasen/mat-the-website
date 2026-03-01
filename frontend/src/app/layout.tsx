@@ -33,7 +33,7 @@ export default function RootLayout({
     children: React.ReactNode;
 }) {
     return (
-        <html lang="vi">
+        <html lang="vi" suppressHydrationWarning>
             <head>
                 <link rel="preconnect" href="https://fonts.googleapis.com" />
                 <link
@@ -60,7 +60,7 @@ export default function RootLayout({
                     }}
                 />
             </head>
-            <body className="bg-ash-dark min-h-screen antialiased">
+            <body className="bg-ash-dark min-h-screen antialiased" suppressHydrationWarning>
                 <ThemeProvider>
                     {children}
                 </ThemeProvider>

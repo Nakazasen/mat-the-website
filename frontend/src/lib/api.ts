@@ -205,3 +205,27 @@ export async function likeChapter(chapterNumber: number): Promise<{ likes_count:
     if (!res.ok) throw new Error("Failed to like chapter");
     return res.json();
 }
+
+// ============================================================
+// UPLOAD API
+// ============================================================
+
+export async function uploadImageR2(file: File, adminToken: string): Promise<string> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const res = await fetch(`${API_BASE_URL}/api/upload/image`, {
+        method: "POST",
+        headers: {
+            "Authorization": `Bearer ${adminToken}`,
+        },
+        body: formData,
+    });
+
+    if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.detail || "Xảy ra lỗi khi upload ảnh");
+    }
+    const data = await res.json();
+    return data.url;
+}

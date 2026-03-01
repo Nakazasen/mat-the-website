@@ -13,14 +13,14 @@ from urllib.parse import quote
 import boto3
 from botocore.client import Config
 import httpx
-from fastapi import FastAPI, HTTPException, Query, Header, status
+from fastapi import FastAPI, HTTPException, Query, Header, status, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, PlainTextResponse
 from pydantic import BaseModel
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
 
 # === SUPABASE CLIENT ===
 SUPABASE_URL = os.getenv("SUPABASE_URL")
@@ -652,6 +652,59 @@ async def like_chapter(chapter_number: int):
         ).eq("id", chapter_id).execute()
 
         return {"status": "ok", "likes_count": current_likes + 1}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================
+# IMAGE UPLOAD (CLOUDFLARE R2)
+# ============================================================
+
+@app.post("/api/upload/image", summary="Upload ảnh lên Cloudflare R2 (Admin)")
+async def upload_image(
+    file: UploadFile = File(...),
+    authorization: Optional[str] = Header(None)
+):
+    """Upload ảnh phục vụ cho Editor/Wiki. Yêu cầu quyền Admin."""
+    await verify_admin(authorization)
+    
+    if not r2_client:
+        raise HTTPException(status_code=500, detail="Cấu hình Cloudflare R2 chưa hoàn chỉnh")
+        
+    try:
+        import uuid
+        from datetime import datetime
+        
+        # Validate file type
+        valid_types = ["image/jpeg", "image/png", "image/gif", "image/webp"]
+        if file.content_type not in valid_types:
+            raise HTTPException(status_code=400, detail="Chỉ hỗ trợ file ảnh (JPG, PNG, GIF, WEBP)")
+            
+        # Generate unique filename
+        ext = file.filename.split('.')[-1] if '.' in file.filename else 'png'
+        date_str = datetime.now().strftime("%Y%m%d")
+        unique_id = str(uuid.uuid4())[:8]
+        filename = f"uploads/{date_str}_{unique_id}.{ext}"
+        
+        # Read file
+        contents = await file.read()
+        
+        # Upload to R2
+        r2_client.put_object(
+            Bucket=R2_BUCKET,
+            Key=filename,
+            Body=contents,
+            ContentType=file.content_type
+        )
+        
+        # Return URL
+        # Đảm bảo R2_PUBLIC_URL không kết thúc bằng /
+        base_url = R2_PUBLIC_URL.rstrip('/')
+        public_url = f"{base_url}/{filename}"
+        return {"url": public_url}
+        
     except HTTPException:
         raise
     except Exception as e:

@@ -3,8 +3,11 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase-admin';
-import { getNovelSettings, NovelSettings } from '@/lib/api';
-import { Save, AlertTriangle, CheckCircle2, Loader2, BookOpen, User, FileText, Image as ImageIcon, Tag } from 'lucide-react';
+import { getNovelSettings, NovelSettings, uploadImageR2 } from '@/lib/api';
+import { Save, AlertTriangle, CheckCircle2, Loader2, BookOpen, User, FileText, Image as ImageIcon, Tag, Upload } from 'lucide-react';
+import RichTextEditor from '@/components/Editor';
+
+const ADMIN_TOKEN = process.env.NEXT_PUBLIC_ADMIN_TOKEN || "";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mat-the-website.onrender.com';
 
@@ -182,13 +185,29 @@ export default function AdminNovelPage() {
                         <label className="flex items-center gap-2 text-xs font-mono text-gray-500 tracking-widest uppercase">
                             <ImageIcon size={12} /> Ảnh bìa (URL)
                         </label>
-                        <input
-                            type="text"
-                            value={settings.cover_url}
-                            onChange={(e) => setSettings({ ...settings, cover_url: e.target.value })}
-                            className="w-full bg-[#0a0a0a] border border-gray-800 rounded px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500/20 transition-all"
-                            placeholder="/hero-bg.png"
-                        />
+                        <div className="flex gap-2">
+                            <input
+                                type="text"
+                                value={settings.cover_url}
+                                onChange={(e) => setSettings({ ...settings, cover_url: e.target.value })}
+                                className="w-full bg-[#0a0a0a] border border-gray-800 rounded px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500/20 transition-all"
+                                placeholder="/hero-bg.png"
+                            />
+                            <label className="flex items-center justify-center px-4 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 rounded cursor-pointer transition-colors" title="Tải ảnh lên R2">
+                                <Upload size={16} />
+                                <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                        try {
+                                            const url = await uploadImageR2(file, ADMIN_TOKEN);
+                                            setSettings(s => ({ ...s, cover_url: url }));
+                                        } catch (err) {
+                                            setError("Lỗi tải ảnh bìa. Vui lòng thử lại.");
+                                        }
+                                    }
+                                }} />
+                            </label>
+                        </div>
                     </div>
                 </div>
 
@@ -238,13 +257,11 @@ export default function AdminNovelPage() {
                     <label className="flex items-center gap-2 text-xs font-mono text-gray-500 tracking-widest uppercase">
                         Giới thiệu truyện
                     </label>
-                    <textarea
-                        value={settings.description}
-                        onChange={(e) => setSettings({ ...settings, description: e.target.value })}
-                        required
-                        rows={6}
-                        className="w-full bg-[#0a0a0a] border border-gray-800 rounded px-4 py-3 text-gray-200 text-sm focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500/20 transition-all font-reading leading-relaxed resize-none"
+                    <RichTextEditor
+                        content={settings.description}
+                        onChange={(html) => setSettings({ ...settings, description: html })}
                         placeholder="Nhập giới thiệu truyện..."
+                        adminToken={ADMIN_TOKEN}
                     />
                 </div>
 

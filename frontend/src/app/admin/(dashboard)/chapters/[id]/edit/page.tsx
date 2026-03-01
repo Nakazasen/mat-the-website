@@ -7,15 +7,10 @@ import dynamic from 'next/dynamic';
 import { createAdminClient } from '@/lib/supabase-admin';
 import { ArrowLeft, Save, AlertTriangle, CheckCircle2 } from 'lucide-react';
 
-// Import React Quill dynamically to avoid SSR issues
-const ReactQuill = dynamic(() => import('react-quill-new'), {
-    ssr: false,
-    loading: () => <div className="h-96 w-full bg-[#0a0a0a] border border-gray-800 rounded animate-pulse" />
-});
-
-import 'react-quill-new/dist/quill.snow.css';
+import RichTextEditor from '@/components/Editor';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mat-the-website.onrender.com';
+const ADMIN_TOKEN = process.env.NEXT_PUBLIC_ADMIN_TOKEN || "";
 
 export default function EditChapterPage() {
     const params = useParams();
@@ -30,15 +25,6 @@ export default function EditChapterPage() {
     const [success, setSuccess] = useState(false);
     const [token, setToken] = useState<string | null>(null);
 
-    // Quill modules configuration
-    const modules = useMemo(() => ({
-        toolbar: [
-            [{ 'header': [1, 2, 3, false] }],
-            ['bold', 'italic', 'underline', 'strike'],
-            [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-            ['clean']
-        ],
-    }), []);
 
     // Load chapter data on mount
     useEffect(() => {
@@ -71,14 +57,21 @@ export default function EditChapterPage() {
 
                 if (contentRes.ok) {
                     const text = await contentRes.text();
-                    // Convert plain text to simple HTML for Quill
-                    const htmlContent = text.split('\n')
-                        .map(line => line.trim())
-                        .filter(line => line.length > 0)
-                        .map(line => `<p>${line}</p>`)
-                        .join('');
+                    // If it's already HTML (e.g. from Tiptap), just set it. 
+                    // If it's plain text (legacy), convert newlines to paragraph tags.
+                    const isHtml = text.trim().startsWith('<');
 
-                    setContent(htmlContent || '<p></p>');
+                    if (isHtml) {
+                        setContent(text || '<p></p>');
+                    } else {
+                        const htmlContent = text.split('\n')
+                            .map(line => line.trim())
+                            .filter(line => line.length > 0)
+                            .map(line => `<p>${line}</p>`)
+                            .join('');
+
+                        setContent(htmlContent || '<p></p>');
+                    }
                 } else {
                     const errData = await contentRes.json().catch(() => ({}));
                     console.error("Failed to load content from proxy:", errData);
@@ -100,13 +93,8 @@ export default function EditChapterPage() {
         setError(null);
 
         // Strip HTML if necessary for backend (though backend already accepts strings)
-        // For now we keep it simple as the backend expects content: str
-        const cleanContent = content
-            .replace(/<\/p><p>/g, '\n')
-            .replace(/<p>/g, '')
-            .replace(/<\/p>/g, '')
-            .replace(/<br\s*\/?>/g, '\n')
-            .replace(/&nbsp;/g, ' ');
+        // With Tiptap, we want to save exactly what it gives us (HTML) 
+        const cleanContent = content;
 
         try {
             const res = await fetch(`${API_BASE_URL}/api/admin/chapters/${chapterNumber}`, {
@@ -139,23 +127,6 @@ export default function EditChapterPage() {
 
     return (
         <div className="max-w-4xl pb-20">
-            <style jsx global>{`
-                .ql-container {
-                    background: #0a0a0a !important;
-                    border-color: #1f2937 !important;
-                    color: #e5e7eb !important;
-                    font-family: inherit !important;
-                    font-size: 1rem !important;
-                    min-height: 500px;
-                }
-                .ql-toolbar {
-                    background: #111827 !important;
-                    border-color: #1f2937 !important;
-                }
-                .ql-stroke { stroke: #9ca3af !important; }
-                .ql-fill { fill: #9ca3af !important; }
-                .ql-picker { color: #9ca3af !important; }
-            `}</style>
 
             <div className="flex items-center gap-3 mb-6">
                 <Link href="/admin/chapters" className="text-gray-500 hover:text-gray-200 transition-colors">
@@ -194,12 +165,11 @@ export default function EditChapterPage() {
 
                     <div>
                         <label className="block text-xs font-mono text-gray-500 mb-2 tracking-widest uppercase">Nội dung chương</label>
-                        <ReactQuill
-                            theme="snow"
-                            value={content}
-                            onChange={setContent}
-                            modules={modules}
-                            className="rounded-md overflow-hidden"
+                        <RichTextEditor
+                            content={content}
+                            onChange={(html) => setContent(html)}
+                            placeholder="Nội dung chương..."
+                            adminToken={ADMIN_TOKEN}
                         />
                     </div>
                 </div>

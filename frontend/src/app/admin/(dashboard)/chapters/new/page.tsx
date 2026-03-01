@@ -5,8 +5,10 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createAdminClient } from '@/lib/supabase-admin';
 import { ArrowLeft, Save, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import RichTextEditor from '@/components/Editor';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mat-the-website.onrender.com';
+const ADMIN_TOKEN = process.env.NEXT_PUBLIC_ADMIN_TOKEN || "";
 
 export default function NewChapterPage() {
     const router = useRouter();
@@ -114,13 +116,11 @@ export default function NewChapterPage() {
                     <label className="block text-xs font-mono text-gray-500 mb-1 tracking-widest">
                         NỘI DUNG * ({content.trim().split(/\s+/).filter(Boolean).length} từ)
                     </label>
-                    <textarea
-                        value={content}
-                        onChange={(e) => setContent(e.target.value)}
-                        required
-                        rows={20}
-                        className="w-full bg-[#0a0a0a] border border-gray-700 rounded px-3 py-2 text-gray-200 text-sm focus:outline-none focus:border-green-500 transition-colors font-mono leading-relaxed resize-y"
-                        placeholder="Paste nội dung chương vào đây..."
+                    <RichTextEditor
+                        content={content}
+                        onChange={(html) => setContent(html)}
+                        placeholder="Bắt đầu viết chương mới ở đây..."
+                        adminToken={ADMIN_TOKEN}
                     />
                 </div>
 
