@@ -39,11 +39,13 @@ export default function EditChapterPage() {
             const meta = await metaRes.json();
             setTitle(meta.title);
 
-            // Fetch chapter content from R2
-            if (meta.content_url) {
-                const contentRes = await fetch(meta.content_url, { cache: 'no-store' });
-                if (contentRes.ok) setContent(await contentRes.text());
-            }
+            // Fetch chapter content from Backend (Proxy to avoid CORS)
+            const contentRes = await fetch(`${API_BASE_URL}/api/admin/chapters/${params.id}/content`, {
+                headers: { 'Authorization': `Bearer ${session.access_token}` },
+                cache: 'no-store'
+            });
+            if (contentRes.ok) setContent(await contentRes.text());
+            else console.error("Failed to load content from proxy");
             setInitialLoading(false);
         });
     }, [chapterNumber, router]);

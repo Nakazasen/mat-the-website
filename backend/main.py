@@ -14,7 +14,7 @@ from botocore.client import Config
 import httpx
 from fastapi import FastAPI, HTTPException, Query, Header, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, PlainTextResponse
 from pydantic import BaseModel
 from supabase import create_client, Client
 from dotenv import load_dotenv
@@ -409,6 +409,41 @@ async def admin_update_novel(
     
     result = supabase.table("novel_settings").upsert(data).execute()
     return {"message": "Cập nhật thông tin thành công", "novel": result.data[0]}
+
+
+@app.get("/api/admin/chapters/{chapter_number}/content", summary="[Admin] Lấy nội dung chương từ R2")
+async def admin_get_chapter_content(
+    chapter_number: int,
+    authorization: Optional[str] = Header(None),
+):
+    """Lấy nội dung text thô của chương từ R2 (Proxy qua Backend để tránh CORS)."""
+    await verify_admin(authorization)
+
+    # Fetch metadata to get content_url
+    resp = (
+        supabase.table("chapters")
+        .select("content_url")
+        .eq("chapter_number", chapter_number)
+        .single()
+        .execute()
+    )
+
+    if not resp.data or not resp.data.get("content_url"):
+        raise HTTPException(status_code=404, detail="Không tìm thấy nội dung chương")
+
+    if not r2_client:
+        raise HTTPException(status_code=500, detail="R2 chưa được cấu hình")
+
+    # Extract object key from URL
+    content_url = resp.data["content_url"]
+    object_key = content_url.replace(f"{R2_PUBLIC_URL}/", "")
+
+    try:
+        r2_resp = r2_client.get_object(Bucket=R2_BUCKET, Key=object_key)
+        content = r2_resp["Body"].read().decode("utf-8")
+        return PlainTextResponse(content)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Lỗi khi đọc từ R2: {str(e)}")
 
 
 # === DELETE chapter route was at the end ===
