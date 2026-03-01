@@ -401,18 +401,21 @@ async def get_novel_settings():
         resp = supabase.table("novel_settings").select("*").eq("id", 1).single().execute()
         
         if not resp.data:
-            # Fallback nếu chưa có dữ liệu trong DB
             return NovelSettings(
                 title="Mạt Thế - Sinh Hoá Nguy Cơ",
-                author="Hà Phong",
-                description="Virus biến thể đã xóa sổ nền văn minh. Giữa thế giới tràn ngập zombie và những kẻ biến dị khát máu...",
+                author="Hà Phong (Default)",
+                description="Virus biến thể đã xóa sổ nền văn minh...",
                 cover_url="/hero-bg.png",
                 status="Đang cập nhật",
-                genres=["Mạt Thế", "Zombie", "Hành Động"]
+                genres=["Mạt Thế", "Zombie"]
             )
         
-        return NovelSettings(**resp.data)
+        # Filter out fields not in the model to avoid Pydantic errors
+        model_fields = NovelSettings.__fields__.keys()
+        clean_data = {k: v for k, v in resp.data.items() if k in model_fields}
+        return NovelSettings(**clean_data)
     except Exception as e:
+        print(f"DEBUG: get_novel_settings error: {str(e)}")
         # Fallback dữ liệu mặc định nếu lỗi DB (tránh sập trang chủ)
         return NovelSettings(
             title="Mạt Thế - Sinh Hoá Nguy Cơ",
