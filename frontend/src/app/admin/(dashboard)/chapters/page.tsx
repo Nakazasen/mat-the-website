@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { createAdminClient } from '@/lib/supabase-admin';
 import { useRouter } from 'next/navigation';
-import { PlusCircle, Pencil, Trash2, RefreshCw, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { PlusCircle, Pencil, Trash2, RefreshCw, AlertTriangle, ChevronLeft, ChevronRight, Search, Hash, ArrowRight } from 'lucide-react';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mat-the-api.onrender.com';
 
@@ -28,6 +28,10 @@ export default function AdminChaptersPage() {
     const [totalPages, setTotalPages] = useState(1);
     const [totalChapters, setTotalChapters] = useState(0);
     const limit = 100;
+
+    // Search & Jump state
+    const [searchQuery, setSearchQuery] = useState('');
+    const [jumpNumber, setJumpNumber] = useState('');
 
     useEffect(() => {
         const supabase = createAdminClient();
@@ -62,6 +66,28 @@ export default function AdminChaptersPage() {
 
     useEffect(() => { fetchChapters(1); }, [fetchChapters]);
 
+    // Handle jump to specific chapter
+    const handleJump = (e?: React.FormEvent) => {
+        e?.preventDefault();
+        if (!jumpNumber) return;
+        const num = parseInt(jumpNumber);
+        if (isNaN(num) || num < 1) {
+            alert('Vui lòng nhập số chương hợp lệ');
+            return;
+        }
+        router.push(`/admin/chapters/${num}/edit`);
+    };
+
+    // Filtered chapters based on search query
+    const filteredChapters = useMemo(() => {
+        if (!searchQuery.trim()) return chapters;
+        const query = searchQuery.toLowerCase().trim();
+        return chapters.filter(ch =>
+            ch.title.toLowerCase().includes(query) ||
+            ch.chapter_number.toString().includes(query)
+        );
+    }, [chapters, searchQuery]);
+
     const handleDelete = async (chapterNumber: number) => {
         if (!token) return;
         if (!confirm(`Bạn chắc muốn XÓA Chương ${chapterNumber}?\nHành động này không thể hoàn tác!`)) return;
@@ -86,29 +112,70 @@ export default function AdminChaptersPage() {
 
     return (
         <div className="pb-10">
-            <div className="flex items-center justify-between mb-6">
+            {/* Header section */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
                 <div>
-                    <h1 className="text-lg font-mono text-gray-100 tracking-wide uppercase">Quản lý chương</h1>
-                    <p className="text-xs font-mono text-gray-600 mt-0.5">
+                    <h1 className="text-xl font-mono text-gray-100 tracking-wider uppercase font-bold">Quản lý chương</h1>
+                    <p className="text-xs font-mono text-gray-600 mt-1">
                         Hiển thị {chapters.length} / {totalChapters} chương (Trang {currentPage}/{totalPages})
                     </p>
                 </div>
                 <div className="flex gap-2">
                     <button
                         onClick={() => fetchChapters(currentPage)}
-                        className="flex items-center gap-1.5 px-3 py-2 border border-gray-700 text-gray-400 hover:text-gray-200 rounded font-mono text-xs transition-colors"
+                        className="flex items-center gap-1.5 px-3 py-2 border border-gray-700 text-gray-400 hover:text-gray-200 rounded font-mono text-xs transition-all active:scale-95"
                     >
                         <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
                         Làm mới
                     </button>
                     <Link
                         href="/admin/chapters/new"
-                        className="flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-500 text-white rounded font-mono text-xs transition-colors"
+                        className="flex items-center gap-1.5 px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded font-mono text-xs font-bold transition-all shadow-lg shadow-green-900/20 active:scale-95"
                     >
-                        <PlusCircle size={12} />
+                        <PlusCircle size={14} />
                         Đăng Chương Mới
                     </Link>
                 </div>
+            </div>
+
+            {/* Search & Jump Tools */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                {/* Search box */}
+                <div className="relative group">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-toxic-green-DEFAULT transition-colors" size={16} />
+                    <input
+                        type="text"
+                        placeholder="Tìm theo tiêu đề chương..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full bg-[#0d0d0d] border border-gray-800 rounded-lg pl-10 pr-4 py-2.5 text-sm text-gray-200 focus:outline-none focus:border-toxic-green-DEFAULT/50 focus:ring-1 focus:ring-toxic-green-DEFAULT/20 transition-all font-mono"
+                    />
+                    {searchQuery && (
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-gray-600">
+                            Tìm thấy {filteredChapters.length}
+                        </span>
+                    )}
+                </div>
+
+                {/* Jump to chapter */}
+                <form onSubmit={handleJump} className="relative group flex gap-2">
+                    <div className="relative flex-1">
+                        <Hash className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-blue-400 transition-colors" size={16} />
+                        <input
+                            type="number"
+                            placeholder="Nhảy đến chương số..."
+                            value={jumpNumber}
+                            onChange={(e) => setJumpNumber(e.target.value)}
+                            className="w-full bg-[#0d0d0d] border border-gray-800 rounded-lg pl-10 pr-4 py-2.5 text-sm text-gray-200 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 transition-all font-mono"
+                        />
+                    </div>
+                    <button
+                        type="submit"
+                        className="px-4 bg-gray-800 hover:bg-gray-700 text-blue-400 border border-gray-700 hover:border-blue-500/50 rounded-lg text-xs font-mono font-bold transition-all flex items-center gap-2 whitespace-nowrap active:scale-95"
+                    >
+                        NHẢY <ArrowRight size={14} />
+                    </button>
+                </form>
             </div>
 
             {error && (
@@ -137,44 +204,52 @@ export default function AdminChaptersPage() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {chapters.map((ch) => (
-                                    <tr key={ch.id} className="border-b border-gray-800/50 hover:bg-gray-800/20 transition-colors">
-                                        <td className="px-4 py-3 font-mono text-xs text-green-400 whitespace-nowrap">
-                                            {String(ch.chapter_number).padStart(3, '0')}
-                                        </td>
-                                        <td className="px-4 py-3 text-gray-300">
-                                            <div className="max-w-xs md:max-w-md truncate font-medium">{ch.title}</div>
-                                        </td>
-                                        <td className="px-4 py-3 text-right font-mono text-xs text-gray-600 hidden md:table-cell">
-                                            {ch.word_count?.toLocaleString() || '—'}
-                                        </td>
-                                        <td className="px-4 py-3 text-right">
-                                            <div className="flex items-center justify-end gap-2">
-                                                <Link
-                                                    href={`/admin/chapters/${ch.chapter_number}/edit`}
-                                                    className="flex items-center gap-1 px-3 py-1.5 border border-gray-700 hover:border-blue-500 text-gray-400 hover:text-blue-400 rounded text-xs font-mono transition-colors"
-                                                >
-                                                    <Pencil size={10} />
-                                                    Sửa
-                                                </Link>
-                                                <button
-                                                    onClick={() => handleDelete(ch.chapter_number)}
-                                                    disabled={deletingId === ch.chapter_number}
-                                                    className="flex items-center gap-1 px-3 py-1.5 border border-gray-700 hover:border-red-600 text-gray-500 hover:text-red-400 disabled:opacity-50 rounded text-xs font-mono transition-colors"
-                                                >
-                                                    <Trash2 size={10} />
-                                                    {deletingId === ch.chapter_number ? '...' : 'Xóa'}
-                                                </button>
-                                            </div>
+                                {filteredChapters.length > 0 ? (
+                                    filteredChapters.map((ch) => (
+                                        <tr key={ch.id} className="border-b border-gray-800/50 hover:bg-gray-800/20 transition-colors">
+                                            <td className="px-4 py-3 font-mono text-xs text-green-400 whitespace-nowrap font-bold">
+                                                {String(ch.chapter_number).padStart(3, '0')}
+                                            </td>
+                                            <td className="px-4 py-3 text-gray-200">
+                                                <div className="max-w-xs md:max-w-md truncate font-medium">{ch.title}</div>
+                                            </td>
+                                            <td className="px-4 py-3 text-right font-mono text-xs text-gray-600 hidden md:table-cell">
+                                                {ch.word_count?.toLocaleString() || '—'}
+                                            </td>
+                                            <td className="px-4 py-3 text-right">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <Link
+                                                        href={`/admin/chapters/${ch.chapter_number}/edit`}
+                                                        className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-700 hover:border-blue-500 text-gray-400 hover:text-blue-400 rounded text-xs font-mono transition-all hover:bg-blue-500/10"
+                                                    >
+                                                        <Pencil size={10} />
+                                                        Sửa
+                                                    </Link>
+                                                    <button
+                                                        onClick={() => handleDelete(ch.chapter_number)}
+                                                        disabled={deletingId === ch.chapter_number}
+                                                        className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-700 hover:border-red-600 text-gray-500 hover:text-red-400 disabled:opacity-50 rounded text-xs font-mono transition-all hover:bg-red-500/10"
+                                                    >
+                                                        <Trash2 size={10} />
+                                                        {deletingId === ch.chapter_number ? '...' : 'Xóa'}
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))
+                                ) : (
+                                    <tr>
+                                        <td colSpan={4} className="px-4 py-10 text-center text-gray-600 font-mono text-xs">
+                                            {searchQuery ? `Không tìm thấy chương nào khớp với "${searchQuery}"` : "Không có dữ liệu chương"}
                                         </td>
                                     </tr>
-                                ))}
+                                )}
                             </tbody>
                         </table>
                     </div>
 
                     {/* Pagination Controls */}
-                    {totalPages > 1 && (
+                    {!searchQuery && totalPages > 1 && (
                         <div className="flex items-center justify-center gap-4 mt-8">
                             <button
                                 onClick={() => fetchChapters(currentPage - 1)}
@@ -202,8 +277,8 @@ export default function AdminChaptersPage() {
                                             key={pageNum}
                                             onClick={() => fetchChapters(pageNum)}
                                             className={`w-8 h-8 flex items-center justify-center rounded font-mono text-xs transition-colors ${currentPage === pageNum
-                                                    ? "bg-green-600 text-white"
-                                                    : "text-gray-500 hover:bg-gray-800 hover:text-gray-200"
+                                                ? "bg-green-600 text-white"
+                                                : "text-gray-500 hover:bg-gray-800 hover:text-gray-200"
                                                 }`}
                                         >
                                             {pageNum}
