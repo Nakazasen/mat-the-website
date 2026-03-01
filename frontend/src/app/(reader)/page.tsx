@@ -1,17 +1,31 @@
 import Image from "next/image";
 import Link from "next/link";
 import { BookOpen, ChevronRight, AlertTriangle, Skull, Zap } from "lucide-react";
-import { getLatestChapters, formatChapterTitle, type Chapter } from "@/lib/api";
+import { getLatestChapters, getNovelSettings, formatChapterTitle, type Chapter, type NovelSettings } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 300; // ISR every 5 minutes
 
 export default async function HomePage() {
     let latestChapters: Chapter[] = [];
+    let novel: NovelSettings = {
+        title: "Mạt Thế - Sinh Hoá Nguy Cơ",
+        author: "Hà Phong",
+        description: "Virus biến thể đã xóa sổ nền văn minh. Giữa thế giới tràn ngập zombie và những kẻ biến dị khát máu...",
+        cover_url: "/hero-bg.png",
+        status: "Đang cập nhật",
+        genres: ["Mạt Thế", "Zombie"]
+    };
+
     try {
-        latestChapters = await getLatestChapters(12);
+        const [chaptersData, settingsData] = await Promise.all([
+            getLatestChapters(12),
+            getNovelSettings()
+        ]);
+        latestChapters = chaptersData;
+        novel = settingsData;
     } catch {
-        // show empty state if API not available
+        // use defaults if API fails
     }
 
     return (
@@ -21,8 +35,8 @@ export default async function HomePage() {
                 {/* Background image */}
                 <div className="absolute inset-0">
                     <Image
-                        src="/hero-bg.png"
-                        alt="Mạt Thế Sinh Hoá Nguy Cơ - Hero"
+                        src={novel.cover_url || "/hero-bg.png"}
+                        alt={novel.title}
                         fill
                         priority
                         className="object-cover object-center"
@@ -50,17 +64,16 @@ export default async function HomePage() {
                         <div className="inline-flex items-center gap-2 mb-6 px-3 py-1.5 rounded border border-blood-red-DEFAULT/40 bg-blood-red-DEFAULT/10">
                             <Skull size={12} className="text-blood-red-bright" />
                             <span className="font-mono text-xs text-blood-red-bright tracking-widest uppercase">
-                                Đang cập nhật · 813 chương
+                                {novel.status} · {latestChapters.length > 0 ? latestChapters[0].chapter_number : 813} chương
                             </span>
                         </div>
 
                         {/* Title */}
                         <h1 className="font-biohazard text-6xl sm:text-7xl md:text-8xl lg:text-9xl leading-none mb-2 animate-flicker">
-                            <span className="text-toxic-glow block">MẠT THẾ</span>
+                            <span className="text-toxic-glow block">{novel.title.split('-')[0].trim()}</span>
                         </h1>
                         <h2 className="font-biohazard text-2xl sm:text-3xl md:text-4xl text-ash-300 tracking-[0.15em] mb-8">
-                            SINH HOÁ{" "}
-                            <span className="text-blood-glow">NGUY CƠ</span>
+                            {novel.title.split('-')[1]?.trim() || ""}
                         </h2>
 
                         {/* Divider */}
@@ -74,10 +87,7 @@ export default async function HomePage() {
 
                         {/* Description */}
                         <p className="text-ash-300 text-base sm:text-lg leading-relaxed max-w-2xl mb-8 font-reading">
-                            Virus biến thể đã xóa sổ nền văn minh. Giữa thế giới tràn ngập
-                            zombie và những kẻ biến dị khát máu, Hàn Phong — Thủ lĩnh trấn
-                            Hi Vọng — phải chiến đấu để bảo vệ những người cuối cùng còn sót
-                            lại của nhân loại.
+                            {novel.description}
                         </p>
 
                         {/* CTA Buttons */}
@@ -95,9 +105,9 @@ export default async function HomePage() {
                         {/* Quick stats */}
                         <div className="flex flex-wrap gap-6 mt-10">
                             {[
-                                { label: "Chương", value: "813+" },
-                                { label: "Thể loại", value: "Mạt Thế · Zombie" },
-                                { label: "Tình trạng", value: "Đang đăng" },
+                                { label: "Chương", value: `${latestChapters.length > 0 ? latestChapters[0].chapter_number : 813}+` },
+                                { label: "Thể loại", value: novel.genres.join(" · ") },
+                                { label: "Tình trạng", value: novel.status },
                             ].map(({ label, value }) => (
                                 <div key={label} className="text-center">
                                     <div className="font-biohazard text-xl text-toxic-green-DEFAULT">

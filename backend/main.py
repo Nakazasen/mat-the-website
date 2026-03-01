@@ -356,6 +356,62 @@ async def admin_update_chapter(
     return {"message": "Không có gì thay đổi"}
 
 
+class NovelSettings(BaseModel):
+    title: str
+    author: str
+    description: str
+    cover_url: str
+    status: str
+    genres: list[str]
+
+
+@app.get("/api/novel", response_model=NovelSettings)
+async def get_novel_settings():
+    """Lấy thông tin chung của truyện (Tên, tác giả, mô tả...)"""
+    try:
+        resp = supabase.table("novel_settings").select("*").eq("id", 1).single().execute()
+        
+        if not resp.data:
+            # Fallback nếu chưa có dữ liệu trong DB
+            return NovelSettings(
+                title="Mạt Thế - Sinh Hoá Nguy Cơ",
+                author="Hà Phong",
+                description="Virus biến thể đã xóa sổ nền văn minh. Giữa thế giới tràn ngập zombie và những kẻ biến dị khát máu...",
+                cover_url="/hero-bg.png",
+                status="Đang cập nhật",
+                genres=["Mạt Thế", "Zombie", "Hành Động"]
+            )
+        
+        return NovelSettings(**resp.data)
+    except Exception as e:
+        # Fallback dữ liệu mặc định nếu lỗi DB (tránh sập trang chủ)
+        return NovelSettings(
+            title="Mạt Thế - Sinh Hoá Nguy Cơ",
+            author="Hà Phong",
+            description="Virus biến thể đã xóa sổ nền văn minh...",
+            cover_url="/hero-bg.png",
+            status="Đang cập nhật",
+            genres=["Mạt Thế", "Zombie"]
+        )
+
+
+@app.put("/api/admin/novel", summary="[Admin] Cập nhật thông tin truyện")
+async def admin_update_novel(
+    body: NovelSettings,
+    authorization: Optional[str] = Header(None),
+):
+    """Cập nhật thông tin chung của truyện."""
+    await verify_admin(authorization)
+    
+    # Upsert vào dòng ID=1
+    data = body.dict()
+    data["id"] = 1
+    
+    result = supabase.table("novel_settings").upsert(data).execute()
+    return {"message": "Cập nhật thông tin thành công", "novel": result.data[0]}
+
+
+# === DELETE chapter route was at the end ===
 @app.delete("/api/admin/chapters/{chapter_number}", summary="[Admin] Xóa chương")
 async def admin_delete_chapter(
     chapter_number: int,

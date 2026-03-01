@@ -83,6 +83,24 @@ export async function getChapterContent(contentUrl: string): Promise<string> {
     return text.replace(/\\n/g, "\n");
 }
 
+export interface NovelSettings {
+    title: string;
+    author: string;
+    description: string;
+    cover_url: string;
+    status: string;
+    genres: string[];
+}
+
+// Fetch general novel settings (Title, Author, Desc etc)
+export async function getNovelSettings(): Promise<NovelSettings> {
+    const res = await fetch(`${API_BASE_URL}/api/novel`, {
+        next: { revalidate: 3600 }, // cache 1 hour
+    });
+    if (!res.ok) throw new Error("Failed to fetch novel settings");
+    return res.json();
+}
+
 // Utility
 export function formatChapterTitle(chapter: Chapter): string {
     return `Chương ${chapter.chapter_number}: ${chapter.title}`;
