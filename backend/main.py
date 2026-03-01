@@ -64,13 +64,52 @@ def slugify(text: str) -> str:
 ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "mat-the-admin-2026")
 
 
-async def verify_admin(authorization: Optional[str]) -> None:
-    """Verify the admin token from the Authorization header. (Bearer <token>)"""
+async def verify_admin(authorization: Optional[str]) -> dict:
+    """
+    Xác thực token Admin từ Header Authorization (Bearer <token>).
+    Hỗ trợ cả static ADMIN_TOKEN và Supabase JWT thực tế.
+    """
     if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Thiếu token xác thực")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, 
+            detail="Thiếu token xác thực. Hãy đăng nhập lại."
+        )
+    
     token = authorization.replace("Bearer ", "").strip()
-    if token != ADMIN_TOKEN:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token không hợp lệ")
+    
+    # 1. Kiểm tra static token (Bypass cho dev hoặc token cứng)
+    if token == ADMIN_TOKEN:
+        return {"id": "static-admin", "role": "superadmin", "email": "admin@static"}
+    
+    # 2. Kiểm tra JWT của Supabase
+    try:
+        # supabase-py Auth client sẽ tự verify JWT
+        user_resp = supabase.auth.get_user(token)
+        if not user_resp or not user_resp.user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, 
+                detail="Token không hợp lệ hoặc đã hết hạn."
+            )
+        
+        # Truy vấn profile để lấy role (editor/superadmin)
+        profile_resp = supabase.table("profiles").select("role").eq("id", user_resp.user.id).execute()
+        
+        user_role = "editor" # Mặc định
+        if profile_resp.data:
+            user_role = profile_resp.data[0].get("role", "editor")
+            
+        return {
+            "id": user_resp.user.id,
+            "email": user_resp.user.email,
+            "role": user_role
+        }
+    except Exception as e:
+        print(f"Auth Error: {str(e)}")
+        # Trả về chi tiết lỗi để dễ debug
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, 
+            detail=f"Token không hợp lệ: {str(e)}"
+        )
 
 
 # === FASTAPI APP ===
