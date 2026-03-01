@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { createAdminClient } from '@/lib/supabase-admin';
 import { useRouter } from 'next/navigation';
-import { PlusCircle, Pencil, Trash2, RefreshCw, AlertTriangle } from 'lucide-react';
+import { PlusCircle, Pencil, Trash2, RefreshCw, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mat-the-api.onrender.com';
 
@@ -23,6 +23,12 @@ export default function AdminChaptersPage() {
     const [error, setError] = useState<string | null>(null);
     const [token, setToken] = useState<string | null>(null);
 
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalChapters, setTotalChapters] = useState(0);
+    const limit = 100;
+
     useEffect(() => {
         const supabase = createAdminClient();
         if (!supabase) {
@@ -36,22 +42,25 @@ export default function AdminChaptersPage() {
         });
     }, [router]);
 
-    const fetchChapters = useCallback(async () => {
+    const fetchChapters = useCallback(async (page: number) => {
         setLoading(true);
         setError(null);
         try {
-            const res = await fetch(`${API_BASE_URL}/api/chapters?page=1&limit=100&sort=desc`, { cache: 'no-store' });
+            const res = await fetch(`${API_BASE_URL}/api/chapters?page=${page}&limit=${limit}&sort=desc`, { cache: 'no-store' });
             if (!res.ok) throw new Error('Không thể tải danh sách chương');
             const data = await res.json();
             setChapters(data.chapters || []);
+            setTotalPages(data.total_pages || 1);
+            setTotalChapters(data.total || 0);
+            setCurrentPage(page);
         } catch (err: any) {
             setError(err.message);
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [limit]);
 
-    useEffect(() => { fetchChapters(); }, [fetchChapters]);
+    useEffect(() => { fetchChapters(1); }, [fetchChapters]);
 
     const handleDelete = async (chapterNumber: number) => {
         if (!token) return;
@@ -67,7 +76,7 @@ export default function AdminChaptersPage() {
                 const data = await res.json();
                 throw new Error(data.detail || 'Lỗi khi xóa');
             }
-            await fetchChapters();
+            await fetchChapters(currentPage);
         } catch (err: any) {
             alert(`Lỗi: ${err.message}`);
         } finally {
@@ -76,18 +85,20 @@ export default function AdminChaptersPage() {
     };
 
     return (
-        <div>
+        <div className="pb-10">
             <div className="flex items-center justify-between mb-6">
                 <div>
-                    <h1 className="text-lg font-mono text-gray-100 tracking-wide">QUẢN LÝ CHƯƠNG</h1>
-                    <p className="text-xs font-mono text-gray-600 mt-0.5">{chapters.length} chương đang hiển thị</p>
+                    <h1 className="text-lg font-mono text-gray-100 tracking-wide uppercase">Quản lý chương</h1>
+                    <p className="text-xs font-mono text-gray-600 mt-0.5">
+                        Hiển thị {chapters.length} / {totalChapters} chương (Trang {currentPage}/{totalPages})
+                    </p>
                 </div>
                 <div className="flex gap-2">
                     <button
-                        onClick={fetchChapters}
+                        onClick={() => fetchChapters(currentPage)}
                         className="flex items-center gap-1.5 px-3 py-2 border border-gray-700 text-gray-400 hover:text-gray-200 rounded font-mono text-xs transition-colors"
                     >
-                        <RefreshCw size={12} />
+                        <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
                         Làm mới
                     </button>
                     <Link
@@ -109,55 +120,109 @@ export default function AdminChaptersPage() {
 
             {loading ? (
                 <div className="space-y-2">
-                    {Array.from({ length: 10 }).map((_, i) => (
-                        <div key={i} className="h-10 bg-[#0d0d0d] rounded animate-pulse border border-gray-800" />
+                    {Array.from({ length: 15 }).map((_, i) => (
+                        <div key={i} className="h-12 bg-[#0d0d0d] rounded animate-pulse border border-gray-800" />
                     ))}
                 </div>
             ) : (
-                <div className="bg-[#0d0d0d] border border-gray-800 rounded-lg overflow-hidden">
-                    <table className="w-full text-sm">
-                        <thead>
-                            <tr className="border-b border-gray-800">
-                                <th className="px-4 py-2.5 text-left font-mono text-xs text-gray-600 tracking-widest">#</th>
-                                <th className="px-4 py-2.5 text-left font-mono text-xs text-gray-600 tracking-widest">TIÊU ĐỀ</th>
-                                <th className="px-4 py-2.5 text-right font-mono text-xs text-gray-600 tracking-widest">TỪ</th>
-                                <th className="px-4 py-2.5 text-right font-mono text-xs text-gray-600 tracking-widest">HÀNH ĐỘNG</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {chapters.map((ch) => (
-                                <tr key={ch.id} className="border-b border-gray-800/50 hover:bg-gray-800/20 transition-colors">
-                                    <td className="px-4 py-2.5 font-mono text-xs text-green-400">
-                                        {String(ch.chapter_number).padStart(3, '0')}
-                                    </td>
-                                    <td className="px-4 py-2.5 text-gray-300 max-w-xs truncate">{ch.title}</td>
-                                    <td className="px-4 py-2.5 text-right font-mono text-xs text-gray-600">
-                                        {ch.word_count?.toLocaleString() || '—'}
-                                    </td>
-                                    <td className="px-4 py-2.5 text-right">
-                                        <div className="flex items-center justify-end gap-2">
-                                            <Link
-                                                href={`/admin/chapters/${ch.chapter_number}/edit`}
-                                                className="flex items-center gap-1 px-2.5 py-1 border border-gray-700 hover:border-blue-500 text-gray-400 hover:text-blue-400 rounded text-xs font-mono transition-colors"
-                                            >
-                                                <Pencil size={10} />
-                                                Sửa
-                                            </Link>
-                                            <button
-                                                onClick={() => handleDelete(ch.chapter_number)}
-                                                disabled={deletingId === ch.chapter_number}
-                                                className="flex items-center gap-1 px-2.5 py-1 border border-gray-700 hover:border-red-600 text-gray-500 hover:text-red-400 disabled:opacity-50 rounded text-xs font-mono transition-colors"
-                                            >
-                                                <Trash2 size={10} />
-                                                {deletingId === ch.chapter_number ? '...' : 'Xóa'}
-                                            </button>
-                                        </div>
-                                    </td>
+                <>
+                    <div className="bg-[#0d0d0d] border border-gray-800 rounded-lg overflow-hidden mb-6">
+                        <table className="w-full text-sm">
+                            <thead className="hidden md:table-header-group">
+                                <tr className="border-b border-gray-800 bg-[#111111]">
+                                    <th className="px-4 py-3 text-left font-mono text-xs text-gray-600 tracking-widest">#</th>
+                                    <th className="px-4 py-3 text-left font-mono text-xs text-gray-600 tracking-widest">TIÊU ĐỀ</th>
+                                    <th className="px-4 py-3 text-right font-mono text-xs text-gray-600 tracking-widest">TỪ</th>
+                                    <th className="px-4 py-3 text-right font-mono text-xs text-gray-600 tracking-widest">HÀNH ĐỘNG</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                            </thead>
+                            <tbody>
+                                {chapters.map((ch) => (
+                                    <tr key={ch.id} className="border-b border-gray-800/50 hover:bg-gray-800/20 transition-colors">
+                                        <td className="px-4 py-3 font-mono text-xs text-green-400 whitespace-nowrap">
+                                            {String(ch.chapter_number).padStart(3, '0')}
+                                        </td>
+                                        <td className="px-4 py-3 text-gray-300">
+                                            <div className="max-w-xs md:max-w-md truncate font-medium">{ch.title}</div>
+                                        </td>
+                                        <td className="px-4 py-3 text-right font-mono text-xs text-gray-600 hidden md:table-cell">
+                                            {ch.word_count?.toLocaleString() || '—'}
+                                        </td>
+                                        <td className="px-4 py-3 text-right">
+                                            <div className="flex items-center justify-end gap-2">
+                                                <Link
+                                                    href={`/admin/chapters/${ch.chapter_number}/edit`}
+                                                    className="flex items-center gap-1 px-3 py-1.5 border border-gray-700 hover:border-blue-500 text-gray-400 hover:text-blue-400 rounded text-xs font-mono transition-colors"
+                                                >
+                                                    <Pencil size={10} />
+                                                    Sửa
+                                                </Link>
+                                                <button
+                                                    onClick={() => handleDelete(ch.chapter_number)}
+                                                    disabled={deletingId === ch.chapter_number}
+                                                    className="flex items-center gap-1 px-3 py-1.5 border border-gray-700 hover:border-red-600 text-gray-500 hover:text-red-400 disabled:opacity-50 rounded text-xs font-mono transition-colors"
+                                                >
+                                                    <Trash2 size={10} />
+                                                    {deletingId === ch.chapter_number ? '...' : 'Xóa'}
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* Pagination Controls */}
+                    {totalPages > 1 && (
+                        <div className="flex items-center justify-center gap-4 mt-8">
+                            <button
+                                onClick={() => fetchChapters(currentPage - 1)}
+                                disabled={currentPage === 1 || loading}
+                                className="flex items-center gap-2 px-4 py-2 border border-gray-700 text-gray-400 hover:text-gray-100 disabled:opacity-30 disabled:hover:text-gray-400 rounded-md font-mono text-xs transition-all active:scale-95"
+                            >
+                                <ChevronLeft size={16} />
+                                TRƯỚC
+                            </button>
+
+                            <div className="flex items-center gap-2">
+                                {Array.from({ length: Math.min(5, totalPages) }).map((_, i) => {
+                                    // Logic to show pages around current page if many pages
+                                    let pageNum = i + 1;
+                                    if (totalPages > 5) {
+                                        if (currentPage > 3) pageNum = currentPage - 3 + i;
+                                        if (pageNum > totalPages) pageNum = totalPages - 4 + i;
+                                        if (pageNum < 1) pageNum = i + 1;
+                                    }
+
+                                    if (pageNum > totalPages) return null;
+
+                                    return (
+                                        <button
+                                            key={pageNum}
+                                            onClick={() => fetchChapters(pageNum)}
+                                            className={`w-8 h-8 flex items-center justify-center rounded font-mono text-xs transition-colors ${currentPage === pageNum
+                                                    ? "bg-green-600 text-white"
+                                                    : "text-gray-500 hover:bg-gray-800 hover:text-gray-200"
+                                                }`}
+                                        >
+                                            {pageNum}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            <button
+                                onClick={() => fetchChapters(currentPage + 1)}
+                                disabled={currentPage === totalPages || loading}
+                                className="flex items-center gap-2 px-4 py-2 border border-gray-700 text-gray-400 hover:text-gray-100 disabled:opacity-30 disabled:hover:text-gray-400 rounded-md font-mono text-xs transition-all active:scale-95"
+                            >
+                                TIẾP
+                                <ChevronRight size={16} />
+                            </button>
+                        </div>
+                    )}
+                </>
             )}
         </div>
     );
