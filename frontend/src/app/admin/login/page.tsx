@@ -18,6 +18,11 @@ export default function AdminLoginPage() {
         setError(null);
 
         const supabase = createAdminClient();
+        if (!supabase) {
+            setError('Lỗi cấu hình: Thiếu NEXT_PUBLIC_SUPABASE_URL trên Vercel.');
+            setLoading(false);
+            return;
+        }
         const { error: authError } = await supabase.auth.signInWithPassword({
             email,
             password,

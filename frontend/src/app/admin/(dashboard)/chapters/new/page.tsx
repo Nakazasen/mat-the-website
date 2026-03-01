@@ -23,6 +23,11 @@ export default function NewChapterPage() {
         setError(null);
 
         const supabase = createAdminClient();
+        if (!supabase) {
+            setError('Lỗi cấu hình: Thiếu NEXT_PUBLIC_SUPABASE_URL trên Vercel.');
+            setLoading(false);
+            return;
+        }
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
             router.push('/admin/login');

@@ -25,6 +25,11 @@ export default function AdminChaptersPage() {
 
     useEffect(() => {
         const supabase = createAdminClient();
+        if (!supabase) {
+            setError("Lỗi cấu hình: Thiếu NEXT_PUBLIC_SUPABASE_URL. Vui lòng kiểm tra Vercel Environment Variables.");
+            setLoading(false);
+            return;
+        }
         supabase.auth.getSession().then(({ data: { session } }) => {
             if (!session) { router.push('/admin/login'); return; }
             setToken(session.access_token);

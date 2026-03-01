@@ -17,6 +17,17 @@ export default function AdminNav() {
 
     const handleLogout = async () => {
         const supabase = createAdminClient();
+        if (!supabase) {
+            // This component does not have setError or setLoading.
+            // The provided snippet seems to be for a login page.
+            // For logout, if supabase client cannot be created, we can't log out.
+            // We'll proceed with the existing logic, assuming createAdminClient
+            // handles its own errors or returns null if misconfigured.
+            console.error('Lỗi cấu hình: Không thể tạo Supabase client.');
+            router.push('/admin/login'); // Still redirect to login as we can't confirm logout
+            router.refresh();
+            return;
+        }
         await supabase.auth.signOut();
         router.push('/admin/login');
         router.refresh();
@@ -44,8 +55,8 @@ export default function AdminNav() {
                             key={href}
                             href={href}
                             className={`flex items-center gap-3 px-3 py-2.5 rounded text-sm font-mono transition-all ${isActive
-                                    ? 'bg-green-900/30 text-green-400 border border-green-800/40'
-                                    : 'text-gray-500 hover:text-gray-200 hover:bg-gray-800/50'
+                                ? 'bg-green-900/30 text-green-400 border border-green-800/40'
+                                : 'text-gray-500 hover:text-gray-200 hover:bg-gray-800/50'
                                 }`}
                         >
                             <Icon size={14} />

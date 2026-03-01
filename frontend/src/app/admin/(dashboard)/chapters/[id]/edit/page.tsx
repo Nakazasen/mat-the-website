@@ -24,6 +24,11 @@ export default function EditChapterPage() {
     // Load chapter data on mount
     useEffect(() => {
         const supabase = createAdminClient();
+        if (!supabase) {
+            setError('Lỗi cấu hình: Thiếu NEXT_PUBLIC_SUPABASE_URL trên Vercel.');
+            setInitialLoading(false);
+            return;
+        }
         supabase.auth.getSession().then(async ({ data: { session } }) => {
             if (!session) { router.push('/admin/login'); return; }
             setToken(session.access_token);

@@ -1,13 +1,19 @@
 import { createBrowserClient } from '@supabase/ssr';
 
-// Loại bỏ dấu ! để tránh crash ứng dụng khi build/load nếu thiếu env
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 // Client for use in browser-side admin components
 export function createAdminClient() {
     if (!supabaseUrl || !supabaseAnonKey) {
-        console.warn("Supabase credentials missing. Check your environment variables.");
+        console.warn("Supabase credentials missing. Client side auth will fail.");
+        return null;
     }
-    return createBrowserClient(supabaseUrl, supabaseAnonKey);
+
+    try {
+        return createBrowserClient(supabaseUrl, supabaseAnonKey);
+    } catch (e) {
+        console.error("Failed to create Supabase browser client:", e);
+        return null;
+    }
 }
