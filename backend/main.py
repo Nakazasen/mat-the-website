@@ -516,8 +516,9 @@ async def admin_get_users(authorization: Optional[str] = Header(None)):
     """Lấy danh sách tất cả nhân sự (Profiles). Chỉ dành cho SuperAdmin."""
     user = await verify_admin(authorization)
     
-    # Ở đây chúng ta tạm thời cho phép token hiện tại (ADMIN_TOKEN) xem hết.
-    # Nhưng trong tương lai nếu dùng JWT, chúng ta sẽ check profile.role == 'superadmin'
+    # Chỉ SuperAdmin mới được xem danh sách nhân sự
+    if user["role"] != "superadmin":
+        raise HTTPException(status_code=403, detail="Chỉ SuperAdmin mới có quyền xem danh sách nhân sự")
     
     resp = supabase.table("profiles").select("*").order("created_at", desc=True).execute()
     return resp.data
@@ -529,23 +530,37 @@ async def admin_invite_user(
     authorization: Optional[str] = Header(None)
 ):
     """Tạo tài khoản Auth và Profile mới cho nhân viên. Chỉ dành cho SuperAdmin."""
-    await verify_admin(authorization)
+    user = await verify_admin(authorization)
+    
+    # Kiểm tra quyền SuperAdmin
+    if user["role"] != "superadmin":
+        raise HTTPException(status_code=403, detail="Chỉ SuperAdmin mới có quyền tạo nhân sự mới")
     
     # 1. Tạo user trong hệ thống Auth của Supabase bằng Service Role
-    # Lưu ý: auth.admin.create_user cần service_role key (đã config trong backend/.env)
-    
-    auth_resp = supabase.auth.admin.create_user({
-        "email": body.email,
-        "password": body.password,
-        "email_confirm": True,
-        "user_metadata": {"full_name": body.display_name}
-    })
-    
-    # 2. Update role trong bảng profiles (Trigger sẽ tự tạo profile, ta chỉ cần update role if not default)
-    if body.role != "editor":
-        supabase.table("profiles").update({"role": body.role}).eq("id", auth_resp.user.id).execute()
+    try:
+        # auth.admin.create_user cần service_role key
+        auth_resp = supabase.auth.admin.create_user({
+            "email": body.email,
+            "password": body.password,
+            "email_confirm": True,
+            "user_metadata": {"full_name": body.display_name}
+        })
         
-    return {"message": "Đã tạo tài khoản thành công", "user_id": auth_resp.user.id}
+        if not auth_resp or not auth_resp.user:
+            raise Exception("Supabase không trả về thông tin user mới.")
+
+        # 2. Update role trong bảng profiles
+        if body.role != "editor":
+            supabase.table("profiles").update({"role": body.role}).eq("id", auth_resp.user.id).execute()
+            
+        return {"message": "Đã tạo tài khoản thành công", "user_id": auth_resp.user.id}
+    except Exception as e:
+        error_msg = str(e)
+        if "User not allowed" in error_msg:
+            detail = "Lỗi: Backend chưa được cấp quyền Admin (Service Role Key). Hãy kiểm tra SUPABASE_KEY."
+        else:
+            detail = f"Lỗi tạo tài khoản: {error_msg}"
+        raise HTTPException(status_code=500, detail=detail)
 
 
 @app.delete("/api/admin/users/{user_id}", summary="[Admin] Xoá nhân sự")
@@ -554,12 +569,18 @@ async def admin_delete_user(
     authorization: Optional[str] = Header(None)
 ):
     """Xoá tài khoản nhân sự. Chỉ dành cho SuperAdmin."""
-    await verify_admin(authorization)
+    user = await verify_admin(authorization)
     
-    # Xoá trong Auth (bảng profiles sẽ tự động xoá do CASCADE)
-    supabase.auth.admin.delete_user(user_id)
+    # Kiểm tra quyền SuperAdmin
+    if user["role"] != "superadmin":
+        raise HTTPException(status_code=403, detail="Chỉ SuperAdmin mới có quyền xoá nhân sự")
     
-    return {"message": "Đã xoá nhân sự thành công"}
+    try:
+        # Xoá trong Auth (bảng profiles sẽ tự động xoá do CASCADE)
+        supabase.auth.admin.delete_user(user_id)
+        return {"message": "Đã xoá nhân sự thành công"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi khi xoá nhân sự: {str(e)}")
 
 
 # ============================================================
