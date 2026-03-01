@@ -463,7 +463,12 @@ async def admin_get_chapter_content(
         raise HTTPException(status_code=404, detail="Không tìm thấy nội dung chương")
 
     if not r2_client:
-        raise HTTPException(status_code=500, detail="R2 chưa được cấu hình")
+        missing = []
+        if not R2_ACCESS_KEY: missing.append("R2_ACCESS_KEY_ID")
+        if not R2_SECRET_KEY: missing.append("R2_SECRET_ACCESS_KEY")
+        if not R2_ENDPOINT: missing.append("R2_ENDPOINT_URL")
+        detail = f"R2 chưa được cấu hình. Thiếu biến: {', '.join(missing)}"
+        raise HTTPException(status_code=500, detail=detail)
 
     # Extract object key from URL (more robustly)
     content_url = resp.data["content_url"]
