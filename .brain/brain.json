@@ -2,7 +2,7 @@
   "meta": {
     "schema_version": "1.1.0",
     "awf_version": "4.0.2",
-    "last_updated": "2026-03-01T01:44:50+07:00"
+    "last_updated": "2026-03-01T15:55:00+07:00"
   },
   "project": {
     "name": "Mạt Thế - Sinh Hoá Nguy Cơ",
@@ -29,7 +29,8 @@
     "database": {
       "provider": "Supabase (PostgreSQL)",
       "tables": [
-        "chapters"
+        "chapters",
+        "novel_settings"
       ]
     },
     "storage": "Cloudflare R2 (lưu file nội dung chương .txt, public CDN)"
@@ -40,12 +41,12 @@
       "explained": "Lấy danh sách tất cả chương (id, chapter_number, title, word_count)"
     },
     {
-      "path": "GET /api/chapters/{id}",
-      "explained": "Lấy metadata 1 chương theo ID"
+      "path": "GET /api/chapters/{chapter_number}",
+      "explained": "Lấy metadata chương theo số chương"
     },
     {
-      "path": "GET /api/chapters/number/{chapter_number}",
-      "explained": "Lấy metadata chương theo số chương"
+      "path": "GET /api/novel",
+      "explained": "Lấy thông tin chung của truyện (Tiêu đề, Tác giả, Mô tả...)"
     },
     {
       "path": "GET /api/tts",
@@ -61,11 +62,6 @@
         "frontend/src/context/ThemeContext.tsx",
         "frontend/src/components/ThemeSwitcher.tsx"
       ]
-    },
-    {
-      "name": "Font Size Control",
-      "status": "complete",
-      "description": "14-28px, lưu localStorage qua ThemeContext"
     },
     {
       "name": "AudioPlayer TTS + Media Session",
@@ -124,22 +120,18 @@
         "detail": "MIUI chặn chuyển bài trên màn hình khóa (yêu cầu mật khẩu) nếu là trang web thường. Phải chạy dưới dạng PWA (Install App) để có quyền hạn cao hơn + Cấp quyền 'Show on Lock screen' trong App Info"
       },
       {
-        "title": "Media Session Artwork cho Android",
-        "detail": "Cần icon 192x192 và 512x512 trong artwork array. Link ảnh nên dùng HTTPS tuyệt đối hoặc proxy để chắc chắn hiển thị"
+        "title": "SyntaxError: unterminated string literal in Python",
+        "detail": "Đôi khi do ký tự lạ hoặc lỗi encoding trong file. Cần viết lại khối code bằng ký tự chuẩn để khắc phục."
       },
       {
-        "title": "Karaoke Text Sync",
-        "detail": "AudioPlayer và ReadingClient phải dùng cùng 1 thuật toán splitIntoChunks() để index highlight khớp hoàn toàn với âm thanh đang phát"
-      },
-      {
-        "title": "TTS Proxy 403 Bypass",
-        "detail": "Backend phải giả lập User-Agent Chrome và thêm Referer google.com để tránh bị Google chặn khi fetch MP3"
+        "title": "Vercel Webhook Deployment Delay",
+        "detail": "Đôi khi Vercel không tự re-deploy khi nhận push. Cần tạo một commit rỗng hoặc commit nhỏ để ép Vercel nhận diện lại tín hiệu webhook."
       }
     ]
   },
   "git": {
     "github_user": "Nakazasen",
     "git_email": "buiducvinhct1102@gmail.com",
-    "last_commit": "UI: Enhance Karaoke highlight visibility (Vivid Toxic Style)"
+    "last_commit": "Fix: backend SyntaxError and update author display to Hàn Nhược Tuyết"
   }
 }
