@@ -11,7 +11,7 @@ export const metadata: Metadata = {
         template: "%s | Mạt Thế - Sinh Hoá Nguy Cơ",
     },
     description:
-        "Đọc truyện Mạt Thế - Sinh Hoá Nguy Cơ full 813+ chương. Thế giới tàn lụi, zombie, dị biến sinh học. Hàn Phong - Thủ lĩnh trấn Hi Vọng.",
+        "Đọc truyện Mạt Thế - Sinh Hoá Nguy Cơ full 813+ chương. Thế giới tàn lụi, zombie, dị biến sinh học. Tác giả: Hàn Nhược Tuyết.",
     keywords: [
         "mạt thế sinh hoá nguy cơ",
         "đọc truyện zombie",
