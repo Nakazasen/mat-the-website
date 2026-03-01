@@ -5,10 +5,14 @@ Cung cấp API metadata chương. Nội dung chương được fetch từ Cloudf
 
 import io
 import os
+import re
+import unicodedata
 from typing import Optional
 from urllib.parse import quote
+import boto3
+from botocore.client import Config
 import httpx
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Header, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -25,6 +29,46 @@ if not SUPABASE_URL or not SUPABASE_KEY:
     raise RuntimeError("SUPABASE_URL và SUPABASE_KEY phải được cấu hình trong file .env")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# === CLOUDFLARE R2 CLIENT ===
+R2_ACCESS_KEY = os.getenv("R2_ACCESS_KEY_ID")
+R2_SECRET_KEY = os.getenv("R2_SECRET_ACCESS_KEY")
+R2_ENDPOINT = os.getenv("R2_ENDPOINT_URL")
+R2_BUCKET = os.getenv("R2_BUCKET_NAME", "mat-the")
+R2_PUBLIC_URL = os.getenv("R2_PUBLIC_URL", "")  # Base URL for public access
+
+r2_client = None
+if R2_ACCESS_KEY and R2_SECRET_KEY and R2_ENDPOINT:
+    r2_client = boto3.client(
+        's3',
+        endpoint_url=R2_ENDPOINT,
+        aws_access_key_id=R2_ACCESS_KEY,
+        aws_secret_access_key=R2_SECRET_KEY,
+        config=Config(signature_version='s3v4'),
+        region_name='auto',
+    )
+
+
+def slugify(text: str) -> str:
+    """Convert Vietnamese text to ASCII slug for use as R2 object key."""
+    text = unicodedata.normalize('NFD', text)
+    text = re.sub(r'[\u0300-\u036f]', '', text)
+    text = re.sub(r'[^\w\s-]', '', text.lower())
+    return re.sub(r'[-\s]+', '-', text).strip('-')
+
+
+async def verify_admin(authorization: Optional[str]) -> dict:
+    """Verify the Supabase Bearer JWT token from the request header."""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Thiếu token xác thực")
+    token = authorization.replace("Bearer ", "")
+    try:
+        response = supabase.auth.get_user(token)
+        if not response.user:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token không hợp lệ")
+        return {"user": response.user}
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token hết hạn hoặc không hợp lệ")
 
 # === FASTAPI APP ===
 app = FastAPI(
@@ -209,3 +253,133 @@ async def tts_proxy(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================
+# ADMIN ROUTES (JWT Protected)
+# ============================================================
+
+class AdminChapterCreate(BaseModel):
+    chapter_number: int
+    title: str
+    content: str  # Raw text content of the chapter
+
+
+class AdminChapterUpdate(BaseModel):
+    title: Optional[str] = None
+    content: Optional[str] = None
+
+
+@app.post("/api/admin/chapters", summary="[Admin] Thêm chương mới")
+async def admin_create_chapter(
+    body: AdminChapterCreate,
+    authorization: Optional[str] = Header(None),
+):
+    """Thêm chương mới: Upload nội dung lên R2, lưu metadata vào Supabase."""
+    await verify_admin(authorization)
+
+    if not r2_client:
+        raise HTTPException(status_code=500, detail="R2 chưa được cấu hình trên server")
+
+    # Check chapter number uniqueness
+    existing = supabase.table("chapters").select("id").eq("chapter_number", body.chapter_number).execute()
+    if existing.data:
+        raise HTTPException(status_code=409, detail=f"Chương {body.chapter_number} đã tồn tại")
+
+    # Upload content to R2
+    slug = slugify(f"chuong-{body.chapter_number}-{body.title}")
+    object_key = f"chapters/{body.chapter_number:04d}-{slug}.txt"
+    content_bytes = body.content.encode("utf-8")
+
+    r2_client.put_object(
+        Bucket=R2_BUCKET,
+        Key=object_key,
+        Body=content_bytes,
+        ContentType="text/plain; charset=utf-8",
+    )
+
+    content_url = f"{R2_PUBLIC_URL}/{object_key}"
+    word_count = len(body.content.split())
+
+    # Insert metadata into Supabase
+    result = supabase.table("chapters").insert({
+        "chapter_number": body.chapter_number,
+        "title": body.title,
+        "content_url": content_url,
+        "word_count": word_count,
+    }).execute()
+
+    return {"message": "Thêm chương thành công", "chapter": result.data[0]}
+
+
+@app.put("/api/admin/chapters/{chapter_number}", summary="[Admin] Sửa chương")
+async def admin_update_chapter(
+    chapter_number: int,
+    body: AdminChapterUpdate,
+    authorization: Optional[str] = Header(None),
+):
+    """Sửa tiêu đề và/hoặc nội dung chương."""
+    await verify_admin(authorization)
+
+    # Fetch existing chapter
+    existing = supabase.table("chapters").select("*").eq("chapter_number", chapter_number).single().execute()
+    if not existing.data:
+        raise HTTPException(status_code=404, detail=f"Chương {chapter_number} không tìm thấy")
+
+    chapter = existing.data
+    update_data = {}
+
+    # Update content on R2 if provided
+    if body.content is not None:
+        if not r2_client:
+            raise HTTPException(status_code=500, detail="R2 chưa được cấu hình trên server")
+
+        # Derive key from content_url
+        content_url = chapter["content_url"]
+        object_key = content_url.replace(f"{R2_PUBLIC_URL}/", "")
+
+        r2_client.put_object(
+            Bucket=R2_BUCKET,
+            Key=object_key,
+            Body=body.content.encode("utf-8"),
+            ContentType="text/plain; charset=utf-8",
+        )
+        update_data["word_count"] = len(body.content.split())
+
+    if body.title is not None:
+        update_data["title"] = body.title
+
+    if update_data:
+        result = supabase.table("chapters").update(update_data).eq("chapter_number", chapter_number).execute()
+        return {"message": "Cập nhật thành công", "chapter": result.data[0]}
+
+    return {"message": "Không có gì thay đổi"}
+
+
+@app.delete("/api/admin/chapters/{chapter_number}", summary="[Admin] Xóa chương")
+async def admin_delete_chapter(
+    chapter_number: int,
+    authorization: Optional[str] = Header(None),
+):
+    """Xóa chương: Xóa file trên R2 và xóa metadata trong Supabase."""
+    await verify_admin(authorization)
+
+    # Fetch existing chapter
+    existing = supabase.table("chapters").select("*").eq("chapter_number", chapter_number).single().execute()
+    if not existing.data:
+        raise HTTPException(status_code=404, detail=f"Chương {chapter_number} không tìm thấy")
+
+    chapter = existing.data
+
+    # Delete from R2
+    if r2_client and chapter.get("content_url"):
+        object_key = chapter["content_url"].replace(f"{R2_PUBLIC_URL}/", "")
+        try:
+            r2_client.delete_object(Bucket=R2_BUCKET, Key=object_key)
+        except Exception:
+            pass  # Continue even if R2 delete fails
+
+    # Delete from Supabase
+    supabase.table("chapters").delete().eq("chapter_number", chapter_number).execute()
+
+    return {"message": f"Đã xóa chương {chapter_number}"}
