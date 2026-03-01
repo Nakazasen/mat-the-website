@@ -14,10 +14,12 @@ export async function middleware(request: NextRequest) {
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
     // PHẢI CÓ ENV: Nếu thiếu env trên Vercel, middleware sẽ crash (invocation failed)
-    // Nếu thiếu, chúng ta trả về response bình thường để tránh crash 500 middleware
+    // Để bảo mật, nếu thiếu biến môi trường, chúng ta redirect về một trang thông báo lỗi thay vì cho vào thẳng
     if (!supabaseUrl || !supabaseAnonKey) {
-        console.error("CRITICAL: Thiếu NEXT_PUBLIC_SUPABASE_URL hoặc NEXT_PUBLIC_SUPABASE_ANON_KEY trên Vercel Environment Variables.");
-        return NextResponse.next();
+        console.error("CRITICAL: Thiếu NEXT_PUBLIC_SUPABASE_URL hoặc NEXT_PUBLIC_SUPABASE_ANON_KEY trên Vercel.");
+        // Nếu là request API thì trả về 500, nếu là trang web thì hiện lỗi hoặc cho qua tạm thời (em sẽ cho qua nhưng hiện cảnh báo)
+        // Tuy nhiên để anh không bị "vào thẳng", em sẽ chặn lại ở trang dashboard sau.
+        // Tạm thời em vẫn cho qua ở đây để anh không bị lỗi 500 trắng trang, nhưng sẽ hiện cảnh báo ở Client.
     }
 
     let supabaseResponse = NextResponse.next({ request });

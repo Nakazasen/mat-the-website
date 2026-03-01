@@ -62,10 +62,7 @@ export default function RootLayout({
             </head>
             <body className="bg-ash-dark min-h-screen antialiased">
                 <ThemeProvider>
-                    <Header />
-                    <main>{children}</main>
-                    <Footer />
-                    <PWAInstallPrompt />
+                    {children}
                 </ThemeProvider>
             </body>
         </html>
