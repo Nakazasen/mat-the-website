@@ -8,7 +8,7 @@ import os
 import re
 import unicodedata
 # Force re-deploy to Vercel (Trigger)
-from typing import Optional
+from typing import Optional, List
 from urllib.parse import quote
 import boto3
 from botocore.client import Config
