@@ -403,11 +403,11 @@ async def get_novel_settings():
         if not resp.data:
             return NovelSettings(
                 title="Mạt Thế - Sinh Hoá Nguy Cơ",
-                author="Hà Phong (Default)",
-                description="Virus biến thể đã xóa sổ nền văn minh...",
+                author="Hàn Nhược Tuyết",
+                description="Truyện lấy bối cảnh tận thế đột nhiên phủ xuống, thây ma lan tràn, quái vật dị biến nổi lên khắp nơi, loài người bị đẩy vào một trò chơi tàn khốc kinh hoàng nhưng cũng ẩn chứa cơ hội lớn lao...\n\nNhân vật chính là một nhân viên văn phòng hết sức bình thường, bước từng bước tiến lên để tìm ra nguyên nhân của đại tai biến.\nTạo dựng thế lực, ngăn cản biển thây ma, tấn công ổ quái vật, phục hồi trật tự, chiến tranh với các thế lực khác...",
                 cover_url="/hero-bg.png",
                 status="Đang cập nhật",
-                genres=["Mạt Thế", "Zombie"]
+                genres=["Mạt Thế", "Zombie", "Hành Động", "Huyền Hạo", "Hành Động"]
             )
         
         # Filter out fields not in the model to avoid Pydantic errors
@@ -419,11 +419,11 @@ async def get_novel_settings():
         # Fallback dữ liệu mặc định nếu lỗi DB (tránh sập trang chủ)
         return NovelSettings(
             title="Mạt Thế - Sinh Hoá Nguy Cơ",
-            author="Hà Phong",
-            description="Virus biến thể đã xóa sổ nền văn minh...",
+            author="Hàn Nhược Tuyết",
+            description="Truyện lấy bối cảnh tận thế đột nhiên phủ xuống, thây ma lan tràn, quái vật dị biến nổi lên khắp nơi, loài người bị đẩy vào một trò chơi tàn khốc kinh hoàng nhưng cũng ẩn chứa cơ hội lớn lao...\n\nNhân vật chính là một nhân viên văn phòng hết sức bình thường, bước từng bước tiến lên để tìm ra nguyên nhân của đại tai biến.\nTạo dựng thế lực, ngăn cản biển thây ma, tấn công ổ quái vật, phục hồi trật tự, chiến tranh với các thế lực khác...",
             cover_url="/hero-bg.png",
             status="Đang cập nhật",
-            genres=["Mạt Thế", "Zombie"]
+            genres=["Mạt Thế", "Zombie", "Hành Động", "Huyền Hạo", "Hành Động"]
         )
 
 

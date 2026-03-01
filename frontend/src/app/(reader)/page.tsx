@@ -114,6 +114,7 @@ export default async function HomePage() {
                         <div className="flex flex-wrap gap-6 mt-10">
                             {[
                                 { label: "Chương", value: `${latestChapters.length > 0 ? latestChapters[0].chapter_number : 813}+` },
+                                { label: "Tác giả", value: novel.author },
                                 { label: "Thể loại", value: novel.genres.join(" · ") },
                                 { label: "Tình trạng", value: novel.status },
                             ].map(({ label, value }) => (
