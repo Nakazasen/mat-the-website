@@ -2,7 +2,7 @@
   "meta": {
     "schema_version": "1.1.0",
     "awf_version": "4.0.2",
-    "last_updated": "2026-03-01T16:10:00+07:00"
+    "last_updated": "2026-03-01T17:35:00+07:00"
   },
   "project": {
     "name": "Mạt Thế - Sinh Hoá Nguy Cơ",
@@ -30,7 +30,8 @@
       "provider": "Supabase (PostgreSQL)",
       "tables": [
         "chapters",
-        "novel_settings"
+        "novel_settings",
+        "comments"
       ]
     },
     "storage": "Cloudflare R2 (lưu file nội dung chương .txt, public CDN)"
@@ -43,6 +44,22 @@
     {
       "path": "GET /api/chapters/{chapter_number}",
       "explained": "Lấy metadata chương theo số chương"
+    },
+    {
+      "path": "POST /api/chapters/{chapter_number}/view",
+      "explained": "Analytics: Tăng view_count cho chương"
+    },
+    {
+      "path": "GET /api/admin/analytics/top-chapters",
+      "explained": "Analytics: Lấy danh sách chương đọc nhiều nhất (yêu cầu Admin)"
+    },
+    {
+      "path": "GET /api/chapters/{chapter_number}/comments",
+      "explained": "Lấy danh sách bình luận của một chương"
+    },
+    {
+      "path": "POST /api/chapters/{chapter_number}/comments",
+      "explained": "Đăng bình luận mới cho chương (ẩn danh hoặc có tên)"
     },
     {
       "path": "GET /api/novel",
@@ -90,6 +107,33 @@
         "frontend/public/manifest.json",
         "frontend/public/sw.js",
         "frontend/src/components/PWAInstallPrompt.tsx"
+      ]
+    },
+    {
+      "name": "Analytics & Dashboard",
+      "status": "complete",
+      "description": "Hệ thống track lượt xem chương và hiển thị thống kê Top Chapters cho Admin",
+      "files": [
+        "backend/main.py",
+        "frontend/src/app/admin/(dashboard)/page.tsx"
+      ]
+    },
+    {
+      "name": "Reading History (Continue Reading)",
+      "status": "complete",
+      "description": "Tự động ghi nhớ chương đang đọc dở vào localStorage và hiển thị nút TIẾP TỤC ở trang chủ",
+      "files": [
+        "frontend/src/components/ContinueButton.tsx",
+        "frontend/src/components/ReadingClient.tsx"
+      ]
+    },
+    {
+      "name": "Comment System",
+      "status": "complete",
+      "description": "Người đọc có thể để lại cảm cảm nghĩ dưới mỗi chương. Hỗ trợ hiển thị tên và thời gian",
+      "files": [
+        "frontend/src/components/CommentSection.tsx",
+        "backend/main.py"
       ]
     }
   ],
