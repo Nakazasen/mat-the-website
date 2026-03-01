@@ -40,8 +40,14 @@ export default function AudioPlayer({
     const chunkIndexRef = useRef(0);
     const speedRef = useRef(speed);
     const stoppedRef = useRef(true);
+    const wakeLockRef = useRef<any>(null);
 
-    useEffect(() => { speedRef.current = speed; }, [speed]);
+    useEffect(() => {
+        speedRef.current = speed;
+        if (audioRef.current) {
+            audioRef.current.playbackRate = speed;
+        }
+    }, [speed]);
 
     useEffect(() => {
         // Chỉ chunk nội dung chính để Karaoke khớp với text hiển thị
@@ -68,8 +74,8 @@ export default function AudioPlayer({
             artist: chapterTitle,
             album: 'Mạt Thế - Sinh Hoá Nguy Cơ ☣️',
             artwork: [
-                { src: 'https://cdn-icons-png.flaticon.com/512/2583/2583216.png', sizes: '512x512', type: 'image/png' },
-                { src: 'https://cdn-icons-png.flaticon.com/512/2583/2583216.png', sizes: '192x192', type: 'image/png' }
+                { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+                { src: '/icon-192.png', sizes: '192x192', type: 'image/png' }
             ]
         });
     }, [chapterNumber, chapterTitle]);
@@ -117,11 +123,30 @@ export default function AudioPlayer({
             audio.load();
         }
 
-        audio.play().catch(e => {
+        audio.play().then(() => {
+            audio.playbackRate = speedRef.current;
+        }).catch(e => {
             console.error("Playback failed", e);
             if (!stoppedRef.current) playChunk(index + 1);
         });
     }, [nextId, router, onIndexChange]);
+
+    const requestWakeLock = useCallback(async () => {
+        if ('wakeLock' in navigator) {
+            try {
+                wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+            } catch (err) {
+                console.error(`Wake Lock error: ${err}`);
+            }
+        }
+    }, []);
+
+    const releaseWakeLock = useCallback(() => {
+        if (wakeLockRef.current) {
+            wakeLockRef.current.release();
+            wakeLockRef.current = null;
+        }
+    }, []);
 
     useEffect(() => {
         const audio = audioRef.current;
@@ -166,8 +191,9 @@ export default function AudioPlayer({
         stoppedRef.current = false;
         chunkIndexRef.current = 0;
         setupMediaSession();
+        requestWakeLock();
         playChunk(0);
-    }, [playChunk, setupMediaSession]);
+    }, [playChunk, setupMediaSession, requestWakeLock]);
 
     const pause = useCallback(() => {
         audioRef.current?.pause();
@@ -175,15 +201,17 @@ export default function AudioPlayer({
 
     const resume = useCallback(() => {
         stoppedRef.current = false;
+        requestWakeLock();
         if (audioRef.current?.paused) {
             audioRef.current.play();
         } else {
             playChunk(chunkIndexRef.current);
         }
-    }, [playChunk]);
+    }, [playChunk, requestWakeLock]);
 
     const stop = useCallback(() => {
         stoppedRef.current = true;
+        releaseWakeLock();
         if (audioRef.current) {
             audioRef.current.pause();
             audioRef.current.src = '';
@@ -194,7 +222,7 @@ export default function AudioPlayer({
         if ('mediaSession' in navigator) {
             navigator.mediaSession.playbackState = 'none';
         }
-    }, [onIndexChange]);
+    }, [onIndexChange, releaseWakeLock]);
 
     return (
         <>

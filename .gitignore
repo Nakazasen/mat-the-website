@@ -1,5 +1,8 @@
 # Gitignore - Mạt Thế Website
 
+# AWF Brain (local state only)
+.brain/
+
 # Dependencies
 node_modules/
 .pnp

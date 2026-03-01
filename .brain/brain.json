@@ -1,25 +1,145 @@
 {
-  "project": {
-    "name": "mat-the-website",
-    "description": "Fanpage đọc truyện chữ 'Mạt Thế - Sinh Hoá Nguy Cơ' - Zero-cost, 1000+ CCU",
-    "created_at": "2026-02-28T11:28:00+07:00"
+  "meta": {
+    "schema_version": "1.1.0",
+    "awf_version": "4.0.2",
+    "last_updated": "2026-03-01T01:44:50+07:00"
   },
-  "tech_stack": [
-    "Next.js 15 (App Router)",
-    "Tailwind CSS",
-    "FastAPI Python",
-    "Supabase (PostgreSQL)",
-    "Cloudflare R2"
+  "project": {
+    "name": "Mạt Thế - Sinh Hoá Nguy Cơ",
+    "type": "Novel Reading Website",
+    "url": "https://matthesinhhoa.vercel.app",
+    "repo": "https://github.com/Nakazasen/mat-the-website",
+    "status": "active"
+  },
+  "tech_stack": {
+    "frontend": {
+      "framework": "Next.js 14 (App Router)",
+      "language": "TypeScript",
+      "styling": "Tailwind CSS + CSS Variables",
+      "icons": "lucide-react",
+      "deployment": "Vercel",
+      "pwa": "Supported (Custom Manifest + Basic Service Worker)"
+    },
+    "backend": {
+      "framework": "FastAPI (Python)",
+      "deployment": "Render.com (free tier)",
+      "url": "process.env.NEXT_PUBLIC_API_URL (set trên Vercel dashboard)",
+      "note": "Backend ngủ sau 15 phút idle. Cần warmup khi truy cập lần đầu"
+    },
+    "database": {
+      "provider": "Supabase (PostgreSQL)",
+      "tables": [
+        "chapters"
+      ]
+    },
+    "storage": "Cloudflare R2 (lưu file nội dung chương .txt, public CDN)"
+  },
+  "api_endpoints": [
+    {
+      "path": "GET /api/chapters",
+      "explained": "Lấy danh sách tất cả chương (id, chapter_number, title, word_count)"
+    },
+    {
+      "path": "GET /api/chapters/{id}",
+      "explained": "Lấy metadata 1 chương theo ID"
+    },
+    {
+      "path": "GET /api/chapters/number/{chapter_number}",
+      "explained": "Lấy metadata chương theo số chương"
+    },
+    {
+      "path": "GET /api/tts",
+      "explained": "TTS Proxy - nhận text (≤200 ký tự), gọi Google Translate TTS server-side, trả về audio/mpeg. Params: text, lang=vi, speed=1.0"
+    }
   ],
   "features": [
-    "Trang chủ với Hero section Biohazard/Apocalypse",
-    "Mục lục 800+ chương với virtual scroll",
-    "Trang đọc tối ưu mobile",
-    "CDN delivery qua Cloudflare R2"
+    {
+      "name": "Theme System",
+      "status": "complete",
+      "description": "3 themes: Dark (mặc định), Light, Sepia. Lưu localStorage",
+      "files": [
+        "frontend/src/context/ThemeContext.tsx",
+        "frontend/src/components/ThemeSwitcher.tsx"
+      ]
+    },
+    {
+      "name": "Font Size Control",
+      "status": "complete",
+      "description": "14-28px, lưu localStorage qua ThemeContext"
+    },
+    {
+      "name": "AudioPlayer TTS + Media Session",
+      "status": "complete",
+      "description": "Nghe truyện giọng Việt qua Google TTS proxy. Hỗ trợ điều khiển màn hình khóa Android/iOS (Play/Pause/Next/Prev)",
+      "strategy": "Frontend gọi /api/tts → Backend proxy Google TTS → audio/mpeg. Media Session tích hợp Artwork Biohazard và Sync Metadata liên tục cho MIUI",
+      "files": [
+        "frontend/src/components/AudioPlayer.tsx",
+        "backend/main.py"
+      ]
+    },
+    {
+      "name": "Karaoke (Highlight chữ)",
+      "status": "complete",
+      "description": "Highlight đoạn văn bản đang đọc với hiệu ứng Vivid Toxic Neon. Tự động cuộn trang (Auto-scroll) theo đoạn đang đọc",
+      "files": [
+        "frontend/src/lib/tts-utils.ts",
+        "frontend/src/components/ReadingClient.tsx"
+      ]
+    },
+    {
+      "name": "PWA (Ứng dụng Web)",
+      "status": "complete",
+      "description": "Cài đặt như App thực thụ trên điện thoại. Có logo riêng, thông báo mời cài đặt (Install Prompt) và giải quyết bảo mật điều hướng màn hình khóa",
+      "files": [
+        "frontend/public/manifest.json",
+        "frontend/public/sw.js",
+        "frontend/src/components/PWAInstallPrompt.tsx"
+      ]
+    }
   ],
-  "decisions": [
-    "Nội dung chương lưu file .txt trên R2 (không dùng DB) để lách giới hạn 500MB Supabase",
-    "Frontend fetch file R2 trực tiếp - backend chỉ cung cấp URL",
-    "Dark theme Biohazard: Toxic Green + Blood Red + Ash Black"
-  ]
+  "design_system": {
+    "themes": {
+      "dark": {
+        "bg": "#161616",
+        "text": "#d4d0c8"
+      },
+      "light": {
+        "bg": "#f9f7f4",
+        "text": "#1a1a1a"
+      },
+      "sepia": {
+        "bg": "#f4ecd8",
+        "text": "#3d2b1a"
+      }
+    },
+    "colors": {
+      "toxic-green": "#00ff9f",
+      "blood-red": "#8b0000"
+    }
+  },
+  "knowledge_items": {
+    "gotchas": [
+      {
+        "title": "Xiaomi MIUI Security vs Lock Screen Navigation",
+        "detail": "MIUI chặn chuyển bài trên màn hình khóa (yêu cầu mật khẩu) nếu là trang web thường. Phải chạy dưới dạng PWA (Install App) để có quyền hạn cao hơn + Cấp quyền 'Show on Lock screen' trong App Info"
+      },
+      {
+        "title": "Media Session Artwork cho Android",
+        "detail": "Cần icon 192x192 và 512x512 trong artwork array. Link ảnh nên dùng HTTPS tuyệt đối hoặc proxy để chắc chắn hiển thị"
+      },
+      {
+        "title": "Karaoke Text Sync",
+        "detail": "AudioPlayer và ReadingClient phải dùng cùng 1 thuật toán splitIntoChunks() để index highlight khớp hoàn toàn với âm thanh đang phát"
+      },
+      {
+        "title": "TTS Proxy 403 Bypass",
+        "detail": "Backend phải giả lập User-Agent Chrome và thêm Referer google.com để tránh bị Google chặn khi fetch MP3"
+      }
+    ]
+  },
+  "git": {
+    "github_user": "Nakazasen",
+    "git_email": "buiducvinhct1102@gmail.com",
+    "last_commit": "UI: Enhance Karaoke highlight visibility (Vivid Toxic Style)"
+  }
 }
