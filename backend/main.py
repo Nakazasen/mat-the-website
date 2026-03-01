@@ -108,7 +108,7 @@ async def add_cors_and_logging(request, call_next):
         from fastapi.responses import JSONResponse
         response = JSONResponse(
             status_code=500,
-            content={"detail": "Internal Server Error", "error": str(e)}
+            content={"detail": f"Server Error: {str(e)}", "error": str(e)}
         )
 
     # Add CORS headers to ALL responses (even errors)
