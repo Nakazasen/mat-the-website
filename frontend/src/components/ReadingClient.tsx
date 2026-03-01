@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Settings, Home, List, Sun, Moon, Coffee } from "lucide-react";
+import { ChevronLeft, ChevronRight, Settings, Home, List, Sun, Moon, Coffee, Share2, Facebook } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
 import AudioPlayer from "./AudioPlayer";
+import CommentSection from "./CommentSection";
 import { splitIntoChunks } from "@/lib/tts-utils";
 
 interface ReadingClientProps {
@@ -296,6 +297,33 @@ export default function ReadingClient({
                     ))}
                 </div>
 
+                {/* === SOCIAL SHARE === */}
+                <div className="mt-12 mb-8 flex flex-col items-center">
+                    <div className="text-[10px] font-mono text-ash-600 mb-4 tracking-[0.4em]">CHIA SẺ TRUYỆN</div>
+                    <div className="flex gap-4">
+                        <button
+                            onClick={() => {
+                                const url = window.location.href;
+                                window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank');
+                            }}
+                            className="flex items-center gap-2 px-6 py-2 bg-[#1877F2] text-white rounded text-xs font-mono hover:brightness-110 transition-all uppercase tracking-wider"
+                        >
+                            <Facebook size={14} fill="currentColor" />
+                            Facebook
+                        </button>
+                        <button
+                            onClick={() => {
+                                const url = window.location.href;
+                                window.open(`https://chat.zalo.me/?url=${encodeURIComponent(url)}`, '_blank');
+                            }}
+                            className="flex items-center gap-2 px-6 py-2 bg-[#0068FF] text-white rounded text-xs font-mono hover:brightness-110 transition-all uppercase tracking-wider"
+                        >
+                            <Share2 size={14} />
+                            Zalo
+                        </button>
+                    </div>
+                </div>
+
                 {/* Bottom divider */}
                 <div className="hazard-divider my-12" />
 
@@ -336,8 +364,11 @@ export default function ReadingClient({
                     )}
                 </div>
 
+                {/* === COMMENTS === */}
+                <CommentSection chapterNumber={chapterNumber} />
+
                 {/* Quick nav */}
-                <div className="flex items-center justify-center gap-4 mt-6">
+                <div className="flex items-center justify-center gap-4 mt-12 pb-10">
                     <Link
                         href="/"
                         className="text-ash-500 hover:text-toxic-green-DEFAULT text-xs font-mono transition-colors flex items-center gap-1"

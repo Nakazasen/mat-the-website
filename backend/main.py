@@ -197,6 +197,7 @@ async def get_chapters(
         max_chapter = max_chapter_resp.data[0]["chapter_number"] if max_chapter_resp.data else total
 
         chapters = [Chapter(**row) for row in resp.data]
+        total_pages = (total + limit - 1) // limit if limit > 0 else 1
 
         return ChaptersResponse(
             chapters=chapters,
@@ -568,6 +569,53 @@ async def admin_get_top_chapters(
             supabase.table("chapters")
             .select("chapter_number, title, view_count")
             .order("view_count", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        return resp.data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# === COMMENT ROUTES ===
+
+class CommentCreate(BaseModel):
+    user_name: str
+    content: str
+
+
+class Comment(BaseModel):
+    id: str
+    chapter_number: int
+    user_name: str
+    content: str
+    created_at: str
+
+
+@app.post("/api/chapters/{chapter_number}/comments", summary="Gửi bình luận mới")
+async def create_comment(chapter_number: int, body: CommentCreate):
+    """Gửi một bình luận ẩn danh cho chương."""
+    try:
+        data = {
+            "chapter_number": chapter_number,
+            "user_name": body.user_name or "Ẩn danh",
+            "content": body.content
+        }
+        result = supabase.table("comments").insert(data).execute()
+        return {"status": "success", "comment": result.data[0]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/chapters/{chapter_number}/comments", summary="Lấy danh sách bình luận")
+async def get_comments(chapter_number: int, limit: int = 50):
+    """Lấy danh sách bình luận của một chương, chương mới nhất lên đầu."""
+    try:
+        resp = (
+            supabase.table("comments")
+            .select("*")
+            .eq("chapter_number", chapter_number)
+            .order("created_at", desc=True)
             .limit(limit)
             .execute()
         )
