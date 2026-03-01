@@ -7,6 +7,7 @@ import { createAdminClient } from '@/lib/supabase-admin';
 
 const navItems = [
     { href: '/admin', label: 'Dashboard', icon: BarChart3, exact: true },
+    { href: '/admin/homepage', label: 'Trang Chủ', icon: Home },
     { href: '/admin/chapters', label: 'Chương Truyện', icon: BookOpen },
     { href: '/admin/novel', label: 'Thông Tin Truyện', icon: Settings },
     { href: '/admin/wiki', label: 'Wiki / Bách Khoa', icon: LibraryBig },

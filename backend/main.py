@@ -448,6 +448,68 @@ async def get_novel_settings():
         )
 
 
+class HomepageSettings(BaseModel):
+    warning_title: Optional[str] = None
+    warning_subtitle: Optional[str] = None
+    warning_headline: Optional[str] = None
+    warning_description: Optional[str] = None
+    features_title: Optional[str] = None
+    features_json: Optional[list] = None
+
+
+@app.get("/api/homepage", response_model=HomepageSettings)
+async def get_homepage_settings():
+    """Lấy cấu hình nội dung hiển thị trên trang chủ."""
+    try:
+        resp = supabase.table("homepage_settings").select("*").eq("id", 1).single().execute()
+        if not resp.data:
+            return HomepageSettings(
+                warning_title="CẢNH BÁO KHU VỰC CẤM",
+                warning_subtitle="BIOSAFETY LEVEL 4 · RESTRICTED ACCESS",
+                warning_headline="TRẬN ĐỊA SINH TỬ",
+                warning_description="Năm 20XX. Virus Z-79 bùng phát từ một phòng thí nghiệm bí mật...",
+                features_title="ĐIỂM NỔI BẬT",
+                features_json=[
+                    {"icon": "🧟", "title": "Zombie & Dị Biến", "desc": "Nhiều loại zombie với khả năng đặc biệt..."},
+                    {"icon": "⚔️", "title": "Chiến Thuật & Sinh Tồn", "desc": "Xây dựng căn cứ, thu thập tài nguyên..."},
+                    {"icon": "🔬", "title": "Khoa Học Viễn Tưởng", "desc": "Nghiên cứu virus, nâng cấp cơ thể..."},
+                    {"icon": "❤️", "title": "Tình Cảm & Con Người", "desc": "Tình đồng đội, tình yêu..."}
+                ]
+            )
+        return HomepageSettings(**resp.data)
+    except Exception:
+        # Fallback if table doesn't exist yet
+        return HomepageSettings(
+            warning_title="CẢNH BÁO KHU VỰC CẤM",
+            warning_subtitle="BIOSAFETY LEVEL 4 · RESTRICTED ACCESS",
+            warning_headline="TRẬN ĐỊA SINH TỬ",
+            warning_description="Năm 20XX. Virus Z-79 bùng phát từ một phòng thí nghiệm bí mật...",
+            features_title="ĐIỂM NỔI BẬT",
+            features_json=[
+                {"icon": "🧟", "title": "Zombie & Dị Biến", "desc": "Nhiều loại zombie với khả năng đặc biệt..."},
+                {"icon": "⚔️", "title": "Chiến Thuật & Sinh Tồn", "desc": "Xây dựng căn cứ, thu thập tài nguyên..."},
+                {"icon": "🔬", "title": "Khoa Học Viễn Tưởng", "desc": "Nghiên cứu virus, nâng cấp cơ thể..."},
+                {"icon": "❤️", "title": "Tình Cảm & Con Người", "desc": "Tình đồng đội, tình yêu..."}
+            ]
+        )
+
+
+@app.put("/api/admin/homepage", summary="[Admin] Cập nhật cấu hình trang chủ")
+async def admin_update_homepage(
+    body: HomepageSettings,
+    authorization: Optional[str] = Header(None),
+):
+    """Cập nhật các đoạn text và cấu hình trên trang chủ."""
+    await verify_admin(authorization)
+    
+    data = body.model_dump(exclude_none=True)
+    data["id"] = 1
+    data["updated_at"] = "now()"
+    
+    result = supabase.table("homepage_settings").upsert(data).execute()
+    return {"message": "Cập nhật trang chủ thành công", "settings": result.data[0] if result.data else data}
+
+
 @app.put("/api/admin/novel", summary="[Admin] Cập nhật thông tin truyện")
 async def admin_update_novel(
     body: NovelSettings,

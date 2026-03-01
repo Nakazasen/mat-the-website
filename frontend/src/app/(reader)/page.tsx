@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { BookOpen, ChevronRight, AlertTriangle, Skull, Zap } from "lucide-react";
-import { getLatestChapters, getNovelSettings, formatChapterTitle, type Chapter, type NovelSettings } from "@/lib/api";
+import { getLatestChapters, getNovelSettings, getHomepageSettings, formatChapterTitle, type Chapter, type NovelSettings, type HomepageSettings } from "@/lib/api";
 import ContinueButton from "@/components/ContinueButton";
 
 export const dynamic = "force-dynamic";
@@ -18,13 +18,29 @@ export default async function HomePage() {
         genres: ["Mạt Thế", "Zombie"]
     };
 
+    let homeSettings: HomepageSettings = {
+        warning_title: 'CẢNH BÁO KHU VỰC CẤM',
+        warning_subtitle: 'BIOSAFETY LEVEL 4 · RESTRICTED ACCESS',
+        warning_headline: 'TRẬN ĐỊA SINH TỬ',
+        warning_description: 'Năm 20XX. Virus Z-79 bùng phát từ một phòng thí nghiệm bí mật...',
+        features_title: 'ĐIỂM NỔI BẬT',
+        features_json: [
+            { icon: "🧟", title: "Zombie & Dị Biến", desc: "Nhiều loại zombie với khả năng đặc biệt, từ đơn giản đến cực kỳ nguy hiểm" },
+            { icon: "⚔️", title: "Chiến Thuật & Sinh Tồn", desc: "Xây dựng căn cứ, thu thập tài nguyên, chiến đấu có chiến lược" },
+            { icon: "🔬", title: "Khoa Học Viễn Tưởng", desc: "Nghiên cứu virus, nâng cấp cơ thể, vũ khí sinh học trong thế giới tàn lụi" },
+            { icon: "❤️", title: "Tình Cảm & Con Người", desc: "Tình đồng đội, tình yêu và những quyết định đau lòng giữa sự tàn bạo" }
+        ]
+    };
+
     try {
-        const [chaptersData, settingsData] = await Promise.all([
+        const [chaptersData, settingsData, homeData] = await Promise.all([
             getLatestChapters(12),
-            getNovelSettings()
+            getNovelSettings(),
+            getHomepageSettings()
         ]);
         latestChapters = chaptersData;
         novel = settingsData;
+        homeSettings = homeData;
     } catch {
         // use defaults if API fails
     }
@@ -145,67 +161,39 @@ export default async function HomePage() {
                                 <AlertTriangle size={20} className="text-toxic-green-DEFAULT mt-1 shrink-0" />
                                 <div>
                                     <div className="font-biohazard text-toxic-green-DEFAULT tracking-widest text-sm mb-1">
-                                        CẢNH BÁOKHU VỰC CẤM
+                                        {homeSettings.warning_title}
                                     </div>
                                     <div className="font-mono text-xs text-ash-500 tracking-wider">
-                                        BIOSAFETY LEVEL 4 · RESTRICTED ACCESS
+                                        {homeSettings.warning_subtitle}
                                     </div>
                                 </div>
                             </div>
                             <h2 className="font-biohazard text-4xl text-worn-white mb-6 tracking-wide leading-tight">
-                                TRẬN ĐỊA<br />
-                                <span className="text-blood-glow">SINH TỬ</span>
+                                {homeSettings.warning_headline.split(' ').slice(0, -1).join(' ')}<br />
+                                <span className="text-blood-glow">{homeSettings.warning_headline.split(' ').slice(-2).join(' ')}</span>
                             </h2>
-                            <p className="font-reading text-ash-300 text-sm leading-relaxed mb-6">
-                                Năm 20XX. Virus Z-79 bùng phát từ một phòng thí nghiệm bí mật.
-                                Trong vòng 72 giờ, 60% dân số thành thị biến thành sinh vật
-                                khát máu. Các chính phủ sụp đổ. Quân đội tan rã.
-                            </p>
-                            <p className="font-reading text-ash-300 text-sm leading-relaxed">
-                                Hàn Phong, cựu đặc nhiệm Delta Force, tập hợp những người sống
-                                sót xây dựng trấn Hi Vọng — tiền đồn cuối cùng của nhân loại.
-                                Nhưng kẻ thù nguy hiểm nhất đôi khi không phải zombie...
-                            </p>
+                            <div className="font-reading text-ash-300 text-sm leading-relaxed mb-6 whitespace-pre-line">
+                                {homeSettings.warning_description}
+                            </div>
                         </div>
 
                         {/* Right: Feature list */}
                         <div className="space-y-4">
                             <h3 className="font-biohazard text-2xl text-ash-200 tracking-widest mb-6">
-                                ĐIỂM NỔI BẬT
+                                {homeSettings.features_title}
                             </h3>
-                            {[
-                                {
-                                    icon: "🧟",
-                                    title: "Zombie & Dị Biến",
-                                    desc: "Nhiều loại zombie với khả năng đặc biệt, từ đơn giản đến cực kỳ nguy hiểm",
-                                },
-                                {
-                                    icon: "⚔️",
-                                    title: "Chiến Thuật & Sinh Tồn",
-                                    desc: "Xây dựng căn cứ, thu thập tài nguyên, chiến đấu có chiến lược",
-                                },
-                                {
-                                    icon: "🔬",
-                                    title: "Khoa Học Viễn Tưởng",
-                                    desc: "Nghiên cứu virus, nâng cấp cơ thể, vũ khí sinh học trong thế giới tàn lụi",
-                                },
-                                {
-                                    icon: "❤️",
-                                    title: "Tình Cảm & Con Người",
-                                    desc: "Tình đồng đội, tình yêu và những quyết định đau lòng giữa sự tàn bạo",
-                                },
-                            ].map(({ icon, title, desc }) => (
+                            {homeSettings.features_json.map((f, i) => (
                                 <div
-                                    key={title}
+                                    key={i}
                                     className="flex gap-4 p-4 rounded border border-ash-800 hover:border-toxic-green-DEFAULT/30 transition-colors bg-ash-900/50 chapter-item"
                                 >
-                                    <span className="text-2xl shrink-0">{icon}</span>
+                                    <span className="text-2xl shrink-0">{f.icon}</span>
                                     <div>
                                         <div className="font-biohazard text-ash-200 tracking-wider text-sm mb-1">
-                                            {title}
+                                            {f.title}
                                         </div>
                                         <div className="text-ash-400 text-xs leading-relaxed">
-                                            {desc}
+                                            {f.desc}
                                         </div>
                                     </div>
                                 </div>

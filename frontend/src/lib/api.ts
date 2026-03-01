@@ -229,3 +229,29 @@ export async function uploadImageR2(file: File, adminToken: string): Promise<str
     const data = await res.json();
     return data.url;
 }
+// ============================================================
+// HOMEPAGE SETTINGS API
+// ============================================================
+
+export interface Feature {
+    icon: string;
+    title: string;
+    desc: string;
+}
+
+export interface HomepageSettings {
+    warning_title: string;
+    warning_subtitle: string;
+    warning_headline: string;
+    warning_description: string;
+    features_title: string;
+    features_json: Feature[];
+}
+
+export async function getHomepageSettings(): Promise<HomepageSettings> {
+    const res = await fetch(`${API_BASE_URL}/api/homepage`, {
+        next: { revalidate: 300 } // cache 5 minutes
+    });
+    if (!res.ok) throw new Error("Failed to fetch homepage settings");
+    return res.json();
+}
