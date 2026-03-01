@@ -79,15 +79,16 @@ app = FastAPI(
     redoc_url=None,  # disable redoc để giảm memory trên Render free tier
 )
 
-# === CUSTOM LOGGING & CORS MIDDLEWARE (NUCLEAR OPTION) ===
+# === CUSTOM LOGGING & CORS MIDDLEWARE (TRULY NUCLEAR OPTION) ===
 @app.middleware("http")
 async def add_cors_and_logging(request, call_next):
     # Log incoming request
-    print(f"Request: {request.method} {request.url}")
+    print(f"DEBUG: Request {request.method} {request.url}")
     
     # Handle preflight (OPTIONS) requests manually
     if request.method == "OPTIONS":
-        response = StreamingResponse(io.BytesIO(b""), status_code=204)
+        from fastapi.responses import Response
+        response = Response(content=None, status_code=204)
         response.headers["Access-Control-Allow-Origin"] = "*"
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
         response.headers["Access-Control-Allow-Headers"] = "*"
@@ -98,10 +99,19 @@ async def add_cors_and_logging(request, call_next):
     try:
         response = await call_next(request)
     except Exception as e:
-        print(f"ERROR processing request: {str(e)}")
-        raise
+        import traceback
+        error_msg = f"CRASH in {request.method} {request.url}: {str(e)}"
+        print(f"ERROR: {error_msg}")
+        print(traceback.format_exc())
+        
+        # Create a JSON error response manually to ensure headers are added
+        from fastapi.responses import JSONResponse
+        response = JSONResponse(
+            status_code=500,
+            content={"detail": "Internal Server Error", "error": str(e)}
+        )
 
-    # Add CORS headers to ALL responses
+    # Add CORS headers to ALL responses (even errors)
     response.headers["Access-Control-Allow-Origin"] = "*"
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
     response.headers["Access-Control-Allow-Headers"] = "*"
@@ -425,7 +435,11 @@ async def admin_update_novel(
     data["id"] = 1
     
     result = supabase.table("novel_settings").upsert(data).execute()
-    return {"message": "Cập nhật thông tin thành công", "novel": result.data[0]}
+    
+    # Defensive check: if result.data is empty, use the input data as fallback
+    novel_data = result.data[0] if result.data and len(result.data) > 0 else data
+    
+    return {"message": "Cập nhật thông tin thành công", "novel": novel_data}
 
 
 @app.get("/api/admin/chapters/{chapter_number}/content", summary="[Admin] Lấy nội dung chương từ R2")
