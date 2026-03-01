@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "echo \"--- Build Diagnostics ---\" && echo \"NEXT_PUBLIC_SUPABASE_URL is set: ${NEXT_PUBLIC_SUPABASE_URL:0:10}...\" && next build",
+    "build": "next build",
     "start": "next start",
     "lint": "next lint"
   },

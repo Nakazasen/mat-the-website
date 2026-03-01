@@ -11,12 +11,6 @@ export function createAdminClient() {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-    if (typeof window !== 'undefined') {
-        console.log(`--- Supabase Diagnostics (Build: ${BUILD_VERSION}) ---`);
-        console.log("NEXT_PUBLIC_SUPABASE_URL:", url ? "DETECTED" : "MISSING");
-        console.log("NEXT_PUBLIC_SUPABASE_ANON_KEY:", key ? "DETECTED" : "MISSING");
-    }
-
     if (!url || !key) {
         console.warn("Supabase credentials missing. Client side auth will fail.");
         return null;
