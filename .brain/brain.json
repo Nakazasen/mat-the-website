@@ -2,7 +2,7 @@
   "meta": {
     "schema_version": "1.1.0",
     "awf_version": "4.0.2",
-    "last_updated": "2026-03-01T15:55:00+07:00"
+    "last_updated": "2026-03-01T16:10:00+07:00"
   },
   "project": {
     "name": "Mạt Thế - Sinh Hoá Nguy Cơ",
@@ -126,12 +126,16 @@
       {
         "title": "Vercel Webhook Deployment Delay",
         "detail": "Đôi khi Vercel không tự re-deploy khi nhận push. Cần tạo một commit rỗng hoặc commit nhỏ để ép Vercel nhận diện lại tín hiệu webhook."
+      },
+      {
+        "title": "Vercel Daily Deployment Limit (Free Tier)",
+        "detail": "Gói Vercel Free có giới hạn 100 lần deploy/ngày. Nếu vượt quá sẽ báo lỗi 'Resource is limited'. Cần đợi reset hoặc dùng manual deploy (nếu còn quota)."
       }
     ]
   },
   "git": {
     "github_user": "Nakazasen",
     "git_email": "buiducvinhct1102@gmail.com",
-    "last_commit": "Fix: backend SyntaxError and update author display to Hàn Nhược Tuyết"
+    "last_commit": "Fix: Final author name fix in metadata and layout"
   }
 }
