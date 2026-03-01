@@ -95,7 +95,7 @@ export interface NovelSettings {
 // Fetch general novel settings (Title, Author, Desc etc)
 export async function getNovelSettings(): Promise<NovelSettings> {
     const res = await fetch(`${API_BASE_URL}/api/novel`, {
-        next: { revalidate: 3600 }, // cache 1 hour
+        next: { revalidate: 60 }, // cache 1 minute (instead of 1 hour)
     });
     if (!res.ok) throw new Error("Failed to fetch novel settings");
     return res.json();
