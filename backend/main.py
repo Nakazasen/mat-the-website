@@ -434,9 +434,13 @@ async def admin_get_chapter_content(
     if not r2_client:
         raise HTTPException(status_code=500, detail="R2 chưa được cấu hình")
 
-    # Extract object key from URL
+    # Extract object key from URL (more robustly)
     content_url = resp.data["content_url"]
-    object_key = content_url.replace(f"{R2_PUBLIC_URL}/", "")
+    # Handle possible http/https mismatch or trailing slashes
+    import re
+    clean_url = re.sub(r'^https?://', '', content_url)
+    clean_base = re.sub(r'^https?://', '', R2_PUBLIC_URL)
+    object_key = clean_url.replace(clean_base, "").lstrip("/")
 
     try:
         r2_resp = r2_client.get_object(Bucket=R2_BUCKET, Key=object_key)
