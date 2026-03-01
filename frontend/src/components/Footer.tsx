@@ -1,6 +1,17 @@
 import Link from "next/link";
+import { NovelSettings } from "@/lib/api";
 
-export default function Footer() {
+interface FooterProps {
+    novel?: NovelSettings;
+}
+
+export default function Footer({ novel }: FooterProps) {
+    const novelInfo = novel || {
+        author: "Hàn Nhược Tuyết",
+        status: "Đang cập nhật",
+        genres: ["Mạt Thế", "Zombie"],
+    };
+
     return (
         <footer className="bg-ash-950 border-t border-ash-800 mt-20">
             {/* Hazard divider */}
@@ -23,7 +34,7 @@ export default function Footer() {
                         </div>
                         <p className="text-ash-400 text-sm leading-relaxed font-reading">
                             Trong bóng tối của ngày tận thế, ý chí con người là ánh sáng
-                            cuối cùng. Theo chân Hàn Phong trong cuộc chiến sinh tử.
+                            cuối cùng. Theo chân {novelInfo.author} trong cuộc chiến sinh tử.
                         </p>
                     </div>
 
@@ -61,10 +72,10 @@ export default function Footer() {
                         </h3>
                         <div className="space-y-3">
                             {[
-                                { label: "Tình trạng", value: "Đang cập nhật" },
+                                { label: "Tác giả", value: novelInfo.author },
+                                { label: "Tình trạng", value: novelInfo.status },
+                                { label: "Thể loại", value: novelInfo.genres.join(" · ") },
                                 { label: "Số chương", value: "813+ / ~5000" },
-                                { label: "Thể loại", value: "Mạt Thế · Zombie · Sinh Hoá" },
-                                { label: "Nhân vật chính", value: "Hàn Phong" },
                             ].map(({ label, value }) => (
                                 <div key={label} className="flex justify-between text-sm gap-4">
                                     <span className="text-ash-500">{label}</span>

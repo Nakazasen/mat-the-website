@@ -61,11 +61,19 @@ export default async function HomePage() {
                 <div className="relative z-10 max-w-7xl mx-auto px-6 pb-20 w-full">
                     <div className="max-w-3xl">
                         {/* Status badge */}
-                        <div className="inline-flex items-center gap-2 mb-6 px-3 py-1.5 rounded border border-blood-red-DEFAULT/40 bg-blood-red-DEFAULT/10">
-                            <Skull size={12} className="text-blood-red-bright" />
-                            <span className="font-mono text-xs text-blood-red-bright tracking-widest uppercase">
-                                {novel.status} · {latestChapters.length > 0 ? latestChapters[0].chapter_number : 813} chương
-                            </span>
+                        <div className="flex flex-wrap items-center gap-2 mb-6">
+                            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded border border-blood-red-DEFAULT/40 bg-blood-red-DEFAULT/10">
+                                <Skull size={12} className="text-blood-red-bright" />
+                                <span className="font-mono text-xs text-blood-red-bright tracking-widest uppercase">
+                                    {novel.status} · {latestChapters.length > 0 ? latestChapters[0].chapter_number : 813} chương
+                                </span>
+                            </div>
+                            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded border border-toxic-green-DEFAULT/40 bg-toxic-green-DEFAULT/5">
+                                <span className="font-mono text-[10px] text-ash-400 tracking-widest uppercase">TÁC GIẢ:</span>
+                                <span className="font-biohazard text-sm text-toxic-green-bright tracking-widest uppercase">
+                                    {novel.author}
+                                </span>
+                            </div>
                         </div>
 
                         {/* Title */}
