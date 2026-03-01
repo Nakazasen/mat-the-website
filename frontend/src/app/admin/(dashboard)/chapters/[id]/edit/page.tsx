@@ -19,6 +19,7 @@ export default function EditChapterPage() {
 
     const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
+    const [isSideStory, setIsSideStory] = useState(false);
     const [loading, setLoading] = useState(false);
     const [initialLoading, setInitialLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -48,6 +49,7 @@ export default function EditChapterPage() {
                 }
                 const meta = await metaRes.json();
                 setTitle(meta.title || `Chương ${chapterNumber}`);
+                setIsSideStory(meta.is_side_story || false);
 
                 // Fetch chapter content from Backend (Proxy to avoid CORS)
                 const contentRes = await fetch(`${API_BASE_URL}/api/admin/chapters/${chapterNumber}/content`, {
@@ -105,7 +107,8 @@ export default function EditChapterPage() {
                 },
                 body: JSON.stringify({
                     title: title.trim(),
-                    content: cleanContent.trim()
+                    content: cleanContent.trim(),
+                    is_side_story: isSideStory
                 }),
             });
 
@@ -161,6 +164,19 @@ export default function EditChapterPage() {
                             placeholder="Ví dụ: Đầu lâu khổng lồ ngoài cửa sổ"
                             className="w-full bg-[#0a0a0a] border border-gray-700 rounded-md px-4 py-2.5 text-gray-200 text-base focus:outline-none focus:border-green-500 transition-colors"
                         />
+                    </div>
+
+                    <div className="flex items-center gap-2 py-2">
+                        <input
+                            type="checkbox"
+                            id="isSideStory"
+                            checked={isSideStory}
+                            onChange={(e) => setIsSideStory(e.target.checked)}
+                            className="w-4 h-4 rounded bg-[#0a0a0a] border-gray-700 text-green-500 focus:ring-green-500/20 accent-green-600 cursor-pointer"
+                        />
+                        <label htmlFor="isSideStory" className="text-sm font-mono text-gray-300 cursor-pointer select-none">
+                            📜 Đây là Ngoại Truyện / Hồ sơ phụ (Không làm loạn số mạch truyện chính)
+                        </label>
                     </div>
 
                     <div>

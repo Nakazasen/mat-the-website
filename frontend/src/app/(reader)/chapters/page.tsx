@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 300;
 
 interface Props {
-    searchParams: Promise<{ page?: string; search?: string }>;
+    searchParams: Promise<{ page?: string; search?: string; tab?: string }>;
 }
 
 export default async function ChaptersPage({
@@ -22,6 +22,8 @@ export default async function ChaptersPage({
     const resolvedSearchParams = await searchParams;
     const page = Math.max(1, parseInt(resolvedSearchParams.page || "1", 10));
     const search = resolvedSearchParams.search || "";
+    const tab = resolvedSearchParams.tab === "side" ? "side" : "main";
+    const isSideStory = tab === "side" ? "true" : "false";
     const LIMIT = 60;
 
     let data: {
@@ -35,7 +37,7 @@ export default async function ChaptersPage({
         // Update api client call if I add search param to it, or just use fetch here
         const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
         const res = await fetch(
-            `${API_BASE_URL}/api/chapters?page=${page}&limit=${LIMIT}&search=${encodeURIComponent(search)}`,
+            `${API_BASE_URL}/api/chapters?page=${page}&limit=${LIMIT}&search=${encodeURIComponent(search)}&is_side_story=${isSideStory}`,
             { cache: "no-store" }
         );
         if (res.ok) data = await res.json();
@@ -78,6 +80,29 @@ export default async function ChaptersPage({
                     </div>
                 </div>
 
+                {/* === TABS === */}
+                <div className="flex border-b border-ash-800 mb-8 rounded-t overflow-hidden">
+                    <Link
+                        href={`/chapters?tab=main${search ? `&search=${encodeURIComponent(search)}` : ''}`}
+                        className={`flex-1 text-center py-3 sm:py-4 font-mono text-sm tracking-widest transition-all ${tab === 'main'
+                                ? 'text-toxic-green-DEFAULT border-b-2 border-toxic-green-DEFAULT bg-toxic-green-DEFAULT/5'
+                                : 'text-ash-500 hover:text-ash-300 hover:bg-ash-900/50'
+                            }`}
+                    >
+                        MẠCH TRUYỆN CHÍNH
+                    </Link>
+                    <div className="w-px bg-ash-800 shrink-0" />
+                    <Link
+                        href={`/chapters?tab=side${search ? `&search=${encodeURIComponent(search)}` : ''}`}
+                        className={`flex-1 text-center py-3 sm:py-4 font-mono text-sm tracking-widest transition-all ${tab === 'side'
+                                ? 'text-toxic-green-DEFAULT border-b-2 border-toxic-green-DEFAULT bg-toxic-green-DEFAULT/5'
+                                : 'text-ash-500 hover:text-ash-300 hover:bg-ash-900/50'
+                            }`}
+                    >
+                        NGOẠI TRUYỆN & HỒ SƠ 📜
+                    </Link>
+                </div>
+
                 {/* === QUICK JUMP BOX === */}
                 <div className="card-biohazard rounded-lg p-4 mb-8 flex flex-col sm:flex-row gap-4 items-start sm:items-center">
                     <ChapterJump />
@@ -114,6 +139,7 @@ export default async function ChaptersPage({
                                 {/* Title */}
                                 <div className="flex-1 min-w-0">
                                     <div className="text-ash-300 text-sm font-reading leading-tight group-hover:text-worn-white transition-colors line-clamp-2">
+                                        {tab === 'side' && <span className="text-xs mr-2 relative -top-0.5">📜</span>}
                                         {chapter.title}
                                     </div>
                                 </div>
@@ -148,7 +174,7 @@ export default async function ChaptersPage({
                     <div className="mt-10 flex items-center justify-center gap-2 flex-wrap">
                         {page > 1 && (
                             <Link
-                                href={`/chapters?page=${page - 1}`}
+                                href={`/chapters?page=${page - 1}&tab=${tab}${search ? `&search=${encodeURIComponent(search)}` : ''}`}
                                 className="btn-toxic text-sm py-2 px-4"
                             >
                                 <span>← TRANG TRƯỚC</span>
@@ -171,7 +197,7 @@ export default async function ChaptersPage({
                                 return (
                                     <Link
                                         key={p}
-                                        href={`/chapters?page=${p}`}
+                                        href={`/chapters?page=${p}&tab=${tab}${search ? `&search=${encodeURIComponent(search)}` : ''}`}
                                         className={`w-10 h-10 flex items-center justify-center font-mono text-sm rounded transition-all ${p === page
                                             ? "bg-toxic-green-DEFAULT text-black font-bold"
                                             : "border border-ash-800 text-ash-400 hover:border-toxic-green-DEFAULT/40 hover:text-toxic-green-DEFAULT"
@@ -185,7 +211,7 @@ export default async function ChaptersPage({
 
                         {page < total_pages && (
                             <Link
-                                href={`/chapters?page=${page + 1}`}
+                                href={`/chapters?page=${page + 1}&tab=${tab}${search ? `&search=${encodeURIComponent(search)}` : ''}`}
                                 className="btn-toxic text-sm py-2 px-4"
                             >
                                 <span>TRANG SAU →</span>

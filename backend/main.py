@@ -130,6 +130,7 @@ class Chapter(BaseModel):
     created_at: str
     word_count: Optional[int] = None
     view_count: int = 0
+    is_side_story: bool = False
 
 class ChaptersResponse(BaseModel):
     chapters: list[Chapter]
@@ -155,6 +156,7 @@ async def get_chapters(
     limit: int = Query(50, ge=1, le=100, description="Số chương mỗi trang"),
     sort: str = Query("asc", pattern="^(asc|desc)$", description="Thứ tự sắp xếp: asc hoặc desc"),
     search: Optional[str] = Query(None, description="Tìm kiếm theo tiêu đề hoặc số chương"),
+    is_side_story: Optional[bool] = Query(None, description="Lọc ngoại truyện (true) hoặc mạch chính (false)"),
 ):
     """
     Lấy danh sách chương có phân trang.
@@ -167,8 +169,12 @@ async def get_chapters(
         offset = (page - 1) * limit
 
         # Build base query
-        query = supabase.table("chapters").select("id, chapter_number, title, content_url, created_at, word_count", count="exact")
+        query = supabase.table("chapters").select("id, chapter_number, title, content_url, created_at, word_count, is_side_story", count="exact")
         
+        # Apply filters
+        if is_side_story is not None:
+            query = query.eq("is_side_story", is_side_story)
+
         # Apply search if provided
         if search:
             if search.isdigit():
@@ -223,7 +229,7 @@ async def get_chapter(chapter_number: int):
     try:
         resp = (
             supabase.table("chapters")
-            .select("id, chapter_number, title, content_url, created_at, word_count")
+            .select("id, chapter_number, title, content_url, created_at, word_count, is_side_story")
             .eq("chapter_number", chapter_number)
             .single()
             .execute()
@@ -301,11 +307,13 @@ class AdminChapterCreate(BaseModel):
     chapter_number: int
     title: str
     content: str  # Raw text content of the chapter
+    is_side_story: bool = False
 
 
 class AdminChapterUpdate(BaseModel):
     title: Optional[str] = None
     content: Optional[str] = None
+    is_side_story: Optional[bool] = None
 
 
 @app.post("/api/admin/chapters", summary="[Admin] Thêm chương mới")
@@ -345,6 +353,7 @@ async def admin_create_chapter(
         "title": body.title,
         "content_url": content_url,
         "word_count": word_count,
+        "is_side_story": body.is_side_story,
     }).execute()
 
     return {"message": "Thêm chương thành công", "chapter": result.data[0]}
@@ -386,6 +395,9 @@ async def admin_update_chapter(
 
     if body.title is not None:
         update_data["title"] = body.title
+
+    if body.is_side_story is not None:
+        update_data["is_side_story"] = body.is_side_story
 
     if update_data:
         result = supabase.table("chapters").update(update_data).eq("chapter_number", chapter_number).execute()

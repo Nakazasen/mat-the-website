@@ -15,6 +15,7 @@ export default function NewChapterPage() {
     const [chapterNumber, setChapterNumber] = useState('');
     const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
+    const [isSideStory, setIsSideStory] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
@@ -47,6 +48,7 @@ export default function NewChapterPage() {
                     chapter_number: parseInt(chapterNumber),
                     title: title.trim(),
                     content: content.trim(),
+                    is_side_story: isSideStory,
                 }),
             });
 
@@ -110,6 +112,19 @@ export default function NewChapterPage() {
                             placeholder="Tên chương..."
                         />
                     </div>
+                </div>
+
+                <div className="flex items-center gap-2 py-2">
+                    <input
+                        type="checkbox"
+                        id="isSideStory"
+                        checked={isSideStory}
+                        onChange={(e) => setIsSideStory(e.target.checked)}
+                        className="w-4 h-4 rounded bg-[#0a0a0a] border-gray-700 text-green-500 focus:ring-green-500/20 accent-green-600 cursor-pointer"
+                    />
+                    <label htmlFor="isSideStory" className="text-sm font-mono text-gray-300 cursor-pointer select-none">
+                        📜 Đây là Ngoại Truyện / Hồ sơ phụ (Không làm loạn số mạch truyện chính)
+                    </label>
                 </div>
 
                 <div>

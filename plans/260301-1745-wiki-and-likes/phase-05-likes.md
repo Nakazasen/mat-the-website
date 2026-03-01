@@ -1,5 +1,5 @@
 # Phase 05: Frontend - Nút Thả Tim ❤️
-Status: ⬜ Pending
+Status: ✅ Done
 Dependencies: Phase 02
 
 ## Objective
@@ -18,10 +18,10 @@ Thêm nút ❤️ (Thả tim) ở cuối mỗi trang đọc chương. Không b�
 - `frontend/src/lib/api.ts` → Thêm hàm `likeChapter()`
 
 ## Implementation Steps
-1. [ ] Tạo hàm `likeChapter()` trong api.ts
-2. [ ] Tạo component `LikeButton` (client component)
-3. [ ] Tích hợp vào ReadingClient.tsx (đặt ngay trên khu vực bình luận)
-4. [ ] Thêm hiệu ứng animation khi bấm tim
+1. [x] Tạo hàm `likeChapter()` trong api.ts
+2. [x] Tạo component `LikeButton` (client component)
+3. [x] Tích hợp vào ReadingClient.tsx (đặt ngay trên khu vực bình luận)
+4. [x] Thêm hiệu ứng animation khi bấm tim
 
 ## Test Criteria
 - [ ] Nút tim hiển thị ở cuối chương
