@@ -50,7 +50,7 @@ export default function AudioPlayer({
     }, [speed]);
 
     useEffect(() => {
-        const { stripHtml } = require('@/lib/tts-utils');
+        const { stripHtml, splitIntoChunks } = require('@/lib/tts-utils');
         const cleanText = stripHtml(content);
         chunksRef.current = splitIntoChunks(cleanText);
     }, [content]);

@@ -9,6 +9,7 @@ import CommentSection from "./CommentSection";
 import LikeButton from "./LikeButton";
 import DonateSection from "./DonateSection";
 import { splitIntoChunks } from "@/lib/tts-utils";
+import { renderRichKaraoke } from "@/lib/karaoke";
 
 interface ReadingClientProps {
     chapterId: number;
@@ -370,27 +371,11 @@ export default function ReadingClient({
                     className="reading-container !bg-transparent !text-inherit prose max-w-none"
                     style={{ fontSize: `${fontSize}px`, lineHeight: 1.8 }}
                 >
-                    {content.includes('<') && (content.includes('</') || content.includes('/>')) ? (
-                        <div
-                            dangerouslySetInnerHTML={{ __html: content }}
-                            className="rich-text-content"
-                        />
-                    ) : (
-                        chunks.map((chunk, index) => (
-                            <span
-                                key={index}
-                                ref={activeChunkIndex === index ? activeChunkRef : null}
-                                className={`transition-all duration-300 rounded-sm ${activeChunkIndex === index
-                                    ? theme === 'dark'
-                                        ? "bg-toxic-green-DEFAULT/40 text-white shadow-[0_0_25px_rgba(0,255,159,0.4)] ring-1 ring-toxic-green-DEFAULT/50 scale-[1.02] inline-block"
-                                        : "bg-toxic-green-DEFAULT/50 text-black ring-1 ring-toxic-green-DEFAULT/60 scale-[1.02] inline-block"
-                                    : "opacity-100"
-                                    }`}
-                            >
-                                {chunk}
-                            </span>
-                        ))
-                    )}
+                    {renderRichKaraoke(content, activeChunkIndex, theme, (idx: number, el: HTMLElement | null) => {
+                        if (activeChunkIndex === idx && el) {
+                            activeChunkRef.current = el;
+                        }
+                    }).nodes}
                 </div>
 
                 {/* === SOCIAL SHARE === */}
