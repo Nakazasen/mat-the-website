@@ -90,6 +90,7 @@ export interface NovelSettings {
     cover_url: string;
     status: string;
     genres: string[];
+    donate_qr_url?: string;
     total_chapters: number;
     max_chapter: number;
     total_views: number;

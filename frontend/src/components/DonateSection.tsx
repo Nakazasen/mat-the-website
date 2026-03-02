@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Coffee, Heart, X, QrCode } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
+import { useNovel } from "@/context/NovelContext";
 
 interface DonateSectionProps {
     chapterNumber: number;
@@ -10,10 +11,11 @@ interface DonateSectionProps {
 
 export default function DonateSection({ chapterNumber }: DonateSectionProps) {
     const { theme } = useTheme();
+    const { novel } = useNovel();
     const [showQR, setShowQR] = useState(false);
 
-    // QR image URL - sẽ được thay bằng link R2 thật khi anh upload
-    const qrImageUrl = process.env.NEXT_PUBLIC_DONATE_QR_URL || "";
+    // QR image URL - ưu tiên lấy từ Database, nếu không có thì lấy từ môi trường
+    const qrImageUrl = novel?.donate_qr_url || process.env.NEXT_PUBLIC_DONATE_QR_URL || "";
 
     return (
         <>

@@ -452,6 +452,7 @@ class NovelSettings(BaseModel):
     cover_url: str
     status: str
     genres: list[str]
+    donate_qr_url: str = ""
     total_chapters: int = 0
     max_chapter: int = 0
     total_views: int = 0
@@ -478,9 +479,10 @@ async def get_novel_settings():
             "title": "Mạt Thế - Sinh Hoá Nguy Cơ",
             "author": "Hàn Nhược Tuyết",
             "description": "Truyện lấy bối cảnh tận thế đột nhiên phủ xuống, thây ma lan tràn, quái vật dị biến nổi lên khắp nơi, loài người bị đẩy vào một trò chơi tàn khốc kinh hoàng nhưng cũng ẩn chứa cơ hội lớn lao...",
-            "cover_url": "/hero-bg.png",
+            "cover_url": "https://pub-28de8065099f4ffea76bd6dc28a9bcf3.r2.dev/matthe-hero.jpg",
             "status": "Đang cập nhật",
-            "genres": ["Mạt Thế", "Zombie", "Hành Động", "Huyền Hạo"],
+            "genres": ["Mạt Thế", "Sinh Tồn", "Hệ Thống", "Dị Năng"],
+            "donate_qr_url": "",
             "total_chapters": total_chapters,
             "max_chapter": max_chapter,
             "total_views": total_views,
