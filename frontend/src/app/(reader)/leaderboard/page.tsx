@@ -18,14 +18,10 @@ export default async function LeaderboardPage() {
     let topUsers: any[] = [];
 
     if (supabase) {
-        // Fetch top 10 users mapped by chapters_read
-        const { data } = await supabase
-            .from('profiles')
-            .select('id, full_name, avatar_url, exp, chapters_read')
-            .order('chapters_read', { ascending: false })
-            .limit(10);
+        // Fetch top 10 users using RPC to securely join auth.users and profiles
+        const { data } = await supabase.rpc('get_leaderboard');
 
-        if (data) {
+        if (data && Array.isArray(data)) {
             topUsers = data;
         }
     }
