@@ -96,7 +96,7 @@ async def verify_admin(authorization: Optional[str]) -> dict:
         
         user_role = "editor" # Mặc định
         if profile_resp.data:
-            user_role = profile_resp.data[0].get("role", "editor")
+            user_role = profile_resp.data[0].get("role", "editor").lower()
             
         return {
             "id": user_resp.user.id,
