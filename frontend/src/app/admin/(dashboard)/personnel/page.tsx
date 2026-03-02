@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase-admin';
-import { Users, UserPlus, Shield, User, Mail, Calendar, Trash2, Loader2, CheckCircle2, AlertTriangle, Key } from 'lucide-react';
+import { Users, UserPlus, Shield, User, Mail, Trash2, Loader2, CheckCircle2, AlertTriangle, Key, Pencil, X, Save } from 'lucide-react';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mat-the-website.onrender.com';
 
@@ -23,6 +23,11 @@ export default function AdminPersonnelPage() {
     const [token, setToken] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
+
+    // Edit state
+    const [editingUser, setEditingUser] = useState<Profile | null>(null);
+    const [editForm, setEditForm] = useState({ display_name: '', email: '', role: 'editor' as string });
+    const [saving, setSaving] = useState(false);
 
     // Form state
     const [formData, setFormData] = useState({
@@ -123,6 +128,50 @@ export default function AdminPersonnelPage() {
         }
     };
 
+    const startEdit = (user: Profile) => {
+        setEditingUser(user);
+        setEditForm({
+            display_name: user.display_name || '',
+            email: user.email,
+            role: user.role
+        });
+        setError(null);
+        setSuccess(null);
+    };
+
+    const handleSaveEdit = async () => {
+        if (!token || !editingUser) return;
+        setSaving(true);
+        setError(null);
+
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/admin/users/${editingUser.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(editForm)
+            });
+
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || 'Lỗi khi cập nhật');
+
+            setSuccess(`Đã cập nhật thông tin ${editForm.display_name || editForm.email}`);
+            setEditingUser(null);
+
+            // Refresh list
+            const refreshRes = await fetch(`${API_BASE_URL}/api/admin/users`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (refreshRes.ok) setUsers(await refreshRes.json());
+        } catch (err: any) {
+            setError(err.message);
+        } finally {
+            setSaving(false);
+        }
+    };
+
     if (loading) {
         return (
             <div className="flex flex-col items-center justify-center h-64 gap-3">
@@ -156,6 +205,80 @@ export default function AdminPersonnelPage() {
                 </div>
             )}
 
+            {/* EDIT MODAL */}
+            {editingUser && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+                    <div className="bg-[#181818] border border-gray-700 rounded-lg p-6 w-full max-w-md mx-4 shadow-2xl">
+                        <div className="flex items-center justify-between mb-6 border-b border-gray-800 pb-3">
+                            <h2 className="text-sm font-mono text-gray-200 uppercase tracking-widest flex items-center gap-2">
+                                <Pencil className="text-green-500" size={16} />
+                                Chỉnh Sửa Nhân Sự
+                            </h2>
+                            <button onClick={() => setEditingUser(null)} className="text-gray-500 hover:text-gray-300 transition-colors">
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-mono text-gray-600 uppercase tracking-widest flex items-center gap-1.5">
+                                    <User size={10} /> Tên Hiển Thị
+                                </label>
+                                <input
+                                    type="text"
+                                    value={editForm.display_name}
+                                    onChange={(e) => setEditForm({ ...editForm, display_name: e.target.value })}
+                                    className="w-full bg-[#0a0a0a] border border-gray-800 rounded px-3 py-2 text-gray-200 text-sm focus:border-green-500 outline-none transition-all"
+                                />
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-mono text-gray-600 uppercase tracking-widest flex items-center gap-1.5">
+                                    <Mail size={10} /> Email
+                                </label>
+                                <input
+                                    type="email"
+                                    value={editForm.email}
+                                    onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                                    className="w-full bg-[#0a0a0a] border border-gray-800 rounded px-3 py-2 text-gray-200 text-sm focus:border-green-500 outline-none transition-all"
+                                />
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-mono text-gray-600 uppercase tracking-widest flex items-center gap-1.5">
+                                    <Shield size={10} /> Vai Trò
+                                </label>
+                                <select
+                                    value={editForm.role}
+                                    onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
+                                    className="w-full bg-[#0a0a0a] border border-gray-800 rounded px-3 py-2 text-gray-200 text-sm focus:border-green-500 outline-none transition-all appearance-none"
+                                >
+                                    <option value="editor">Editor (Đăng/Sửa truyện)</option>
+                                    <option value="superadmin">SuperAdmin (Toàn quyền)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3 mt-6">
+                            <button
+                                onClick={() => setEditingUser(null)}
+                                className="flex-1 py-2.5 border border-gray-700 text-gray-400 hover:text-gray-200 hover:border-gray-600 rounded font-mono text-xs tracking-widest transition-all"
+                            >
+                                HỦY
+                            </button>
+                            <button
+                                onClick={handleSaveEdit}
+                                disabled={saving}
+                                className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-green-600 hover:bg-green-500 disabled:bg-gray-800 disabled:text-gray-600 text-white rounded font-mono text-xs tracking-widest transition-all"
+                            >
+                                {saving ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
+                                {saving ? "ĐANG LƯU..." : "LƯU THAY ĐỔI"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* LIST SECTION */}
                 <div className="lg:col-span-2 space-y-4">
@@ -184,23 +307,32 @@ export default function AdminPersonnelPage() {
                                         </td>
                                         <td className="px-6 py-4">
                                             <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] tracking-widest uppercase font-bold border ${user.role === 'superadmin'
-                                                    ? 'bg-red-500/10 border-red-500/20 text-red-500'
-                                                    : 'bg-green-500/10 border-green-500/20 text-green-500'
+                                                ? 'bg-red-500/10 border-red-500/20 text-red-500'
+                                                : 'bg-green-500/10 border-green-500/20 text-green-500'
                                                 }`}>
                                                 <Shield size={10} />
                                                 {user.role}
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 text-right">
-                                            {user.role !== 'superadmin' && (
+                                            <div className="flex items-center justify-end gap-1">
                                                 <button
-                                                    onClick={() => handleDelete(user.id, user.email)}
-                                                    className="text-gray-600 hover:text-red-500 transition-colors p-2"
-                                                    title="Xoá tài khoản"
+                                                    onClick={() => startEdit(user)}
+                                                    className="text-gray-600 hover:text-green-500 transition-colors p-2"
+                                                    title="Chỉnh sửa"
                                                 >
-                                                    <Trash2 size={16} />
+                                                    <Pencil size={15} />
                                                 </button>
-                                            )}
+                                                {user.role !== 'superadmin' && (
+                                                    <button
+                                                        onClick={() => handleDelete(user.id, user.email)}
+                                                        className="text-gray-600 hover:text-red-500 transition-colors p-2"
+                                                        title="Xoá tài khoản"
+                                                    >
+                                                        <Trash2 size={15} />
+                                                    </button>
+                                                )}
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}

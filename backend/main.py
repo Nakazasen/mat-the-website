@@ -563,6 +563,50 @@ async def admin_invite_user(
         raise HTTPException(status_code=500, detail=detail)
 
 
+class ProfileUpdate(BaseModel):
+    display_name: Optional[str] = None
+    role: Optional[str] = None
+    email: Optional[str] = None
+
+
+@app.put("/api/admin/users/{user_id}", summary="[Admin] Cập nhật thông tin nhân sự")
+async def admin_update_user(
+    user_id: str,
+    body: ProfileUpdate,
+    authorization: Optional[str] = Header(None)
+):
+    """Cập nhật profile nhân sự (tên, vai trò, email). Chỉ dành cho SuperAdmin."""
+    user = await verify_admin(authorization)
+
+    if user["role"] != "superadmin":
+        raise HTTPException(status_code=403, detail="Chỉ SuperAdmin mới có quyền chỉnh sửa nhân sự")
+
+    try:
+        from datetime import datetime, timezone
+        # Update profile table
+        profile_data = {}
+        if body.display_name is not None:
+            profile_data["display_name"] = body.display_name
+        if body.role is not None:
+            profile_data["role"] = body.role
+        if body.email is not None:
+            profile_data["email"] = body.email
+
+        if profile_data:
+            profile_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+            supabase.table("profiles").update(profile_data).eq("id", user_id).execute()
+
+        # Update email in Auth if changed
+        if body.email:
+            supabase.auth.admin.update_user_by_id(user_id, {"email": body.email})
+
+        return {"message": "Đã cập nhật thông tin nhân sự thành công"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi cập nhật: {str(e)}")
+
+
 @app.delete("/api/admin/users/{user_id}", summary="[Admin] Xoá nhân sự")
 async def admin_delete_user(
     user_id: str,
