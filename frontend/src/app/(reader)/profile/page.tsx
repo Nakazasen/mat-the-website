@@ -112,16 +112,16 @@ function ProfileContent() {
         day: "numeric",
     });
 
-    // Determine rank based on chapters read
-    const getRank = (chapters: number) => {
-        if (chapters >= 500) return { title: "Huyền Thoại Sinh Tồn", color: "text-yellow-400", border: "border-yellow-500/50" };
-        if (chapters >= 200) return { title: "Chiến Binh Kỳ Cựu", color: "text-purple-400", border: "border-purple-500/50" };
-        if (chapters >= 100) return { title: "Người Lính Dày Dạn", color: "text-blue-400", border: "border-blue-500/50" };
-        if (chapters >= 50) return { title: "Tân Binh Có Triển Vọng", color: "text-green-400", border: "border-green-500/50" };
-        return { title: "Kẻ Sống Sót Tập Sự", color: "text-ash-300", border: "border-ash-600" };
+    // Determine rank based on EXP
+    const getRank = (exp: number) => {
+        if (exp >= 5000) return { title: "Huyền Thoại Sinh Tồn", color: "text-yellow-400", border: "border-yellow-500/50" };
+        if (exp >= 2000) return { title: "Chiến Binh Kỳ Cựu", color: "text-purple-400", border: "border-purple-500/50" };
+        if (exp >= 1000) return { title: "Người Lính Dày Dạn", color: "text-blue-400", border: "border-blue-500/50" };
+        if (exp >= 500) return { title: "Tân Binh Có Triển Vọng", color: "text-green-400", border: "border-green-500/50" };
+        return { title: "Kẻ Sống Sót Tập Sự", color: "text-amber-700", border: "border-amber-900/50" };
     };
 
-    const rank = getRank(stats.chaptersRead);
+    const rank = getRank(stats.exp);
 
     return (
         <div className="min-h-screen bg-black">

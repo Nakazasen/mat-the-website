@@ -30,8 +30,8 @@ BEGIN
     p.chapters_read
   FROM public.profiles p
   JOIN auth.users u ON p.id = u.id
-  WHERE p.chapters_read > 0
-  ORDER BY p.chapters_read DESC, p.exp DESC
+  WHERE p.exp > 0
+  ORDER BY p.exp DESC, p.chapters_read DESC
   LIMIT 10;
 END;
 $$ LANGUAGE plpgsql;

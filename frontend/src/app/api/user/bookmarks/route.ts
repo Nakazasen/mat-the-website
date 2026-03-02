@@ -29,7 +29,7 @@ export async function GET(request: Request) {
 
         const { data, error } = await supabase
             .from('bookmarks')
-            .select('*, chapter:chapter_id(id, chapter_number, title)')
+            .select('*, chapter:chapters(id, chapter_number, title)')
             .eq('user_id', session.user.id)
             .order('created_at', { ascending: false });
 

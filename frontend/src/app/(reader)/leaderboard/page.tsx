@@ -4,13 +4,13 @@ import { createAdminClient } from "@/lib/supabase-admin";
 
 export const dynamic = "force-dynamic";
 
-// Map ranks directly, syncing with profile/page.tsx
-const getRankInfo = (chapters: number) => {
-    if (chapters >= 500) return { title: "Huyền Thoại Sinh Tồn", color: "text-yellow-400", border: "border-yellow-500/50", glow: "shadow-[0_0_15px_rgba(250,204,21,0.3)]" };
-    if (chapters >= 200) return { title: "Chiến Binh Kỳ Cựu", color: "text-purple-400", border: "border-purple-500/50", glow: "" };
-    if (chapters >= 100) return { title: "Người Lính Dày Dạn", color: "text-blue-400", border: "border-blue-500/50", glow: "" };
-    if (chapters >= 50) return { title: "Tân Binh Có Triển Vọng", color: "text-green-400", border: "border-green-500/50", glow: "" };
-    return { title: "Kẻ Sống Sót Tập Sự", color: "text-ash-400", border: "border-ash-600", glow: "" };
+// Map ranks based on EXP, syncing with profile/page.tsx
+const getRankInfo = (exp: number) => {
+    if (exp >= 5000) return { title: "Huyền Thoại Sinh Tồn", color: "text-yellow-400", border: "border-yellow-500/50", glow: "shadow-[0_0_15px_rgba(250,204,21,0.3)]" };
+    if (exp >= 2000) return { title: "Chiến Binh Kỳ Cựu", color: "text-purple-400", border: "border-purple-500/50", glow: "" };
+    if (exp >= 1000) return { title: "Người Lính Dày Dạn", color: "text-blue-400", border: "border-blue-500/50", glow: "" };
+    if (exp >= 500) return { title: "Tân Binh Có Triển Vọng", color: "text-green-400", border: "border-green-500/50", glow: "" };
+    return { title: "Kẻ Sống Sót Tập Sự", color: "text-amber-700", border: "border-amber-900/50", glow: "" };
 };
 
 export default async function LeaderboardPage() {
@@ -54,7 +54,7 @@ export default async function LeaderboardPage() {
                         </div>
                     ) : (
                         topUsers.map((user, index) => {
-                            const rank = getRankInfo(user.chapters_read || 0);
+                            const rank = getRankInfo(user.exp || 0);
                             const isTop3 = index < 3;
 
                             return (
@@ -113,11 +113,11 @@ export default async function LeaderboardPage() {
                                         <div className="flex items-center justify-end gap-1.5 mb-1">
                                             <Flame size={14} className="text-toxic-green-DEFAULT" />
                                             <span className="font-biohazard text-lg sm:text-xl text-white">
-                                                {user.chapters_read || 0}
+                                                {user.exp || 0}
                                             </span>
                                         </div>
                                         <div className="text-[9px] sm:text-[10px] font-mono text-ash-500 tracking-widest uppercase">
-                                            Chương Đã Đọc
+                                            KINH NGHIỆM
                                         </div>
                                     </div>
 
