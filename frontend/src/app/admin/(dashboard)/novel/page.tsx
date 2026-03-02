@@ -19,7 +19,11 @@ export default function AdminNovelPage() {
         description: '',
         cover_url: '',
         status: '',
-        genres: []
+        genres: [],
+        total_chapters: 0,
+        max_chapter: 0,
+        total_views: 0,
+        total_likes: 0
     });
     const [genreInput, setGenreInput] = useState('');
     const [loading, setLoading] = useState(true);
