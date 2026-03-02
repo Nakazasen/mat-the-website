@@ -74,6 +74,7 @@ function ProfileContent() {
     if (!user) return null;
 
     const joinDate = new Date(user.created_at).toLocaleDateString("vi-VN", {
+        timeZone: "Asia/Ho_Chi_Minh",
         year: "numeric",
         month: "long",
         day: "numeric",
