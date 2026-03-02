@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase-admin';
 import { Save, AlertTriangle, CheckCircle2, Loader2, Home, Type, AlertCircle, List, Trash2, Plus } from 'lucide-react';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mat-the-website.onrender.com';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 interface Feature {
     icon: string;

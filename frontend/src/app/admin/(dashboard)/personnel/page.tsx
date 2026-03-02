@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase-admin';
 import { Users, UserPlus, Shield, User, Mail, Trash2, Loader2, CheckCircle2, AlertTriangle, Key, Pencil, X, Save } from 'lucide-react';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mat-the-website.onrender.com';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 interface Profile {
     id: string;

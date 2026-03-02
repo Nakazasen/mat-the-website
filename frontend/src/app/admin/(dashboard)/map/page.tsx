@@ -51,7 +51,7 @@ export default function AdminMapPage() {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
-    const [token, setToken] = useState<string | null>(null);
+    const [token, setToken] = useState<string | null>(process.env.NEXT_PUBLIC_ADMIN_TOKEN || "mat-the-admin-2026");
 
     const [selectedLocation, setSelectedLocation] = useState<MapLocation | null>(null);
     const [formData, setFormData] = useState<AdminMapLocationIn>({

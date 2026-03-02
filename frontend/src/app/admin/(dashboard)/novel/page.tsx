@@ -7,9 +7,8 @@ import { getNovelSettings, NovelSettings, uploadImageR2, getUserRole } from '@/l
 import { Save, AlertTriangle, CheckCircle2, Loader2, BookOpen, User, FileText, Image as ImageIcon, Tag, Upload, ShieldAlert } from 'lucide-react';
 import RichTextEditor from '@/components/Editor';
 
-const ADMIN_TOKEN = process.env.NEXT_PUBLIC_ADMIN_TOKEN || "";
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mat-the-website.onrender.com';
+const ADMIN_TOKEN = process.env.NEXT_PUBLIC_ADMIN_TOKEN || "mat-the-admin-2026";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 export default function AdminNovelPage() {
     const router = useRouter();
