@@ -114,11 +114,11 @@ function ProfileContent() {
 
     // Determine rank based on EXP
     const getRank = (exp: number) => {
-        if (exp >= 5000) return { title: "Huyền Thoại Sinh Tồn", color: "text-yellow-400", border: "border-yellow-500/50" };
-        if (exp >= 2000) return { title: "Chiến Binh Kỳ Cựu", color: "text-purple-400", border: "border-purple-500/50" };
-        if (exp >= 1000) return { title: "Người Lính Dày Dạn", color: "text-blue-400", border: "border-blue-500/50" };
-        if (exp >= 500) return { title: "Tân Binh Có Triển Vọng", color: "text-green-400", border: "border-green-500/50" };
-        return { title: "Kẻ Sống Sót Tập Sự", color: "text-amber-700", border: "border-amber-900/50" };
+        if (exp >= 5000) return { title: "Huy hiệu Hi Vọng Bậc S", color: "text-yellow-400", border: "border-yellow-500/50" };
+        if (exp >= 2000) return { title: "Huy hiệu Hi Vọng Bậc A", color: "text-purple-400", border: "border-purple-500/50" };
+        if (exp >= 1000) return { title: "Huy hiệu Hi Vọng Bậc B", color: "text-blue-400", border: "border-blue-500/50" };
+        if (exp >= 500) return { title: "Huy hiệu Hi Vọng Bậc C", color: "text-green-400", border: "border-green-500/50" };
+        return { title: "Huy hiệu Hi Vọng Bậc D", color: "text-amber-700", border: "border-amber-900/50" };
     };
 
     const rank = getRank(stats.exp);
