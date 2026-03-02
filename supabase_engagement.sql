@@ -12,11 +12,10 @@ ADD COLUMN IF NOT EXISTS chapters_read INTEGER DEFAULT 0;
 CREATE TABLE IF NOT EXISTS public.bookmarks (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
-    novel_id UUID REFERENCES public.novels(id) ON DELETE CASCADE, -- In case we want to bookmark the whole novel
-    chapter_id UUID REFERENCES public.chapters(id) ON DELETE CASCADE, -- In case we want to bookmark a specific chapter
+    chapter_id BIGINT REFERENCES public.chapters(id) ON DELETE CASCADE, -- bookmark a specific chapter
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
-    -- Ensure a user can't bookmark the exact same chapter/novel multiple times
-    UNIQUE(user_id, novel_id, chapter_id)
+    -- Ensure a user can't bookmark the exact same chapter multiple times
+    UNIQUE(user_id, chapter_id)
 );
 
 -- Enable RLS for bookmarks
