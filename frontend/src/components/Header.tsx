@@ -107,7 +107,7 @@ export default function Header() {
                                     <Link
                                         key={href}
                                         href={href}
-                                        className="flex items-center gap-2 px-4 py-2 text-sm font-biohazard tracking-widest text-ash-300 hover:text-toxic-green-DEFAULT transition-colors relative group"
+                                        className="flex items-center gap-2 px-4 py-2 text-sm font-biohazard tracking-widest text-ash-200 hover:text-toxic-green-DEFAULT transition-colors relative group"
                                     >
                                         <Icon size={13} />
                                         {label}

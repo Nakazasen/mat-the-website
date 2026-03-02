@@ -101,7 +101,7 @@ export default async function HomePage() {
                         <h1 className="font-biohazard text-6xl sm:text-7xl md:text-8xl lg:text-9xl leading-none mb-2 animate-flicker">
                             <span className="text-toxic-glow block">{novel.title.split('-')[0].trim()}</span>
                         </h1>
-                        <h2 className="font-biohazard text-2xl sm:text-3xl md:text-4xl text-ash-300 tracking-[0.15em] mb-8">
+                        <h2 className="font-biohazard text-2xl sm:text-3xl md:text-4xl text-ash-200 tracking-[0.15em] mb-8">
                             {novel.title.split('-')[1]?.trim() || ""}
                         </h2>
 
@@ -116,19 +116,19 @@ export default async function HomePage() {
 
                         {/* Description */}
                         <div
-                            className="text-ash-300 text-base sm:text-lg leading-relaxed max-w-2xl mb-8 font-reading rich-text-content"
+                            className="text-ash-100 text-base sm:text-lg leading-relaxed max-w-2xl mb-8 font-reading rich-text-home"
                             dangerouslySetInnerHTML={{ __html: novel.description }}
                         />
 
                         {/* CTA Buttons */}
                         <div className="flex flex-wrap gap-4">
-                            <Link href="/chapters/1" className="btn-blood flex items-center gap-2 text-base py-3 px-6">
+                            <Link href="/chapters/1" className="btn-fixed-blood flex items-center gap-2 text-base py-3 px-6">
                                 <BookOpen size={16} />
                                 <span>ĐỌC TỪ ĐẦU</span>
                             </Link>
                             {/* Continue reading button (client-side only logic) */}
-                            <ContinueButton />
-                            <Link href="/chapters" className="btn-toxic flex items-center gap-2 text-base py-3 px-6">
+                            <ContinueButton fixedDark />
+                            <Link href="/chapters" className="btn-fixed-dark flex items-center gap-2 text-base py-3 px-6">
                                 <span>XEM MỤC LỤC</span>
                                 <ChevronRight size={14} />
                             </Link>
@@ -178,7 +178,7 @@ export default async function HomePage() {
                                 <span className="text-blood-glow">{homeSettings.warning_headline.split(' ').slice(-2).join(' ')}</span>
                             </h2>
                             <div
-                                className="font-reading text-ash-300 text-sm leading-relaxed mb-6 whitespace-pre-line rich-text-content"
+                                className="font-reading text-ash-100 text-sm leading-relaxed mb-6 whitespace-pre-line rich-text-home"
                                 dangerouslySetInnerHTML={{ __html: homeSettings.warning_description }}
                             />
                         </div>
@@ -198,7 +198,7 @@ export default async function HomePage() {
                                         <div className="font-biohazard text-ash-200 tracking-wider text-sm mb-1">
                                             {f.title}
                                         </div>
-                                        <div className="text-ash-400 text-xs leading-relaxed">
+                                        <div className="text-ash-300 text-xs leading-relaxed">
                                             {f.desc}
                                         </div>
                                     </div>
@@ -282,8 +282,8 @@ export default async function HomePage() {
 
                     {/* CTA */}
                     <div className="text-center mt-12 flex flex-col items-center gap-4">
-                        <ContinueButton />
-                        <Link href="/chapters/1" className="btn-blood inline-flex items-center gap-2 text-base py-3 px-8">
+                        <ContinueButton fixedDark />
+                        <Link href="/chapters/1" className="btn-fixed-blood inline-flex items-center gap-2 text-base py-3 px-8">
                             <Zap size={16} />
                             <span>BẮT ĐẦU ĐỌC NGAY</span>
                         </Link>

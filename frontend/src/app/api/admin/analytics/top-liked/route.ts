@@ -37,7 +37,6 @@ export async function GET(request: Request) {
         const { data, error } = await supabase
             .from('chapters')
             .select('id, chapter_number, title, likes_count')
-            .eq('status', 'published')
             .order('likes_count', { ascending: false })
             .limit(limit);
 

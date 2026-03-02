@@ -26,7 +26,6 @@ async function getTopChapters() {
         const { data } = await supabase
             .from('chapters')
             .select('chapter_number, title, view_count')
-            .eq('status', 'published')
             .order('view_count', { ascending: false })
             .limit(5);
         return data || [];
@@ -41,7 +40,6 @@ async function getTopLiked() {
         const { data } = await supabase
             .from('chapters')
             .select('chapter_number, title, likes_count')
-            .eq('status', 'published')
             .order('likes_count', { ascending: false })
             .limit(5);
         return data || [];

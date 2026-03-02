@@ -266,8 +266,8 @@ body::before {
   color: var(--reader-text) !important;
 }
 
-.rich-text-content p, 
-.rich-text-content li, 
+.rich-text-content p,
+.rich-text-content li,
 .rich-text-content span,
 .rich-text-content div {
   color: inherit !important;
@@ -298,6 +298,47 @@ body::before {
   font-size: 0.65rem;
   color: rgba(57, 255, 20, 0.7);
   letter-spacing: 0.15em;
+}
+
+/* === FIXED CONTRAST FOR DARK SECTIONS (HOME/SYNOPSIS) === */
+.rich-text-home {
+  color: #d4d0c8 !important;
+  /* Fixed worn-white */
+}
+
+.rich-text-home p,
+.rich-text-home li,
+.rich-text-home span,
+.rich-text-home div {
+  color: inherit !important;
+}
+
+.rich-text-home h1,
+.rich-text-home h2,
+.rich-text-home h3 {
+  color: #39FF14 !important;
+  /* Fixed toxic-green */
+}
+
+.btn-fixed-dark {
+  background: transparent !important;
+  color: #39FF14 !important;
+  border: 1px solid #39FF14 !important;
+}
+
+.btn-fixed-dark:hover {
+  background: #39FF14 !important;
+  color: #000 !important;
+}
+
+.btn-fixed-blood {
+  background: #8B0000 !important;
+  color: #fff !important;
+  border: 1px solid #5c0000 !important;
+}
+
+.btn-fixed-blood:hover {
+  background: #cc0000 !important;
 }
 
 /* === GRID CHAPTER ITEM === */

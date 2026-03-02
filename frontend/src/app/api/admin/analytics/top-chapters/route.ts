@@ -42,7 +42,6 @@ export async function GET(request: Request) {
         const { data, error } = await supabase
             .from('chapters')
             .select('id, chapter_number, title, view_count')
-            .eq('status', 'published')
             .order('view_count', { ascending: false })
             .limit(limit);
 
