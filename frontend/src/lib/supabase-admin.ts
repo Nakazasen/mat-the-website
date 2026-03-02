@@ -1,13 +1,8 @@
-import { createBrowserClient } from '@supabase/ssr';
-
-// const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-// const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+import { createBrowserClient, createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 
 // Client for use in browser-side admin components
 export function createAdminClient() {
-    // Build Version tag to verify deployment
-    const BUILD_VERSION = "2026-03-01-0925";
-
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -22,4 +17,32 @@ export function createAdminClient() {
         console.error("Failed to create Supabase browser client:", e);
         return null;
     }
+}
+
+// Client for use in Server Components (Async)
+export async function getServerAdminClient() {
+    const cookieStore = await cookies();
+
+    return createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+            cookies: {
+                getAll() {
+                    return cookieStore.getAll();
+                },
+                setAll(cookiesToSet) {
+                    try {
+                        cookiesToSet.forEach(({ name, value, options }) =>
+                            cookieStore.set(name, value, options)
+                        );
+                    } catch {
+                        // The `setAll` method was called from a Server Component.
+                        // This can be ignored if you have middleware refreshing
+                        // sessions (which we do).
+                    }
+                },
+            },
+        }
+    );
 }

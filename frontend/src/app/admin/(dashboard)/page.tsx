@@ -1,12 +1,9 @@
-import { cookies } from 'next/headers';
 import { BarChart3, BookOpen, TrendingUp, PlusCircle, Eye, Heart } from 'lucide-react';
 import Link from 'next/link';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mat-the-website.onrender.com';
-
+import { getServerAdminClient } from '@/lib/supabase-admin';
 import { getChapters, getNovelSettings } from '@/lib/api';
 
-async function getDashboardData(token: string | undefined) {
+async function getDashboardData() {
     try {
         const [novel, chaptersResp] = await Promise.all([
             getNovelSettings(),
@@ -23,57 +20,41 @@ async function getDashboardData(token: string | undefined) {
     }
 }
 
-async function getTopChapters(token: string | undefined) {
-    if (!token) return [];
+async function getTopChapters() {
+    const supabase = await getServerAdminClient();
     try {
-        const res = await fetch(`${API_BASE_URL}/api/admin/analytics/top-chapters?limit=5`, {
-            headers: { 'Authorization': `Bearer ${token}` },
-            cache: 'no-store'
-        });
-        if (!res.ok) return [];
-        return await res.json();
+        const { data } = await supabase
+            .from('chapters')
+            .select('chapter_number, title, view_count')
+            .eq('status', 'published')
+            .order('view_count', { ascending: false })
+            .limit(5);
+        return data || [];
     } catch {
         return [];
     }
 }
 
-async function getTopLiked(token: string | undefined) {
-    if (!token) return [];
+async function getTopLiked() {
+    const supabase = await getServerAdminClient();
     try {
-        const res = await fetch(`${API_BASE_URL}/api/admin/analytics/top-liked?limit=5`, {
-            headers: { 'Authorization': `Bearer ${token}` },
-            cache: 'no-store'
-        });
-        if (!res.ok) return [];
-        return await res.json();
+        const { data } = await supabase
+            .from('chapters')
+            .select('chapter_number, title, likes_count')
+            .eq('status', 'published')
+            .order('likes_count', { ascending: false })
+            .limit(5);
+        return data || [];
     } catch {
         return [];
     }
 }
 
 export default async function AdminDashboardPage() {
-    const cookieStore = await cookies();
-
-    // Improved token retrieval: check multiple possible Supabase cookie names
-    let supabaseToken = cookieStore.get('sb-access-token')?.value;
-    if (!supabaseToken) {
-        // Try to find any Supabase auth cookie (format: sb-[project-ref]-auth-token)
-        const allCookies = cookieStore.getAll();
-        const authCookie = allCookies.find(c => c.name.startsWith('sb-') && c.name.endsWith('-auth-token'));
-        if (authCookie) {
-            try {
-                const parsed = JSON.parse(authCookie.value);
-                supabaseToken = parsed.access_token;
-            } catch {
-                // Not a JSON cookie or different format
-            }
-        }
-    }
-
     const [stats, topChapters, topLiked] = await Promise.all([
-        getDashboardData(supabaseToken),
-        getTopChapters(supabaseToken),
-        getTopLiked(supabaseToken),
+        getDashboardData(),
+        getTopChapters(),
+        getTopLiked(),
     ]);
 
     const totalViews = stats.total_views;
