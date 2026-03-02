@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState, Suspense } from "react";
+// Deployment trigger: fix vercel internal error
 import { useRouter } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { Skull, Heart, BookOpen, ShieldCheck, Calendar, ArrowLeft, LogOut, Bookmark, Trash2 } from "lucide-react";
