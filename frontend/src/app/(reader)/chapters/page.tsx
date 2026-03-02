@@ -85,8 +85,8 @@ export default async function ChaptersPage({
                     <Link
                         href={`/chapters?tab=main${search ? `&search=${encodeURIComponent(search)}` : ''}`}
                         className={`flex-1 text-center py-3 sm:py-4 font-mono text-sm tracking-widest transition-all ${tab === 'main'
-                                ? 'text-toxic-green-DEFAULT border-b-2 border-toxic-green-DEFAULT bg-toxic-green-DEFAULT/5'
-                                : 'text-ash-500 hover:text-ash-300 hover:bg-ash-900/50'
+                            ? 'text-toxic-green-DEFAULT border-b-2 border-toxic-green-DEFAULT bg-toxic-green-DEFAULT/5'
+                            : 'text-ash-500 hover:text-ash-300 hover:bg-ash-900/50'
                             }`}
                     >
                         MẠCH TRUYỆN CHÍNH
@@ -95,8 +95,8 @@ export default async function ChaptersPage({
                     <Link
                         href={`/chapters?tab=side${search ? `&search=${encodeURIComponent(search)}` : ''}`}
                         className={`flex-1 text-center py-3 sm:py-4 font-mono text-sm tracking-widest transition-all ${tab === 'side'
-                                ? 'text-toxic-green-DEFAULT border-b-2 border-toxic-green-DEFAULT bg-toxic-green-DEFAULT/5'
-                                : 'text-ash-500 hover:text-ash-300 hover:bg-ash-900/50'
+                            ? 'text-toxic-green-DEFAULT border-b-2 border-toxic-green-DEFAULT bg-toxic-green-DEFAULT/5'
+                            : 'text-ash-500 hover:text-ash-300 hover:bg-ash-900/50'
                             }`}
                     >
                         NGOẠI TRUYỆN & HỒ SƠ 📜
@@ -149,6 +149,16 @@ export default async function ChaptersPage({
                                 />
                             </Link>
                         ))}
+                    </div>
+                ) : search ? (
+                    <div className="text-center py-20 card-biohazard rounded-lg border-dashed border-ash-800">
+                        <div className="text-ash-500 font-mono text-sm mb-2">KHÔNG TÌM THẤY KẾT QUẢ</div>
+                        <div className="text-ash-700 text-xs text-balance">Dữ liệu không tồn tại trong khu vực quét.</div>
+                    </div>
+                ) : tab === 'side' ? (
+                    <div className="text-center py-20 card-biohazard rounded-lg border-dashed border-ash-800">
+                        <div className="text-ash-500 font-mono text-sm mb-2">CHƯA CÓ NGOẠI TRUYỆN</div>
+                        <div className="text-ash-700 text-xs text-balance">Hồ sơ bổ sung chưa được nạp vào hệ thống.</div>
                     </div>
                 ) : (
                     /* Skeleton loading */
