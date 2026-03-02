@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import { Coffee, Heart, X, QrCode } from "lucide-react";
+import { useTheme } from "@/context/ThemeContext";
 
 interface DonateSectionProps {
     chapterNumber: number;
 }
 
 export default function DonateSection({ chapterNumber }: DonateSectionProps) {
+    const { theme } = useTheme();
     const [showQR, setShowQR] = useState(false);
 
     // QR image URL - sẽ được thay bằng link R2 thật khi anh upload
@@ -19,17 +21,20 @@ export default function DonateSection({ chapterNumber }: DonateSectionProps) {
             <div className="flex justify-center py-6">
                 <button
                     onClick={() => setShowQR(true)}
-                    className="group relative flex items-center gap-3 px-6 py-3 
-                        bg-gradient-to-r from-amber-900/20 via-amber-800/10 to-amber-900/20
-                        border border-amber-700/30 rounded-xl
-                        hover:border-amber-500/50 hover:from-amber-900/30 hover:via-amber-800/20 hover:to-amber-900/30
-                        transition-all duration-300"
+                    className={`group relative flex items-center gap-3 px-6 py-3 
+                        border rounded-xl transition-all duration-300
+                        ${theme === 'dark'
+                            ? 'bg-gradient-to-r from-amber-900/20 via-amber-800/10 to-amber-900/20 border-amber-700/30 hover:border-amber-500/50 hover:from-amber-900/30 hover:via-amber-800/20 hover:to-amber-900/30'
+                            : theme === 'sepia'
+                                ? 'bg-amber-100/50 border-amber-200 hover:border-amber-400 hover:bg-amber-100'
+                                : 'bg-amber-50 border-amber-200 hover:border-amber-400 hover:bg-amber-100'
+                        }`}
                 >
-                    <Coffee size={18} className="text-amber-400 group-hover:rotate-12 transition-transform" />
-                    <span className="font-mono text-xs text-amber-300/80 tracking-wider">
-                        Tiếp tế đạn dược và cafe cho tác giả ☕
+                    <Coffee size={18} className={`${theme === 'dark' ? 'text-amber-400' : 'text-amber-600'} group-hover:rotate-12 transition-transform`} />
+                    <span className={`font-mono text-xs tracking-wider ${theme === 'dark' ? 'text-amber-300/80' : 'text-amber-800 font-semibold'}`}>
+                        Tiếp tế đan dược và cafe cho tác giả ☕
                     </span>
-                    <Heart size={14} className="text-red-400/60 group-hover:text-red-400 group-hover:scale-125 transition-all" />
+                    <Heart size={14} className={`${theme === 'dark' ? 'text-red-400/60 group-hover:text-red-400' : 'text-red-500/60 group-hover:text-red-500'} group-hover:scale-125 transition-all`} />
                 </button>
             </div>
 

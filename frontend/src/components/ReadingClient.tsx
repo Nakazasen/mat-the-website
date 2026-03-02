@@ -328,7 +328,7 @@ export default function ReadingClient({
                                 TRƯỚC
                             </Link>
                         ) : (
-                            <span className="px-4 py-2 border border-reader-border opacity-30 rounded-full text-reader-muted font-mono text-xs cursor-not-allowed">ĐẦU</span>
+                            <span className={`px-4 py-2 border border-reader-border rounded-full text-reader-muted font-mono text-xs cursor-not-allowed ${theme === 'dark' ? 'opacity-30' : 'opacity-60 font-bold'}`}>ĐẦU</span>
                         )}
 
                         <Link
@@ -348,7 +348,7 @@ export default function ReadingClient({
                                 <ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />
                             </Link>
                         ) : (
-                            <span className="px-4 py-2 border border-reader-border opacity-30 rounded-full text-reader-muted font-mono text-xs cursor-not-allowed">HẾT</span>
+                            <span className={`px-4 py-2 border border-reader-border rounded-full text-reader-muted font-mono text-xs cursor-not-allowed ${theme === 'dark' ? 'opacity-30' : 'opacity-60 font-bold'}`}>HẾT</span>
                         )}
                     </div>
 
@@ -421,7 +421,7 @@ export default function ReadingClient({
                             <span>CHƯƠNG TRƯỚC</span>
                         </Link>
                     ) : (
-                        <div className="flex-1 flex items-center justify-center py-4 border border-reader-border opacity-30 rounded text-reader-muted font-biohazard tracking-wider text-sm cursor-not-allowed">
+                        <div className={`flex-1 flex items-center justify-center py-4 border border-reader-border rounded text-reader-muted font-biohazard tracking-wider text-sm cursor-not-allowed ${theme === 'dark' ? 'opacity-30' : 'opacity-60'}`}>
                             ĐÂY LÀ ĐẦU TRUYỆN
                         </div>
                     )}
@@ -438,7 +438,7 @@ export default function ReadingClient({
                             />
                         </Link>
                     ) : (
-                        <div className="flex-1 flex items-center justify-center py-4 border border-reader-border opacity-30 rounded text-reader-muted font-biohazard tracking-wider text-sm cursor-not-allowed">
+                        <div className={`flex-1 flex items-center justify-center py-4 border border-reader-border rounded text-reader-muted font-biohazard tracking-wider text-sm cursor-not-allowed ${theme === 'dark' ? 'opacity-30' : 'opacity-60'}`}>
                             HẾT TRUYỆN (TẠM THỜI)
                         </div>
                     )}

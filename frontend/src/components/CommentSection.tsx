@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { MessageSquare, Send, User } from "lucide-react";
+import { MessageSquare, Send, User, Coffee, Heart, X, QrCode } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
+import { createBrowserClient } from "@supabase/ssr";
 
 interface Comment {
     id: string;
@@ -22,12 +23,27 @@ export default function CommentSection({ chapterNumber }: CommentSectionProps) {
     const [content, setContent] = useState("");
     const [loading, setLoading] = useState(false);
     const [fetching, setFetching] = useState(true);
+    const [user, setUser] = useState<any>(null);
+
+    const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
 
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
     useEffect(() => {
         fetchComments();
+        checkUser();
     }, [chapterNumber]);
+
+    const checkUser = async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+            setUser(user);
+            setUserName(user.user_metadata?.full_name || user.email?.split('@')[0] || "");
+        }
+    };
 
     const fetchComments = async () => {
         setFetching(true);
@@ -81,19 +97,28 @@ export default function CommentSection({ chapterNumber }: CommentSectionProps) {
             </div>
 
             {/* Comment Form */}
-            <form onSubmit={handleSubmit} className="mb-12 bg-reader-card-bg p-6 rounded-lg border border-reader-border backdrop-blur-sm">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                    <div className="relative">
-                        <User className="absolute left-3 top-1/2 -translate-y-1/2 text-reader-muted" size={14} />
-                        <input
-                            type="text"
-                            placeholder="TÊN CỦA BẠN (TÙY CHỌN)"
-                            value={userName}
-                            onChange={(e) => setUserName(e.target.value)}
-                            className="w-full bg-reader-bg border border-reader-border rounded px-10 py-2 text-xs font-mono text-reader-text outline-none focus:border-reader-accent transition-colors placeholder:text-reader-muted"
-                        />
+            <form onSubmit={handleSubmit} className="mb-12 bg-reader-card-bg p-6 rounded-lg border border-reader-border backdrop-blur-sm shadow-sm">
+                {!user ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                        <div className="relative">
+                            <User className="absolute left-3 top-1/2 -translate-y-1/2 text-reader-muted" size={14} />
+                            <input
+                                type="text"
+                                placeholder="TÊN CỦA BẠN (TÙY CHỌN)"
+                                value={userName}
+                                onChange={(e) => setUserName(e.target.value)}
+                                className="w-full bg-reader-bg border border-reader-border rounded px-10 py-2 text-xs font-mono text-reader-text outline-none focus:border-reader-accent transition-colors placeholder:text-reader-muted/60"
+                            />
+                        </div>
                     </div>
-                </div>
+                ) : (
+                    <div className="mb-4 flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-reader-accent/10 flex items-center justify-center border border-reader-accent/20">
+                            <User className="text-reader-accent" size={12} />
+                        </div>
+                        <span className="text-xs font-mono text-reader-accent tracking-wider uppercase">Đang đăng bằng: {userName}</span>
+                    </div>
+                )}
                 <textarea
                     placeholder="BẠN ĐANG NGHĨ GÌ VỀ CHƯƠNG NÀY?"
                     value={content}
