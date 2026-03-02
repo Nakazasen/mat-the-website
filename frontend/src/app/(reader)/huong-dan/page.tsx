@@ -48,12 +48,14 @@ export default function HuongDanPage() {
                     </div>
                 ) : hasCustomContent ? (
                     <div
-                        className="prose prose-invert prose-emerald max-w-none 
-                            prose-headings:font-biohazard prose-headings:tracking-wider prose-headings:text-toxic-green-DEFAULT
+                        className="prose max-w-none 
+                            prose-headings:font-biohazard prose-headings:tracking-wider prose-headings:text-[var(--reader-accent)]
                             prose-p:text-[var(--reader-text)] prose-p:leading-relaxed
-                            prose-a:text-toxic-green-DEFAULT prose-a:no-underline hover:prose-a:underline
+                            prose-li:text-[var(--reader-text)]
+                            prose-ul:text-[var(--reader-text)]
+                            prose-a:text-[var(--reader-accent)] prose-a:no-underline hover:prose-a:underline
                             prose-strong:text-[var(--reader-text)]
-                            prose-img:rounded-lg prose-img:border prose-img:border-ash-800/30"
+                            prose-img:rounded-lg prose-img:border prose-img:border-[var(--reader-border)]"
                         dangerouslySetInnerHTML={{ __html: guide!.content }}
                     />
                 ) : (
