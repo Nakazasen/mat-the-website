@@ -140,6 +140,21 @@ export interface WikiEntryIn {
     tags?: string[];
 }
 
+export async function getUserRole(token: string): Promise<string> {
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/user/role`, {
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        });
+        if (!res.ok) return 'editor';
+        const data = await res.json();
+        return data.role || 'editor';
+    } catch {
+        return 'editor';
+    }
+}
+
 export const WIKI_CATEGORIES = ["Nhân vật", "Sinh vật", "Thế lực", "Vật phẩm", "Địa điểm"] as const;
 
 export async function getWikiEntries(category?: string, search?: string): Promise<WikiEntry[]> {

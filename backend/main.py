@@ -598,11 +598,14 @@ async def admin_invite_user(
 class ProfileUpdate(BaseModel):
     display_name: Optional[str] = None
     role: Optional[str] = None
-    email: Optional[str] = None
-    password: Optional[str] = None
 
+@app.get("/api/user/role", summary="Lấy quyền (Role) của người dùng hiện tại")
+async def get_current_user_role(authorization: Optional[str] = Header(None)):
+    """Kiểm tra quyền của người dùng (editor hay superadmin)."""
+    user = await verify_admin(authorization)
+    return {"role": user["role"]}
 
-@app.put("/api/admin/users/{user_id}", summary="[Admin] Cập nhật thông tin nhân sự")
+@app.put("/api/admin/personnel/{user_id}", summary="[Admin] Cập nhật nhân sự")
 async def admin_update_user(
     user_id: str,
     body: ProfileUpdate,

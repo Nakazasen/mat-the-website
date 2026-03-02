@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase-admin';
-import { getNovelSettings, NovelSettings, uploadImageR2 } from '@/lib/api';
-import { Save, AlertTriangle, CheckCircle2, Loader2, BookOpen, User, FileText, Image as ImageIcon, Tag, Upload } from 'lucide-react';
+import { getNovelSettings, NovelSettings, uploadImageR2, getUserRole } from '@/lib/api';
+import { Save, AlertTriangle, CheckCircle2, Loader2, BookOpen, User, FileText, Image as ImageIcon, Tag, Upload, ShieldAlert } from 'lucide-react';
 import RichTextEditor from '@/components/Editor';
 
 const ADMIN_TOKEN = process.env.NEXT_PUBLIC_ADMIN_TOKEN || "";
@@ -32,6 +32,7 @@ export default function AdminNovelPage() {
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
     const [token, setToken] = useState<string | null>(null);
+    const [userRole, setUserRole] = useState<string>('editor');
 
     useEffect(() => {
         const loadData = async () => {
@@ -50,6 +51,11 @@ export default function AdminNovelPage() {
             setToken(session.access_token);
 
             try {
+                // Fetch user role
+                const role = await getUserRole(session.access_token);
+                setUserRole(role);
+
+                // Fetch novel settings
                 const data = await getNovelSettings();
                 setSettings(data);
             } catch (err: any) {
@@ -215,34 +221,41 @@ export default function AdminNovelPage() {
                         </div>
                     </div>
 
-                    {/* QR Code URL */}
+                    {/* QR Code URL (Only for superadmin) */}
                     <div className="space-y-2">
                         <label className="flex items-center gap-2 text-xs font-mono text-gray-500 tracking-widest uppercase">
                             <ImageIcon size={12} /> QR Donate (URL)
                         </label>
-                        <div className="flex gap-2">
-                            <input
-                                type="text"
-                                value={settings.donate_qr_url || ''}
-                                onChange={(e) => setSettings({ ...settings, donate_qr_url: e.target.value })}
-                                className="w-full bg-[#0a0a0a] border border-gray-800 rounded px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500/20 transition-all"
-                                placeholder="Link ảnh QR Momo/Bank..."
-                            />
-                            <label className="flex items-center justify-center px-4 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 rounded cursor-pointer transition-colors" title="Tải QR lên R2">
-                                <Upload size={16} />
-                                <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
-                                    const file = e.target.files?.[0];
-                                    if (file) {
-                                        try {
-                                            const url = await uploadImageR2(file, ADMIN_TOKEN);
-                                            setSettings(s => ({ ...s, donate_qr_url: url }));
-                                        } catch (err) {
-                                            setError("Lỗi tải ảnh QR. Vui lòng thử lại.");
+                        {userRole === 'superadmin' ? (
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    value={settings.donate_qr_url || ''}
+                                    onChange={(e) => setSettings({ ...settings, donate_qr_url: e.target.value })}
+                                    className="w-full bg-[#0a0a0a] border border-gray-800 rounded px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500/20 transition-all"
+                                    placeholder="Link ảnh QR Momo/Bank..."
+                                />
+                                <label className="flex items-center justify-center px-4 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 rounded cursor-pointer transition-colors" title="Tải QR lên R2">
+                                    <Upload size={16} />
+                                    <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) {
+                                            try {
+                                                const url = await uploadImageR2(file, ADMIN_TOKEN);
+                                                setSettings(s => ({ ...s, donate_qr_url: url }));
+                                            } catch (err) {
+                                                setError("Lỗi tải ảnh QR. Vui lòng thử lại.");
+                                            }
                                         }
-                                    }
-                                }} />
-                            </label>
-                        </div>
+                                    }} />
+                                </label>
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-2 bg-[#0a0a0a] border border-gray-800 rounded px-4 py-2.5 text-gray-500 text-sm italic">
+                                <ShieldAlert size={14} className="text-amber-500" />
+                                <span>Chỉ Quản trị viên cấp cao (Super Admin) mới được xem và thay đổi mã QR Donate.</span>
+                            </div>
+                        )}
                     </div>
                 </div>
 
