@@ -501,6 +501,7 @@ class Profile(BaseModel):
     email: str
     role: str
     display_name: Optional[str] = None
+    avatar_url: Optional[str] = None
     created_at: str
 
 

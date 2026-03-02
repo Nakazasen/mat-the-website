@@ -1,18 +1,57 @@
 "use client";
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { BookOpen, List, Home, Menu, X, Zap, Map as MapIcon, HelpCircle } from "lucide-react";
+import { BookOpen, List, Home, Menu, X, Zap, Map as MapIcon, HelpCircle, User, LogIn, LogOut } from "lucide-react";
 import ThemeSwitcher from "./ThemeSwitcher";
+import { createAdminClient } from "@/lib/supabase-admin";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 export default function Header() {
     const [scrolled, setScrolled] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
+    const [user, setUser] = useState<SupabaseUser | null>(null);
 
     useEffect(() => {
         const handleScroll = () => setScrolled(window.scrollY > 40);
         window.addEventListener("scroll", handleScroll, { passive: true });
+
+        // Auth listener
+        const supabase = createAdminClient();
+        if (supabase) {
+            supabase.auth.getSession().then(({ data: { session } }) => {
+                setUser(session?.user ?? null);
+            });
+
+            const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+                setUser(session?.user ?? null);
+            });
+
+            return () => {
+                window.removeEventListener("scroll", handleScroll);
+                subscription.unsubscribe();
+            };
+        }
+
         return () => window.removeEventListener("scroll", handleScroll);
     }, []);
+
+    const handleLogin = async () => {
+        const supabase = createAdminClient();
+        if (!supabase) return;
+        await supabase.auth.signInWithOAuth({
+            provider: 'google',
+            options: {
+                redirectTo: `${window.location.origin}/auth/callback`
+            }
+        });
+    };
+
+    const handleLogout = async () => {
+        const supabase = createAdminClient();
+        if (!supabase) return;
+        await supabase.auth.signOut();
+        window.location.reload();
+    };
 
     const navLinks = [
         { href: "/", label: "TRANG CHỦ", icon: Home },
@@ -73,9 +112,40 @@ export default function Header() {
                                     </Link>
                                 )
                             )}
-                            <div className="ml-4 border-l border-ash-800 pl-4">
-                                <ThemeSwitcher />
-                            </div>
+                            {user ? (
+                                <div className="ml-4 flex items-center gap-3 border-l border-ash-800 pl-4">
+                                    <ThemeSwitcher />
+                                    <div className="group relative">
+                                        <button className="flex items-center gap-2 text-ash-300 hover:text-white transition-colors">
+                                            {user.user_metadata?.avatar_url ? (
+                                                <img src={user.user_metadata.avatar_url} alt="Avatar" className="w-8 h-8 rounded-full border border-ash-700" />
+                                            ) : (
+                                                <div className="w-8 h-8 rounded-full bg-ash-800 flex items-center justify-center border border-ash-700">
+                                                    <User size={14} />
+                                                </div>
+                                            )}
+                                        </button>
+                                        <div className="absolute right-0 top-full mt-2 w-48 bg-ash-900 border border-ash-800 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
+                                            <div className="p-3 border-b border-ash-800">
+                                                <div className="text-sm text-white font-medium truncate">{user.user_metadata?.full_name || user.email}</div>
+                                                <div className="text-xs text-ash-400 truncate">{user.email}</div>
+                                            </div>
+                                            <button onClick={handleLogout} className="w-full flex items-center gap-2 p-3 text-sm text-red-400 hover:bg-ash-800/50 transition-colors rounded-b-lg tracking-wider font-mono">
+                                                <LogOut size={14} />
+                                                ĐĂNG XUẤT
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="ml-4 flex items-center gap-3 border-l border-ash-800 pl-4">
+                                    <ThemeSwitcher />
+                                    <button onClick={handleLogin} className="flex items-center gap-2 px-3 py-1.5 text-xs font-mono text-toxic-green-DEFAULT border border-toxic-green-DEFAULT/30 hover:bg-toxic-green-DEFAULT/10 tracking-widest rounded transition-all">
+                                        <LogIn size={14} />
+                                        ĐĂNG NHẬP
+                                    </button>
+                                </div>
+                            )}
                         </nav>
 
                         {/* Mobile action & menu button */}
@@ -111,6 +181,37 @@ export default function Header() {
                                 </Link>
                             ))}
                         </nav>
+
+                        {/* Mobile Auth Section */}
+                        <div className="px-4 py-4 border-t border-ash-800/50">
+                            {user ? (
+                                <div className="flex flex-col gap-3">
+                                    <div className="flex items-center gap-3 bg-ash-900/50 p-3 rounded-lg border border-ash-800">
+                                        {user.user_metadata?.avatar_url ? (
+                                            <img src={user.user_metadata.avatar_url} alt="Avatar" className="w-10 h-10 rounded-full border border-ash-700" />
+                                        ) : (
+                                            <div className="w-10 h-10 rounded-full bg-ash-800 flex items-center justify-center border border-ash-700">
+                                                <User size={18} />
+                                            </div>
+                                        )}
+                                        <div className="flex-1 min-w-0">
+                                            <div className="text-sm text-white font-medium truncate">{user.user_metadata?.full_name || user.email}</div>
+                                            <div className="text-xs text-ash-400 truncate">{user.email}</div>
+                                        </div>
+                                    </div>
+                                    <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 py-3 text-sm font-mono text-red-400 bg-red-950/20 hover:bg-red-950/40 border border-red-900/30 tracking-widest rounded transition-all">
+                                        <LogOut size={16} />
+                                        ĐĂNG XUẤT
+                                    </button>
+                                </div>
+                            ) : (
+                                <button onClick={handleLogin} className="w-full flex items-center justify-center gap-2 py-3 text-sm font-mono text-toxic-green-DEFAULT bg-toxic-green-DEFAULT/5 hover:bg-toxic-green-DEFAULT/10 border border-toxic-green-DEFAULT/30 tracking-widest rounded transition-all">
+                                    <LogIn size={16} />
+                                    ĐĂNG NHẬP VỚI GOOGLE
+                                </button>
+                            )}
+                        </div>
+
                         {/* Status bar */}
                         <div className="flex items-center gap-2 px-8 pb-4 text-xs font-mono text-ash-600">
                             <Zap size={10} className="text-toxic-green-DEFAULT" />
