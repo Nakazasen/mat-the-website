@@ -1,6 +1,6 @@
 import { BarChart3, BookOpen, TrendingUp, PlusCircle, Eye, Heart } from 'lucide-react';
 import Link from 'next/link';
-import { getServerAdminClient } from '@/lib/supabase-admin';
+import { getServerAdminClient } from '@/lib/supabase-server';
 import { getChapters, getNovelSettings } from '@/lib/api';
 
 async function getDashboardData() {
