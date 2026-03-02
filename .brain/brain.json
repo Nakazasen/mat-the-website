@@ -2,7 +2,7 @@
   "meta": {
     "schema_version": "1.1.0",
     "awf_version": "4.0.2",
-    "last_updated": "2026-03-02T01:05:00+07:00"
+    "last_updated": "2026-03-02T22:45:00+07:00"
   },
   "project": {
     "name": "Mạt Thế - Sinh Hoá Nguy Cơ",
@@ -127,6 +127,11 @@
       "name": "Rich Text Editor (Tiptap)",
       "status": "complete",
       "description": "Soạn thảo văn bản chuyên nghiệp cho Chương truyện và Wiki, tích hợp upload R2 trực tiếp."
+    },
+    {
+      "name": "Rich Karaoke Rendering",
+      "status": "complete",
+      "description": "Hệ thống render Karaoke thông minh cho văn bản HTML, giữ nguyên cấu trúc ảnh/thẻ trong khi vẫn highlight từng chữ."
     }
   ],
   "knowledge_items": {
@@ -142,6 +147,14 @@
       {
         "title": "Leaflet SSR Issues",
         "detail": "Leaflet chỉ chạy trên trình duyệt. Phải dùng dynamic import với { ssr: false } trong Next.js."
+      },
+      {
+        "title": "Tailwind Typography Contrast",
+        "detail": "Tránh dùng .prose-invert nếu theme có cả chế độ sáng. Nên dùng CSS Variables kế thừa (inherit) cho các thẻ con trong .rich-text-content."
+      },
+      {
+        "title": "Audio Karaoke & HTML",
+        "detail": "Khi render HTML raw bằng dangerouslySetInnerHTML, hiệu ứng Karaoke (cần bọc chữ trong span) sẽ bị mất. Cần một bộ xử lý DOM ảo để inject span vào text nodes."
       }
     ]
   },

@@ -55,4 +55,20 @@ All notable changes to this project will be documented in this file.
 - **Auth**: Khắc phục lỗi "User not allowed" khi tạo tài khoản bằng cách yêu cầu sử dụng Service Role Key.
 
 ---
-*Last updated: 2026-03-02 01:00:00*
+## [2026-03-02] - Part 5: Full Content Rendering & UX
+### Added
+- **Rich Karaoke Engine**: New logic to support visual highlighting (Karaoke) on HTML-rich chapters while preserving images and formatting.
+- **Comprehensive HTML Audit**: Enabled rich text rendering across Home, Map, and Wiki sections.
+- **Admin Panel Improvements**: 
+    - Fixed image upload by adding `ADMIN_TOKEN` fallbacks and relative API paths.
+    - Verified image upload functionality across all admin tabs (Chapters, Wiki, Map, etc.).
+
+### Fixed
+- **Reader Contrast**: Resolved "faded text" issue in light and sepia themes by improving CSS variable inheritance.
+- **Bookmarks**: 
+    - Fixed prominence of the bookmark button.
+    - Resolved "Chapter deleted" bug in profiles by identifying RLS policy requirements.
+- **TTS**: Made the Text-to-Speech engine HTML-aware to prevent reading raw tags.
+
+---
+*Last updated: 2026-03-02 22:45:00*
