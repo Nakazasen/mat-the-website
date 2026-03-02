@@ -367,7 +367,7 @@ export default function ReadingClient({
                 {/* Reading content */}
                 <div
                     ref={contentRef}
-                    className="reading-container !bg-transparent !text-inherit prose prose-invert max-w-none"
+                    className="reading-container !bg-transparent !text-inherit prose max-w-none"
                     style={{ fontSize: `${fontSize}px`, lineHeight: 1.8 }}
                 >
                     {content.includes('<') && (content.includes('</') || content.includes('/>')) ? (

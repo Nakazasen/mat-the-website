@@ -258,7 +258,38 @@ body::before {
 }
 
 .reading-container p::first-line {
-  color: rgba(212, 208, 200, 0.9);
+  color: inherit;
+}
+
+/* === RICH TEXT CONTENT FIX === */
+.rich-text-content {
+  color: var(--reader-text) !important;
+}
+
+.rich-text-content p, 
+.rich-text-content li, 
+.rich-text-content span,
+.rich-text-content div {
+  color: inherit !important;
+  margin-bottom: 1.2em;
+}
+
+.rich-text-content img {
+  border-radius: 8px;
+  border: 1px solid var(--reader-border);
+  margin: 1.5rem auto;
+  max-width: 100%;
+  height: auto;
+}
+
+.rich-text-content h1,
+.rich-text-content h2,
+.rich-text-content h3 {
+  color: var(--reader-accent) !important;
+  font-family: 'Bebas Neue', Impact, sans-serif;
+  letter-spacing: 0.1em;
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
 }
 
 /* === CHAPTER NUMBER BADGE === */
