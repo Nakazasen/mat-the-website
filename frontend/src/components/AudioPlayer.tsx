@@ -50,9 +50,9 @@ export default function AudioPlayer({
     }, [speed]);
 
     useEffect(() => {
-        // Chỉ chunk nội dung chính để Karaoke khớp với text hiển thị
-        // Phần Tiêu đề sẽ được đọc riêng hoặc bỏ qua trong highlight
-        chunksRef.current = splitIntoChunks(content);
+        const { stripHtml } = require('@/lib/tts-utils');
+        const cleanText = stripHtml(content);
+        chunksRef.current = splitIntoChunks(cleanText);
     }, [content]);
 
     useEffect(() => {

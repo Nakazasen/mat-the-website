@@ -207,8 +207,8 @@ export default function ReadingClient({
                             onClick={toggleBookmark}
                             disabled={isBookmarkLoading}
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all border ${isBookmarked
-                                    ? 'bg-toxic-green-DEFAULT/10 border-toxic-green-DEFAULT/40 text-toxic-green-DEFAULT shadow-[0_0_15px_rgba(57,255,20,0.2)]'
-                                    : 'bg-ash-900/40 border-ash-800/60 text-ash-500 hover:border-toxic-green-DEFAULT/40 hover:text-toxic-green-DEFAULT'
+                                ? 'bg-toxic-green-DEFAULT/10 border-toxic-green-DEFAULT/40 text-toxic-green-DEFAULT shadow-[0_0_15px_rgba(57,255,20,0.2)]'
+                                : 'bg-ash-900/40 border-ash-800/60 text-ash-500 hover:border-toxic-green-DEFAULT/40 hover:text-toxic-green-DEFAULT'
                                 }`}
                             title={isBookmarked ? "Bỏ lưu khỏi Tủ sách" : "Lưu vào Tủ sách"}
                         >
@@ -367,23 +367,30 @@ export default function ReadingClient({
                 {/* Reading content */}
                 <div
                     ref={contentRef}
-                    className="reading-container !bg-transparent !text-inherit"
-                    style={{ fontSize: `${fontSize}px`, whiteSpace: "pre-wrap", lineHeight: 1.8 }}
+                    className="reading-container !bg-transparent !text-inherit prose prose-invert max-w-none"
+                    style={{ fontSize: `${fontSize}px`, lineHeight: 1.8 }}
                 >
-                    {chunks.map((chunk, index) => (
-                        <span
-                            key={index}
-                            ref={activeChunkIndex === index ? activeChunkRef : null}
-                            className={`transition-all duration-300 rounded-sm ${activeChunkIndex === index
-                                ? theme === 'dark'
-                                    ? "bg-toxic-green-DEFAULT/40 text-white shadow-[0_0_25px_rgba(0,255,159,0.4)] ring-1 ring-toxic-green-DEFAULT/50 scale-[1.02] inline-block"
-                                    : "bg-toxic-green-DEFAULT/50 text-black ring-1 ring-toxic-green-DEFAULT/60 scale-[1.02] inline-block"
-                                : "opacity-100"
-                                }`}
-                        >
-                            {chunk}
-                        </span>
-                    ))}
+                    {content.includes('<') && (content.includes('</') || content.includes('/>')) ? (
+                        <div
+                            dangerouslySetInnerHTML={{ __html: content }}
+                            className="rich-text-content"
+                        />
+                    ) : (
+                        chunks.map((chunk, index) => (
+                            <span
+                                key={index}
+                                ref={activeChunkIndex === index ? activeChunkRef : null}
+                                className={`transition-all duration-300 rounded-sm ${activeChunkIndex === index
+                                    ? theme === 'dark'
+                                        ? "bg-toxic-green-DEFAULT/40 text-white shadow-[0_0_25px_rgba(0,255,159,0.4)] ring-1 ring-toxic-green-DEFAULT/50 scale-[1.02] inline-block"
+                                        : "bg-toxic-green-DEFAULT/50 text-black ring-1 ring-toxic-green-DEFAULT/60 scale-[1.02] inline-block"
+                                    : "opacity-100"
+                                    }`}
+                            >
+                                {chunk}
+                            </span>
+                        ))
+                    )}
                 </div>
 
                 {/* === SOCIAL SHARE === */}

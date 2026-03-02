@@ -1,3 +1,12 @@
+export function stripHtml(html: string): string {
+    if (typeof window === "undefined") {
+        // Simple regex fallback for server-side or if DOM is not available
+        return html.replace(/<[^>]*>?/gm, '');
+    }
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    return doc.body.textContent || "";
+}
+
 export function splitIntoChunks(text: string, maxLen = 180): string[] {
     const chunks: string[] = [];
     let remaining = text;
