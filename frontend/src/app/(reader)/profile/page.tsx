@@ -2,7 +2,7 @@
 import { useEffect, useState, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase-admin";
-import { Skull, Heart, BookOpen, ShieldCheck, Calendar, ArrowLeft, LogOut, Bookmark } from "lucide-react";
+import { Skull, Heart, BookOpen, ShieldCheck, Calendar, ArrowLeft, LogOut, Bookmark, Trash2 } from "lucide-react";
 import Link from "next/link";
 import type { User } from "@supabase/supabase-js";
 
@@ -76,6 +76,23 @@ function ProfileContent() {
         if (!supabase) return;
         await supabase.auth.signOut();
         router.push("/");
+    };
+
+    const handleRemoveBookmark = async (e: React.MouseEvent, chapterId: string, bookmarkId: string) => {
+        e.preventDefault();
+        e.stopPropagation();
+        try {
+            const res = await fetch(`/api/user/bookmarks?chapter_id=${chapterId}`, {
+                method: 'DELETE'
+            });
+            if (res.ok) {
+                setBookmarks(prev => prev.filter(bm => bm.id !== bookmarkId));
+            } else {
+                console.error("Failed to delete bookmark");
+            }
+        } catch (error) {
+            console.error("Error removing bookmark", error);
+        }
     };
 
     if (loading) {
@@ -262,21 +279,29 @@ function ProfileContent() {
                         ) : (
                             <div className="space-y-3 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
                                 {bookmarks.map((bm) => (
-                                    <Link
-                                        key={bm.id}
-                                        href={`/chapters/${bm.chapter?.chapter_number || '#'}`}
-                                        className="flex flex-col gap-1 p-3 rounded-lg bg-ash-800/40 hover:bg-ash-800 border border-ash-700/50 hover:border-toxic-green-DEFAULT/30 transition-all group"
-                                    >
-                                        <div className="flex items-center justify-between">
-                                            <span className="font-mono text-xs text-toxic-green-DEFAULT tracking-widest">
-                                                CHƯƠNG {bm.chapter?.chapter_number || 'BỊ XÓA'}
+                                    <div key={bm.id} className="relative group">
+                                        <Link
+                                            href={`/chapters/${bm.chapter?.chapter_number || '#'}`}
+                                            className="flex flex-col gap-1 p-3 pr-10 rounded-lg bg-ash-800/40 hover:bg-ash-800 border border-ash-700/50 hover:border-toxic-green-DEFAULT/30 transition-all block w-full"
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <span className="font-mono text-xs text-toxic-green-DEFAULT tracking-widest">
+                                                    CHƯƠNG {bm.chapter?.chapter_number || 'BỊ XÓA'}
+                                                </span>
+                                                <span className="text-[10px] font-mono text-ash-500">{new Date(bm.created_at).toLocaleDateString('vi-VN')}</span>
+                                            </div>
+                                            <span className="text-sm text-ash-300 group-hover:text-white transition-colors truncate font-reading text-left lg:text-base">
+                                                {bm.chapter?.title || 'Nội dung không còn tồn tại...'}
                                             </span>
-                                            <span className="text-[10px] font-mono text-ash-500">{new Date(bm.created_at).toLocaleDateString('vi-VN')}</span>
-                                        </div>
-                                        <span className="text-sm text-ash-300 group-hover:text-white transition-colors truncate font-reading text-left lg:text-base">
-                                            {bm.chapter?.title || 'Nội dung không còn tồn tại...'}
-                                        </span>
-                                    </Link>
+                                        </Link>
+                                        <button
+                                            onClick={(e) => handleRemoveBookmark(e, bm.chapter_id, bm.id)}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-ash-500 hover:text-red-500 hover:bg-red-500/10 rounded-md opacity-0 group-hover:opacity-100 transition-all focus:opacity-100"
+                                            title="Xóa khỏi tủ sách"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
                                 ))}
                             </div>
                         )}
