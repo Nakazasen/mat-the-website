@@ -130,6 +130,10 @@ export default function Header() {
                                                 <div className="text-sm text-white font-medium truncate">{user.user_metadata?.full_name || user.email}</div>
                                                 <div className="text-xs text-ash-400 truncate">{user.email}</div>
                                             </div>
+                                            <Link href="/profile" className="w-full flex items-center gap-2 p-3 text-sm text-ash-300 hover:text-toxic-green-DEFAULT hover:bg-ash-800/50 transition-colors tracking-wider font-mono">
+                                                <User size={14} />
+                                                HỒ SƠ SINH TỒN
+                                            </Link>
                                             <button onClick={handleLogout} className="w-full flex items-center gap-2 p-3 text-sm text-red-400 hover:bg-ash-800/50 transition-colors rounded-b-lg tracking-wider font-mono">
                                                 <LogOut size={14} />
                                                 ĐĂNG XUẤT
@@ -199,6 +203,10 @@ export default function Header() {
                                             <div className="text-xs text-ash-400 truncate">{user.email}</div>
                                         </div>
                                     </div>
+                                    <Link href="/profile" onClick={() => setMenuOpen(false)} className="w-full flex items-center justify-center gap-2 py-3 text-sm font-mono text-toxic-green-DEFAULT bg-toxic-green-DEFAULT/5 hover:bg-toxic-green-DEFAULT/10 border border-toxic-green-DEFAULT/30 tracking-widest rounded transition-all">
+                                        <User size={16} />
+                                        HỒ SƠ SINH TỒN
+                                    </Link>
                                     <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 py-3 text-sm font-mono text-red-400 bg-red-950/20 hover:bg-red-950/40 border border-red-900/30 tracking-widest rounded transition-all">
                                         <LogOut size={16} />
                                         ĐĂNG XUẤT

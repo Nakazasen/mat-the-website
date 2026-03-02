@@ -81,6 +81,9 @@ const config: Config = {
                 "glitch": "glitch 4s infinite",
                 "fade-in-up": "fade-in-up 0.6s ease-out forwards",
                 "glow-text": "glow-text 2s ease-in-out infinite alternate",
+                "scan": "scan 2s ease-in-out infinite",
+                "spin-fast": "spin-fast 4s linear infinite",
+                "glitch-text": "glitch-text 0.5s ease-in-out infinite",
             },
             keyframes: {
                 flicker: {
@@ -120,6 +123,22 @@ const config: Config = {
                 "glow-text": {
                     from: { textShadow: "0 0 10px rgba(57,255,20,0.5)" },
                     to: { textShadow: "0 0 30px rgba(57,255,20,1), 0 0 60px rgba(57,255,20,0.5)" },
+                },
+                "scan": {
+                    "0%": { top: "0%", opacity: "1" },
+                    "50%": { top: "100%", opacity: "0.5" },
+                    "100%": { top: "0%", opacity: "1" },
+                },
+                "spin-fast": {
+                    "0%": { transform: "rotate(0deg)" },
+                    "100%": { transform: "rotate(360deg)" },
+                },
+                "glitch-text": {
+                    "0%, 100%": { transform: "translate(0)", opacity: "1" },
+                    "20%": { transform: "translate(-2px, 2px)", opacity: "0.8" },
+                    "40%": { transform: "translate(2px, -1px)", opacity: "1" },
+                    "60%": { transform: "translate(-1px, -1px)", opacity: "0.9" },
+                    "80%": { transform: "translate(1px, 1px)", opacity: "1" },
                 },
             },
         },
