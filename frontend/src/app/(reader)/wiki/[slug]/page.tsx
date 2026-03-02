@@ -116,9 +116,10 @@ export default async function WikiDetailPage({ params }: { params: Promise<{ slu
                 {/* Summary / Lead text */}
                 {entry.summary && (
                     <div className="mt-6 pl-4 border-l-2 border-green-800">
-                        <p className="text-ash-400 font-reading text-base leading-relaxed italic">
-                            {entry.summary}
-                        </p>
+                        <div
+                            className="text-ash-400 font-reading text-base leading-relaxed italic rich-text-content"
+                            dangerouslySetInnerHTML={{ __html: entry.summary }}
+                        />
                     </div>
                 )}
             </div>
@@ -188,8 +189,8 @@ export default async function WikiDetailPage({ params }: { params: Promise<{ slu
                             key={cat}
                             href={`/wiki?cat=${encodeURIComponent(cat)}`}
                             className={`text-xs font-mono px-3 py-1.5 rounded transition-all border ${cat === entry.category
-                                    ? "text-green-400 bg-green-950/40 border-green-900"
-                                    : "text-gray-600 hover:text-gray-300 bg-gray-900 border-gray-800 hover:border-gray-700"
+                                ? "text-green-400 bg-green-950/40 border-green-900"
+                                : "text-gray-600 hover:text-gray-300 bg-gray-900 border-gray-800 hover:border-gray-700"
                                 }`}
                         >
                             {CATEGORY_ICONS[cat]} {cat}

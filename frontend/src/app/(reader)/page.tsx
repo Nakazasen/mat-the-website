@@ -115,9 +115,10 @@ export default async function HomePage() {
                         </div>
 
                         {/* Description */}
-                        <p className="text-ash-300 text-base sm:text-lg leading-relaxed max-w-2xl mb-8 font-reading">
-                            {novel.description}
-                        </p>
+                        <div
+                            className="text-ash-300 text-base sm:text-lg leading-relaxed max-w-2xl mb-8 font-reading rich-text-content"
+                            dangerouslySetInnerHTML={{ __html: novel.description }}
+                        />
 
                         {/* CTA Buttons */}
                         <div className="flex flex-wrap gap-4">
@@ -176,9 +177,10 @@ export default async function HomePage() {
                                 {homeSettings.warning_headline.split(' ').slice(0, -1).join(' ')}<br />
                                 <span className="text-blood-glow">{homeSettings.warning_headline.split(' ').slice(-2).join(' ')}</span>
                             </h2>
-                            <div className="font-reading text-ash-300 text-sm leading-relaxed mb-6 whitespace-pre-line">
-                                {homeSettings.warning_description}
-                            </div>
+                            <div
+                                className="font-reading text-ash-300 text-sm leading-relaxed mb-6 whitespace-pre-line rich-text-content"
+                                dangerouslySetInnerHTML={{ __html: homeSettings.warning_description }}
+                            />
                         </div>
 
                         {/* Right: Feature list */}
