@@ -452,38 +452,67 @@ class NovelSettings(BaseModel):
     cover_url: str
     status: str
     genres: list[str]
+    total_chapters: int = 0
+    max_chapter: int = 0
+    total_views: int = 0
+    total_likes: int = 0
 
 
 @app.get("/api/novel", response_model=NovelSettings)
 async def get_novel_settings():
     """Lấy thông tin chung của truyện (Tên, tác giả, mô tả...)"""
     try:
+        # 1. Fetch current stats (Total chapters, Max chapter, and aggregated View/Like counts)
+        # We fetch all at once to minimize Supabase calls
+        stats_resp = supabase.table("chapters").select("chapter_number, view_count, likes_count", count="exact").order("chapter_number", desc=True).execute()
+        
+        total_chapters = stats_resp.count or 0
+        max_chapter = stats_resp.data[0]["chapter_number"] if stats_resp.data else 0
+        total_views = sum(row.get("view_count", 0) for row in stats_resp.data) if stats_resp.data else 0
+        total_likes = sum(row.get("likes_count", 0) for row in stats_resp.data) if stats_resp.data else 0
+
+        # 2. Fetch novel settings
         resp = supabase.table("novel_settings").select("*").eq("id", 1).single().execute()
         
+        default_settings = {
+            "title": "Mạt Thế - Sinh Hoá Nguy Cơ",
+            "author": "Hàn Nhược Tuyết",
+            "description": "Truyện lấy bối cảnh tận thế đột nhiên phủ xuống, thây ma lan tràn, quái vật dị biến nổi lên khắp nơi, loài người bị đẩy vào một trò chơi tàn khốc kinh hoàng nhưng cũng ẩn chứa cơ hội lớn lao...",
+            "cover_url": "/hero-bg.png",
+            "status": "Đang cập nhật",
+            "genres": ["Mạt Thế", "Zombie", "Hành Động", "Huyền Hạo"],
+            "total_chapters": total_chapters,
+            "max_chapter": max_chapter,
+            "total_views": total_views,
+            "total_likes": total_likes
+        }
+
         if not resp.data:
-            return NovelSettings(
-                title="Mạt Thế - Sinh Hoá Nguy Cơ",
-                author="Hàn Nhược Tuyết",
-                description="Truyện lấy bối cảnh tận thế đột nhiên phủ xuống, thây ma lan tràn, quái vật dị biến nổi lên khắp nơi, loài người bị đẩy vào một trò chơi tàn khốc kinh hoàng nhưng cũng ẩn chứa cơ hội lớn lao...\n\nNhân vật chính là một nhân viên văn phòng hết sức bình thường, bước từng bước tiến lên để tìm ra nguyên nhân của đại tai biến.\nTạo dựng thế lực, ngăn cản biển thây ma, tấn công ổ quái vật, phục hồi trật tự, chiến tranh với các thế lực khác...",
-                cover_url="/hero-bg.png",
-                status="Đang cập nhật",
-                genres=["Mạt Thế", "Zombie", "Hành Động", "Huyền Hạo", "Hành Động"]
-            )
+            return NovelSettings(**default_settings)
         
-        # Filter out fields not in the model to avoid Pydantic errors
+        # Merge data
         model_fields = NovelSettings.__fields__.keys()
-        clean_data = {k: v for k, v in resp.data.items() if k in model_fields}
-        return NovelSettings(**clean_data)
+        final_data = {k: v for k, v in resp.data.items() if k in model_fields}
+        final_data["total_chapters"] = total_chapters
+        final_data["max_chapter"] = max_chapter
+        final_data["total_views"] = total_views
+        final_data["total_likes"] = total_likes
+        
+        return NovelSettings(**final_data)
     except Exception as e:
         print(f"DEBUG: get_novel_settings error: {str(e)}")
         # Fallback dữ liệu mặc định nếu lỗi DB (tránh sập trang chủ)
         return NovelSettings(
             title="Mạt Thế - Sinh Hoá Nguy Cơ",
             author="Hàn Nhược Tuyết",
-            description="Truyện lấy bối cảnh tận thế đột nhiên phủ xuống, thây ma lan tràn, quái vật dị biến nổi lên khắp nơi, loài người bị đẩy vào một trò chơi tàn khốc kinh hoàng nhưng cũng ẩn chứa cơ hội lớn lao...\n\nNhân vật chính là một nhân viên văn phòng hết sức bình thường, bước từng bước tiến lên để tìm ra nguyên nhân của đại tai biến.\nTạo dựng thế lực, ngăn cản biển thây ma, tấn công ổ quái vật, phục hồi trật tự, chiến tranh với các thế lực khác...",
+            description="Lỗi tải dữ liệu. Hãy thử lại sau.",
             cover_url="/hero-bg.png",
             status="Đang cập nhật",
-            genres=["Mạt Thế", "Zombie", "Hành Động", "Huyền Hạo", "Hành Động"]
+            genres=["Mạt Thế"],
+            total_chapters=813,
+            max_chapter=813,
+            total_views=0,
+            total_likes=0
         )
 
 

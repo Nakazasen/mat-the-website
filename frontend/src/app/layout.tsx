@@ -3,30 +3,38 @@ import "./globals.css";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { ThemeProvider } from "@/context/ThemeContext";
+import { NovelProvider } from "@/context/NovelContext";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 import { Analytics } from "@vercel/analytics/react";
 
-export const metadata: Metadata = {
-    title: {
-        default: "Mạt Thế - Sinh Hoá Nguy Cơ ☣️",
-        template: "%s | Mạt Thế - Sinh Hoá Nguy Cơ",
-    },
-    description:
-        "Đọc truyện Mạt Thế - Sinh Hoá Nguy Cơ full 813+ chương. Thế giới tàn lụi, zombie, dị biến sinh học. Tác giả: Hàn Nhược Tuyết.",
-    keywords: [
-        "mạt thế sinh hoá nguy cơ",
-        "đọc truyện zombie",
-        "truyện tiên hiệp",
-        "hàn phong",
-        "truyện mạt thế",
-        "đọc truyện online",
-    ],
-    openGraph: {
-        title: "Mạt Thế - Sinh Hoá Nguy Cơ ☣️",
-        description: "Đọc truyện mạt thế zombie dị biến sinh học online miễn phí",
-        type: "website",
-    },
-};
+import { getNovelSettings } from "@/lib/api";
+
+export async function generateMetadata(): Promise<Metadata> {
+    try {
+        const novel = await getNovelSettings();
+        return {
+            title: {
+                default: `${novel.title} ☣️`,
+                template: `%s | ${novel.title}`,
+            },
+            description: `Đọc truyện ${novel.title} full ${novel.total_chapters}+ chương. Thế giới tàn lụi, zombie, dị biến sinh học. Tác giả: ${novel.author}.`,
+            keywords: novel.genres.concat(["đọc truyện online", "mạt thế", "zombie"]),
+            openGraph: {
+                title: `${novel.title} ☣️`,
+                description: `Đọc truyện ${novel.title} zombie dị biến sinh học online miễn phí`,
+                type: "website",
+            },
+        };
+    } catch {
+        return {
+            title: {
+                default: "Mạt Thế - Sinh Hoá Nguy Cơ ☣️",
+                template: "%s | Mạt Thế - Sinh Hoá Nguy Cơ",
+            },
+            description: "Đọc truyện Mạt Thế - Sinh Hoá Nguy Cơ full 813+ chương. Thế giới tàn lụi, zombie, dị biến sinh học.",
+        };
+    }
+}
 
 export default function RootLayout({
     children,
@@ -63,7 +71,9 @@ export default function RootLayout({
             </head>
             <body className="bg-ash-dark min-h-screen antialiased" suppressHydrationWarning>
                 <ThemeProvider>
-                    {children}
+                    <NovelProvider>
+                        {children}
+                    </NovelProvider>
                 </ThemeProvider>
                 <Analytics />
             </body>

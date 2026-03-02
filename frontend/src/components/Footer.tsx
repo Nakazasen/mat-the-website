@@ -1,15 +1,15 @@
+"use client";
 import Link from "next/link";
-import { NovelSettings } from "@/lib/api";
+import { useNovel } from "@/context/NovelContext";
 
-interface FooterProps {
-    novel?: NovelSettings;
-}
-
-export default function Footer({ novel }: FooterProps) {
+export default function Footer() {
+    const { novel } = useNovel();
     const novelInfo = novel || {
         author: "Hàn Nhược Tuyết",
         status: "Đang cập nhật",
         genres: ["Mạt Thế", "Zombie"],
+        max_chapter: 813,
+        total_chapters: 813
     };
 
     return (
@@ -48,7 +48,7 @@ export default function Footer({ novel }: FooterProps) {
                                 { href: "/", label: "Trang Chủ" },
                                 { href: "/chapters", label: "Mục Lục" },
                                 { href: "/chapters/1", label: "Chương Đầu" },
-                                { href: "/chapters/813", label: "Chương Mới Nhất" },
+                                { href: `/chapters/${novelInfo.max_chapter}`, label: "Chương Mới Nhất" },
                             ].map(({ href, label }) => (
                                 <li key={href}>
                                     <Link
@@ -75,7 +75,7 @@ export default function Footer({ novel }: FooterProps) {
                                 { label: "Tác giả", value: novelInfo.author },
                                 { label: "Tình trạng", value: novelInfo.status },
                                 { label: "Thể loại", value: novelInfo.genres.join(" · ") },
-                                { label: "Số chương", value: "813+ / ~5000" },
+                                { label: "Số chương", value: `${novelInfo.max_chapter || 813}+ / ~5000` },
                             ].map(({ label, value }) => (
                                 <div key={label} className="flex justify-between text-sm gap-4">
                                     <span className="text-ash-500">{label}</span>

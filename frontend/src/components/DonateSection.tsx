@@ -31,10 +31,10 @@ export default function DonateSection({ chapterNumber }: DonateSectionProps) {
                         }`}
                 >
                     <Coffee size={18} className={`${theme === 'dark' ? 'text-amber-400' : 'text-amber-600'} group-hover:rotate-12 transition-transform`} />
-                    <span className={`font-mono text-xs tracking-wider ${theme === 'dark' ? 'text-amber-300/80' : 'text-amber-800 font-semibold'}`}>
+                    <span className={`font-mono text-xs tracking-wider ${theme === 'dark' ? 'text-amber-300/80' : 'text-amber-900 font-bold'}`}>
                         Tiếp tế đan dược và cafe cho tác giả ☕
                     </span>
-                    <Heart size={14} className={`${theme === 'dark' ? 'text-red-400/60 group-hover:text-red-400' : 'text-red-500/60 group-hover:text-red-500'} group-hover:scale-125 transition-all`} />
+                    <Heart size={14} className={`${theme === 'dark' ? 'text-red-400/60 group-hover:text-red-400' : 'text-red-600 group-hover:text-red-500'} group-hover:scale-125 transition-all outline-none`} />
                 </button>
             </div>
 

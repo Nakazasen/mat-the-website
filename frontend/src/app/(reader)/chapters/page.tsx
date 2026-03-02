@@ -1,13 +1,23 @@
 import Link from "next/link";
 import { ChevronRight, BookOpen, Search } from "lucide-react";
-import { getChapters, type Chapter } from "@/lib/api";
+import { getChapters, getNovelSettings, type Chapter } from "@/lib/api";
 import type { Metadata } from "next";
 import ChapterJump from "@/components/ChapterJump";
 
-export const metadata: Metadata = {
-    title: "Mục Lục",
-    description: "Danh sách toàn bộ 813+ chương truyện Mạt Thế Sinh Hoá Nguy Cơ",
-};
+export async function generateMetadata(): Promise<Metadata> {
+    try {
+        const novel = await getNovelSettings();
+        return {
+            title: "Mục Lục",
+            description: `Danh sách toàn bộ ${novel.total_chapters}+ chương truyện ${novel.title}. Cập nhật mới nhất.`,
+        };
+    } catch {
+        return {
+            title: "Mục Lục",
+            description: "Danh sách toàn bộ chương truyện Mạt Thế Sinh Hoá Nguy Cơ",
+        };
+    }
+}
 
 export const dynamic = "force-dynamic";
 export const revalidate = 300;
@@ -72,8 +82,11 @@ export default async function ChaptersPage({
                             <BookOpen size={14} />
                             <span>
                                 Tổng cộng{" "}
-                                <span className="text-toxic-green-DEFAULT font-bold">{max_chapter || total || "813+"}</span>{" "}
+                                <span className="text-toxic-green-DEFAULT font-bold">{max_chapter || total || "813"}</span>{" "}
                                 chương
+                                <span className="ml-2 text-[10px] text-toxic-green-DEFAULT/40 border border-toxic-green-DEFAULT/20 px-1 rounded animate-pulse">
+                                    LIVE
+                                </span>
                             </span>
                         </div>
                         <div className="hazard-divider flex-1 max-w-xs" />
@@ -107,7 +120,7 @@ export default async function ChaptersPage({
                 <div className="card-biohazard rounded-lg p-4 mb-8 flex flex-col sm:flex-row gap-4 items-start sm:items-center">
                     <ChapterJump />
                     <div className="flex gap-3 flex-wrap">
-                        {[1, 100, 200, 400, 600, 800].map((n) => (
+                        {[1, 100, 200, 400, 600, 800].filter(n => n <= (max_chapter || 2000)).map((n) => (
                             <Link
                                 key={n}
                                 href={`/chapters/${n}`}

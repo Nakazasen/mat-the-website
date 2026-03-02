@@ -15,7 +15,11 @@ export default async function HomePage() {
         description: "Virus biến thể đã xóa sổ nền văn minh. Giữa thế giới tràn ngập zombie và những kẻ biến dị khát máu...",
         cover_url: "/hero-bg.png",
         status: "Đang cập nhật",
-        genres: ["Mạt Thế", "Zombie"]
+        genres: ["Mạt Thế", "Zombie"],
+        total_chapters: 813,
+        max_chapter: 813,
+        total_views: 0,
+        total_likes: 0
     };
 
     let homeSettings: HomepageSettings = {
@@ -82,7 +86,7 @@ export default async function HomePage() {
                             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded border border-blood-red-DEFAULT/40 bg-blood-red-DEFAULT/10">
                                 <Skull size={12} className="text-blood-red-bright" />
                                 <span className="font-mono text-xs text-blood-red-bright tracking-widest uppercase">
-                                    {novel.status} · {latestChapters.length > 0 ? latestChapters[0].chapter_number : 813} chương
+                                    {novel.status} · {novel.max_chapter || 813} chương
                                 </span>
                             </div>
                             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded border border-toxic-green-DEFAULT/40 bg-toxic-green-DEFAULT/5">
@@ -132,7 +136,7 @@ export default async function HomePage() {
                         {/* Quick stats */}
                         <div className="flex flex-wrap gap-6 mt-10">
                             {[
-                                { label: "Chương", value: `${latestChapters.length > 0 ? latestChapters[0].chapter_number : 813}+` },
+                                { label: "Chương", value: `${novel.total_chapters || 813}+` },
                                 { label: "Tác giả", value: novel.author },
                                 { label: "Thể loại", value: novel.genres.join(" · ") },
                                 { label: "Tình trạng", value: novel.status },

@@ -3,6 +3,7 @@ import {
     getChapter,
     getChapterContent,
     getChapters,
+    getNovelSettings,
     type Chapter,
 } from "@/lib/api";
 import ReadingClient from "@/components/ReadingClient";
@@ -21,9 +22,12 @@ export async function generateMetadata({
 }): Promise<Metadata> {
     try {
         const resolvedParams = await params;
-        const chapter = await getChapter(parseInt(resolvedParams.id));
-        const title = `Chương ${chapter.chapter_number}: ${chapter.title} | Mạt Thế Sinh Hoá Nguy Cơ`;
-        const description = `Đọc Chương ${chapter.chapter_number} - ${chapter.title}. Truyện Mạt Thế Sinh Hoá Nguy Cơ full 813+ chương. Zombie, dị biến sinh học, sinh tồn.`;
+        const [chapter, novel] = await Promise.all([
+            getChapter(parseInt(resolvedParams.id)),
+            getNovelSettings()
+        ]);
+        const title = `Chương ${chapter.chapter_number}: ${chapter.title} | ${novel.title}`;
+        const description = `Đọc Chương ${chapter.chapter_number} - ${chapter.title}. Truyện ${novel.title} full ${novel.total_chapters}+ chương. Zombie, dị biến sinh học, sinh tồn.`;
         return {
             title,
             description,
@@ -32,7 +36,7 @@ export async function generateMetadata({
                 title,
                 description,
                 type: 'article',
-                siteName: 'Mạt Thế - Sinh Hoá Nguy Cơ',
+                siteName: novel.title,
             },
         };
     } catch {
@@ -53,10 +57,13 @@ export default async function ReadingPage({
     let content: string;
     let totalChapters: number;
     try {
-        chapter = await getChapter(chapterNumber);
+        const [chapterData, novelData] = await Promise.all([
+            getChapter(chapterNumber),
+            getNovelSettings()
+        ]);
+        chapter = chapterData;
         content = await getChapterContent(chapter.content_url);
-        const meta = await getChapters(1, 1);
-        totalChapters = meta.max_chapter;
+        totalChapters = novelData.max_chapter;
     } catch {
         notFound();
     }

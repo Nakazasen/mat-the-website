@@ -5,8 +5,10 @@ import { BookOpen, List, Home, Menu, X, Zap, Map as MapIcon, HelpCircle, User, L
 import ThemeSwitcher from "./ThemeSwitcher";
 import { createAdminClient } from "@/lib/supabase-admin";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
+import { useNovel } from "@/context/NovelContext";
 
 export default function Header() {
+    const { novel } = useNovel();
     const [scrolled, setScrolled] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
     const [user, setUser] = useState<SupabaseUser | null>(null);
@@ -224,7 +226,7 @@ export default function Header() {
                         {/* Status bar */}
                         <div className="flex items-center gap-2 px-8 pb-4 text-xs font-mono text-ash-600">
                             <Zap size={10} className="text-toxic-green-DEFAULT" />
-                            <span>ĐANG ONLINE · 813+ CHƯƠNG</span>
+                            <span>ĐANG ONLINE · {novel?.max_chapter || 813}+ CHƯƠNG</span>
                         </div>
                     </div>
                 )}

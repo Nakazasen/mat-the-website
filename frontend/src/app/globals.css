@@ -27,18 +27,23 @@
 [data-theme='light'] {
   --reader-bg: #ffffff;
   --reader-text: #1a1a1a;
-  --reader-accent: #1a7a09;
-  --reader-muted: #525252;
-  --reader-border: rgba(0, 0, 0, 0.1);
-  --reader-card-bg: #f9f9f9;
+  --reader-accent: #15803d;
+  /* Darker green for accessibility */
+  --reader-muted: #404040;
+  /* Darker gray for better contrast */
+  --reader-border: rgba(0, 0, 0, 0.15);
+  --reader-card-bg: #f5f5f5;
 }
 
 [data-theme='sepia'] {
   --reader-bg: #f4ecd8;
-  --reader-text: #5b4636;
-  --reader-accent: #8b4513;
-  --reader-muted: #7d6b5d;
-  --reader-border: rgba(139, 69, 19, 0.15);
+  --reader-text: #433422;
+  /* Darker brown */
+  --reader-accent: #7b3f00;
+  /* Richer brown */
+  --reader-muted: #5d4a3a;
+  /* Darker muted brown */
+  --reader-border: rgba(121, 85, 72, 0.2);
   --reader-card-bg: #ede1c5;
 }
 

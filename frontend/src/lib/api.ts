@@ -90,6 +90,10 @@ export interface NovelSettings {
     cover_url: string;
     status: string;
     genres: string[];
+    total_chapters: number;
+    max_chapter: number;
+    total_views: number;
+    total_likes: number;
 }
 
 // Fetch general novel settings (Title, Author, Desc etc)

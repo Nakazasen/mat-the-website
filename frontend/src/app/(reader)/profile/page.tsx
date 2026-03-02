@@ -9,13 +9,14 @@ import type { User } from "@supabase/supabase-js";
 interface ReaderStats {
     chaptersRead: number;
     likesGiven: number;
+    exp: number;
 }
 
 function ProfileContent() {
     const router = useRouter();
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
-    const [stats, setStats] = useState<ReaderStats>({ chaptersRead: 0, likesGiven: 0 });
+    const [stats, setStats] = useState<ReaderStats>({ chaptersRead: 0, likesGiven: 0, exp: 0 });
     const [bookmarks, setBookmarks] = useState<any[]>([]);
 
     useEffect(() => {
@@ -33,6 +34,20 @@ function ProfileContent() {
             setUser(session.user);
             setLoading(false);
 
+            // Fetch real profile stats from Database
+            fetch('/api/user').then(res => {
+                if (res.ok) return res.json();
+                throw new Error("Failed to fetch profile");
+            }).then(profileData => {
+                setStats(prev => ({
+                    ...prev,
+                    chaptersRead: profileData.chapters_read || 0,
+                    exp: profileData.exp || 0
+                }));
+            }).catch(err => {
+                console.error("Profile fetch error:", err);
+            });
+
             // Fetch bookmarks
             fetch('/api/user/bookmarks').then(res => {
                 if (res.ok) return res.json();
@@ -41,14 +56,8 @@ function ProfileContent() {
                 if (Array.isArray(data)) setBookmarks(data);
             }).catch(() => { });
 
-            // Load reading stats from localStorage
+            // Load likes given (still from localStorage for now as it's not and DB profile natively yet)
             try {
-                // Count chapters read (from reading history)
-                const historyRaw = localStorage.getItem("readingHistory");
-                const history = historyRaw ? JSON.parse(historyRaw) : [];
-                const chaptersRead = Array.isArray(history) ? history.length : 0;
-
-                // Count likes given
                 let likesGiven = 0;
                 for (let i = 0; i < localStorage.length; i++) {
                     const key = localStorage.key(i);
@@ -57,11 +66,8 @@ function ProfileContent() {
                         if (val === "true") likesGiven++;
                     }
                 }
-
-                setStats({ chaptersRead, likesGiven });
-            } catch {
-                // Silently fail
-            }
+                setStats(prev => ({ ...prev, likesGiven }));
+            } catch { }
         });
     }, [router]);
 
@@ -198,6 +204,21 @@ function ProfileContent() {
                                         </div>
                                         <p className={`text-sm font-biohazard tracking-wider ${rank.color}`}>{rank.title}</p>
                                     </div>
+                                </div>
+
+                                {/* EXP Bar */}
+                                <div className="mt-2 text-left">
+                                    <div className="flex justify-between items-center mb-1">
+                                        <div className="text-[9px] font-mono text-toxic-green-DEFAULT/60 tracking-widest uppercase">KINH NGHIỆM SINH TỒN</div>
+                                        <div className="text-[9px] font-mono text-toxic-green-DEFAULT">{stats.exp} EXP</div>
+                                    </div>
+                                    <div className="h-1.5 w-full bg-ash-950 rounded-full border border-ash-800 overflow-hidden p-0.5">
+                                        <div
+                                            className="h-full bg-toxic-green-DEFAULT rounded-full shadow-[0_0_10px_rgba(57,255,20,0.5)] transition-all duration-1000"
+                                            style={{ width: `${Math.min(100, (stats.exp % 1000) / 10)}%` }} // Simple level logic for visual: reset bar every 1000 EXP
+                                        />
+                                    </div>
+                                    <div className="text-[8px] font-mono text-ash-600 mt-1 text-right italic">Bản ghi được đồng bộ vĩnh viễn với Database</div>
                                 </div>
                             </div>
                         </div>

@@ -141,11 +141,15 @@ export default function ReadingClient({
         // Sync to backend
         const syncProgress = async () => {
             try {
+                // Determine if this is a new chapter being read
+                const historyRaw = localStorage.getItem("readingHistory");
+                const currentHistory = historyRaw ? JSON.parse(historyRaw) : [];
+
                 await fetch('/api/user/read-progress', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        chaptersReadCount: history.length,
+                        chaptersReadCount: Array.isArray(currentHistory) ? currentHistory.length : 0,
                         newExpAmount: isNewRead ? 10 : 0
                     })
                 });

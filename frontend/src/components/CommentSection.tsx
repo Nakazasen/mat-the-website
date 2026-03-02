@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { MessageSquare, Send, User, Coffee, Heart, X, QrCode } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
-import { createBrowserClient } from "@supabase/ssr";
+import { createAdminClient } from "@/lib/supabase-admin";
 
 interface Comment {
     id: string;
@@ -25,10 +25,7 @@ export default function CommentSection({ chapterNumber }: CommentSectionProps) {
     const [fetching, setFetching] = useState(true);
     const [user, setUser] = useState<any>(null);
 
-    const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
+    const supabase = createAdminClient();
 
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -38,6 +35,7 @@ export default function CommentSection({ chapterNumber }: CommentSectionProps) {
     }, [chapterNumber]);
 
     const checkUser = async () => {
+        if (!supabase) return;
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
             setUser(user);
@@ -113,10 +111,10 @@ export default function CommentSection({ chapterNumber }: CommentSectionProps) {
                     </div>
                 ) : (
                     <div className="mb-4 flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-reader-accent/10 flex items-center justify-center border border-reader-accent/20">
+                        <div className="w-6 h-6 rounded-full bg-toxic-green-DEFAULT/20 flex items-center justify-center border border-toxic-green-DEFAULT/40">
                             <User className="text-reader-accent" size={12} />
                         </div>
-                        <span className="text-xs font-mono text-reader-accent tracking-wider uppercase">Đang đăng bằng: {userName}</span>
+                        <span className="text-xs font-mono text-reader-accent font-bold tracking-wider uppercase">Đang đăng bằng: {userName}</span>
                     </div>
                 )}
                 <textarea
@@ -161,8 +159,8 @@ export default function CommentSection({ chapterNumber }: CommentSectionProps) {
                             </div>
                             <div className="flex-1">
                                 <div className="flex items-center justify-between mb-1">
-                                    <span className="font-mono text-xs text-reader-accent">{comment.user_name}</span>
-                                    <span className="text-[10px] font-mono text-reader-muted">
+                                    <span className="font-mono text-xs text-reader-accent font-bold">{comment.user_name}</span>
+                                    <span className="text-[10px] font-mono text-reader-muted font-medium">
                                         {new Date(comment.created_at).toLocaleDateString("vi-VN")}
                                     </span>
                                 </div>

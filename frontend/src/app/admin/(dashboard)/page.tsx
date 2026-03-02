@@ -4,14 +4,22 @@ import Link from 'next/link';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mat-the-website.onrender.com';
 
-async function getStats() {
+import { getChapters, getNovelSettings } from '@/lib/api';
+
+async function getDashboardData(token: string | undefined) {
     try {
-        const res = await fetch(`${API_BASE_URL}/api/chapters?page=1&limit=1`, { cache: 'no-store' });
-        if (!res.ok) return { total: 0, max_chapter: 0 };
-        const data = await res.json();
-        return { total: data.total || 0, max_chapter: data.max_chapter || 0 };
+        const [novel, chaptersResp] = await Promise.all([
+            getNovelSettings(),
+            getChapters(1, 1)
+        ]);
+        return {
+            total: novel.total_chapters || chaptersResp.total || 0,
+            max_chapter: novel.max_chapter || chaptersResp.max_chapter || 0,
+            total_views: novel.total_views || 0,
+            total_likes: novel.total_likes || 0
+        };
     } catch {
-        return { total: 0, max_chapter: 0 };
+        return { total: 0, max_chapter: 0, total_views: 0, total_likes: 0 };
     }
 }
 
@@ -45,16 +53,31 @@ async function getTopLiked(token: string | undefined) {
 
 export default async function AdminDashboardPage() {
     const cookieStore = await cookies();
-    const supabaseToken = cookieStore.get('sb-access-token')?.value;
+
+    // Improved token retrieval: check multiple possible Supabase cookie names
+    let supabaseToken = cookieStore.get('sb-access-token')?.value;
+    if (!supabaseToken) {
+        // Try to find any Supabase auth cookie (format: sb-[project-ref]-auth-token)
+        const allCookies = cookieStore.getAll();
+        const authCookie = allCookies.find(c => c.name.startsWith('sb-') && c.name.endsWith('-auth-token'));
+        if (authCookie) {
+            try {
+                const parsed = JSON.parse(authCookie.value);
+                supabaseToken = parsed.access_token;
+            } catch {
+                // Not a JSON cookie or different format
+            }
+        }
+    }
 
     const [stats, topChapters, topLiked] = await Promise.all([
-        getStats(),
+        getDashboardData(supabaseToken),
         getTopChapters(supabaseToken),
         getTopLiked(supabaseToken),
     ]);
 
-    const totalViews = topChapters.reduce((sum: number, ch: any) => sum + (ch.view_count || 0), 0);
-    const totalLikes = topLiked.reduce((sum: number, ch: any) => sum + (ch.likes_count || 0), 0);
+    const totalViews = stats.total_views;
+    const totalLikes = stats.total_likes;
 
     return (
         <div>
@@ -70,7 +93,7 @@ export default async function AdminDashboardPage() {
                         <BookOpen size={14} className="text-green-400" />
                         <span className="text-xs font-mono text-gray-500 tracking-widest">TỔNG CHƯƠNG</span>
                     </div>
-                    <div className="text-3xl font-mono text-green-400 font-bold">{stats.total}</div>
+                    <div className="text-3xl font-mono text-green-400 font-bold">{stats.max_chapter}</div>
                 </div>
 
                 <div className="bg-[#0d0d0d] border border-gray-800 rounded-lg p-4">
@@ -115,9 +138,9 @@ export default async function AdminDashboardPage() {
                                         <div className="flex items-center justify-between mb-1">
                                             <div className="flex items-center gap-2">
                                                 <span className={`text-[10px] font-mono font-bold w-5 text-center rounded-sm py-0.5 ${idx === 0 ? 'bg-yellow-500/20 text-yellow-400' :
-                                                        idx === 1 ? 'bg-gray-400/20 text-gray-300' :
-                                                            idx === 2 ? 'bg-amber-700/20 text-amber-500' :
-                                                                'text-gray-700'
+                                                    idx === 1 ? 'bg-gray-400/20 text-gray-300' :
+                                                        idx === 2 ? 'bg-amber-700/20 text-amber-500' :
+                                                            'text-gray-700'
                                                     }`}>{idx + 1}</span>
                                                 <span className="text-sm text-gray-300 font-mono truncate max-w-[180px]">
                                                     Ch.{ch.chapter_number}: {ch.title}
@@ -155,9 +178,9 @@ export default async function AdminDashboardPage() {
                                         <div className="flex items-center justify-between mb-1">
                                             <div className="flex items-center gap-2">
                                                 <span className={`text-[10px] font-mono font-bold w-5 text-center rounded-sm py-0.5 ${idx === 0 ? 'bg-yellow-500/20 text-yellow-400' :
-                                                        idx === 1 ? 'bg-gray-400/20 text-gray-300' :
-                                                            idx === 2 ? 'bg-amber-700/20 text-amber-500' :
-                                                                'text-gray-700'
+                                                    idx === 1 ? 'bg-gray-400/20 text-gray-300' :
+                                                        idx === 2 ? 'bg-amber-700/20 text-amber-500' :
+                                                            'text-gray-700'
                                                     }`}>{idx + 1}</span>
                                                 <span className="text-sm text-gray-300 font-mono truncate max-w-[180px]">
                                                     Ch.{ch.chapter_number}: {ch.title}
