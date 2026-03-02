@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { MessageSquare, Send, User } from "lucide-react";
+import { useTheme } from "@/context/ThemeContext";
 
 interface Comment {
     id: string;
@@ -15,6 +16,7 @@ interface CommentSectionProps {
 }
 
 export default function CommentSection({ chapterNumber }: CommentSectionProps) {
+    const { theme } = useTheme();
     const [comments, setComments] = useState<Comment[]>([]);
     const [userName, setUserName] = useState("");
     const [content, setContent] = useState("");
