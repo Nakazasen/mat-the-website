@@ -2,8 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { BookOpen, Settings, LogOut, BarChart3, Home, LibraryBig, Users, Map as MapIcon, FileText } from 'lucide-react';
 import { createAdminClient } from '@/lib/supabase-admin';
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mat-the-website.onrender.com';
 
 const navItems = [
     { href: '/admin', label: 'Dashboard', icon: BarChart3, exact: true },
@@ -11,7 +14,7 @@ const navItems = [
     { href: '/admin/chapters', label: 'Chương Truyện', icon: BookOpen },
     { href: '/admin/novel', label: 'Thông Tin Truyện', icon: Settings },
     { href: '/admin/wiki', label: 'Wiki / Bách Khoa', icon: LibraryBig },
-    { href: '/admin/personnel', label: 'Nhân Sự', icon: Users },
+    { href: '/admin/personnel', label: 'Nhân Sự', icon: Users, superadminOnly: true },
     { href: '/admin/map', label: 'Bản Đồ', icon: MapIcon },
     { href: '/admin/guide', label: 'Hướng Dẫn & SOP', icon: FileText },
 ];
@@ -19,17 +22,35 @@ const navItems = [
 export default function AdminNav() {
     const pathname = usePathname();
     const router = useRouter();
+    const [userRole, setUserRole] = useState<string>('editor');
+
+    useEffect(() => {
+        const fetchRole = async () => {
+            const supabase = createAdminClient();
+            if (!supabase) return;
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) return;
+
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/admin/users`, {
+                    headers: { 'Authorization': `Bearer ${session.access_token}` }
+                });
+                if (res.ok) {
+                    // If user can list users, they are superadmin
+                    setUserRole('superadmin');
+                }
+            } catch {
+                // Not superadmin, keep default
+            }
+        };
+        fetchRole();
+    }, []);
 
     const handleLogout = async () => {
         const supabase = createAdminClient();
         if (!supabase) {
-            // This component does not have setError or setLoading.
-            // The provided snippet seems to be for a login page.
-            // For logout, if supabase client cannot be created, we can't log out.
-            // We'll proceed with the existing logic, assuming createAdminClient
-            // handles its own errors or returns null if misconfigured.
             console.error('Lỗi cấu hình: Không thể tạo Supabase client.');
-            router.push('/admin/login'); // Still redirect to login as we can't confirm logout
+            router.push('/admin/login');
             router.refresh();
             return;
         }
@@ -37,6 +58,10 @@ export default function AdminNav() {
         router.push('/admin/login');
         router.refresh();
     };
+
+    const visibleItems = navItems.filter(item =>
+        !item.superadminOnly || userRole === 'superadmin'
+    );
 
     return (
         <aside className="w-56 shrink-0 flex flex-col bg-[#0d0d0d] border-r border-gray-800 min-h-screen">
@@ -53,7 +78,7 @@ export default function AdminNav() {
 
             {/* Nav */}
             <nav className="flex-1 p-3 space-y-1">
-                {navItems.map(({ href, label, icon: Icon, exact }) => {
+                {visibleItems.map(({ href, label, icon: Icon, exact }) => {
                     const isActive = exact ? pathname === href : pathname.startsWith(href);
                     return (
                         <Link
