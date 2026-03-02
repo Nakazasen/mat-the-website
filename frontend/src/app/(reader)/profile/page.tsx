@@ -2,7 +2,7 @@
 import { useEffect, useState, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase-admin";
-import { Skull, Heart, BookOpen, ShieldCheck, Calendar, ArrowLeft, LogOut } from "lucide-react";
+import { Skull, Heart, BookOpen, ShieldCheck, Calendar, ArrowLeft, LogOut, Bookmark } from "lucide-react";
 import Link from "next/link";
 import type { User } from "@supabase/supabase-js";
 
@@ -16,6 +16,7 @@ function ProfileContent() {
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState<ReaderStats>({ chaptersRead: 0, likesGiven: 0 });
+    const [bookmarks, setBookmarks] = useState<any[]>([]);
 
     useEffect(() => {
         const supabase = createAdminClient();
@@ -31,6 +32,14 @@ function ProfileContent() {
             }
             setUser(session.user);
             setLoading(false);
+
+            // Fetch bookmarks
+            fetch('/api/user/bookmarks').then(res => {
+                if (res.ok) return res.json();
+                return [];
+            }).then(data => {
+                if (Array.isArray(data)) setBookmarks(data);
+            }).catch(() => { });
 
             // Load reading stats from localStorage
             try {
@@ -217,6 +226,37 @@ function ProfileContent() {
                                 <div className="text-[10px] font-mono text-ash-500 tracking-wider mt-1">TIM ĐÃ TRAO</div>
                             </div>
                         </div>
+                    </div>
+
+                    {/* Bookmarks Section */}
+                    <div className="p-6 md:p-8 border-t border-ash-700/30">
+                        <div className="text-[10px] font-mono text-ash-500 tracking-[0.3em] uppercase mb-4 flex items-center gap-2">
+                            <Bookmark size={14} className="text-amber-500" />
+                            TỦ SÁCH SINH TỒN
+                        </div>
+                        {bookmarks.length === 0 ? (
+                            <div className="text-center py-8 text-ash-500 font-mono text-xs border border-dashed border-ash-700/50 rounded-lg bg-ash-800/20">
+                                CHƯA CÓ DỮ LIỆU LƯU TRỮ
+                            </div>
+                        ) : (
+                            <div className="space-y-3 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                                {bookmarks.map((bm) => (
+                                    <Link
+                                        key={bm.id}
+                                        href={`/chapters/${bm.chapter.chapter_number}`}
+                                        className="flex flex-col gap-1 p-3 rounded-lg bg-ash-800/40 hover:bg-ash-800 border border-ash-700/50 hover:border-toxic-green-DEFAULT/30 transition-all group"
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <span className="font-mono text-xs text-toxic-green-DEFAULT tracking-widest">CHƯƠNG {bm.chapter.chapter_number}</span>
+                                            <span className="text-[10px] font-mono text-ash-500">{new Date(bm.created_at).toLocaleDateString('vi-VN')}</span>
+                                        </div>
+                                        <span className="text-sm text-ash-300 group-hover:text-white transition-colors truncate font-reading text-left lg:text-base">
+                                            {bm.chapter.title}
+                                        </span>
+                                    </Link>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     {/* Footer */}

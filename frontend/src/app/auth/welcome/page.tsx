@@ -83,6 +83,24 @@ function WelcomeContent() {
         if (!hasPlayed.current) {
             hasPlayed.current = true;
             playAmbientSound();
+
+            // Background sync history to backend using the new auth session
+            try {
+                const historyRaw = localStorage.getItem("readingHistory");
+                if (historyRaw) {
+                    const history = JSON.parse(historyRaw);
+                    if (Array.isArray(history) && history.length > 0) {
+                        fetch('/api/user/read-progress', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                chaptersReadCount: history.length,
+                                newExpAmount: 0 // Sync only, don't farm extra EXP just by logging in
+                            })
+                        }).catch(() => { });
+                    }
+                }
+            } catch (e) { }
         }
 
         const timer = setTimeout(() => {

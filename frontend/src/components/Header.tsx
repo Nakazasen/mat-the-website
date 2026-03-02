@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { BookOpen, List, Home, Menu, X, Zap, Map as MapIcon, HelpCircle, User, LogIn, LogOut } from "lucide-react";
+import { BookOpen, List, Home, Menu, X, Zap, Map as MapIcon, HelpCircle, User, LogIn, LogOut, Trophy } from "lucide-react";
 import ThemeSwitcher from "./ThemeSwitcher";
 import { createAdminClient } from "@/lib/supabase-admin";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
@@ -57,6 +57,7 @@ export default function Header() {
         { href: "/", label: "TRANG CHỦ", icon: Home },
         { href: "/chapters", label: "MỤC LỤC", icon: List },
         { href: "/wiki", label: "BÁCH KHOA", icon: BookOpen },
+        { href: "/leaderboard", label: "BẢNG PHONG THẦN", icon: Trophy },
         { href: "/map", label: "BẢN ĐỒ", icon: MapIcon },
         { href: "/huong-dan", label: "HƯỚNG DẪN", icon: HelpCircle },
         { href: "/chapters/1", label: "ĐỌC NGAY", icon: BookOpen, highlight: true },

@@ -23,8 +23,8 @@ export default function ContinueButton() {
             className="btn-toxic flex items-center gap-2 text-base py-3 px-6 animate-pulse-slow"
         >
             <Zap size={16} fill="currentColor" />
-            <span className="truncate max-w-[150px] sm:max-w-none">
-                TIẾP TỤC CHƯƠNG {history.chapter}
+            <span className="truncate max-w-[200px] sm:max-w-none">
+                TIẾP TỤC HÀNH TRÌNH TẠI CHƯƠNG {history.chapter}
             </span>
         </Link>
     );

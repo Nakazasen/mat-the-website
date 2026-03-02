@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Settings, Home, List, Sun, Moon, Coffee, Share2, Facebook } from "lucide-react";
+import { ChevronLeft, ChevronRight, Settings, Home, List, Sun, Moon, Coffee, Share2, Facebook, Bookmark } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
 import AudioPlayer from "./AudioPlayer";
 import CommentSection from "./CommentSection";
@@ -35,6 +35,41 @@ export default function ReadingClient({
     const [activeChunkIndex, setActiveChunkIndex] = useState<number | null>(null);
     const contentRef = useRef<HTMLDivElement>(null);
     const activeChunkRef = useRef<HTMLSpanElement>(null);
+
+    // Bookmarks state
+    const [isBookmarked, setIsBookmarked] = useState(false);
+    const [isBookmarkLoading, setIsBookmarkLoading] = useState(false);
+
+    // Load bookmark status on mount
+    useEffect(() => {
+        fetch('/api/user/bookmarks').then(res => {
+            if (res.ok) return res.json();
+            return [];
+        }).then(data => {
+            if (Array.isArray(data)) {
+                setIsBookmarked(data.some((b: any) => b.chapter_id === chapterId));
+            }
+        }).catch(() => { });
+    }, [chapterId]);
+
+    const toggleBookmark = async () => {
+        if (isBookmarkLoading) return;
+        setIsBookmarkLoading(true);
+        try {
+            if (isBookmarked) {
+                await fetch(`/api/user/bookmarks?chapter_id=${chapterId}`, { method: 'DELETE' });
+                setIsBookmarked(false);
+            } else {
+                const res = await fetch('/api/user/bookmarks', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chapter_id: chapterId })
+                });
+                if (res.ok) setIsBookmarked(true);
+            }
+        } catch { }
+        setIsBookmarkLoading(false);
+    };
 
     // Split content into chunks for Karaoke
     const chunks = splitIntoChunks(content);
@@ -84,12 +119,45 @@ export default function ReadingClient({
         return () => window.removeEventListener("keydown", handleKey);
     }, [prevId, nextId]);
 
-    // History: Mark last read chapter
+    // History: Mark last read chapter & Sync reading progress
     useEffect(() => {
+        // Last read pointer
         localStorage.setItem('lastReadChapter', chapterNumber.toString());
         localStorage.setItem('lastReadTitle', chapterTitle);
         localStorage.setItem('lastReadAt', new Date().toISOString());
-    }, [chapterNumber, chapterTitle]);
+
+        // Array of read chapter IDs for stats/EXP calculation
+        const historyRaw = localStorage.getItem("readingHistory");
+        let history = historyRaw ? JSON.parse(historyRaw) : [];
+        if (!Array.isArray(history)) history = [];
+
+        let isNewRead = false;
+        if (!history.includes(chapterId)) {
+            history.push(chapterId);
+            localStorage.setItem("readingHistory", JSON.stringify(history));
+            isNewRead = true;
+        }
+
+        // Sync to backend
+        const syncProgress = async () => {
+            try {
+                await fetch('/api/user/read-progress', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        chaptersReadCount: history.length,
+                        newExpAmount: isNewRead ? 10 : 0
+                    })
+                });
+            } catch (error) {
+                console.error("Failed to sync reading progress", error);
+            }
+        };
+
+        // Wait 5 seconds before syncing to ensure they are actually on the page
+        const timer = setTimeout(syncProgress, 5000);
+        return () => clearTimeout(timer);
+    }, [chapterId, chapterNumber, chapterTitle]);
 
     return (
         <div className={`min-h-screen bg-reader-bg text-reader-text transition-colors duration-300 ${fontFamily === 'serif' ? 'font-serif' : 'font-sans'}`}>
@@ -130,14 +198,24 @@ export default function ReadingClient({
                         </div>
                     </div>
 
-                    {/* Right: Settings */}
-                    <button
-                        onClick={() => setShowSettings(!showSettings)}
-                        className="p-2 text-ash-500 hover:text-toxic-green-DEFAULT transition-colors"
-                        title="Cài đặt đọc"
-                    >
-                        <Settings size={15} />
-                    </button>
+                    {/* Right: Actions & Settings */}
+                    <div className="flex items-center gap-1">
+                        <button
+                            onClick={toggleBookmark}
+                            disabled={isBookmarkLoading}
+                            className={`p-2 transition-colors ${isBookmarked ? 'text-toxic-green-DEFAULT' : 'text-ash-500 hover:text-toxic-green-DEFAULT'}`}
+                            title={isBookmarked ? "Bỏ lưu khỏi Tủ sách" : "Lưu vào Tủ sách"}
+                        >
+                            <Bookmark size={15} fill={isBookmarked ? "currentColor" : "none"} className={isBookmarkLoading ? "animate-pulse" : ""} />
+                        </button>
+                        <button
+                            onClick={() => setShowSettings(!showSettings)}
+                            className="p-2 text-ash-500 hover:text-toxic-green-DEFAULT transition-colors"
+                            title="Cài đặt đọc"
+                        >
+                            <Settings size={15} />
+                        </button>
+                    </div>
                 </div>
 
                 {/* Settings panel */}
