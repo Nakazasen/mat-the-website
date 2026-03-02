@@ -69,26 +69,26 @@ export default function CommentSection({ chapterNumber }: CommentSectionProps) {
     };
 
     return (
-        <div className="mt-16 pt-10 border-t border-ash-800/60 max-w-4xl mx-auto px-4">
+        <div className="mt-16 pt-10 border-t border-reader-border max-w-4xl mx-auto px-4">
             <div className="flex items-center gap-3 mb-8">
-                <MessageSquare className="text-toxic-green-DEFAULT" size={24} />
-                <h2 className="font-biohazard text-2xl tracking-wider text-worn-white">BÌNH LUẬN</h2>
-                <div className="bg-ash-800/50 px-2 py-0.5 rounded text-[10px] font-mono text-ash-400">
+                <MessageSquare className="text-reader-accent" size={24} />
+                <h2 className="font-biohazard text-2xl tracking-wider text-reader-text">BÌNH LUẬN</h2>
+                <div className="bg-reader-card-bg px-2 py-0.5 rounded text-[10px] font-mono text-reader-muted">
                     {comments.length} PHẢN HỒI
                 </div>
             </div>
 
             {/* Comment Form */}
-            <form onSubmit={handleSubmit} className="mb-12 bg-ash-900/30 p-6 rounded-lg border border-ash-800/40 backdrop-blur-sm">
+            <form onSubmit={handleSubmit} className="mb-12 bg-reader-card-bg p-6 rounded-lg border border-reader-border backdrop-blur-sm">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                     <div className="relative">
-                        <User className="absolute left-3 top-1/2 -translate-y-1/2 text-ash-600" size={14} />
+                        <User className="absolute left-3 top-1/2 -translate-y-1/2 text-reader-muted" size={14} />
                         <input
                             type="text"
                             placeholder="TÊN CỦA BẠN (TÙY CHỌN)"
                             value={userName}
                             onChange={(e) => setUserName(e.target.value)}
-                            className="w-full bg-ash-950/50 border border-ash-800 rounded px-10 py-2 text-xs font-mono text-ash-200 outline-none focus:border-toxic-green-DEFAULT/50 transition-colors"
+                            className="w-full bg-reader-bg border border-reader-border rounded px-10 py-2 text-xs font-mono text-reader-text outline-none focus:border-reader-accent transition-colors placeholder:text-reader-muted"
                         />
                     </div>
                 </div>
@@ -98,12 +98,17 @@ export default function CommentSection({ chapterNumber }: CommentSectionProps) {
                     onChange={(e) => setContent(e.target.value)}
                     required
                     rows={3}
-                    className="w-full bg-ash-950/50 border border-ash-800 rounded p-4 text-sm text-ash-200 outline-none focus:border-toxic-green-DEFAULT/50 transition-colors resize-none mb-4"
+                    className="w-full bg-reader-bg border border-reader-border rounded p-4 text-sm text-reader-text outline-none focus:border-reader-accent transition-colors resize-none mb-4 placeholder:text-reader-muted"
                 />
                 <button
                     type="submit"
                     disabled={loading || !content.trim()}
-                    className="btn-toxic w-full sm:w-auto flex items-center justify-center gap-2 py-2 px-8 text-xs font-mono disabled:opacity-50 disabled:grayscale"
+                    className="btn-toxic w-full sm:w-auto flex items-center justify-center gap-2 py-2 px-8 text-xs font-mono disabled:opacity-50 disabled:grayscale transition-all"
+                    style={{
+                        backgroundColor: theme !== 'dark' ? 'var(--reader-accent)' : 'transparent',
+                        color: theme !== 'dark' ? 'white' : 'var(--reader-accent)',
+                        borderColor: 'var(--reader-accent)'
+                    }}
                 >
                     <Send size={14} />
                     {loading ? "ĐANG GỬI..." : "ĐĂNG BÌNH LUẬN"}
@@ -114,27 +119,27 @@ export default function CommentSection({ chapterNumber }: CommentSectionProps) {
             <div className="space-y-6">
                 {fetching ? (
                     <div className="text-center py-10">
-                        <div className="animate-spin w-6 h-6 border-2 border-toxic-green-DEFAULT border-t-transparent rounded-full mx-auto mb-2" />
-                        <span className="text-ash-500 text-[10px] font-mono tracking-widest">ĐANG TẢI...</span>
+                        <div className="animate-spin w-6 h-6 border-2 border-reader-accent border-t-transparent rounded-full mx-auto mb-2" />
+                        <span className="text-reader-muted text-[10px] font-mono tracking-widest">ĐANG TẢI...</span>
                     </div>
                 ) : comments.length === 0 ? (
-                    <div className="text-center py-10 border border-dashed border-ash-800/40 rounded-lg">
-                        <p className="text-ash-600 text-xs font-mono">CHƯA CÓ BÌNH LUẬN NÀO. HÃY LÀ NGƯỜI ĐẦU TIÊN!</p>
+                    <div className="text-center py-10 border border-dashed border-reader-border rounded-lg">
+                        <p className="text-reader-muted text-xs font-mono">CHƯA CÓ BÌNH LUẬN NÀO. HÃY LÀ NGƯỜI ĐẦU TIÊN!</p>
                     </div>
                 ) : (
                     comments.map((comment) => (
-                        <div key={comment.id} className="group flex gap-4 p-4 rounded-lg bg-ash-950/50 border border-ash-800/30 hover:border-ash-700/50 transition-all">
-                            <div className="w-10 h-10 rounded bg-ash-800 flex items-center justify-center shrink-0 border border-ash-700">
-                                <User className="text-ash-500" size={20} />
+                        <div key={comment.id} className="group flex gap-4 p-4 rounded-lg bg-reader-card-bg border border-reader-border hover:border-reader-accent/40 transition-all">
+                            <div className="w-10 h-10 rounded bg-reader-bg flex items-center justify-center shrink-0 border border-reader-border">
+                                <User className="text-reader-muted" size={20} />
                             </div>
                             <div className="flex-1">
                                 <div className="flex items-center justify-between mb-1">
-                                    <span className="font-mono text-xs text-toxic-green-DEFAULT">{comment.user_name}</span>
-                                    <span className="text-[10px] font-mono text-ash-600">
+                                    <span className="font-mono text-xs text-reader-accent">{comment.user_name}</span>
+                                    <span className="text-[10px] font-mono text-reader-muted">
                                         {new Date(comment.created_at).toLocaleDateString("vi-VN")}
                                     </span>
                                 </div>
-                                <p className="text-ash-300 text-sm leading-relaxed whitespace-pre-wrap">
+                                <p className="text-reader-text text-sm leading-relaxed whitespace-pre-wrap">
                                     {comment.content}
                                 </p>
                             </div>

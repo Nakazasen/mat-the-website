@@ -1105,3 +1105,76 @@ async def delete_wiki_entry(
         return {"status": "deleted", "id": entry_id}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================
+#   GUIDE PAGES (Hướng dẫn sử dụng & SOP nội bộ)
+# ============================================================
+
+class GuidePageUpdate(BaseModel):
+    title: Optional[str] = None
+    content: Optional[str] = None
+
+
+@app.get("/api/guide/{slug}", summary="Lấy trang hướng dẫn public")
+async def get_public_guide(slug: str):
+    """Lấy nội dung trang hướng dẫn có scope = 'public'."""
+    try:
+        result = supabase.table("guide_pages").select("*").eq("slug", slug).eq("scope", "public").execute()
+        if not result.data:
+            return {"slug": slug, "title": "", "content": "", "scope": "public"}
+        return result.data[0]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/admin/guide/{slug}", summary="Lấy trang hướng dẫn (Admin)")
+async def get_admin_guide(
+    slug: str,
+    authorization: Optional[str] = Header(None),
+):
+    """Lấy nội dung bất kỳ trang nào (kể cả internal). Yêu cầu Admin."""
+    await verify_admin(authorization)
+    try:
+        result = supabase.table("guide_pages").select("*").eq("slug", slug).execute()
+        if not result.data:
+            return {"slug": slug, "title": "", "content": "", "scope": "internal"}
+        return result.data[0]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/admin/guide/{slug}", summary="Cập nhật trang hướng dẫn (Admin)")
+async def update_guide(
+    slug: str,
+    body: GuidePageUpdate,
+    authorization: Optional[str] = Header(None),
+):
+    """Cập nhật hoặc tạo mới trang hướng dẫn. Yêu cầu Admin."""
+    await verify_admin(authorization)
+    try:
+        from datetime import datetime, timezone
+        # Determine scope from slug
+        scope = "internal" if slug == "admin-sop" else "public"
+
+        existing = supabase.table("guide_pages").select("id").eq("slug", slug).execute()
+
+        data = body.model_dump(exclude_none=True)
+        data["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+        if existing.data:
+            result = supabase.table("guide_pages").update(data).eq("slug", slug).execute()
+        else:
+            data["slug"] = slug
+            data["scope"] = scope
+            if "title" not in data:
+                data["title"] = "Hướng dẫn" if scope == "public" else "SOP Nội bộ"
+            if "content" not in data:
+                data["content"] = ""
+            result = supabase.table("guide_pages").insert(data).execute()
+
+        return result.data[0] if result.data else {"status": "ok"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

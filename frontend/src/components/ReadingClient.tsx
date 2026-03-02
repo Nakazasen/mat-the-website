@@ -243,18 +243,18 @@ export default function ReadingClient({
                         {prevId ? (
                             <Link
                                 href={`/chapters/${prevId}`}
-                                className="flex items-center gap-1 px-4 py-2 border border-ash-800 rounded-full text-ash-400 hover:border-toxic-green-DEFAULT hover:text-toxic-green-DEFAULT transition-all font-mono text-xs group"
+                                className="flex items-center gap-1 px-4 py-2 border border-reader-border rounded-full text-reader-muted hover:border-reader-accent hover:text-reader-accent transition-all font-mono text-xs group"
                             >
                                 <ChevronLeft size={14} className="group-hover:-translate-x-1 transition-transform" />
                                 TRƯỚC
                             </Link>
                         ) : (
-                            <span className="px-4 py-2 border border-ash-900 rounded-full text-ash-800 font-mono text-xs cursor-not-allowed">ĐẦU</span>
+                            <span className="px-4 py-2 border border-reader-border opacity-30 rounded-full text-reader-muted font-mono text-xs cursor-not-allowed">ĐẦU</span>
                         )}
 
                         <Link
                             href="/chapters"
-                            className="w-10 h-10 flex items-center justify-center border border-ash-800 rounded-full text-ash-400 hover:border-toxic-green-DEFAULT hover:text-toxic-green-DEFAULT transition-all"
+                            className="w-10 h-10 flex items-center justify-center border border-reader-border rounded-full text-reader-muted hover:border-reader-accent hover:text-reader-accent transition-all"
                             title="Mục lục"
                         >
                             <List size={16} />
@@ -263,13 +263,13 @@ export default function ReadingClient({
                         {nextId ? (
                             <Link
                                 href={`/chapters/${nextId}`}
-                                className="flex items-center gap-1 px-4 py-2 border border-ash-800 rounded-full text-ash-400 hover:border-blood-red-bright hover:text-blood-red-bright transition-all font-mono text-xs group"
+                                className="flex items-center gap-1 px-4 py-2 border border-reader-border rounded-full text-reader-muted hover:border-blood-red-bright hover:text-blood-red-bright transition-all font-mono text-xs group"
                             >
                                 TIẾP
                                 <ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />
                             </Link>
                         ) : (
-                            <span className="px-4 py-2 border border-ash-900 rounded-full text-ash-800 font-mono text-xs cursor-not-allowed">HẾT</span>
+                            <span className="px-4 py-2 border border-reader-border opacity-30 rounded-full text-reader-muted font-mono text-xs cursor-not-allowed">HẾT</span>
                         )}
                     </div>
 
@@ -300,7 +300,7 @@ export default function ReadingClient({
 
                 {/* === SOCIAL SHARE === */}
                 <div className="mt-12 mb-8 flex flex-col items-center">
-                    <div className="text-[10px] font-mono text-ash-600 mb-4 tracking-[0.4em]">CHIA SẺ TRUYỆN</div>
+                    <div className="text-[10px] font-mono text-reader-muted mb-4 tracking-[0.4em]">CHIA SẺ TRUYỆN</div>
                     <div className="flex gap-4">
                         <button
                             onClick={() => {
@@ -333,7 +333,7 @@ export default function ReadingClient({
                     {prevId ? (
                         <Link
                             href={`/chapters/${prevId}`}
-                            className="flex-1 flex items-center justify-center gap-2 py-4 border border-ash-700 rounded text-ash-300 hover:border-toxic-green-DEFAULT/50 hover:text-toxic-green-DEFAULT transition-all font-biohazard tracking-wider text-sm sm:text-base group"
+                            className="flex-1 flex items-center justify-center gap-2 py-4 border border-reader-border rounded text-reader-muted hover:border-reader-accent/50 hover:text-reader-accent transition-all font-biohazard tracking-wider text-sm sm:text-base group"
                         >
                             <ChevronLeft
                                 size={18}
@@ -342,7 +342,7 @@ export default function ReadingClient({
                             <span>CHƯƠNG TRƯỚC</span>
                         </Link>
                     ) : (
-                        <div className="flex-1 flex items-center justify-center py-4 border border-ash-800/50 rounded text-ash-700 font-biohazard tracking-wider text-sm cursor-not-allowed">
+                        <div className="flex-1 flex items-center justify-center py-4 border border-reader-border opacity-30 rounded text-reader-muted font-biohazard tracking-wider text-sm cursor-not-allowed">
                             ĐÂY LÀ ĐẦU TRUYỆN
                         </div>
                     )}
@@ -350,7 +350,7 @@ export default function ReadingClient({
                     {nextId ? (
                         <Link
                             href={`/chapters/${nextId}`}
-                            className="flex-1 flex items-center justify-center gap-2 py-4 bg-blood-red-DEFAULT border border-blood-red-bright/30 rounded text-white hover:bg-blood-red-bright hover:shadow-[0_0_20px_rgba(139,0,0,0.5)] transition-all font-biohazard tracking-wider text-sm sm:text-base group"
+                            className="flex-1 flex items-center justify-center gap-2 py-4 bg-blood-red border border-blood-red-bright/30 rounded text-white hover:bg-blood-red-bright hover:shadow-[0_0_20px_rgba(139,0,0,0.5)] transition-all font-biohazard tracking-wider text-sm sm:text-base group"
                         >
                             <span>CHƯƠNG TIẾP</span>
                             <ChevronRight
@@ -359,16 +359,16 @@ export default function ReadingClient({
                             />
                         </Link>
                     ) : (
-                        <div className="flex-1 flex items-center justify-center py-4 border border-ash-800/50 rounded text-ash-700 font-biohazard tracking-wider text-sm cursor-not-allowed">
+                        <div className="flex-1 flex items-center justify-center py-4 border border-reader-border opacity-30 rounded text-reader-muted font-biohazard tracking-wider text-sm cursor-not-allowed">
                             HẾT TRUYỆN (TẠM THỜI)
                         </div>
                     )}
                 </div>
 
                 {/* === LIKE BUTTON === */}
-                <div className="flex justify-center py-8 border-t border-ash-800/30 mt-8">
+                <div className="flex justify-center py-8 border-t border-reader-border mt-8">
                     <div className="flex flex-col items-center gap-3">
-                        <p className="text-xs font-mono text-ash-600">Chương hay? Để lại một trái tim nhé! ☣️</p>
+                        <p className="text-xs font-mono text-reader-muted">Chương hay? Để lại một trái tim nhé! ☣️</p>
                         <LikeButton chapterNumber={chapterNumber} />
                     </div>
                 </div>
@@ -380,23 +380,23 @@ export default function ReadingClient({
                 <div className="flex items-center justify-center gap-4 mt-12 pb-10">
                     <Link
                         href="/"
-                        className="text-ash-500 hover:text-toxic-green-DEFAULT text-xs font-mono transition-colors flex items-center gap-1"
+                        className="text-reader-muted hover:text-reader-accent text-xs font-mono transition-colors flex items-center gap-1"
                     >
                         <Home size={12} /> TRANG CHỦ
                     </Link>
-                    <span className="text-ash-700">·</span>
+                    <span className="text-reader-border">·</span>
                     <Link
                         href="/chapters"
-                        className="text-ash-500 hover:text-toxic-green-DEFAULT text-xs font-mono transition-colors flex items-center gap-1"
+                        className="text-reader-muted hover:text-reader-accent text-xs font-mono transition-colors flex items-center gap-1"
                     >
                         <List size={12} /> MỤC LỤC
                     </Link>
                     {nextId && (
                         <>
-                            <span className="text-ash-700">·</span>
+                            <span className="text-reader-border">·</span>
                             <Link
                                 href={`/chapters/${nextId}`}
-                                className="text-ash-500 hover:text-blood-red-bright text-xs font-mono transition-colors flex items-center gap-1"
+                                className="text-reader-muted hover:text-blood-red-bright text-xs font-mono transition-colors flex items-center gap-1"
                             >
                                 TIẾP <ChevronRight size={12} />
                             </Link>

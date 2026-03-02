@@ -314,3 +314,38 @@ export async function deleteMapLocation(id: string, token: string): Promise<void
     });
     if (!res.ok) throw new Error("Failed to delete map location");
 }
+
+// === GUIDE PAGES ===
+
+export interface GuidePage {
+    id?: string;
+    slug: string;
+    title: string;
+    content: string;
+    scope: string;
+    updated_at?: string;
+}
+
+export async function getPublicGuide(slug: string): Promise<GuidePage> {
+    const res = await fetch(`${API_BASE_URL}/api/guide/${slug}`, { cache: "no-store" });
+    if (!res.ok) throw new Error("Failed to fetch guide");
+    return res.json();
+}
+
+export async function getAdminGuide(slug: string, token: string): Promise<GuidePage> {
+    const res = await fetch(`${API_BASE_URL}/api/admin/guide/${slug}`, {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error("Failed to fetch guide");
+    return res.json();
+}
+
+export async function updateGuide(slug: string, data: { title?: string; content?: string }, token: string): Promise<GuidePage> {
+    const res = await fetch(`${API_BASE_URL}/api/admin/guide/${slug}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error("Failed to update guide");
+    return res.json();
+}
