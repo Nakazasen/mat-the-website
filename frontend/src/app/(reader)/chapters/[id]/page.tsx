@@ -22,9 +22,18 @@ export async function generateMetadata({
     try {
         const resolvedParams = await params;
         const chapter = await getChapter(parseInt(resolvedParams.id));
+        const title = `Chương ${chapter.chapter_number}: ${chapter.title} | Mạt Thế Sinh Hoá Nguy Cơ`;
+        const description = `Đọc Chương ${chapter.chapter_number} - ${chapter.title}. Truyện Mạt Thế Sinh Hoá Nguy Cơ full 813+ chương. Zombie, dị biến sinh học, sinh tồn.`;
         return {
-            title: `Chương ${chapter.chapter_number}: ${chapter.title}`,
-            description: `Đọc Chương ${chapter.chapter_number} - ${chapter.title} | Mạt Thế Sinh Hoá Nguy Cơ`,
+            title,
+            description,
+            keywords: [`chương ${chapter.chapter_number}`, chapter.title, 'mạt thế', 'zombie', 'đọc truyện online', 'sinh hoá nguy cơ'],
+            openGraph: {
+                title,
+                description,
+                type: 'article',
+                siteName: 'Mạt Thế - Sinh Hoá Nguy Cơ',
+            },
         };
     } catch {
         return { title: "Không tìm thấy chương" };

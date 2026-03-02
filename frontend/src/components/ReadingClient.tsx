@@ -7,6 +7,7 @@ import { useTheme } from "@/context/ThemeContext";
 import AudioPlayer from "./AudioPlayer";
 import CommentSection from "./CommentSection";
 import LikeButton from "./LikeButton";
+import DonateSection from "./DonateSection";
 import { splitIntoChunks } from "@/lib/tts-utils";
 
 interface ReadingClientProps {
@@ -372,6 +373,9 @@ export default function ReadingClient({
                         <LikeButton chapterNumber={chapterNumber} />
                     </div>
                 </div>
+
+                {/* === DONATE === */}
+                <DonateSection chapterNumber={chapterNumber} />
 
                 {/* === COMMENTS === */}
                 <CommentSection chapterNumber={chapterNumber} />
