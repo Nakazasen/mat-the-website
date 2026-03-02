@@ -126,40 +126,39 @@ export default function ReadingClient({
         localStorage.setItem('lastReadTitle', chapterTitle);
         localStorage.setItem('lastReadAt', new Date().toISOString());
 
-        // Array of read chapter IDs for stats/EXP calculation
-        const historyRaw = localStorage.getItem("readingHistory");
-        let history = historyRaw ? JSON.parse(historyRaw) : [];
-        if (!Array.isArray(history)) history = [];
-
-        let isNewRead = false;
-        if (!history.includes(chapterId)) {
-            history.push(chapterId);
-            localStorage.setItem("readingHistory", JSON.stringify(history));
-            isNewRead = true;
-        }
-
-        // Sync to backend
-        const syncProgress = async () => {
+        // Wait 5 seconds before syncing to ensure they are actually on the page
+        const timer = setTimeout(() => {
             try {
-                // Determine if this is a new chapter being read
+                // Array of read chapter IDs for stats/EXP calculation
                 const historyRaw = localStorage.getItem("readingHistory");
-                const currentHistory = historyRaw ? JSON.parse(historyRaw) : [];
+                let history = historyRaw ? JSON.parse(historyRaw) : [];
+                if (!Array.isArray(history)) history = [];
 
-                await fetch('/api/user/read-progress', {
+                // Convert all to string for safe comparison
+                const safeHistory = history.map(String);
+                const currentIdStr = String(chapterId);
+
+                let isNewRead = false;
+                if (!safeHistory.includes(currentIdStr)) {
+                    safeHistory.push(currentIdStr);
+                    localStorage.setItem("readingHistory", JSON.stringify(safeHistory));
+                    isNewRead = true;
+                }
+
+                // Sync to backend
+                fetch('/api/user/read-progress', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        chaptersReadCount: Array.isArray(currentHistory) ? currentHistory.length : 0,
+                        chaptersReadCount: safeHistory.length,
                         newExpAmount: isNewRead ? 10 : 0
                     })
-                });
+                }).catch(err => console.error("Failed to sync reading progress", err));
             } catch (error) {
-                console.error("Failed to sync reading progress", error);
+                console.error("Error updating reading history", error);
             }
-        };
+        }, 5000);
 
-        // Wait 5 seconds before syncing to ensure they are actually on the page
-        const timer = setTimeout(syncProgress, 5000);
         return () => clearTimeout(timer);
     }, [chapterId, chapterNumber, chapterTitle]);
 
