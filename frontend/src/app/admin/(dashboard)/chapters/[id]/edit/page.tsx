@@ -9,8 +9,8 @@ import { ArrowLeft, Save, AlertTriangle, CheckCircle2 } from 'lucide-react';
 
 import RichTextEditor from '@/components/Editor';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mat-the-website.onrender.com';
-const ADMIN_TOKEN = process.env.NEXT_PUBLIC_ADMIN_TOKEN || "";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
+const ADMIN_TOKEN = process.env.NEXT_PUBLIC_ADMIN_TOKEN || "mat-the-admin-2026";
 
 export default function EditChapterPage() {
     const params = useParams();

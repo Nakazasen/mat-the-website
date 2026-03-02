@@ -8,7 +8,7 @@ import {
 } from "@/lib/api";
 import RichTextEditor from "@/components/Editor";
 
-const ADMIN_TOKEN = process.env.NEXT_PUBLIC_ADMIN_TOKEN || "";
+const ADMIN_TOKEN = process.env.NEXT_PUBLIC_ADMIN_TOKEN || "mat-the-admin-2026";
 
 // ── Auto-generate slug from title ─────────────────────────
 function toSlug(text: string): string {
