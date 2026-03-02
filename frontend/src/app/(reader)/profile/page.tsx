@@ -264,15 +264,17 @@ function ProfileContent() {
                                 {bookmarks.map((bm) => (
                                     <Link
                                         key={bm.id}
-                                        href={`/chapters/${bm.chapter.chapter_number}`}
+                                        href={`/chapters/${bm.chapter?.chapter_number || '#'}`}
                                         className="flex flex-col gap-1 p-3 rounded-lg bg-ash-800/40 hover:bg-ash-800 border border-ash-700/50 hover:border-toxic-green-DEFAULT/30 transition-all group"
                                     >
                                         <div className="flex items-center justify-between">
-                                            <span className="font-mono text-xs text-toxic-green-DEFAULT tracking-widest">CHƯƠNG {bm.chapter.chapter_number}</span>
+                                            <span className="font-mono text-xs text-toxic-green-DEFAULT tracking-widest">
+                                                CHƯƠNG {bm.chapter?.chapter_number || 'BỊ XÓA'}
+                                            </span>
                                             <span className="text-[10px] font-mono text-ash-500">{new Date(bm.created_at).toLocaleDateString('vi-VN')}</span>
                                         </div>
                                         <span className="text-sm text-ash-300 group-hover:text-white transition-colors truncate font-reading text-left lg:text-base">
-                                            {bm.chapter.title}
+                                            {bm.chapter?.title || 'Nội dung không còn tồn tại...'}
                                         </span>
                                     </Link>
                                 ))}
