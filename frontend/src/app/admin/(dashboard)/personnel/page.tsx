@@ -26,7 +26,7 @@ export default function AdminPersonnelPage() {
 
     // Edit state
     const [editingUser, setEditingUser] = useState<Profile | null>(null);
-    const [editForm, setEditForm] = useState({ display_name: '', email: '', role: 'editor' as string });
+    const [editForm, setEditForm] = useState({ display_name: '', email: '', role: 'editor' as string, password: '' });
     const [saving, setSaving] = useState(false);
 
     // Form state
@@ -133,7 +133,8 @@ export default function AdminPersonnelPage() {
         setEditForm({
             display_name: user.display_name || '',
             email: user.email,
-            role: user.role
+            role: user.role,
+            password: ''
         });
         setError(null);
         setSuccess(null);
@@ -151,7 +152,12 @@ export default function AdminPersonnelPage() {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
-                body: JSON.stringify(editForm)
+                body: JSON.stringify({
+                    display_name: editForm.display_name,
+                    email: editForm.email,
+                    role: editForm.role,
+                    ...(editForm.password ? { password: editForm.password } : {})
+                })
             });
 
             const data = await res.json();
@@ -256,6 +262,20 @@ export default function AdminPersonnelPage() {
                                     <option value="editor">Editor (Đăng/Sửa truyện)</option>
                                     <option value="superadmin">SuperAdmin (Toàn quyền)</option>
                                 </select>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-mono text-gray-600 uppercase tracking-widest flex items-center gap-1.5">
+                                    <Key size={10} /> Đặt Lại Mật Khẩu
+                                </label>
+                                <input
+                                    type="password"
+                                    value={editForm.password}
+                                    onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
+                                    className="w-full bg-[#0a0a0a] border border-gray-800 rounded px-3 py-2 text-gray-200 text-sm focus:border-green-500 outline-none transition-all"
+                                    placeholder="Để trống nếu không đổi"
+                                />
+                                <p className="text-[9px] font-mono text-gray-700 italic">Để trống = giữ nguyên mật khẩu cũ. Tối thiểu 6 ký tự.</p>
                             </div>
                         </div>
 

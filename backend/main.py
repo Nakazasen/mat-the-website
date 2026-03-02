@@ -567,6 +567,7 @@ class ProfileUpdate(BaseModel):
     display_name: Optional[str] = None
     role: Optional[str] = None
     email: Optional[str] = None
+    password: Optional[str] = None
 
 
 @app.put("/api/admin/users/{user_id}", summary="[Admin] Cập nhật thông tin nhân sự")
@@ -575,7 +576,7 @@ async def admin_update_user(
     body: ProfileUpdate,
     authorization: Optional[str] = Header(None)
 ):
-    """Cập nhật profile nhân sự (tên, vai trò, email). Chỉ dành cho SuperAdmin."""
+    """Cập nhật profile nhân sự (tên, vai trò, email, mật khẩu). Chỉ dành cho SuperAdmin."""
     user = await verify_admin(authorization)
 
     if user["role"] != "superadmin":
@@ -596,9 +597,17 @@ async def admin_update_user(
             profile_data["updated_at"] = datetime.now(timezone.utc).isoformat()
             supabase.table("profiles").update(profile_data).eq("id", user_id).execute()
 
-        # Update email in Auth if changed
+        # Update Auth fields (email, password)
+        auth_updates = {}
         if body.email:
-            supabase.auth.admin.update_user_by_id(user_id, {"email": body.email})
+            auth_updates["email"] = body.email
+        if body.password:
+            if len(body.password) < 6:
+                raise HTTPException(status_code=400, detail="Mật khẩu phải có tối thiểu 6 ký tự")
+            auth_updates["password"] = body.password
+
+        if auth_updates:
+            supabase.auth.admin.update_user_by_id(user_id, auth_updates)
 
         return {"message": "Đã cập nhật thông tin nhân sự thành công"}
     except HTTPException:
