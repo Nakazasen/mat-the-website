@@ -4,6 +4,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { ThemeProvider } from "@/context/ThemeContext";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
+import { Analytics } from "@vercel/analytics/react";
 
 export const metadata: Metadata = {
     title: {
@@ -64,6 +65,7 @@ export default function RootLayout({
                 <ThemeProvider>
                     {children}
                 </ThemeProvider>
+                <Analytics />
             </body>
         </html>
     );

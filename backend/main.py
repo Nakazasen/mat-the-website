@@ -893,6 +893,27 @@ async def admin_get_top_chapters(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/admin/analytics/top-liked", summary="[Admin] Top chương được yêu thích nhất")
+async def admin_get_top_liked(
+    limit: int = Query(10, ge=1, le=50),
+    authorization: Optional[str] = Header(None),
+):
+    """Lấy danh sách các chương có lượt thả tim cao nhất."""
+    await verify_admin(authorization)
+
+    try:
+        resp = (
+            supabase.table("chapters")
+            .select("chapter_number, title, likes_count")
+            .order("likes_count", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        return resp.data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # === COMMENT ROUTES ===
 
 class CommentCreate(BaseModel):

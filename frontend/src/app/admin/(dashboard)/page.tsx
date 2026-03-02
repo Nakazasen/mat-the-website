@@ -1,6 +1,5 @@
-import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import { BarChart3, BookOpen, TrendingUp, PlusCircle } from 'lucide-react';
+import { BarChart3, BookOpen, TrendingUp, PlusCircle, Eye, Heart } from 'lucide-react';
 import Link from 'next/link';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mat-the-website.onrender.com';
@@ -16,15 +15,25 @@ async function getStats() {
     }
 }
 
-async function getTopChapters() {
+async function getTopChapters(token: string | undefined) {
+    if (!token) return [];
     try {
-        const cookieStore = await cookies();
-        const supabaseToken = cookieStore.get('sb-access-token')?.value;
-
         const res = await fetch(`${API_BASE_URL}/api/admin/analytics/top-chapters?limit=5`, {
-            headers: {
-                'Authorization': `Bearer ${supabaseToken}`
-            },
+            headers: { 'Authorization': `Bearer ${token}` },
+            cache: 'no-store'
+        });
+        if (!res.ok) return [];
+        return await res.json();
+    } catch {
+        return [];
+    }
+}
+
+async function getTopLiked(token: string | undefined) {
+    if (!token) return [];
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/admin/analytics/top-liked?limit=5`, {
+            headers: { 'Authorization': `Bearer ${token}` },
             cache: 'no-store'
         });
         if (!res.ok) return [];
@@ -35,8 +44,17 @@ async function getTopChapters() {
 }
 
 export default async function AdminDashboardPage() {
-    const stats = await getStats();
-    const topChapters = await getTopChapters();
+    const cookieStore = await cookies();
+    const supabaseToken = cookieStore.get('sb-access-token')?.value;
+
+    const [stats, topChapters, topLiked] = await Promise.all([
+        getStats(),
+        getTopChapters(supabaseToken),
+        getTopLiked(supabaseToken),
+    ]);
+
+    const totalViews = topChapters.reduce((sum: number, ch: any) => sum + (ch.view_count || 0), 0);
+    const totalLikes = topLiked.reduce((sum: number, ch: any) => sum + (ch.likes_count || 0), 0);
 
     return (
         <div>
@@ -46,7 +64,7 @@ export default async function AdminDashboardPage() {
             </div>
 
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
                 <div className="bg-[#0d0d0d] border border-gray-800 rounded-lg p-4">
                     <div className="flex items-center gap-2 mb-2">
                         <BookOpen size={14} className="text-green-400" />
@@ -58,64 +76,129 @@ export default async function AdminDashboardPage() {
                 <div className="bg-[#0d0d0d] border border-gray-800 rounded-lg p-4">
                     <div className="flex items-center gap-2 mb-2">
                         <TrendingUp size={14} className="text-blue-400" />
-                        <span className="text-xs font-mono text-gray-500 tracking-widest">CHƯƠNG MỚI NHẤT</span>
+                        <span className="text-xs font-mono text-gray-500 tracking-widest">CHƯƠNG MỚI</span>
                     </div>
                     <div className="text-3xl font-mono text-blue-400 font-bold">{stats.max_chapter}</div>
                 </div>
 
                 <div className="bg-[#0d0d0d] border border-gray-800 rounded-lg p-4">
                     <div className="flex items-center gap-2 mb-2">
-                        <BarChart3 size={14} className="text-yellow-400" />
-                        <span className="text-xs font-mono text-gray-500 tracking-widest">STATUS</span>
+                        <Eye size={14} className="text-purple-400" />
+                        <span className="text-xs font-mono text-gray-500 tracking-widest">TỔNG VIEW</span>
                     </div>
-                    <div className="text-sm font-mono text-yellow-400 font-bold mt-2">🟢 ONLINE</div>
+                    <div className="text-3xl font-mono text-purple-400 font-bold">{totalViews.toLocaleString()}</div>
+                </div>
+
+                <div className="bg-[#0d0d0d] border border-gray-800 rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                        <Heart size={14} className="text-red-400" />
+                        <span className="text-xs font-mono text-gray-500 tracking-widest">TỔNG TIM</span>
+                    </div>
+                    <div className="text-3xl font-mono text-red-400 font-bold">{totalLikes.toLocaleString()}</div>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
                 {/* Top Read Chapters */}
                 <div className="bg-[#0d0d0d] border border-gray-800 rounded-lg p-5">
-                    <h2 className="text-xs font-mono text-gray-500 tracking-widest mb-4 uppercase">Chương đọc nhiều nhất</h2>
+                    <div className="flex items-center gap-2 mb-4">
+                        <Eye size={14} className="text-purple-400" />
+                        <h2 className="text-xs font-mono text-gray-500 tracking-widest uppercase">Top 5 chương đọc nhiều nhất</h2>
+                    </div>
                     <div className="space-y-3">
                         {topChapters.length > 0 ? (
-                            topChapters.map((ch: any, idx: number) => (
-                                <div key={ch.chapter_number} className="flex items-center justify-between border-b border-gray-900 pb-2 last:border-0">
-                                    <div className="flex items-center gap-3">
-                                        <span className="text-[10px] font-mono text-gray-700 w-4">{idx + 1}.</span>
-                                        <div className="text-sm text-gray-300 font-mono truncate max-w-[200px]">
-                                            Chương {ch.chapter_number}: {ch.title}
+                            topChapters.map((ch: any, idx: number) => {
+                                const maxViews = topChapters[0]?.view_count || 1;
+                                const pct = Math.max(5, ((ch.view_count || 0) / maxViews) * 100);
+                                return (
+                                    <div key={ch.chapter_number} className="group">
+                                        <div className="flex items-center justify-between mb-1">
+                                            <div className="flex items-center gap-2">
+                                                <span className={`text-[10px] font-mono font-bold w-5 text-center rounded-sm py-0.5 ${idx === 0 ? 'bg-yellow-500/20 text-yellow-400' :
+                                                        idx === 1 ? 'bg-gray-400/20 text-gray-300' :
+                                                            idx === 2 ? 'bg-amber-700/20 text-amber-500' :
+                                                                'text-gray-700'
+                                                    }`}>{idx + 1}</span>
+                                                <span className="text-sm text-gray-300 font-mono truncate max-w-[180px]">
+                                                    Ch.{ch.chapter_number}: {ch.title}
+                                                </span>
+                                            </div>
+                                            <span className="text-xs font-mono text-purple-400 font-bold">
+                                                {(ch.view_count || 0).toLocaleString()}
+                                            </span>
+                                        </div>
+                                        <div className="w-full bg-gray-900 rounded-full h-1">
+                                            <div className="bg-purple-500/50 h-1 rounded-full transition-all" style={{ width: `${pct}%` }} />
                                         </div>
                                     </div>
-                                    <div className="text-xs font-mono text-green-500">
-                                        {ch.view_count.toLocaleString()} <span className="text-[10px] text-gray-600">LẦN</span>
-                                    </div>
-                                </div>
-                            ))
+                                );
+                            })
                         ) : (
-                            <p className="text-xs font-mono text-gray-600 italic">Chưa có dữ liệu thống kê...</p>
+                            <p className="text-xs font-mono text-gray-600 italic">Chưa có dữ liệu lượt xem...</p>
                         )}
                     </div>
                 </div>
 
-                {/* Quick Actions */}
-                <div>
-                    <h2 className="text-xs font-mono text-gray-600 tracking-widest mb-3 uppercase">Thao tác nhanh</h2>
-                    <div className="flex flex-col gap-3">
-                        <Link
-                            href="/admin/chapters/new"
-                            className="flex items-center gap-3 px-4 py-3 bg-green-950/20 border border-green-900/40 text-green-400 hover:bg-green-900/30 rounded font-mono text-sm transition-all"
-                        >
-                            <PlusCircle size={16} />
-                            Đăng Chương Mới
-                        </Link>
-                        <Link
-                            href="/admin/chapters"
-                            className="flex items-center gap-3 px-4 py-3 bg-blue-950/20 border border-blue-900/40 text-blue-400 hover:bg-blue-900/30 rounded font-mono text-sm transition-all"
-                        >
-                            <BookOpen size={16} />
-                            Quản Lý Chương
-                        </Link>
+                {/* Top Liked Chapters */}
+                <div className="bg-[#0d0d0d] border border-gray-800 rounded-lg p-5">
+                    <div className="flex items-center gap-2 mb-4">
+                        <Heart size={14} className="text-red-400" />
+                        <h2 className="text-xs font-mono text-gray-500 tracking-widest uppercase">Top 5 chương được yêu thích</h2>
                     </div>
+                    <div className="space-y-3">
+                        {topLiked.length > 0 ? (
+                            topLiked.map((ch: any, idx: number) => {
+                                const maxLikes = topLiked[0]?.likes_count || 1;
+                                const pct = Math.max(5, ((ch.likes_count || 0) / maxLikes) * 100);
+                                return (
+                                    <div key={ch.chapter_number} className="group">
+                                        <div className="flex items-center justify-between mb-1">
+                                            <div className="flex items-center gap-2">
+                                                <span className={`text-[10px] font-mono font-bold w-5 text-center rounded-sm py-0.5 ${idx === 0 ? 'bg-yellow-500/20 text-yellow-400' :
+                                                        idx === 1 ? 'bg-gray-400/20 text-gray-300' :
+                                                            idx === 2 ? 'bg-amber-700/20 text-amber-500' :
+                                                                'text-gray-700'
+                                                    }`}>{idx + 1}</span>
+                                                <span className="text-sm text-gray-300 font-mono truncate max-w-[180px]">
+                                                    Ch.{ch.chapter_number}: {ch.title}
+                                                </span>
+                                            </div>
+                                            <span className="text-xs font-mono text-red-400 font-bold flex items-center gap-1">
+                                                <Heart size={10} fill="currentColor" />
+                                                {(ch.likes_count || 0).toLocaleString()}
+                                            </span>
+                                        </div>
+                                        <div className="w-full bg-gray-900 rounded-full h-1">
+                                            <div className="bg-red-500/50 h-1 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        ) : (
+                            <p className="text-xs font-mono text-gray-600 italic">Chưa có dữ liệu lượt thích...</p>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="mb-8">
+                <h2 className="text-xs font-mono text-gray-600 tracking-widest mb-3 uppercase">Thao tác nhanh</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <Link
+                        href="/admin/chapters/new"
+                        className="flex items-center gap-3 px-4 py-3 bg-green-950/20 border border-green-900/40 text-green-400 hover:bg-green-900/30 rounded font-mono text-sm transition-all"
+                    >
+                        <PlusCircle size={16} />
+                        Đăng Chương Mới
+                    </Link>
+                    <Link
+                        href="/admin/chapters"
+                        className="flex items-center gap-3 px-4 py-3 bg-blue-950/20 border border-blue-900/40 text-blue-400 hover:bg-blue-900/30 rounded font-mono text-sm transition-all"
+                    >
+                        <BookOpen size={16} />
+                        Quản Lý Chương
+                    </Link>
                 </div>
             </div>
 

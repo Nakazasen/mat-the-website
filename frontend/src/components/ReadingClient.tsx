@@ -61,10 +61,10 @@ export default function ReadingClient({
         return () => window.removeEventListener("scroll", handleScroll);
     }, []);
 
-    // Analytics: Report view after a delay
+    // Analytics: Report view after a delay (with localStorage anti-spam)
     useEffect(() => {
-        const { reportView } = require("@/lib/api");
-        const timer = setTimeout(() => {
+        const timer = setTimeout(async () => {
+            const { reportView } = await import("@/lib/api");
             reportView(chapterNumber);
         }, 15000); // Report after 15 seconds of reading
         return () => clearTimeout(timer);

@@ -101,20 +101,7 @@ export async function getNovelSettings(): Promise<NovelSettings> {
     return res.json();
 }
 
-/**
- * Analytics: Gửi tín hiệu đã đọc chương về backend.
- * Sẽ được gọi sau 15-20s khi người dùng ở lại trang đọc.
- */
-export async function reportView(chapterNumber: number): Promise<void> {
-    try {
-        await fetch(`${API_BASE_URL}/api/chapters/${chapterNumber}/view`, {
-            method: "POST",
-            keepalive: true,
-        });
-    } catch (e) {
-        console.warn("Analytics Error:", e);
-    }
-}
+// reportView moved to ANALYTICS section below (with localStorage anti-spam)
 
 // Utility
 export function formatChapterTitle(chapter: Chapter): string {
@@ -313,6 +300,36 @@ export async function deleteMapLocation(id: string, token: string): Promise<void
         headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) throw new Error("Failed to delete map location");
+}
+
+// === ANALYTICS ===
+
+export async function reportView(chapterNumber: number): Promise<void> {
+    // Anti-spam: only count 1 view per chapter per browser session
+    const key = `viewed_ch_${chapterNumber}`;
+    if (typeof window !== "undefined" && localStorage.getItem(key)) return;
+
+    try {
+        await fetch(`${API_BASE_URL}/api/chapters/${chapterNumber}/view`, { method: "POST" });
+        if (typeof window !== "undefined") {
+            localStorage.setItem(key, "1");
+        }
+    } catch {
+        // Silent fail - analytics should never break reading
+    }
+}
+
+export async function getTopLikedChapters(token: string, limit = 5): Promise<any[]> {
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/admin/analytics/top-liked?limit=${limit}`, {
+            headers: { Authorization: `Bearer ${token}` },
+            cache: "no-store",
+        });
+        if (!res.ok) return [];
+        return res.json();
+    } catch {
+        return [];
+    }
 }
 
 // === GUIDE PAGES ===
