@@ -206,10 +206,16 @@ export default function ReadingClient({
                         <button
                             onClick={toggleBookmark}
                             disabled={isBookmarkLoading}
-                            className={`p-2 transition-colors ${isBookmarked ? 'text-toxic-green-DEFAULT' : 'text-ash-500 hover:text-toxic-green-DEFAULT'}`}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all border ${isBookmarked
+                                    ? 'bg-toxic-green-DEFAULT/10 border-toxic-green-DEFAULT/40 text-toxic-green-DEFAULT shadow-[0_0_15px_rgba(57,255,20,0.2)]'
+                                    : 'bg-ash-900/40 border-ash-800/60 text-ash-500 hover:border-toxic-green-DEFAULT/40 hover:text-toxic-green-DEFAULT'
+                                }`}
                             title={isBookmarked ? "Bỏ lưu khỏi Tủ sách" : "Lưu vào Tủ sách"}
                         >
-                            <Bookmark size={15} fill={isBookmarked ? "currentColor" : "none"} className={isBookmarkLoading ? "animate-pulse" : ""} />
+                            <Bookmark size={14} fill={isBookmarked ? "currentColor" : "none"} className={isBookmarkLoading ? "animate-pulse" : ""} />
+                            <span className="text-[10px] font-mono tracking-widest hidden xs:inline">
+                                {isBookmarked ? "ĐÃ LƯU" : "LƯU TRANG"}
+                            </span>
                         </button>
                         <button
                             onClick={() => setShowSettings(!showSettings)}
@@ -495,7 +501,7 @@ export default function ReadingClient({
                 {/* Visual Glassmorphism background */}
                 <div className="absolute inset-0 bg-ash-950/80 backdrop-blur-lg border-t border-ash-800/50 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]" />
 
-                <div className="relative grid grid-cols-4 items-center h-16">
+                <div className="relative grid grid-cols-5 items-center h-16">
                     <Link
                         href="/"
                         className="flex flex-col items-center justify-center gap-1 text-ash-500 hover:text-toxic-green-DEFAULT transition-colors"
@@ -503,6 +509,16 @@ export default function ReadingClient({
                         <Home size={18} />
                         <span className="text-[10px] font-mono">CHỦ</span>
                     </Link>
+
+                    <button
+                        onClick={toggleBookmark}
+                        disabled={isBookmarkLoading}
+                        className={`flex flex-col items-center justify-center gap-1 transition-colors border-l border-ash-800/40 ${isBookmarked ? 'text-toxic-green-DEFAULT' : 'text-ash-500'
+                            }`}
+                    >
+                        <Bookmark size={18} fill={isBookmarked ? "currentColor" : "none"} className={isBookmarkLoading ? "animate-pulse" : ""} />
+                        <span className="text-[10px] font-mono">{isBookmarked ? "ĐÃ LƯU" : "LƯU"}</span>
+                    </button>
 
                     {prevId ? (
                         <Link
