@@ -244,7 +244,10 @@ export default function AdminMapPage() {
                                         <button
                                             key={t.value}
                                             type="button"
-                                            onClick={() => setFormData({ ...formData, type: t.value as any })}
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                setFormData({ ...formData, type: t.value as any });
+                                            }}
                                             className={`flex items-center gap-3 p-3 rounded border text-xs font-mono transition-all ${formData.type === t.value
                                                 ? 'bg-gray-800 border-green-500 text-white'
                                                 : 'bg-[#0a0a0a] border-gray-800 text-gray-500 hover:border-gray-700'
