@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase-admin';
-import { Users, UserPlus, Shield, User, Mail, Trash2, Loader2, CheckCircle2, AlertTriangle, Key, Pencil, X, Save } from 'lucide-react';
+import { Users, UserPlus, Shield, User, Mail, Trash2, Loader2, CheckCircle2, AlertTriangle, Key, Pencil, X, Save, Search } from 'lucide-react';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
@@ -23,6 +23,7 @@ export default function AdminPersonnelPage() {
     const [token, setToken] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
 
     // Edit state
     const [editingUser, setEditingUser] = useState<Profile | null>(null);
@@ -187,8 +188,13 @@ export default function AdminPersonnelPage() {
         );
     }
 
-    const superadmins = users.filter(u => u.role === 'superadmin');
-    const editors = users.filter(u => u.role === 'editor');
+    const filteredUsers = users.filter(user =>
+        (user.display_name && user.display_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (user.email && user.email.toLowerCase().includes(searchQuery.toLowerCase()))
+    );
+
+    const superadmins = filteredUsers.filter(u => u.role === 'superadmin');
+    const editors = filteredUsers.filter(u => u.role === 'editor');
 
     const renderUserTable = (userList: Profile[]) => (
         <div className="bg-[#181818] border border-gray-800 rounded-lg overflow-x-auto">
@@ -259,12 +265,28 @@ export default function AdminPersonnelPage() {
 
     return (
         <div className="max-w-6xl">
-            <div className="mb-8">
-                <h1 className="text-2xl font-mono text-gray-100 tracking-tight flex items-center gap-3">
-                    <Users className="text-green-500" size={24} />
-                    QUẢN LÝ NHÂN SỰ
-                </h1>
-                <p className="text-gray-500 text-sm font-mono mt-1">Cấp quyền Editor hoặc Quản trị viên cho đội ngũ nội dung.</p>
+            <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
+                <div>
+                    <h1 className="text-2xl font-mono text-gray-100 tracking-tight flex items-center gap-3">
+                        <Users className="text-green-500" size={24} />
+                        QUẢN LÝ NHÂN SỰ
+                    </h1>
+                    <p className="text-gray-500 text-sm font-mono mt-1">Cấp quyền Editor hoặc Quản trị viên cho đội ngũ nội dung.</p>
+                </div>
+
+                {/* Search Bar */}
+                <div className="relative w-full md:w-64">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Search size={14} className="text-gray-500" />
+                    </div>
+                    <input
+                        type="text"
+                        placeholder="Tìm kiếm nhân sự..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full bg-[#181818] border border-gray-800 rounded-lg pl-9 pr-3 py-2 text-sm text-gray-200 focus:border-green-500 focus:outline-none transition-colors font-mono"
+                    />
+                </div>
             </div>
 
             {success && (
