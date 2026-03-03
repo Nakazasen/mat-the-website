@@ -24,6 +24,41 @@ if (typeof window !== 'undefined') {
     });
 }
 
+// Function to create custom DivIcon based on location type
+const createCustomIcon = (type: string) => {
+    if (typeof window === 'undefined') return null;
+    const L = require('leaflet');
+    const locationType = LOCATION_TYPES.find(t => t.value === type) || LOCATION_TYPES.find(t => t.value === 'neutral');
+
+    // We render a simple HTML string for the icon using Tailwind classes
+    // Note: Lucide icons can't be directly rendered to string easily here without ReactDOMServer,
+    // so we'll use a colored circle with an emoji or simple CSS shape as a fallback if needed,
+    // or just rely on CSS classes. For simplicity and reliability in Leaflet divIcon:
+
+    let bgClass = 'bg-blue-500';
+    let ringClass = 'ring-blue-500/50';
+
+    if (type === 'safe_zone') { bgClass = 'bg-green-500'; ringClass = 'ring-green-500/50'; }
+    else if (type === 'danger_zone') { bgClass = 'bg-red-500'; ringClass = 'ring-red-500/50'; }
+    else if (type === 'outpost') { bgClass = 'bg-yellow-500'; ringClass = 'ring-yellow-500/50'; }
+    else if (type === 'ruins') { bgClass = 'bg-gray-500'; ringClass = 'ring-gray-500/50'; }
+
+    const html = `
+        <div class="relative flex items-center justify-center w-8 h-8">
+            <div class="absolute inset-0 rounded-full ${bgClass} opacity-20 animate-ping"></div>
+            <div class="relative w-4 h-4 rounded-full ${bgClass} ring-4 ${ringClass} shadow-lg border-2 border-[#0d0d0d]"></div>
+        </div>
+    `;
+
+    return L.divIcon({
+        html,
+        className: 'custom-leaflet-icon',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16], // Center 
+        popupAnchor: [0, -16]
+    });
+};
+
 // Helper component for map events, needs to be used inside MapContainer
 // We can't use dynamic import for a hook easily without creating a wrapper component
 const MapEvents = ({ onMapClick }: { onMapClick: (lat: number, lng: number) => void }) => {
@@ -167,7 +202,10 @@ export default function AdminMapPage() {
                             <MapEvents onMapClick={handleMapClick} />
 
                             {/* Current selection marker (dynamic) */}
-                            <Marker position={[formData.lat, formData.lng] as any}>
+                            <Marker
+                                position={[formData.lat, formData.lng] as any}
+                                icon={createCustomIcon(formData.type)}
+                            >
                                 <Popup>Điểm đang chọn</Popup>
                             </Marker>
 
@@ -176,6 +214,7 @@ export default function AdminMapPage() {
                                 <Marker
                                     key={loc.id}
                                     position={[loc.lat, loc.lng] as any}
+                                    icon={createCustomIcon(loc.type)}
                                     eventHandlers={{
                                         click: () => {
                                             setSelectedLocation(loc);
@@ -193,7 +232,8 @@ export default function AdminMapPage() {
                                     <Popup>
                                         <div className="text-dark p-1">
                                             <div className="font-bold border-b mb-1">{loc.name}</div>
-                                            <div className="text-[10px] uppercase font-mono">{loc.type}</div>
+                                            <div className="text-[10px] uppercase font-mono">{LOCATION_TYPES.find(t => t.value === loc.type)?.label || loc.type}</div>
+                                            {loc.description && <div className="text-xs mt-1 text-gray-600 truncate max-w-[150px]">{loc.description}</div>}
                                         </div>
                                     </Popup>
                                 </Marker>
