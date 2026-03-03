@@ -70,33 +70,33 @@ export default async function AdminDashboardPage() {
                 <div className="bg-[#0d0d0d] border border-gray-800 rounded-lg p-4">
                     <div className="flex items-center gap-2 mb-2">
                         <BookOpen size={14} className="text-green-400" />
-                        <span className="text-xs font-mono text-gray-500 tracking-widest">TỔNG CHƯƠNG</span>
+                        <span className="text-xs font-mono text-gray-500 tracking-widest truncate">TỔNG CHƯƠNG</span>
                     </div>
-                    <div className="text-3xl font-mono text-green-400 font-bold">{stats.max_chapter}</div>
+                    <div className="text-2xl sm:text-3xl font-mono text-green-400 font-bold truncate">{stats.max_chapter}</div>
                 </div>
 
                 <div className="bg-[#0d0d0d] border border-gray-800 rounded-lg p-4">
                     <div className="flex items-center gap-2 mb-2">
                         <TrendingUp size={14} className="text-blue-400" />
-                        <span className="text-xs font-mono text-gray-500 tracking-widest">CHƯƠNG MỚI</span>
+                        <span className="text-xs font-mono text-gray-500 tracking-widest truncate">CHƯƠNG MỚI</span>
                     </div>
-                    <div className="text-3xl font-mono text-blue-400 font-bold">{stats.max_chapter}</div>
+                    <div className="text-2xl sm:text-3xl font-mono text-blue-400 font-bold truncate">{stats.max_chapter}</div>
                 </div>
 
                 <div className="bg-[#0d0d0d] border border-gray-800 rounded-lg p-4">
                     <div className="flex items-center gap-2 mb-2">
                         <Eye size={14} className="text-purple-400" />
-                        <span className="text-xs font-mono text-gray-500 tracking-widest">TỔNG VIEW</span>
+                        <span className="text-xs font-mono text-gray-500 tracking-widest truncate">TỔNG VIEW</span>
                     </div>
-                    <div className="text-3xl font-mono text-purple-400 font-bold">{totalViews.toLocaleString()}</div>
+                    <div className="text-2xl sm:text-3xl font-mono text-purple-400 font-bold truncate">{totalViews.toLocaleString()}</div>
                 </div>
 
                 <div className="bg-[#0d0d0d] border border-gray-800 rounded-lg p-4">
                     <div className="flex items-center gap-2 mb-2">
                         <Heart size={14} className="text-red-400" />
-                        <span className="text-xs font-mono text-gray-500 tracking-widest">TỔNG TIM</span>
+                        <span className="text-xs font-mono text-gray-500 tracking-widest truncate">TỔNG TIM</span>
                     </div>
-                    <div className="text-3xl font-mono text-red-400 font-bold">{totalLikes.toLocaleString()}</div>
+                    <div className="text-2xl sm:text-3xl font-mono text-red-400 font-bold truncate">{totalLikes.toLocaleString()}</div>
                 </div>
             </div>
 
@@ -115,17 +115,17 @@ export default async function AdminDashboardPage() {
                                 return (
                                     <div key={ch.chapter_number} className="group">
                                         <div className="flex items-center justify-between mb-1">
-                                            <div className="flex items-center gap-2">
-                                                <span className={`text-[10px] font-mono font-bold w-5 text-center rounded-sm py-0.5 ${idx === 0 ? 'bg-yellow-500/20 text-yellow-400' :
+                                            <div className="flex items-center gap-2 flex-1 min-w-0 mr-2">
+                                                <span className={`shrink-0 text-[10px] font-mono font-bold w-5 text-center rounded-sm py-0.5 ${idx === 0 ? 'bg-yellow-500/20 text-yellow-400' :
                                                     idx === 1 ? 'bg-gray-400/20 text-gray-300' :
                                                         idx === 2 ? 'bg-amber-700/20 text-amber-500' :
                                                             'text-gray-700'
                                                     }`}>{idx + 1}</span>
-                                                <span className="text-sm text-gray-300 font-mono truncate max-w-[180px]">
+                                                <span className="text-sm text-gray-300 font-mono truncate">
                                                     Ch.{ch.chapter_number}: {ch.title}
                                                 </span>
                                             </div>
-                                            <span className="text-xs font-mono text-purple-400 font-bold">
+                                            <span className="shrink-0 text-xs font-mono text-purple-400 font-bold">
                                                 {(ch.view_count || 0).toLocaleString()}
                                             </span>
                                         </div>
@@ -155,17 +155,17 @@ export default async function AdminDashboardPage() {
                                 return (
                                     <div key={ch.chapter_number} className="group">
                                         <div className="flex items-center justify-between mb-1">
-                                            <div className="flex items-center gap-2">
-                                                <span className={`text-[10px] font-mono font-bold w-5 text-center rounded-sm py-0.5 ${idx === 0 ? 'bg-yellow-500/20 text-yellow-400' :
+                                            <div className="flex items-center gap-2 flex-1 min-w-0 mr-2">
+                                                <span className={`shrink-0 text-[10px] font-mono font-bold w-5 text-center rounded-sm py-0.5 ${idx === 0 ? 'bg-yellow-500/20 text-yellow-400' :
                                                     idx === 1 ? 'bg-gray-400/20 text-gray-300' :
                                                         idx === 2 ? 'bg-amber-700/20 text-amber-500' :
                                                             'text-gray-700'
                                                     }`}>{idx + 1}</span>
-                                                <span className="text-sm text-gray-300 font-mono truncate max-w-[180px]">
+                                                <span className="text-sm text-gray-300 font-mono truncate">
                                                     Ch.{ch.chapter_number}: {ch.title}
                                                 </span>
                                             </div>
-                                            <span className="text-xs font-mono text-red-400 font-bold flex items-center gap-1">
+                                            <span className="shrink-0 text-xs font-mono text-red-400 font-bold flex items-center gap-1">
                                                 <Heart size={10} fill="currentColor" />
                                                 {(ch.likes_count || 0).toLocaleString()}
                                             </span>
