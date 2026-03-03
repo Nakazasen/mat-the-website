@@ -187,6 +187,76 @@ export default function AdminPersonnelPage() {
         );
     }
 
+    const superadmins = users.filter(u => u.role === 'superadmin');
+    const editors = users.filter(u => u.role === 'editor');
+
+    const renderUserTable = (userList: Profile[]) => (
+        <div className="bg-[#181818] border border-gray-800 rounded-lg overflow-x-auto">
+            <table className="w-full text-left text-sm font-mono whitespace-nowrap">
+                <thead className="bg-[#0d0d0d] border-b border-gray-800 text-gray-500 uppercase text-[10px] tracking-[0.2em]">
+                    <tr>
+                        <th className="px-4 py-4 sm:px-6 w-1/2 min-w-[200px]">Nhân sự</th>
+                        <th className="px-4 py-4 sm:px-6 w-1/4">Vai trò</th>
+                        <th className="px-4 py-4 sm:px-6 w-1/4 text-right">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-800">
+                    {userList.map((user) => (
+                        <tr key={user.id} className="hover:bg-gray-800/20 transition-colors group">
+                            <td className="px-4 py-4 sm:px-6">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded bg-green-900/20 border border-green-800/30 flex items-center justify-center text-green-500 font-bold shrink-0">
+                                        {user.display_name?.[0] || user.email[0].toUpperCase()}
+                                    </div>
+                                    <div className="overflow-hidden">
+                                        <div className="text-gray-200 font-bold truncate">{user.display_name || 'Chưa đặt tên'}</div>
+                                        <div className="text-gray-500 text-[10px] truncate">{user.email}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td className="px-4 py-4 sm:px-6">
+                                <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] tracking-widest uppercase font-bold border ${user.role === 'superadmin'
+                                    ? 'bg-red-500/10 border-red-500/20 text-red-500'
+                                    : 'bg-green-500/10 border-green-500/20 text-green-500'
+                                    }`}>
+                                    <Shield size={10} />
+                                    {user.role}
+                                </span>
+                            </td>
+                            <td className="px-4 py-4 sm:px-6 text-right">
+                                <div className="flex items-center justify-end gap-1">
+                                    <button
+                                        onClick={() => startEdit(user)}
+                                        className="text-gray-600 hover:text-green-500 transition-colors p-2"
+                                        title="Chỉnh sửa"
+                                    >
+                                        <Pencil size={15} />
+                                    </button>
+                                    {user.role !== 'superadmin' && (
+                                        <button
+                                            onClick={() => handleDelete(user.id, user.email)}
+                                            className="text-gray-600 hover:text-red-500 transition-colors p-2"
+                                            title="Xoá tài khoản"
+                                        >
+                                            <Trash2 size={15} />
+                                        </button>
+                                    )}
+                                </div>
+                            </td>
+                        </tr>
+                    ))}
+                    {userList.length === 0 && (
+                        <tr>
+                            <td colSpan={3} className="px-6 py-8 text-center text-gray-500 text-xs italic">
+                                Không có dữ liệu.
+                            </td>
+                        </tr>
+                    )}
+                </tbody>
+            </table>
+        </div>
+    );
+
     return (
         <div className="max-w-6xl">
             <div className="mb-8">
@@ -301,63 +371,21 @@ export default function AdminPersonnelPage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* LIST SECTION */}
-                <div className="lg:col-span-2 space-y-4">
-                    <div className="bg-[#181818] border border-gray-800 rounded-lg overflow-hidden">
-                        <table className="w-full text-left text-sm font-mono">
-                            <thead className="bg-[#0d0d0d] border-b border-gray-800 text-gray-500 uppercase text-[10px] tracking-[0.2em]">
-                                <tr>
-                                    <th className="px-6 py-4">Nhân sự</th>
-                                    <th className="px-6 py-4">Vai trò</th>
-                                    <th className="px-6 py-4 text-right">Thao tác</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-800">
-                                {users.map((user) => (
-                                    <tr key={user.id} className="hover:bg-gray-800/20 transition-colors group">
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded bg-green-900/20 border border-green-800/30 flex items-center justify-center text-green-500 font-bold">
-                                                    {user.display_name?.[0] || user.email[0].toUpperCase()}
-                                                </div>
-                                                <div>
-                                                    <div className="text-gray-200 font-bold">{user.display_name || 'Chưa đặt tên'}</div>
-                                                    <div className="text-gray-500 text-[10px]">{user.email}</div>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] tracking-widest uppercase font-bold border ${user.role === 'superadmin'
-                                                ? 'bg-red-500/10 border-red-500/20 text-red-500'
-                                                : 'bg-green-500/10 border-green-500/20 text-green-500'
-                                                }`}>
-                                                <Shield size={10} />
-                                                {user.role}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-right">
-                                            <div className="flex items-center justify-end gap-1">
-                                                <button
-                                                    onClick={() => startEdit(user)}
-                                                    className="text-gray-600 hover:text-green-500 transition-colors p-2"
-                                                    title="Chỉnh sửa"
-                                                >
-                                                    <Pencil size={15} />
-                                                </button>
-                                                {user.role !== 'superadmin' && (
-                                                    <button
-                                                        onClick={() => handleDelete(user.id, user.email)}
-                                                        className="text-gray-600 hover:text-red-500 transition-colors p-2"
-                                                        title="Xoá tài khoản"
-                                                    >
-                                                        <Trash2 size={15} />
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                <div className="lg:col-span-2 space-y-8">
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-2 border-b border-gray-800 pb-2">
+                            <Shield className="text-red-500" size={16} />
+                            <h2 className="text-sm font-mono text-gray-200 uppercase tracking-widest">Danh Sách SuperAdmin</h2>
+                        </div>
+                        {renderUserTable(superadmins)}
+                    </div>
+
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-2 border-b border-gray-800 pb-2">
+                            <Pencil className="text-green-500" size={16} />
+                            <h2 className="text-sm font-mono text-gray-200 uppercase tracking-widest">Danh Sách Editor</h2>
+                        </div>
+                        {renderUserTable(editors)}
                     </div>
                 </div>
 
