@@ -60,6 +60,38 @@ Lấy danh sách bình luận của chương.
 
 ---
 
+### GET /api/admin/comments
+(Admin) Lấy danh sách toàn bộ bình luận trong hệ thống, hỗ trợ phân trang.
+
+**Query Params:**
+- `page`: int (mặc định 1)
+- `limit`: int (mặc định 50, tối đa 100)
+
+**Headers:** `Authorization: Bearer {admin_token}`
+
+---
+
+### PUT /api/admin/comments/{id}
+(Admin) Sửa nội dung bình luận theo ID.
+
+**Body:**
+```json
+{
+  "content": "Nội dung mới"
+}
+```
+
+**Headers:** `Authorization: Bearer {admin_token}`
+
+---
+
+### DELETE /api/admin/comments/{id}
+(Admin) Xóa bình luận theo ID.
+
+**Headers:** `Authorization: Bearer {admin_token}`
+
+---
+
 ## 📊 Analytics (Admin)
 
 ### GET /api/admin/analytics/top-chapters

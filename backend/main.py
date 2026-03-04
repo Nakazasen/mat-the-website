@@ -7,7 +7,7 @@ import io
 import os
 import re
 import unicodedata
-# Force re-deploy to Vercel (Trigger)
+# Force re-deploy to Vercel and Render (Trigger)
 from typing import Optional, List
 from urllib.parse import quote
 import boto3
@@ -971,6 +971,73 @@ class Comment(BaseModel):
     user_name: str
     content: str
     created_at: str
+
+
+class AdminCommentUpdate(BaseModel):
+    content: str
+
+
+@app.get("/api/admin/comments", summary="[Admin] Lấy danh sách tất cả bình luận")
+async def admin_get_comments(
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=100),
+    authorization: Optional[str] = Header(None)
+):
+    """Lấy danh sách bình luận trên toàn hệ thống, có phân trang."""
+    await verify_admin(authorization)
+    try:
+        offset = (page - 1) * limit
+        resp = (
+            supabase.table("comments")
+            .select("*", count="exact")
+            .order("created_at", desc=True)
+            .range(offset, offset + limit - 1)
+            .execute()
+        )
+        total = resp.count or 0
+        total_pages = (total + limit - 1) // limit if limit > 0 else 1
+        return {
+            "comments": resp.data,
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "total_pages": total_pages
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/admin/comments/{comment_id}", summary="[Admin] Sửa bình luận")
+async def admin_update_comment(
+    comment_id: str,
+    body: AdminCommentUpdate,
+    authorization: Optional[str] = Header(None)
+):
+    """Sửa nội dung bình luận của độc giả."""
+    await verify_admin(authorization)
+    try:
+        resp = supabase.table("comments").update({"content": body.content}).eq("id", comment_id).execute()
+        if not resp.data:
+            raise HTTPException(status_code=404, detail="Không tìm thấy bình luận")
+        return resp.data[0]
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/admin/comments/{comment_id}", summary="[Admin] Xóa bình luận")
+async def admin_delete_comment(
+    comment_id: str,
+    authorization: Optional[str] = Header(None)
+):
+    """Xóa một bình luận khỏi hệ thống."""
+    await verify_admin(authorization)
+    try:
+        supabase.table("comments").delete().eq("id", comment_id).execute()
+        return {"status": "success", "message": "Đã xóa bình luận"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/chapters/{chapter_number}/comments", summary="Gửi bình luận mới")
