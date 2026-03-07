@@ -46,17 +46,17 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         if (!mounted) return;
 
-        document.documentElement.setAttribute('data-theme', theme);
+        if (typeof document !== 'undefined') {
+            document.documentElement.setAttribute('data-theme', theme);
+            if (theme === 'dark') {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        }
         localStorage.setItem('reader-theme', theme);
         localStorage.setItem('reader-font-size', fontSize.toString());
         localStorage.setItem('reader-font-family', fontFamily);
-
-        // Manage 'dark' class for Tailwind
-        if (theme === 'dark') {
-            document.documentElement.classList.add('dark');
-        } else {
-            document.documentElement.classList.remove('dark');
-        }
     }, [theme, fontSize, fontFamily, mounted]);
 
     const setTheme = (newTheme: Theme) => setThemeState(newTheme);

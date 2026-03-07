@@ -8,7 +8,6 @@ import {
 } from "@/lib/api";
 import ReadingClient from "@/components/ReadingClient";
 import type { Metadata } from "next";
-
 export const dynamic = "force-dynamic";
 
 interface Props {

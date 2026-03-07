@@ -178,7 +178,7 @@ export default function ReadingClient({
     }, [chapterId, chapterNumber, chapterTitle]);
 
     return (
-        <div className={`min-h-screen bg-reader-bg text-reader-text transition-colors duration-300 ${fontFamily === 'serif' ? 'font-serif' : 'font-sans'}`}>
+        <div suppressHydrationWarning className={`min-h-screen bg-reader-bg text-reader-text transition-colors duration-300 ${fontFamily === 'serif' ? 'font-serif' : 'font-sans'}`}>
             {/* Progress bar */}
             <div
                 className="reading-progress"
