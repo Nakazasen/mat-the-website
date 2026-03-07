@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Settings, Home, List, Sun, Moon, Coffee, Share2, Facebook, Bookmark } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
@@ -36,6 +36,20 @@ export default function ReadingClient({
     const [activeChunkIndex, setActiveChunkIndex] = useState<number | null>(null);
     const contentRef = useRef<HTMLDivElement>(null);
     const activeChunkRef = useRef<HTMLSpanElement>(null);
+
+    const [isMounted, setIsMounted] = useState(false);
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
+
+    const karaokeNodes = useMemo(() => {
+        if (!isMounted) return null;
+        return renderRichKaraoke(content, activeChunkIndex, theme, (idx: number, el: HTMLElement | null) => {
+            if (activeChunkIndex === idx && el) {
+                activeChunkRef.current = el;
+            }
+        }).nodes;
+    }, [content, activeChunkIndex, theme, isMounted]);
 
     // Bookmarks state
     const [isBookmarked, setIsBookmarked] = useState(false);
@@ -371,11 +385,11 @@ export default function ReadingClient({
                     className="reading-container !bg-transparent !text-inherit prose max-w-none"
                     style={{ fontSize: `${fontSize}px`, lineHeight: 1.8 }}
                 >
-                    {renderRichKaraoke(content, activeChunkIndex, theme, (idx: number, el: HTMLElement | null) => {
-                        if (activeChunkIndex === idx && el) {
-                            activeChunkRef.current = el;
-                        }
-                    }).nodes}
+                    {!isMounted ? (
+                        <div dangerouslySetInnerHTML={{ __html: content }} />
+                    ) : (
+                        karaokeNodes
+                    )}
                 </div>
 
                 {/* === SOCIAL SHARE === */}

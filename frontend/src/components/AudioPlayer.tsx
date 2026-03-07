@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Pause, Play, Square, Volume2, VolumeX } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { splitIntoChunks } from '@/lib/tts-utils';
+import { splitIntoChunks, stripHtml } from '@/lib/tts-utils';
 
 interface AudioPlayerProps {
     content: string;
@@ -50,7 +50,6 @@ export default function AudioPlayer({
     }, [speed]);
 
     useEffect(() => {
-        const { stripHtml, splitIntoChunks } = require('@/lib/tts-utils');
         const cleanText = stripHtml(content);
         chunksRef.current = splitIntoChunks(cleanText);
     }, [content]);
