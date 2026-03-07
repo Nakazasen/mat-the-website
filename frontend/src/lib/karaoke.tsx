@@ -84,14 +84,22 @@ export function renderRichKaraoke(
         // Element Node (p, div, b, i, etc.)
         if (node.nodeType === Node.ELEMENT_NODE) {
             const el = node as HTMLElement;
-            const children = Array.from(el.childNodes).map((child, i) => walk(child, `${path}-${i}`));
 
             // Map common tags to React equivalents or generic tags
             const Tag = el.tagName.toLowerCase() as any;
-            const validTags = ['p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'b', 'i', 'strong', 'em', 'u', 'br', 'ul', 'ol', 'li', 'blockquote'];
+
+            // Void elements: cannot have children in React
+            const voidTags = ['br', 'hr', 'img', 'input', 'wbr'];
+            if (voidTags.includes(Tag)) {
+                return React.createElement(Tag, { key: `tag-${path}` });
+            }
+
+            const children = Array.from(el.childNodes).map((child, i) => walk(child, `${path}-${i}`));
+
+            const validTags = ['p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'b', 'i', 'strong', 'em', 'u', 'ul', 'ol', 'li', 'blockquote', 'span', 'a', 'section', 'article'];
 
             if (validTags.includes(Tag)) {
-                return React.createElement(Tag, { key: `tag-${path}`, className: el.className }, children);
+                return React.createElement(Tag, { key: `tag-${path}`, className: el.className || undefined }, children);
             }
             return <React.Fragment key={`frag-${path}`}>{children}</React.Fragment>;
         }
