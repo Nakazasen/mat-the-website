@@ -2,7 +2,7 @@
   "meta": {
     "schema_version": "1.1.0",
     "awf_version": "4.0.2",
-    "last_updated": "2026-03-03T07:00:00+07:00"
+    "last_updated": "2026-03-13T06:30:00+07:00"
   },
   "project": {
     "name": "Mạt Thế - Sinh Hoá Nguy Cơ",
@@ -79,7 +79,7 @@
     {
       "path": "/api/wiki/{slug}",
       "method": "GET",
-      "explained": "Chi tiết bách khoa"
+      "explained": "Chi tiết bách khoa. Tắt cache để admin cập nhật ảnh hiển thị ngay."
     },
     {
       "path": "GET /api/novel",
@@ -104,6 +104,11 @@
   ],
   "features": [
     {
+      "name": "Wiki Optimization",
+      "status": "complete",
+      "description": "Tối ưu hiển thị ảnh bách khoa (tỉ lệ 21:9/16:9) và tắt cache detail để cập nhật tức thì."
+    },
+    {
       "name": "Side Stories",
       "status": "complete",
       "description": "Phân loại Mạch chính / Ngoại truyện. Tích hợp Tab lọc ở frontend và Checkbox ở Admin."
@@ -127,15 +132,14 @@
       "name": "Rich Text Editor (Tiptap)",
       "status": "complete",
       "description": "Soạn thảo văn bản chuyên nghiệp cho Chương truyện và Wiki, tích hợp upload R2 trực tiếp."
-    },
-    {
-      "name": "Rich Karaoke Rendering",
-      "status": "complete",
-      "description": "Hệ thống render Karaoke thông minh cho văn bản HTML, giữ nguyên cấu trúc ảnh/thẻ trong khi vẫn highlight từng chữ."
     }
   ],
   "knowledge_items": {
     "gotchas": [
+      {
+        "title": "Wiki Detail Cache ISR Delay",
+        "detail": "Next.js mặc định cache trang chi tiết. Nếu admin thêm ảnh bia, độc giả có thể phải đợi 5-10 phút mới thấy. Khắc phục bằng cách dùng cache: 'no-store' trong hàm getWikiEntry."
+      },
       {
         "title": "Supabase Service Role Requirement",
         "detail": "Khi thực hiện các tác vụ Admin như auth.admin.create_user, PHẢI dùng SUPABASE_KEY là service_role key, không được dùng anon key."
@@ -153,14 +157,18 @@
         "detail": "Tránh dùng .prose-invert nếu theme có cả chế độ sáng. Nên dùng CSS Variables kế thừa (inherit) cho các thẻ con trong .rich-text-content."
       },
       {
-        "title": "Audio Karaoke & HTML",
-        "detail": "Khi render HTML raw bằng dangerouslySetInnerHTML, hiệu ứng Karaoke (cần bọc chữ trong span) sẽ bị mất. Cần một bộ xử lý DOM ảo để inject span vào text nodes."
+        "title": "React Error #137 (Void Elements)",
+        "detail": "Thẻ <br>, <hr>, <img> là void elements trong React. KHÔNG được truyền children vào các thẻ này trong React.createElement hoặc JSX, nếu không ứng dụng sẽ crash màn hình đen."
+      },
+      {
+        "title": "Hydration Mismatch on Theme/Class",
+        "detail": "Khi thay đổi theme (Dark/Light) dựa trên localStorage ngay khi mount, NextJS dễ bị lỗi Hydration Mismatch. Cần dùng isMounted hook hoặc suppressHydrationWarning để tránh crash client-side exception."
       }
     ]
   },
   "git": {
     "github_user": "Nakazasen",
     "git_email": "buiducvinhct1102@gmail.com",
-    "last_commit": "fix: update verify_admin to support Supabase JWT"
+    "last_commit": "chore(backend): trigger redeploy for Render"
   }
 }

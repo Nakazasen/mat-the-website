@@ -81,5 +81,31 @@ All notable changes to this project will be documented in this file.
 - **Styling**: Introduced `.rich-text-home` and fixed-color button utilities for better design consistency on fixed-background sections.
 - **Workflow**: Integrated AWF 4.0.2 for improved project memory and status tracking.
 
+## [2026-03-07] - Part 7: Stability & Rendering Critical Fixes
+### Fixed
+- **React Error #137 (Void Elements)**: Resolved a critical client-side crash in `karaoke.tsx` by separating void elements (like `<br>`, `<hr>`, `<img>`) to prevent them from receiving children.
+- **Hydration Mismatch**: Fixed persistent "Application error: a client-side exception has occurred" by:
+    - Adding `isMounted` hooks to `ReadingClient.tsx` to defer rich rendering until client-mount.
+    - Adding `suppressHydrationWarning` to avoid theme-related attribute mismatches.
+    - Ensuring `ThemeContext.tsx` only accesses `document` on the client side.
+- **Performance & OOM**: Replaced `Math.random()` React keys with deterministic path-based keys in the Karaoke engine to prevent re-render loops and memory exhaustion on long chapters.
+- **Build Reliability**: Converted dynamic `require()` calls to static ES imports in `AudioPlayer.tsx` to ensure correct bundling in production.
+
+### Changed
+- **Karaoke Engine**: Optimized recursive rendering to use fixed keys, significantly reducing CPU usage during audio playback.
+
 ---
-*Last updated: 2026-03-03 06:55:00*
+## [2026-03-13] - Part 8: Wiki Optimization & Immediate Updates
+### Added
+- **Wiki Image Guidelines**: Created comprehensive documentation for image ratios (21:9/16:9) and resolutions to ensure high-quality display in both list and detail views.
+- **Instant Wiki Updates**: Optimized the reader experience by disabling cache on Wiki entry fetching, allowing editorial changes to reflect immediately.
+
+### Fixed
+- **Wiki Detail Cache**: Resolved the 5-minute delay issue where new images or content edits wouldn't show up in the detail view because of Next.js ISR/Data Cache.
+
+### Changed
+- **Frontend API**: Updated `getWikiEntry` in `lib/api.ts` to use `cache: "no-store"`.
+- **Deployment Trigger**: Added a timestamp-based trigger in `backend/main.py` to ensure Render redeploys in sync with Vercel for backend-dependent changes.
+
+---
+*Last updated: 2026-03-13 06:30:00*
