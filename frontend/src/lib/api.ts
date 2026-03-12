@@ -167,7 +167,7 @@ export async function getWikiEntries(category?: string, search?: string): Promis
 }
 
 export async function getWikiEntry(slug: string): Promise<WikiEntry> {
-    const res = await fetch(`${API_BASE_URL}/api/wiki/${slug}`, { next: { revalidate: 300 } });
+    const res = await fetch(`${API_BASE_URL}/api/wiki/${slug}`, { cache: "no-store" });
     if (!res.ok) throw new Error(`Wiki entry '${slug}' not found`);
     return res.json();
 }
