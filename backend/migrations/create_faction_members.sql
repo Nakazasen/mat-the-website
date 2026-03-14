@@ -28,3 +28,6 @@ CREATE POLICY "faction_members_public_read" ON faction_members
     FOR SELECT USING (true);
 
 -- Admin full access (via service role key, bypasses RLS)
+CREATE POLICY "faction_members_admin_full_access" ON faction_members
+    AS PERMISSIVE FOR ALL
+    TO

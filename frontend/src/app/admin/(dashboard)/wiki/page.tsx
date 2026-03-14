@@ -38,6 +38,7 @@ export default function AdminWikiPage() {
     const [toast, setToast] = useState<{ type: "success" | "error"; msg: string } | null>(null);
     const [hierarchyEntry, setHierarchyEntry] = useState<WikiEntry | null>(null);
     const [hierarchyMembers, setHierarchyMembers] = useState<FactionMember[]>([]);
+    const [isUploadingImg, setIsUploadingImg] = useState(false);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -227,17 +228,20 @@ export default function AdminWikiPage() {
                                 <div className="flex gap-2">
                                     <input value={form.image_url || ""} onChange={e => setForm(f => ({ ...f, image_url: e.target.value }))}
                                         placeholder="https://pub-xxx.r2.dev/wiki/zombie-cap-1.jpg" className="flex-1 bg-[#0d0d0d] border border-gray-800 rounded px-3 py-2 text-xs font-mono text-gray-300 focus:outline-none focus:border-green-700" />
-                                    <label className="flex items-center justify-center px-4 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 rounded cursor-pointer transition-colors" title="Tải ảnh lên R2">
-                                        <Upload size={16} />
-                                        <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                                    <label className={`flex items-center justify-center px-4 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 rounded cursor-pointer transition-colors ${isUploadingImg ? "opacity-50 cursor-not-allowed" : ""}`} title="Tải ảnh lên R2">
+                                        {isUploadingImg ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+                                        <input type="file" accept="image/*" className="hidden" disabled={isUploadingImg} onChange={async (e) => {
                                             const file = e.target.files?.[0];
                                             if (file) {
+                                                setIsUploadingImg(true);
                                                 try {
                                                     const url = await uploadImageR2(file, ADMIN_TOKEN);
                                                     setForm(f => ({ ...f, image_url: url }));
                                                     showToast("success", "Tải ảnh bìa thành công!");
                                                 } catch (err) {
                                                     showToast("error", "Lỗi tải ảnh bìa");
+                                                } finally {
+                                                    setIsUploadingImg(false);
                                                 }
                                             }
                                         }} />
@@ -271,7 +275,7 @@ export default function AdminWikiPage() {
                                 />
                             </div>
 
-                            <button onClick={handleSave} disabled={saving}
+                            <button onClick={handleSave} disabled={saving || isUploadingImg}
                                 className="w-full flex items-center justify-center gap-2 py-3 bg-green-900 hover:bg-green-800 border border-green-700 text-green-300 text-sm font-mono rounded transition-colors disabled:opacity-50">
                                 {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
                                 {saving ? "Đang lưu..." : "Lưu Entry"}
