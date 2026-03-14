@@ -120,4 +120,23 @@ All notable changes to this project will be documented in this file.
 - **Editor Linting:** Fixed Tiptap `setContent` options type error to align with the latest API.
 
 ---
-*Last updated: 2026-03-14 08:00:00*
+## [2026-03-14] - Part 10: Faction Hierarchy & Performance
+### Added
+- **Sơ đồ Tổ chức (Faction Hierarchy):** 🌳
+  - Backend: Table `faction_members` với cơ chế `parent_id` cho phép cây nhân sự vô hạn cấp.
+  - Admin: Component `FactionHierarchyEditor` trực quan, cho phép kéo thả/gán nhân vật và chức danh.
+  - Reader: Component `FactionOrgChart` tự động hiển thị theo tầng (Tiers) dựa trên `rank_level` hoặc theo sơ đồ cây.
+  - Phân loại màu sắc: Rank 0 (Vàng), Rank 1 (Xanh lá), Rank 2 (Xanh lơ - Cyan).
+- **Tối ưu Upload Ảnh (Image Compression):** ⚡
+  - Tích hợp `browser-image-compression` để nén ảnh ngay tại trình duyệt.
+  - Tự động nén file 7MB-10MB xuống ~1.5MB trước khi upload, tăng tốc độ 5-10 lần.
+  - Fix lỗi trùng tên ảnh bằng cách sử dụng UUID cho mỗi file upload lên R2.
+
+### Fixed
+- **Admin UX:** 
+  - Vô hiệu hóa nút Lưu khi đang upload ảnh để tránh mất dữ liệu.
+  - Thêm spinner loading cho nút Upload.
+  - Sửa lỗi hiển thị dàn hàng ngang của sơ đồ tổ chức khi chưa gán cha-con.
+
+*Last updated: 2026-03-14 18:30:00*
+

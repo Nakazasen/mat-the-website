@@ -2,7 +2,7 @@
   "meta": {
     "schema_version": "1.1.0",
     "awf_version": "4.0.2",
-    "last_updated": "2026-03-14T08:00:00+07:00"
+    "last_updated": "2026-03-14T18:35:00+07:00"
   },
   "project": {
     "name": "Mạt Thế - Sinh Hoá Nguy Cơ",
@@ -19,7 +19,8 @@
       "icons": "lucide-react",
       "deployment": "Vercel",
       "pwa": "Supported (Custom Manifest + Basic Service Worker)",
-      "maps": "react-leaflet + Leaflet"
+      "maps": "react-leaflet + Leaflet",
+      "performance": "browser-image-compression for frontend-side optimization"
     },
     "backend": {
       "framework": "FastAPI (Python)",
@@ -36,7 +37,8 @@
         "wiki_entries",
         "homepage_settings",
         "profiles",
-        "map_locations"
+        "map_locations",
+        "faction_members"
       ]
     },
     "storage": "Cloudflare R2 (lưu file nội dung chương .txt, bách khoa, bản đồ, public CDN)"
@@ -82,6 +84,14 @@
       "explained": "Chi tiết bách khoa. Tắt cache để admin cập nhật ảnh hiển thị ngay."
     },
     {
+      "path": "GET /api/wiki/{slug}/hierarchy",
+      "explained": "Lấy sơ đồ tổ chức của một thế lực."
+    },
+    {
+      "path": "POST /api/admin/wiki/{faction_id}/members",
+      "explained": "Thêm thành viên vào sơ đồ tổ chức (Admin)."
+    },
+    {
       "path": "GET /api/novel",
       "explained": "Lấy thông tin chung của truyện (Tiêu đề, Tác giả, Mô tả...)"
     },
@@ -104,24 +114,19 @@
   ],
   "features": [
     {
+      "name": "Faction Hierarchy",
+      "status": "complete",
+      "description": "Hệ thống sơ đồ tổ chức cho thế lực (Thế lực → Nhân vật). Hỗ trợ vô hạn cấp, hiển thị theo Tiers hoặc Tree."
+    },
+    {
+      "name": "Frontend Image Compression",
+      "status": "complete",
+      "description": "Sử dụng browser-image-compression để nén ảnh bìa/wiki xuống <1.5MB trước khi upload, cải thiện tốc độ 5-10x cho file lớn."
+    },
+    {
       "name": "Wiki Optimization",
       "status": "complete",
       "description": "Tối ưu hiển thị ảnh bách khoa (tỉ lệ 21:9/16:9) và tắt cache detail để cập nhật tức thì."
-    },
-    {
-      "name": "Side Stories",
-      "status": "complete",
-      "description": "Phân loại Mạch chính / Ngoại truyện. Tích hợp Tab lọc ở frontend và Checkbox ở Admin."
-    },
-    {
-      "name": "Dynamic Homepage",
-      "status": "complete",
-      "description": "Quản lý toàn bộ text trang chủ qua Database, không cẩn sửa code khi muốn đổi thông báo."
-    },
-    {
-      "name": "Personnel RBAC",
-      "status": "complete",
-      "description": "Hệ thống phân quyền SuperAdmin/Editor dựa trên Supabase Profiles + JWT Verification."
     },
     {
       "name": "Interactive War Map",
@@ -131,52 +136,32 @@
     {
       "name": "Rich Text Editor (Tiptap)",
       "status": "complete",
-      "description": "Soạn thảo văn bản chuyên nghiệp cho Chương truyện và Wiki. Đã tích hợp tính năng 'Dọn dẹp văn bản' (Clean Text) để xóa dòng thừa khi dán từ Word/Docs."
+      "description": "Soạn thảo văn bản chuyên nghiệp. Đã tích hợp 'Clean Text' và tối ưu UX khi upload ảnh (loading state, disabled save button)."
     }
   ],
   "knowledge_items": {
     "gotchas": [
       {
-        "title": "Wiki Detail Cache ISR Delay",
-        "detail": "Next.js mặc định cache trang chi tiết. Nếu admin thêm ảnh bia, độc giả có thể phải đợi 5-10 phút mới thấy. Khắc phục bằng cách dùng cache: 'no-store' trong hàm getWikiEntry."
+        "title": "Org Chart Auto-Tiering",
+        "detail": "Khi sơ đồ không có parent_id (quan hệ cha-con), hệ thống sẽ tự động nhóm theo rank_level để tránh bị dàn hàng ngang trên một hàng duy nhất."
       },
       {
-        "title": "Supabase Service Role Requirement",
-        "detail": "Khi thực hiện các tác vụ Admin như auth.admin.create_user, PHẢI dùng SUPABASE_KEY là service_role key, không được dùng anon key."
-      },
-      {
-        "title": "FastAPI NameError with List",
-        "detail": "Khi dùng response_model=List[Model], phải import List từ typing. Nếu không sẽ crash log Render."
-      },
-      {
-        "title": "Leaflet SSR Issues",
-        "detail": "Leaflet chỉ chạy trên trình duyệt. Phải dùng dynamic import với { ssr: false } trong Next.js."
-      },
-      {
-        "title": "Tailwind Typography Contrast",
-        "detail": "Tránh dùng .prose-invert nếu theme có cả chế độ sáng. Nên dùng CSS Variables kế thừa (inherit) cho các thẻ con trong .rich-text-content."
+        "title": "Unique Filenames on R2",
+        "detail": "Để tránh lỗi ghi đè khi upload ảnh cùng tên, backend sử dụng UUID để đặt tên file. Admin không cần lo lắng về việc trùng tên anh_bia.png."
       },
       {
         "title": "React Error #137 (Void Elements)",
-        "detail": "Thẻ <br>, <hr>, <img> là void elements trong React. KHÔNG được truyền children vào các thẻ này trong React.createElement hoặc JSX, nếu không ứng dụng sẽ crash màn hình đen."
+        "detail": "Thẻ <br>, <hr>, <img> là void elements. KHÔNG được truyền children vào, nếu không ứng dụng sẽ crash."
       },
       {
-        "title": "Hydration Mismatch on Theme/Class",
-        "detail": "Khi thay đổi theme (Dark/Light) dựa trên localStorage ngay khi mount, NextJS dễ bị lỗi Hydration Mismatch. Cần dùng isMounted hook hoặc suppressHydrationWarning để tránh crash client-side exception."
-      },
-      {
-        "title": "Unclosed JSX tags break Vercel Build",
-        "detail": "Vercel build engine (SWC/Webpack) rất khắt khe với cú pháp JSX. Một dấu đóng thẻ thiếu (vd: </button>) có thể khiến toàn bộ ứng dụng không build được, ngay cả khi VS Code hoặc local dev không báo lỗi rõ ràng."
-      },
-      {
-        "title": "Tiptap Editor Toolbar JSX Error",
-        "detail": "Khi thêm các nút vào thanh công cụ Tiptap, cần đảm bảo tất cả các thẻ JSX đều được đóng đúng cách. Lỗi nhỏ như thiếu dấu đóng thẻ có thể khiến toàn bộ thanh công cụ không hiển thị."
+        "title": "Hydration Mismatch on Theme",
+        "detail": "Cần dùng isMounted hook hoặc suppressHydrationWarning khi truy cập localStorage để tránh lỗi hydration NextJS."
       }
     ]
   },
   "git": {
     "github_user": "Nakazasen",
     "git_email": "buiducvinhct1102@gmail.com",
-    "last_commit": "fix: resolve JSX syntax error in EditorToolbar"
+    "last_commit": "fix: distinguish Rank 1 (Green) and Rank 2 (Cyan) in org chart"
   }
 }

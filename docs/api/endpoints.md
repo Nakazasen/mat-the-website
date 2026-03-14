@@ -146,19 +146,19 @@ Xóa bài viết.
 
 ---
 
-## 🗺️ Interactive Map
+## 🌳 Faction Hierarchy / Sơ đồ Tổ chức
 
-### GET /api/map-locations
-Lấy danh sách tất cả các điểm ghim trên bản đồ.
+### GET /api/wiki/{slug}/hierarchy
+Lấy dữ liệu sơ đồ tổ chức của một thế lực.
 
-### POST /api/admin/map-locations
-(Admin) Tạo điểm ghim mới. Gửi `lat`, `lng`, `type`, `name`.
+### POST /api/admin/wiki/{faction_id}/members (Admin)
+Thêm thành viên mới vào sơ đồ.
 
-### PUT /api/admin/map-locations/{id}
-(Admin) Cập nhật thông tin điểm ghim.
+### PUT /api/admin/wiki/members/{member_id} (Admin)
+Cập nhật thông tin thành viên (chức danh, cấp bậc, cha-con).
 
-### DELETE /api/admin/map-locations/{id}
-(Admin) Xóa điểm ghim.
+### DELETE /api/admin/wiki/members/{member_id} (Admin)
+Xóa thành viên khỏi sơ đồ.
 
 ---
 

@@ -100,4 +100,20 @@ Lưu trữ các điểm ghim trên bản đồ chiến sự.
 | description | TEXT | Mô tả khu vực |
 | lat | FLOAT8 | Vĩ độ |
 | lng | FLOAT8 | Kinh độ |
-| image_url | TEXT | Link ảnh minh họa |
+| ---
+
+## 🌳 Bảng: `faction_members`
+Lưu trữ sơ đồ tổ chức/gia phả của các thế lực.
+
+| Cột | Kiểu dữ liệu | Mô tả |
+|-----|--------------|-------|
+| id | UUID | Primary Key |
+| faction_id | UUID | Link tới `wiki_entries` (của thế lực đó) |
+| character_id | UUID | (Optional) Link tới `wiki_entries` (nhân vật) |
+| parent_id | UUID | (Self-reference) ID của cấp trên trực tiếp |
+| role_title | TEXT | Chức danh (VD: Đoàn trưởng, Đại đội trưởng...) |
+| division | TEXT | Khối/Bộ phận (VD: Quân đội, Dân sự) |
+| rank_level | INT | Cấp bậc (0=Đỉnh, 1, 2...) để định dạng hiển thị |
+| sort_order | INT | Thứ tự sắp xếp ngang hàng |
+| created_at | TIMESTAMPTZ | Thời gian tạo |
+
