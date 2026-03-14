@@ -107,9 +107,21 @@ export default function RichTextEditor({ content, onChange, placeholder = 'Viế
         }
     }, [content, editor]);
 
+    const cleanText = useCallback(() => {
+        if (!editor) return;
+        const html = editor.getHTML();
+        // Xóa các đoạn văn trống hoặc chỉ chứa thẻ <br> (thường sinh ra khi dán từ Word/Docs)
+        const cleanedHtml = html.replace(/<p>\s*(?:<br\s*\/?>\s*)*<\/p>/gi, '');
+        editor.commands.setContent(cleanedHtml, { emitUpdate: true });
+    }, [editor]);
+
     return (
         <div className="relative flex flex-col w-full">
-            <EditorToolbar editor={editor} onImageUpload={handleImageUpload} />
+            <EditorToolbar 
+                editor={editor} 
+                onImageUpload={handleImageUpload} 
+                onCleanText={cleanText}
+            />
             <div className="relative focus-within:ring-1 focus-within:ring-green-500/50 transition-all rounded-b-lg">
                 {isUploading && (
                     <div className="absolute top-2 right-2 z-10 bg-black/80 text-green-500 text-xs px-2 py-1 rounded-md flex items-center gap-2 border border-green-900 shadow-md">

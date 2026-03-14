@@ -1,12 +1,13 @@
 import { Editor } from '@tiptap/react';
-import { Bold, Italic, Heading2, Heading3, List, ListOrdered, Quote, Code, Image as ImageIcon, Undo, Redo } from 'lucide-react';
+import { Bold, Italic, Heading2, Heading3, List, ListOrdered, Quote, Code, Image as ImageIcon, Undo, Redo, Sparkles } from 'lucide-react';
 
 interface EditorToolbarProps {
     editor: Editor | null;
     onImageUpload: (file: File) => Promise<string>;
+    onCleanText?: () => void;
 }
 
-export function EditorToolbar({ editor, onImageUpload }: EditorToolbarProps) {
+export function EditorToolbar({ editor, onImageUpload, onCleanText }: EditorToolbarProps) {
     if (!editor) return null;
 
     const handleImageClick = () => {
@@ -110,9 +111,13 @@ export function EditorToolbar({ editor, onImageUpload }: EditorToolbarProps) {
                 type="button"
                 onClick={handleImageClick}
                 className="p-1.5 rounded hover:bg-gray-700 transition-colors text-gray-400"
-                title="Chèn ảnh (Có thể kéo thả trực tiếp)"
+            <button
+                type="button"
+                onClick={onCleanText}
+                className="p-1.5 rounded hover:bg-gray-700 transition-colors text-yellow-500"
+                title="Dọn dẹp văn bản (Xóa dòng thừa)"
             >
-                <ImageIcon size={18} />
+                <Sparkles size={18} />
             </button>
 
             <div className="flex-1"></div>
