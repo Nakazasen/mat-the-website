@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { PlusCircle, Edit2, Trash2, BookOpen, X, Save, Loader2, AlertCircle, CheckCircle, Upload } from "lucide-react";
+import { PlusCircle, Edit2, Trash2, BookOpen, X, Save, Loader2, AlertCircle, CheckCircle, Upload, Users } from "lucide-react";
 import {
-    WikiEntry, WikiEntryIn, WIKI_CATEGORIES,
-    getWikiEntries, createWikiEntry, updateWikiEntry, deleteWikiEntry, uploadImageR2
+    WikiEntry, WikiEntryIn, WIKI_CATEGORIES, FactionMember,
+    getWikiEntries, createWikiEntry, updateWikiEntry, deleteWikiEntry, uploadImageR2, getFactionHierarchy
 } from "@/lib/api";
 import RichTextEditor from "@/components/Editor";
+import FactionHierarchyEditor from "@/components/FactionHierarchyEditor";
 
 const ADMIN_TOKEN = process.env.NEXT_PUBLIC_ADMIN_TOKEN || "mat-the-admin-2026";
 
@@ -35,6 +36,8 @@ export default function AdminWikiPage() {
     const [form, setForm] = useState<WikiEntryIn>(EMPTY_FORM);
     const [saving, setSaving] = useState(false);
     const [toast, setToast] = useState<{ type: "success" | "error"; msg: string } | null>(null);
+    const [hierarchyEntry, setHierarchyEntry] = useState<WikiEntry | null>(null);
+    const [hierarchyMembers, setHierarchyMembers] = useState<FactionMember[]>([]);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -163,6 +166,17 @@ export default function AdminWikiPage() {
                                 </div>
                             </div>
                             <div className="flex items-center gap-2 ml-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                                {entry.category === "Thế lực" && (
+                                    <button onClick={async () => {
+                                        try {
+                                            const data = await getFactionHierarchy(entry.slug);
+                                            setHierarchyMembers(data.members);
+                                            setHierarchyEntry(entry);
+                                        } catch { setHierarchyEntry(entry); setHierarchyMembers([]); }
+                                    }} className="p-2 text-gray-500 hover:text-yellow-400 transition-colors" title="Sơ đồ tổ chức">
+                                        <Users size={14} />
+                                    </button>
+                                )}
                                 <button onClick={() => openEdit(entry)} className="p-2 text-gray-500 hover:text-green-400 transition-colors"><Edit2 size={14} /></button>
                                 <button onClick={() => handleDelete(entry)} className="p-2 text-gray-500 hover:text-red-400 transition-colors"><Trash2 size={14} /></button>
                             </div>
@@ -265,6 +279,23 @@ export default function AdminWikiPage() {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Faction Hierarchy Modal */}
+            {hierarchyEntry && (
+                <FactionHierarchyEditor
+                    factionId={hierarchyEntry.id}
+                    factionTitle={hierarchyEntry.title}
+                    members={hierarchyMembers}
+                    adminToken={ADMIN_TOKEN}
+                    onClose={() => setHierarchyEntry(null)}
+                    onRefresh={async () => {
+                        try {
+                            const data = await getFactionHierarchy(hierarchyEntry.slug);
+                            setHierarchyMembers(data.members);
+                        } catch {}
+                    }}
+                />
             )}
         </div>
     );

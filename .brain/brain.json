@@ -2,7 +2,7 @@
   "meta": {
     "schema_version": "1.1.0",
     "awf_version": "4.0.2",
-    "last_updated": "2026-03-13T06:30:00+07:00"
+    "last_updated": "2026-03-14T08:00:00+07:00"
   },
   "project": {
     "name": "Mạt Thế - Sinh Hoá Nguy Cơ",
@@ -131,7 +131,7 @@
     {
       "name": "Rich Text Editor (Tiptap)",
       "status": "complete",
-      "description": "Soạn thảo văn bản chuyên nghiệp cho Chương truyện và Wiki, tích hợp upload R2 trực tiếp."
+      "description": "Soạn thảo văn bản chuyên nghiệp cho Chương truyện và Wiki. Đã tích hợp tính năng 'Dọn dẹp văn bản' (Clean Text) để xóa dòng thừa khi dán từ Word/Docs."
     }
   ],
   "knowledge_items": {
@@ -163,12 +163,20 @@
       {
         "title": "Hydration Mismatch on Theme/Class",
         "detail": "Khi thay đổi theme (Dark/Light) dựa trên localStorage ngay khi mount, NextJS dễ bị lỗi Hydration Mismatch. Cần dùng isMounted hook hoặc suppressHydrationWarning để tránh crash client-side exception."
+      },
+      {
+        "title": "Unclosed JSX tags break Vercel Build",
+        "detail": "Vercel build engine (SWC/Webpack) rất khắt khe với cú pháp JSX. Một dấu đóng thẻ thiếu (vd: </button>) có thể khiến toàn bộ ứng dụng không build được, ngay cả khi VS Code hoặc local dev không báo lỗi rõ ràng."
+      },
+      {
+        "title": "Tiptap Editor Toolbar JSX Error",
+        "detail": "Khi thêm các nút vào thanh công cụ Tiptap, cần đảm bảo tất cả các thẻ JSX đều được đóng đúng cách. Lỗi nhỏ như thiếu dấu đóng thẻ có thể khiến toàn bộ thanh công cụ không hiển thị."
       }
     ]
   },
   "git": {
     "github_user": "Nakazasen",
     "git_email": "buiducvinhct1102@gmail.com",
-    "last_commit": "chore(backend): trigger redeploy for Render"
+    "last_commit": "fix: resolve JSX syntax error in EditorToolbar"
   }
 }

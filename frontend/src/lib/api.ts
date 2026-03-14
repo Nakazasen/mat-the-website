@@ -236,7 +236,79 @@ export async function uploadImageR2(file: File, adminToken: string): Promise<str
     const data = await res.json();
     return data.url;
 }
+
 // ============================================================
+// FACTION HIERARCHY API
+// ============================================================
+
+export interface FactionMember {
+    id: string;
+    faction_id: string;
+    character_id?: string;
+    parent_id?: string;
+    role_title: string;
+    division?: string;
+    rank_level: number;
+    sort_order: number;
+    created_at: string;
+    character_name?: string;
+    character_slug?: string;
+    character_image?: string;
+}
+
+export interface FactionHierarchy {
+    faction_id: string;
+    faction_title: string;
+    members: FactionMember[];
+}
+
+export interface FactionMemberIn {
+    character_id?: string;
+    parent_id?: string | null;
+    role_title: string;
+    division?: string;
+    rank_level: number;
+    sort_order: number;
+}
+
+export async function getFactionHierarchy(slug: string): Promise<FactionHierarchy> {
+    const res = await fetch(`${API_BASE_URL}/api/wiki/${slug}/hierarchy`, { cache: "no-store" });
+    if (!res.ok) {
+        if (res.status === 404 || res.status === 400) return { faction_id: "", faction_title: "", members: [] };
+        throw new Error("Failed to fetch faction hierarchy");
+    }
+    return res.json();
+}
+
+export async function addFactionMember(factionId: string, data: FactionMemberIn, token: string): Promise<FactionMember> {
+    const res = await fetch(`${API_BASE_URL}/api/admin/wiki/${factionId}/members`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error("Failed to add faction member");
+    return res.json();
+}
+
+export async function updateFactionMember(memberId: string, data: FactionMemberIn, token: string): Promise<FactionMember> {
+    const res = await fetch(`${API_BASE_URL}/api/admin/wiki/members/${memberId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error("Failed to update faction member");
+    return res.json();
+}
+
+export async function deleteFactionMember(memberId: string, token: string): Promise<void> {
+    const res = await fetch(`${API_BASE_URL}/api/admin/wiki/members/${memberId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error("Failed to delete faction member");
+}
+
+
 // HOMEPAGE SETTINGS API
 // ============================================================
 

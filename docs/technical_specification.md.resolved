@@ -1,0 +1,103 @@
+# Đặc tả Kĩ thuật (Technical Specification) - Mạt Thế Website
+
+Bản đặc tả này mô tả chi tiết kiến trúc, công nghệ, tính năng, và triết lý thiết kế cơ sở dữ liệu của website "Mạt Thế Sinh Hoá Nguy Cơ".
+
+---
+
+## 1. Tổng quan hệ thống (System Overview)
+Dự án là một ứng dụng Web Reading (Đọc truyện) kết hợp Bách khoa toàn thư (Wiki), Bản đồ tương tác và Tính năng Quản trị (Admin Panel). Hệ thống được thiết kế theo kiến trúc **Client-Server** tách biệt rõ ràng giữa Frontend và Backend, trong đó tải trọng phân phối nội dung tĩnh (text truyện) được offload hoàn toàn sang hệ thống CDN của Cloudflare R2 để tối ưu chi phí server.
+
+---
+
+## 2. Công nghệ sử dụng (Technology Stack)
+
+### 2.1. Frontend
+- **Framework:** Next.js 15.1 (App Router) - Xử lý **SSR** và Routing.
+- **Library:** React 19
+- **Styling:** Tailwind CSS 3.4
+- **Bản đồ:** Leaflet & React-Leaflet - Render bản đồ tương tác với toạ độ.
+- **Rich Text Editor:** Tiptap - Soạn thảo bài viết Wiki.
+- **Hosting:** Vercel
+
+### 2.2. Backend
+- **Framework:** FastAPI 0.115 (Python) - Cung cấp **API** siêu tốc nhờ **ASGI** (Uvicorn).
+- **Hosting:** Render (Auto-deploy qua nhánh `main` của GitHub)
+- **Integrations chính:**
+  - `Boto3`: Thư viện tương tác với hệ lưu trữ Cloudflare R2 (**Chuẩn S3**).
+  - `Supabase-py`: Tương tác với cơ sở dữ liệu PostgreSQL.
+  - `HTTPX`: Proxy cho Google Translate **TTS** để tạo trình đọc Audio.
+
+### 2.3. Cơ sở dữ liệu & Lưu trữ
+- **Relational Database:** PostgreSQL (thông qua Supabase).
+- **Object Storage (CDN):** Cloudflare R2 (Lưu trữ tệp tin tĩnh như .txt, hình ảnh).
+- **Authentication:** Supabase Auth (dùng **JWT** token)
+
+---
+
+## 3. Kiến trúc Luồng Thực thi (Architecture Workflow)
+
+Dưới đây là sơ đồ mô tả phương thức hệ thống vận hành khi một người dùng đọc một chương truyện.
+
+```mermaid
+sequenceDiagram
+    participant U as Độc giả
+    participant F as Frontend
+    participant B as Backend
+    participant DB as Supabase
+    participant CDN as R2 CDN
+
+    U->>F: Truy cập /chapters/1
+    F->>B: GET /api/chapters/1 (Metadata)
+    B->>DB: Query metadata (có 'content_url')
+    DB-->>B: Trả về Metadata
+    B-->>F: Trả về JSON (title, views...)
+    F-->>U: Hiển thị giao diện đọc
+    
+    Note over U,CDN: Offload nội dung để tối ưu hiệu năng
+    U->>CDN: GET text từ 'content_url' (Phi thẳng tới CDN)
+    CDN-->>U: Trả về text (.txt) siêu tốc
+    
+    U->>F: JS parser text thành Paragraphs (Đoạn văn)
+    
+    Note over U,F: Background Analytics (Ghi nhận ngầm)
+    U->>B: POST /api/chapters/1/view (Gửi sau 15s đọc)
+    B->>DB: RPC: increment_chapter_view()
+```
+
+---
+
+## 4. Tư duy Xây dựng Cơ sở Dữ liệu (Database Design Justification)
+
+Tư duy cốt lõi là hệ thống hoá **Metadata** thay vì lưu luôn nội dung văn bản siêu dài vào Database.
+
+1. **Bảng [chapters](file:///c:/ProgramData/Sandbox/Web_matthesinhhoanguyco/mat-the-website/backend/main.py#192-258) (Chương truyện):** Lưu trữ metadata (ID, tiêu đề, lượt xem). Nội dung thực sự nằm ở Cloudflare R2 nhằm tránh phình to DB và giảm chi phí truy vấn.
+2. **Bảng [comments](file:///c:/ProgramData/Sandbox/Web_matthesinhhoanguyco/mat-the-website/backend/main.py#1058-1073) (Bình luận):** Thiết kế phi tập trung (liên kết qua `chapter_number` thay vì FK UUID) để đảm bảo dữ liệu bình luận không bị mất khi chương truyện bị cập nhật hoặc thay thế.
+3. **Cấu hình (Settings):** Sử dụng *Single-row configuration* để Admin có thể thay đổi giao diện ( Banner, Cảnh báo, Thông tin tác giả) ngay lập tức mà không cần code lại.
+
+---
+
+## 5. Từ điển Thuật ngữ (Glossary)
+
+Dưới đây là giải thích chi tiết cho các thuật ngữ viết tắt trong dự án:
+
+### Về Giao diện & Hiệu năng
+*   **SSR (Server-Side Rendering):** Kết xuất phía máy chủ. Giúp trang web hiển thị nội dung ngay lập tức khi khách bấm vào, cực tốt cho việc tối ưu công cụ tìm kiếm (SEO).
+*   **ISR (Incremental Static Regeneration):** Công nghệ giúp trang web tự động cập nhật dữ liệu mới từ Database mà không cần phải thực hiện bước Deploy lại mã nguồn.
+*   **CDN (Content Delivery Network):** Mạng lưới máy chủ phân phối nội dung đặt ở nhiều nơi trên thế giới, giúp người dùng tải file từ nơi gần mình nhất (giảm độ trễ).
+*   **CORS (Cross-Origin Resource Sharing):** Quy tắc bảo mật giúp trình duyệt biết được Server nào là tin cậy để cho phép trao đổi dữ liệu.
+
+### Về Backend & Hệ thống
+*   **API (Application Programming Interface):** Cổng giao tiếp trung gian. Frontend gửi yêu cầu đến API, API xử lý và trả về kết quả.
+*   **ASGI (Asynchronous Server Gateway Interface):** Tiêu chuẩn máy chủ hiện đại cho phép xử lý hàng nghìn yêu cầu cùng lúc (bất đồng bộ) mà không bị kẹt.
+*   **Chuẩn S3 (Simple Storage Service):** Tiêu chuẩn lưu trữ file phổ biến nhất thế giới. Cloudflare R2 dùng chuẩn này để dễ dàng tích hợp với các công cụ lập trình.
+*   **TTS (Text-To-Speech):** Công nghệ chuyển văn bản thành giọng nói (Trình đọc Audio).
+
+### Về Dữ liệu & Bảo mật
+*   **JSON (JavaScript Object Notation):** Định dạng dữ liệu dùng để giao tiếp giữa Frontend và Backend. Nó giống như một bản danh sách có cấu trúc cực kỳ nhẹ.
+*   **Metadata:** "Dữ liệu mô tả dữ liệu". Thay vì lưu cả chương truyện vào DB, ta chỉ lưu thông tin đại diện như tên, số chương, lượt xem.
+*   **JWT (JSON Web Token):** Một loại "Thẻ nhân viên điện tử". Sau khi Admin đăng nhập, thẻ này dùng để chứng minh quyền hạn khi thực hiện xoá/sửa dữ liệu.
+*   **RPC (Remote Procedure Call):** Ra lệnh cho Database tự thực thi một hàm tính toán bên trong nó (ví dụ: tự cộng thêm 1 lượt xem), giúp dữ liệu luôn chính xác tuyệt đối.
+*   **RBAC (Role-Based Access Control):** Hệ thống phân quyền dựa trên vai trò (Ví dụ: SuperAdmin được xóa người dùng, Editor chỉ được đăng truyện).
+
+---
+*Tài liệu này được biên soạn cho việc tiếp quản, bảo trì và phát triển dài hạn dành cho Vũ Trụ Mạt Thế.*

@@ -1160,6 +1160,159 @@ async def upload_image(
 
 
 # ============================================================
+# FACTION HIERARCHY (Cây Tổ Chức Thế Lực)
+# ============================================================
+
+class FactionMemberIn(BaseModel):
+    character_id: Optional[str] = None
+    parent_id: Optional[str] = None
+    role_title: str = ""
+    division: Optional[str] = None
+    rank_level: int = 0
+    sort_order: int = 0
+
+
+class FactionMemberOut(BaseModel):
+    id: str
+    faction_id: str
+    character_id: Optional[str] = None
+    parent_id: Optional[str] = None
+    role_title: str
+    division: Optional[str] = None
+    rank_level: int
+    sort_order: int
+    created_at: str
+    # Joined character info
+    character_name: Optional[str] = None
+    character_slug: Optional[str] = None
+    character_image: Optional[str] = None
+
+
+@app.get("/api/wiki/{slug}/hierarchy", summary="Lấy cây tổ chức của thế lực (public)")
+async def get_faction_hierarchy(slug: str):
+    """Lấy toàn bộ cây phân cấp của 1 thế lực theo slug."""
+    try:
+        # 1. Get the faction wiki entry
+        faction_resp = (
+            supabase.table("wiki_entries")
+            .select("id, title, category")
+            .eq("slug", slug)
+            .single()
+            .execute()
+        )
+        if not faction_resp.data:
+            raise HTTPException(status_code=404, detail="Không tìm thấy thế lực")
+        if faction_resp.data.get("category") != "Thế lực":
+            raise HTTPException(status_code=400, detail="Entry này không phải Thế lực")
+
+        faction_id = faction_resp.data["id"]
+
+        # 2. Get all members of this faction
+        members_resp = (
+            supabase.table("faction_members")
+            .select("*")
+            .eq("faction_id", faction_id)
+            .order("rank_level")
+            .order("sort_order")
+            .execute()
+        )
+
+        members = members_resp.data or []
+
+        # 3. Collect unique character IDs to batch-fetch their info
+        char_ids = list(set(m["character_id"] for m in members if m.get("character_id")))
+        char_map = {}
+        if char_ids:
+            chars_resp = (
+                supabase.table("wiki_entries")
+                .select("id, title, slug, image_url")
+                .in_("id", char_ids)
+                .execute()
+            )
+            for c in (chars_resp.data or []):
+                char_map[c["id"]] = c
+
+        # 4. Enrich members with character info
+        result = []
+        for m in members:
+            char = char_map.get(m.get("character_id"), {})
+            result.append({
+                **m,
+                "character_name": char.get("title"),
+                "character_slug": char.get("slug"),
+                "character_image": char.get("image_url"),
+            })
+
+        return {
+            "faction_id": faction_id,
+            "faction_title": faction_resp.data["title"],
+            "members": result,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/admin/wiki/{faction_id}/members", summary="[Admin] Thêm thành viên vào cây thế lực")
+async def admin_add_faction_member(
+    faction_id: str,
+    body: FactionMemberIn,
+    authorization: Optional[str] = Header(None),
+):
+    """Thêm một node mới vào cây tổ chức. Yêu cầu quyền Admin."""
+    await verify_admin(authorization)
+    try:
+        data = body.model_dump(exclude_none=True)
+        data["faction_id"] = faction_id
+        result = supabase.table("faction_members").insert(data).execute()
+        if not result.data:
+            raise HTTPException(status_code=500, detail="Không thể thêm thành viên")
+        return result.data[0]
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/admin/wiki/members/{member_id}", summary="[Admin] Sửa thành viên trong cây thế lực")
+async def admin_update_faction_member(
+    member_id: str,
+    body: FactionMemberIn,
+    authorization: Optional[str] = Header(None),
+):
+    """Cập nhật thông tin node trong cây tổ chức."""
+    await verify_admin(authorization)
+    try:
+        data = body.model_dump(exclude_none=True)
+        result = supabase.table("faction_members").update(data).eq("id", member_id).execute()
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Không tìm thấy thành viên")
+        return result.data[0]
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/admin/wiki/members/{member_id}", summary="[Admin] Xóa thành viên khỏi cây thế lực")
+async def admin_delete_faction_member(
+    member_id: str,
+    authorization: Optional[str] = Header(None),
+):
+    """Xóa node khỏi cây. Children sẽ được detach (parent_id = null)."""
+    await verify_admin(authorization)
+    try:
+        # Detach children first (set their parent to null)
+        supabase.table("faction_members").update({"parent_id": None}).eq("parent_id", member_id).execute()
+        # Delete the member
+        supabase.table("faction_members").delete().eq("id", member_id).execute()
+        return {"status": "deleted", "id": member_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================
 # WIKI - BÁCH KHOA TOÀN THƯ
 # ============================================================
 

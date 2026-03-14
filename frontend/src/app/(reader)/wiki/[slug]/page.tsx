@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Tag, Calendar, BookOpen } from "lucide-react";
 import { getWikiEntry, getWikiEntries, WIKI_CATEGORIES } from "@/lib/api";
+import FactionOrgChart from "@/components/FactionOrgChart";
 
 const CATEGORY_ICONS: Record<string, string> = {
     "Nhân vật": "👤",
@@ -172,6 +173,11 @@ export default async function WikiDetailPage({ params }: { params: Promise<{ slu
                         ))}
                     </div>
                 </div>
+            )}
+
+            {/* Faction Org Chart (only for category "Thế lực") */}
+            {entry.category === "Thế lực" && (
+                <FactionOrgChart slug={entry.slug} />
             )}
 
             {/* Related categories */}
