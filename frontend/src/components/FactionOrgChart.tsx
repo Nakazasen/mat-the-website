@@ -64,13 +64,15 @@ function groupByRank(members: FactionMember[]): Map<number, FactionMember[]> {
 
 function getAvatarStyle(rank: number) {
     if (rank === 0) return { size: "w-20 h-20", border: "border-[3px] border-yellow-500 shadow-lg shadow-yellow-500/20", icon: 28 };
-    if (rank <= 2) return { size: "w-14 h-14", border: "border-2 border-green-500 shadow-md shadow-green-500/10", icon: 20 };
+    if (rank === 1) return { size: "w-14 h-14", border: "border-2 border-green-500 shadow-md shadow-green-500/10", icon: 20 };
+    if (rank === 2) return { size: "w-12 h-12", border: "border-2 border-cyan-500 shadow-md shadow-cyan-500/10", icon: 16 };
     return { size: "w-10 h-10", border: "border-2 border-gray-700", icon: 14 };
 }
 
 function getRoleColor(rank: number): string {
     if (rank === 0) return "text-yellow-400";
-    if (rank <= 2) return "text-green-400";
+    if (rank === 1) return "text-green-400";
+    if (rank === 2) return "text-cyan-400";
     return "text-gray-400";
 }
 

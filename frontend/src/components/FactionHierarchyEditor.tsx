@@ -142,7 +142,7 @@ export default function FactionHierarchyEditor({ factionId, factionTitle, member
     }
 
     function renderNode(node: TreeNode, depth: number = 0) {
-        const rankColors = ["text-yellow-400", "text-green-400", "text-blue-400"];
+        const rankColors = ["text-yellow-400", "text-green-400", "text-cyan-400"];
         const rankColor = rankColors[Math.min(node.rank_level, rankColors.length - 1)] || "text-gray-500";
 
         return (
@@ -155,11 +155,11 @@ export default function FactionHierarchyEditor({ factionId, factionTitle, member
                     {node.character_image ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={node.character_image} alt="" className={`w-8 h-8 rounded-full object-cover border-2 ${
-                            node.rank_level === 0 ? "border-yellow-500" : node.rank_level <= 2 ? "border-green-600" : "border-gray-700"
+                            node.rank_level === 0 ? "border-yellow-500" : node.rank_level === 1 ? "border-green-600" : node.rank_level === 2 ? "border-cyan-600" : "border-gray-700"
                         }`} />
                     ) : (
                         <div className={`w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center border-2 ${
-                            node.rank_level === 0 ? "border-yellow-500" : node.rank_level <= 2 ? "border-green-600" : "border-gray-700"
+                            node.rank_level === 0 ? "border-yellow-500" : node.rank_level === 1 ? "border-green-600" : node.rank_level === 2 ? "border-cyan-600" : "border-gray-700"
                         }`}>
                             <Users size={14} className="text-gray-600" />
                         </div>
