@@ -5,10 +5,16 @@ import Link from "next/link";
 import { Users } from "lucide-react";
 import { FactionMember, getFactionHierarchy } from "@/lib/api";
 
+/* ── helpers ── */
+
 interface TreeNode extends FactionMember {
     children: TreeNode[];
 }
 
+/**
+ * Build a proper tree when parent_id is available.
+ * Fallback: group flat members by rank_level into tiers.
+ */
 function buildTree(members: FactionMember[]): TreeNode[] {
     const map: Record<string, TreeNode> = {};
     const roots: TreeNode[] = [];
@@ -31,10 +37,35 @@ function buildTree(members: FactionMember[]): TreeNode[] {
     return roots;
 }
 
-function getAvatarSize(rank: number): { container: string; img: string; border: string } {
-    if (rank === 0) return { container: "w-20 h-20", img: "w-20 h-20", border: "border-[3px] border-yellow-500 shadow-lg shadow-yellow-500/20" };
-    if (rank <= 2) return { container: "w-14 h-14", img: "w-14 h-14", border: "border-2 border-green-500 shadow-md shadow-green-500/10" };
-    return { container: "w-10 h-10", img: "w-10 h-10", border: "border-2 border-gray-700" };
+/**
+ * Check if the data has meaningful parent_id relationships.
+ * If every node is a root → no tree structure was defined.
+ */
+function hasTreeStructure(members: FactionMember[]): boolean {
+    return members.some(m => m.parent_id != null);
+}
+
+/**
+ * Group flat members into tiers by rank_level.
+ * Each tier is rendered as a separate row.
+ */
+function groupByRank(members: FactionMember[]): Map<number, FactionMember[]> {
+    const tiers = new Map<number, FactionMember[]>();
+    const sorted = [...members].sort((a, b) => a.rank_level - b.rank_level || a.sort_order - b.sort_order);
+    for (const m of sorted) {
+        const list = tiers.get(m.rank_level) || [];
+        list.push(m);
+        tiers.set(m.rank_level, list);
+    }
+    return tiers;
+}
+
+/* ── avatar sizing by rank ── */
+
+function getAvatarStyle(rank: number) {
+    if (rank === 0) return { size: "w-20 h-20", border: "border-[3px] border-yellow-500 shadow-lg shadow-yellow-500/20", icon: 28 };
+    if (rank <= 2) return { size: "w-14 h-14", border: "border-2 border-green-500 shadow-md shadow-green-500/10", icon: 20 };
+    return { size: "w-10 h-10", border: "border-2 border-gray-700", icon: 14 };
 }
 
 function getRoleColor(rank: number): string {
@@ -43,84 +74,107 @@ function getRoleColor(rank: number): string {
     return "text-gray-400";
 }
 
-function MemberCard({ node }: { node: TreeNode }) {
-    const size = getAvatarSize(node.rank_level);
-    const roleColor = getRoleColor(node.rank_level);
+/* ── card component ── */
 
-    const content = (
-        <div className={`flex flex-col items-center text-center group transition-all duration-200 ${node.character_slug ? "cursor-pointer" : ""}`}>
-            {/* Avatar */}
-            {node.character_image ? (
+function MemberCard({ member }: { member: FactionMember }) {
+    const style = getAvatarStyle(member.rank_level);
+    const roleColor = getRoleColor(member.rank_level);
+
+    const card = (
+        <div className={`flex flex-col items-center text-center group transition-all duration-200 ${member.character_slug ? "cursor-pointer" : ""}`}>
+            {member.character_image ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                    src={node.character_image}
-                    alt={node.character_name || ""}
-                    className={`${size.img} rounded-full object-cover ${size.border} transition-transform duration-200 group-hover:scale-110`}
+                    src={member.character_image}
+                    alt={member.character_name || ""}
+                    className={`${style.size} rounded-full object-cover ${style.border} transition-transform duration-200 group-hover:scale-110`}
                 />
             ) : (
-                <div className={`${size.container} rounded-full bg-gray-900 flex items-center justify-center ${size.border}`}>
-                    <Users size={node.rank_level === 0 ? 28 : node.rank_level <= 2 ? 20 : 14} className="text-gray-600" />
+                <div className={`${style.size} rounded-full bg-gray-900 flex items-center justify-center ${style.border}`}>
+                    <Users size={style.icon} className="text-gray-600" />
                 </div>
             )}
-
-            {/* Name */}
-            <p className={`mt-2 text-xs font-mono font-semibold ${node.character_name ? "text-gray-200 group-hover:text-white" : "text-gray-600"} truncate max-w-[120px]`}>
-                {node.character_name || "—"}
+            <p className={`mt-2 text-xs font-mono font-semibold ${member.character_name ? "text-gray-200 group-hover:text-white" : "text-gray-600"} truncate max-w-[120px]`}>
+                {member.character_name || "—"}
             </p>
-
-            {/* Role */}
             <p className={`text-[10px] font-mono ${roleColor} truncate max-w-[120px]`}>
-                {node.role_title}
+                {member.role_title}
             </p>
-
-            {/* Division badge */}
-            {node.division && (
+            {member.division && (
                 <span className="mt-0.5 text-[9px] font-mono text-gray-600 bg-gray-900 px-1.5 py-0.5 rounded">
-                    {node.division}
+                    {member.division}
                 </span>
             )}
         </div>
     );
 
-    if (node.character_slug) {
-        return <Link href={`/wiki/${node.character_slug}`}>{content}</Link>;
+    if (member.character_slug) {
+        return <Link href={`/wiki/${member.character_slug}`}>{card}</Link>;
     }
-    return content;
+    return card;
 }
 
-function NodeGroup({ nodes, depth }: { nodes: TreeNode[]; depth: number }) {
-    if (nodes.length === 0) return null;
+/* ── connector lines ── */
 
+function VerticalLine() {
+    return <div className="w-px h-6 bg-gray-800 mx-auto" />;
+}
+
+/* ── tree-based render (when parent_id is used) ── */
+
+function TreeNodeView({ node, depth }: { node: TreeNode; depth: number }) {
     return (
-        <div className="flex flex-col items-center gap-6">
-            {/* Current level nodes */}
-            <div className="flex flex-wrap justify-center gap-6 md:gap-8">
-                {nodes.map(node => (
-                    <div key={node.id} className="flex flex-col items-center">
-                        <MemberCard node={node} />
-
-                        {/* Connector line down */}
-                        {node.children.length > 0 && (
-                            <div className="w-px h-6 bg-gray-800 mt-2" />
-                        )}
-
-                        {/* Children */}
-                        {node.children.length > 0 && (
-                            <div className="relative">
-                                {/* Horizontal line connecting children */}
-                                {node.children.length > 1 && (
-                                    <div className="absolute top-0 left-1/2 -translate-x-1/2 h-px bg-gray-800"
-                                        style={{ width: `${Math.max(node.children.length - 1, 1) * 140}px` }} />
-                                )}
-                                <NodeGroup nodes={node.children} depth={depth + 1} />
-                            </div>
-                        )}
+        <div className="flex flex-col items-center">
+            <MemberCard member={node} />
+            {node.children.length > 0 && (
+                <>
+                    <VerticalLine />
+                    {/* Horizontal connector for multiple children */}
+                    {node.children.length > 1 && (
+                        <div className="relative w-full flex justify-center">
+                            <div className="absolute top-0 h-px bg-gray-800"
+                                style={{ width: `${Math.min(node.children.length * 140, 600)}px` }} />
+                        </div>
+                    )}
+                    <div className="flex flex-wrap justify-center gap-6 md:gap-8 mt-1">
+                        {node.children.map(child => (
+                            <TreeNodeView key={child.id} node={child} depth={depth + 1} />
+                        ))}
                     </div>
-                ))}
-            </div>
+                </>
+            )}
         </div>
     );
 }
+
+/* ── tier-based render (fallback when no parent_id) ── */
+
+function TierView({ tiers }: { tiers: Map<number, FactionMember[]> }) {
+    const ranks = Array.from(tiers.keys()).sort((a, b) => a - b);
+
+    return (
+        <div className="flex flex-col items-center gap-2">
+            {ranks.map((rank, idx) => {
+                const members = tiers.get(rank)!;
+                return (
+                    <div key={rank}>
+                        {/* Connector between tiers */}
+                        {idx > 0 && <VerticalLine />}
+
+                        {/* Tier row */}
+                        <div className="flex flex-wrap justify-center gap-6 md:gap-8">
+                            {members.map(m => (
+                                <MemberCard key={m.id} member={m} />
+                            ))}
+                        </div>
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
+/* ── main component ── */
 
 interface Props {
     slug: string;
@@ -129,16 +183,12 @@ interface Props {
 export default function FactionOrgChart({ slug }: Props) {
     const [members, setMembers] = useState<FactionMember[]>([]);
     const [loading, setLoading] = useState(true);
-    const [factionTitle, setFactionTitle] = useState("");
 
     useEffect(() => {
         getFactionHierarchy(slug).then(data => {
             setMembers(data.members);
-            setFactionTitle(data.faction_title);
         }).catch(() => {}).finally(() => setLoading(false));
     }, [slug]);
-
-    const tree = buildTree(members);
 
     if (loading) {
         return (
@@ -148,7 +198,9 @@ export default function FactionOrgChart({ slug }: Props) {
         );
     }
 
-    if (members.length === 0) return null; // Don't show section if empty
+    if (members.length === 0) return null;
+
+    const useTree = hasTreeStructure(members);
 
     return (
         <div className="mt-10">
@@ -163,7 +215,17 @@ export default function FactionOrgChart({ slug }: Props) {
 
             {/* Chart */}
             <div className="p-6 bg-[#0a0a0a] border border-gray-800 rounded-xl overflow-x-auto">
-                <NodeGroup nodes={tree} depth={0} />
+                {useTree ? (
+                    /* Tree mode: parent_id defines hierarchy */
+                    <div className="flex flex-wrap justify-center gap-6 md:gap-8">
+                        {buildTree(members).map(root => (
+                            <TreeNodeView key={root.id} node={root} depth={0} />
+                        ))}
+                    </div>
+                ) : (
+                    /* Tier mode: group by rank_level */
+                    <TierView tiers={groupByRank(members)} />
+                )}
             </div>
         </div>
     );
