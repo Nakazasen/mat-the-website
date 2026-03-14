@@ -111,6 +111,10 @@ export function EditorToolbar({ editor, onImageUpload, onCleanText }: EditorTool
                 type="button"
                 onClick={handleImageClick}
                 className="p-1.5 rounded hover:bg-gray-700 transition-colors text-gray-400"
+                title="Chèn ảnh (Có thể kéo thả trực tiếp)"
+            >
+                <ImageIcon size={18} />
+            </button>
             <button
                 type="button"
                 onClick={onCleanText}
