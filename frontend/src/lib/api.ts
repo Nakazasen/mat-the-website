@@ -1,4 +1,6 @@
 // === API CLIENT ===
+import imageCompression from 'browser-image-compression';
+
 // Frontend calls backend API to get chapter metadata + R2 URL
 // Then fetches content directly from Cloudflare CDN
 
@@ -218,8 +220,27 @@ export async function likeChapter(chapterNumber: number): Promise<{ likes_count:
 // ============================================================
 
 export async function uploadImageR2(file: File, adminToken: string): Promise<string> {
+    let fileToUpload: File | Blob = file;
+
+    // Nén ảnh nếu là file ảnh và dung lượng lớn (> 1MB)
+    if (file.type.startsWith('image/') && file.size > 1024 * 1024) {
+        try {
+            const options = {
+                maxSizeMB: 1.5,
+                maxWidthOrHeight: 1920,
+                useWebWorker: true,
+                initialQuality: 0.8,
+            };
+            fileToUpload = await imageCompression(file, options);
+        } catch (error) {
+            console.error('Compression failed:', error);
+            // Nếu nén lỗi thì cứ dùng file gốc
+            fileToUpload = file;
+        }
+    }
+
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('file', fileToUpload);
 
     const res = await fetch(`${API_BASE_URL}/api/upload/image`, {
         method: "POST",
