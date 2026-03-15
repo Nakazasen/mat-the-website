@@ -12,6 +12,7 @@ const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapCo
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false });
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false });
 const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false });
+const ImageOverlay = dynamic(() => import('react-leaflet').then(mod => mod.ImageOverlay), { ssr: false });
 
 // Fix for default marker icons
 if (typeof window !== 'undefined') {
@@ -30,6 +31,7 @@ const TYPE_CONFIG = {
     neutral: { icon: Flag, color: 'text-blue-400', label: 'KHU TRUNG LẬP', bg: 'bg-blue-500/10', border: 'border-blue-500/30' },
     outpost: { icon: MapPin, color: 'text-yellow-500', label: 'TRẠM TIỀN TIÊU', bg: 'bg-yellow-500/10', border: 'border-yellow-500/30' },
     ruins: { icon: Landmark, color: 'text-gray-400', label: 'TÀN TÍCH', bg: 'bg-gray-500/10', border: 'border-gray-500/30' },
+    system_map: { icon: MapPin, color: 'text-emerald-400', label: 'BẢN ĐỒ HỆ THỐNG', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30' },
 };
 
 export default function ReaderMapPage() {
@@ -51,6 +53,10 @@ export default function ReaderMapPage() {
         fetchMap();
     }, []);
 
+    // Find custom background map
+    const systemMapLocation = locations.find(l => l.type === 'system_map' && l.image_url);
+    const MAP_BOUNDS: [number, number][] = [[8, 100], [24, 110]]; // Fixed bounds covering Vietnam area
+
     if (loading) {
         return (
             <div className="fixed inset-0 bg-[#070707] flex flex-col items-center justify-center gap-4 z-[100]">
@@ -68,14 +74,17 @@ export default function ReaderMapPage() {
             <div className="absolute top-20 left-6 z-[1000] pointer-events-none">
                 <div className="bg-ash-900/80 backdrop-blur-md border border-toxic-green-DEFAULT/20 p-4 hazard-corner pointer-events-auto max-w-xs shadow-2xl">
                     <div className="flex items-center gap-3 mb-2">
-                        <div className="w-3 h-3 rounded-full bg-toxic-green-DEFAULT animate-pulse" />
+                        <div className="relative flex">
+                            <div className="w-3 h-3 rounded-full bg-toxic-green-DEFAULT animate-pulse" />
+                            <div className="absolute inset-0 w-3 h-3 rounded-full bg-toxic-green-DEFAULT animate-ping opacity-50" />
+                        </div>
                         <h1 className="font-biohazard text-xl text-worn-white tracking-widest uppercase">BẢN ĐỒ CHIẾN SỰ</h1>
                     </div>
                     <p className="text-[10px] font-mono text-ash-400 leading-relaxed uppercase tracking-tighter">
                         Cập nhật thời gian thực từ vệ tinh Recon-9. Click vào các điểm đánh dấu để xem chi tiết tình hình khu vực.
                     </p>
                     <div className="mt-4 flex flex-wrap gap-2">
-                        {Object.entries(TYPE_CONFIG).map(([key, config]) => (
+                        {Object.entries(TYPE_CONFIG).filter(([key]) => key !== 'system_map').map(([key, config]) => (
                             <div key={key} className="flex items-center gap-1.5 bg-black/40 px-2 py-1 rounded border border-ash-800 text-[8px] font-mono text-ash-500">
                                 <config.icon size={8} className={config.color} />
                                 {config.label}
@@ -88,28 +97,37 @@ export default function ReaderMapPage() {
             {/* Map Container */}
             <div className="flex-1 w-full h-full relative">
                 <MapContainer
-                    center={[15.8, 107.5] as any} // Center of Vietnam approx
+                    center={[16, 106] as any}
                     zoom={6}
                     className="h-full w-full grayscale-[0.2] contrast-[1.2] invert-0"
                     zoomControl={false}
                 >
                     <TileLayer
                         url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-                        attribution='&copy; <a href="https://carto.com/attributions">CARTO</a>'
+                        attribution='&copy; CARTO'
+                        opacity={systemMapLocation ? 0.3 : 1}
                     />
 
-                    {locations.map(loc => {
+                    {systemMapLocation && (
+                        <ImageOverlay
+                            url={systemMapLocation.image_url!}
+                            bounds={MAP_BOUNDS as any}
+                            zIndex={10}
+                        />
+                    )}
+
+                    {locations.filter(l => l.type !== 'system_map').map(loc => {
                         const config = TYPE_CONFIG[loc.type as keyof typeof TYPE_CONFIG] || TYPE_CONFIG.neutral;
                         return (
                             <Marker key={loc.id} position={[loc.lat, loc.lng] as any}>
                                 <Popup className="map-popup">
-                                    <div className="w-64 bg-ash-900 overflow-hidden rounded-lg">
+                                    <div className="w-64 bg-ash-900 overflow-hidden rounded-lg border border-ash-800 shadow-2xl">
                                         {loc.image_url && (
                                             <div className="aspect-video w-full overflow-hidden">
                                                 <img src={loc.image_url} alt={loc.name} className="w-full h-full object-cover" />
                                             </div>
                                         )}
-                                        <div className="p-4 bg-ash-900 border-t border-ash-800">
+                                        <div className="p-4 bg-ash-900">
                                             <div className={`text-[8px] font-mono mb-1 inline-block px-1.5 py-0.5 rounded border ${config.bg} ${config.color} ${config.border}`}>
                                                 {config.label}
                                             </div>
@@ -139,6 +157,10 @@ export default function ReaderMapPage() {
             </div>
 
             <style jsx global>{`
+                .leaflet-tile {
+                    outline: 1px solid transparent;
+                    -webkit-backface-visibility: hidden;
+                }
                 .leaflet-container {
                     background: #070707 !important;
                 }
