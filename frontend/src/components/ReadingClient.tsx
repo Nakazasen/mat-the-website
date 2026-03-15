@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState, useMemo } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Settings, Home, List, Sun, Moon, Coffee, Share2, Facebook, Bookmark } from "lucide-react";
+import { ChevronLeft, ChevronRight, Home, List, Share2, Facebook, Bookmark } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
+import ReaderSettingsPanel from "./ReaderSettingsPanel";
 import AudioPlayer from "./AudioPlayer";
 import CommentSection from "./CommentSection";
 import LikeButton from "./LikeButton";
@@ -30,8 +31,7 @@ export default function ReadingClient({
     nextId,
     totalChapters,
 }: ReadingClientProps) {
-    const { theme, setTheme, fontSize, setFontSize, fontFamily, setFontFamily } = useTheme();
-    const [showSettings, setShowSettings] = useState(false);
+    const { theme, fontSize, fontFamily } = useTheme();
     const [readingProgress, setReadingProgress] = useState(0);
     const [activeChunkIndex, setActiveChunkIndex] = useState<number | null>(null);
     const contentRef = useRef<HTMLDivElement>(null);
@@ -232,92 +232,14 @@ export default function ReadingClient({
                                 {isBookmarked ? "ĐÃ LƯU" : "LƯU TRANG"}
                             </span>
                         </button>
-                        <button
-                            onClick={() => setShowSettings(!showSettings)}
-                            className="p-2 text-ash-500 hover:text-toxic-green-DEFAULT transition-colors"
-                            title="Cài đặt đọc"
-                        >
-                            <Settings size={15} />
-                        </button>
                     </div>
                 </div>
 
-                {/* Settings panel */}
-                {showSettings && (
-                    <div className="border-t border-ash-800/60 bg-ash-950/95 px-4 py-4">
-                        <div className="max-w-4xl mx-auto flex flex-col gap-6">
-                            <div className="flex flex-wrap gap-8 items-center justify-center sm:justify-start">
-                                {/* Font family */}
-                                <div className="flex items-center gap-3">
-                                    <span className="text-ash-400 text-xs font-mono">FONT</span>
-                                    <div className="flex bg-ash-900/50 p-1 rounded border border-ash-800">
-                                        <button
-                                            onClick={() => setFontFamily('sans')}
-                                            className={`px-3 py-1.5 text-[10px] font-mono tracking-widest rounded transition-all ${fontFamily === 'sans' ? "bg-ash-700 text-toxic-green-DEFAULT" : "text-ash-500 hover:text-ash-300"}`}
-                                        >
-                                            SANS
-                                        </button>
-                                        <button
-                                            onClick={() => setFontFamily('serif')}
-                                            className={`px-3 py-1.5 text-[10px] font-mono tracking-widest rounded transition-all ${fontFamily === 'serif' ? "bg-ash-700 text-toxic-green-DEFAULT" : "text-ash-500 hover:text-ash-300"}`}
-                                        >
-                                            SERIF
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {/* Font size */}
-                                <div className="flex items-center gap-3">
-                                    <span className="text-ash-400 text-xs font-mono">CỠ CHỮ</span>
-                                    <button
-                                        onClick={() => setFontSize(Math.max(14, fontSize - 2))}
-                                        className="w-7 h-7 border border-ash-700 text-ash-300 hover:border-toxic-green-DEFAULT hover:text-toxic-green-DEFAULT transition-colors rounded text-sm"
-                                    >
-                                        A-
-                                    </button>
-                                    <span className="text-toxic-green-DEFAULT font-mono text-sm w-6 text-center">
-                                        {fontSize}
-                                    </span>
-                                    <button
-                                        onClick={() => setFontSize(Math.min(28, fontSize + 2))}
-                                        className="w-7 h-7 border border-ash-700 text-ash-300 hover:border-toxic-green-DEFAULT hover:text-toxic-green-DEFAULT transition-colors rounded text-sm"
-                                    >
-                                        A+
-                                    </button>
-                                </div>
-
-                                {/* Theme */}
-                                <div className="flex items-center gap-3">
-                                    <span className="text-ash-400 text-xs font-mono">NỀN</span>
-                                    <div className="flex bg-ash-900/50 p-1 rounded border border-ash-800">
-                                        {[
-                                            { id: 'dark', icon: Moon, label: 'TỐI' },
-                                            { id: 'light', icon: Sun, label: 'SÁNG' },
-                                            { id: 'sepia', icon: Coffee, label: 'VÀNG' }
-                                        ].map((t) => (
-                                            <button
-                                                key={t.id}
-                                                onClick={() => setTheme(t.id as any)}
-                                                className={`flex items-center gap-2 px-3 py-1.5 text-[10px] font-mono tracking-widest rounded transition-all ${theme === t.id
-                                                    ? "bg-toxic-green-DEFAULT text-black"
-                                                    : "text-ash-500 hover:text-ash-200"
-                                                    }`}
-                                            >
-                                                <t.icon size={12} />
-                                                <span className="hidden xs:inline">{t.label}</span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Progress info */}
-                            <div className="text-ash-500 text-[10px] font-mono text-center sm:text-right">
-                                {Math.round(readingProgress)}% đã đọc
-                            </div>
-                        </div>
-                    </div>
-                )}
+                <ReaderSettingsPanel
+                    showReadingProgress={true}
+                    readingProgress={readingProgress}
+                    className="fixed bottom-10 right-10 z-[60]"
+                />
             </div>
 
             {/* === MAIN CONTENT === */}
@@ -556,13 +478,10 @@ export default function ReadingClient({
                         </div>
                     )}
 
-                    <button
-                        onClick={() => setShowSettings(!showSettings)}
+                    <ReaderSettingsPanel
+                        showReadingProgress={false}
                         className="flex flex-col items-center justify-center gap-1 text-ash-500 hover:text-toxic-green-DEFAULT transition-colors border-l border-ash-800/40"
-                    >
-                        <Settings size={18} />
-                        <span className="text-[10px] font-mono">SET</span>
-                    </button>
+                    />
                 </div>
             </div>
 

@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { BookOpen, List, Home, Menu, X, Zap, Map as MapIcon, HelpCircle, User, LogIn, LogOut, Trophy } from "lucide-react";
-import ThemeSwitcher from "./ThemeSwitcher";
+import ReaderSettingsPanel from "./ReaderSettingsPanel";
 import { createAdminClient } from "@/lib/supabase-admin";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { useNovel } from "@/context/NovelContext";
@@ -117,7 +117,7 @@ export default function Header() {
                             )}
                             {user ? (
                                 <div className="ml-4 flex items-center gap-3 border-l border-ash-800 pl-4">
-                                    <ThemeSwitcher />
+                                    <ReaderSettingsPanel className="flex items-center" />
                                     <div className="group relative">
                                         <button className="flex items-center gap-2 text-ash-300 hover:text-white transition-colors">
                                             {user.user_metadata?.avatar_url ? (
@@ -146,7 +146,7 @@ export default function Header() {
                                 </div>
                             ) : (
                                 <div className="ml-4 flex items-center gap-3 border-l border-ash-800 pl-4">
-                                    <ThemeSwitcher />
+                                    <ReaderSettingsPanel className="flex items-center" />
                                     <button onClick={handleLogin} className="flex items-center gap-2 px-3 py-1.5 text-xs font-mono text-toxic-green-DEFAULT border border-toxic-green-DEFAULT/30 hover:bg-toxic-green-DEFAULT/10 tracking-widest rounded transition-all">
                                         <LogIn size={14} />
                                         ĐĂNG NHẬP
@@ -157,7 +157,7 @@ export default function Header() {
 
                         {/* Mobile action & menu button */}
                         <div className="flex items-center gap-2 md:hidden">
-                            <ThemeSwitcher />
+                            <ReaderSettingsPanel className="flex items-center" />
                             <button
                                 className="text-ash-300 hover:text-toxic-green-DEFAULT transition-colors p-2"
                                 onClick={() => setMenuOpen(!menuOpen)}

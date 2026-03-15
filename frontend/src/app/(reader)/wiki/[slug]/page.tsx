@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowLeft, Tag, Calendar, BookOpen, Star } from "lucide-react";
 import { getWikiEntry, getWikiEntries, WIKI_CATEGORIES } from "@/lib/api";
 import FactionOrgChart from "@/components/FactionOrgChart";
+import WikiSettingsWrapper from "@/components/WikiSettingsWrapper";
 
 const CATEGORY_ICONS: Record<string, string> = {
     "Nhân vật": "👤",
@@ -59,12 +60,13 @@ export default async function WikiDetailPage({ params }: { params: Promise<{ slu
         : "N/A";
 
     return (
-        <main className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
+        <WikiSettingsWrapper>
+            <main className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
             {/* Back button */}
             <div className="mb-8">
                 <Link
                     href="/wiki"
-                    className="inline-flex items-center gap-2 text-xs font-mono text-gray-600 hover:text-green-500 transition-colors group"
+                    className="inline-flex items-center gap-2 text-xs font-mono text-reader-muted hover:text-reader-accent transition-colors group"
                 >
                     <ArrowLeft size={14} className="group-hover:-translate-x-1 transition-transform" />
                     QUAY LẠI CẨM NANG
@@ -73,19 +75,19 @@ export default async function WikiDetailPage({ params }: { params: Promise<{ slu
 
             {/* Hero image */}
             {entry.image_url && (
-                <div className="relative w-full h-64 sm:h-80 rounded-xl overflow-hidden mb-8 border border-gray-800">
+                <div className="relative w-full h-64 sm:h-80 rounded-xl overflow-hidden mb-8 border border-reader-border shadow-lg">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                         src={entry.image_url}
                         alt={entry.title}
                         className="w-full h-full object-cover"
                     />
-                    {/* Dark gradient overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/40 to-transparent" />
+                    {/* Theme-aware gradient overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-reader-bg via-reader-bg/40 to-transparent" />
 
                     {/* Category badge over image */}
                     <div className="absolute bottom-4 left-4">
-                        <span className="text-xs font-mono text-green-400 bg-green-950/80 border border-green-800 px-3 py-1 rounded-full backdrop-blur-sm">
+                        <span className="text-xs font-mono text-reader-accent bg-reader-bg/80 border border-reader-border px-3 py-1 rounded-full backdrop-blur-sm">
                             {categoryIcon} {entry.category}
                         </span>
                     </div>
@@ -97,14 +99,14 @@ export default async function WikiDetailPage({ params }: { params: Promise<{ slu
                 {/* Category badge (when no image) */}
                 {!entry.image_url && (
                     <div className="flex items-center gap-2 mb-4">
-                        <span className="text-xs font-mono text-green-600 bg-green-950/40 border border-green-900 px-2 py-1 rounded">
+                        <span className="text-xs font-mono text-reader-accent bg-reader-accent/10 border border-reader-accent/30 px-2 py-1 rounded">
                             {categoryIcon} {entry.category}
                         </span>
                     </div>
                 )}
 
                 {/* Title */}
-                <h1 className="font-biohazard text-3xl sm:text-4xl text-worn-white tracking-wide mb-4 leading-tight flex items-center gap-3">
+                <h1 className="font-biohazard text-3xl sm:text-4xl text-reader-text tracking-wide mb-4 leading-tight flex items-center gap-3">
                     {entry.title}
                     {entry.is_main_character && (
                         <span className="bg-yellow-500 text-black px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 shadow-[0_0_10px_rgba(234,179,8,0.3)] shrink-0">
@@ -114,7 +116,7 @@ export default async function WikiDetailPage({ params }: { params: Promise<{ slu
                 </h1>
 
                 {/* Meta info */}
-                <div className="flex flex-wrap items-center gap-4 text-xs font-mono text-gray-600">
+                <div className="flex flex-wrap items-center gap-4 text-xs font-mono text-reader-muted">
                     <span className="flex items-center gap-1.5">
                         <Calendar size={12} />
                         {formattedDate}
@@ -127,9 +129,9 @@ export default async function WikiDetailPage({ params }: { params: Promise<{ slu
 
                 {/* Summary / Lead text */}
                 {entry.summary && (
-                    <div className="mt-6 pl-4 border-l-2 border-green-800">
+                    <div className="mt-6 pl-4 border-l-2 border-reader-accent/50">
                         <div
-                            className="text-ash-400 font-reading text-base leading-relaxed italic rich-text-content"
+                            className="text-reader-muted font-reading text-base leading-relaxed italic rich-text-content"
                             dangerouslySetInnerHTML={{ __html: entry.summary }}
                         />
                     </div>
@@ -138,46 +140,46 @@ export default async function WikiDetailPage({ params }: { params: Promise<{ slu
 
             {/* Divider */}
             <div className="flex items-center gap-3 mb-8">
-                <div className="flex-1 h-px bg-gray-800" />
-                <span className="text-green-900 text-xs font-mono">☣</span>
-                <div className="flex-1 h-px bg-gray-800" />
+                <div className="flex-1 h-px bg-reader-border" />
+                <span className="text-reader-muted text-xs font-mono opacity-40">☣</span>
+                <div className="flex-1 h-px bg-reader-border" />
             </div>
 
             {/* Content */}
             {entry.content ? (
                 <article
                     className="prose prose-invert prose-sm sm:prose-base max-w-none
-                        prose-headings:font-biohazard prose-headings:text-worn-white
+                        prose-headings:font-biohazard prose-headings:text-reader-text
                         prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg
-                        prose-p:text-ash-400 prose-p:leading-relaxed prose-p:font-reading
-                        prose-a:text-green-500 prose-a:no-underline hover:prose-a:underline
-                        prose-strong:text-ash-200 prose-strong:font-semibold
-                        prose-em:text-ash-500
-                        prose-ul:text-ash-400 prose-ol:text-ash-400
-                        prose-li:marker:text-green-700
-                        prose-hr:border-gray-800
-                        prose-blockquote:border-green-800 prose-blockquote:text-ash-500
-                        prose-code:text-green-400 prose-code:bg-green-950/30 prose-code:px-1 prose-code:rounded
-                        prose-pre:bg-[#111] prose-pre:border prose-pre:border-gray-800"
+                        prose-p:text-reader-text prose-p:leading-relaxed prose-p:font-reading
+                        prose-a:text-reader-accent prose-a:no-underline hover:prose-a:underline
+                        prose-strong:text-reader-text prose-strong:font-bold
+                        prose-em:text-reader-text/80
+                        prose-ul:text-reader-text prose-ol:text-reader-text
+                        prose-li:marker:text-reader-accent
+                        prose-hr:border-reader-border
+                        prose-blockquote:border-reader-accent prose-blockquote:text-reader-muted
+                        prose-code:text-reader-accent prose-code:bg-reader-accent/10 prose-code:px-1 prose-code:rounded
+                        prose-pre:bg-reader-bg/40 prose-pre:border prose-pre:border-reader-border"
                     dangerouslySetInnerHTML={{ __html: entry.content }}
                 />
             ) : (
-                <div className="text-center py-16 border border-dashed border-gray-800 rounded-lg">
-                    <p className="text-gray-600 font-mono text-sm">Dữ liệu đang được biên soạn...</p>
-                    <p className="text-gray-800 font-mono text-xs mt-2">☣ Classified - Pending Clearance</p>
+                <div className="text-center py-16 border border-dashed border-reader-border rounded-lg">
+                    <p className="text-reader-muted font-mono text-sm">Dữ liệu đang được biên soạn...</p>
+                    <p className="text-reader-muted/40 font-mono text-xs mt-2">☣ Classified - Pending Clearance</p>
                 </div>
             )}
 
             {/* Tags */}
             {entry.tags && entry.tags.length > 0 && (
-                <div className="mt-10 pt-6 border-t border-gray-800">
+                <div className="mt-10 pt-6 border-t border-reader-border">
                     <div className="flex items-center gap-2 flex-wrap">
-                        <Tag size={12} className="text-gray-700" />
+                        <Tag size={12} className="text-reader-muted" />
                         {entry.tags.map((tag) => (
                             <Link
                                 key={tag}
                                 href={`/wiki?search=${encodeURIComponent(tag)}`}
-                                className="text-xs font-mono text-gray-600 hover:text-green-500 bg-gray-900 hover:bg-green-950/30 border border-gray-800 hover:border-green-900 px-2.5 py-1 rounded transition-all"
+                                className="text-xs font-mono text-reader-muted hover:text-reader-accent bg-reader-bg border border-reader-border hover:border-reader-accent/40 px-2.5 py-1 rounded transition-all"
                             >
                                 {tag}
                             </Link>
@@ -192,12 +194,12 @@ export default async function WikiDetailPage({ params }: { params: Promise<{ slu
             )}
 
             {/* Related categories */}
-            <div className="mt-10 p-5 bg-[#0d0d0d] border border-gray-800 rounded-xl">
-                <p className="text-xs font-mono text-gray-700 mb-3 tracking-wider">KHÁM PHÁ THÊM</p>
+            <div className="mt-10 p-5 bg-reader-bg/40 border border-reader-border rounded-xl backdrop-blur-sm">
+                <p className="text-xs font-mono text-reader-muted mb-3 tracking-wider">KHÁM PHÁ THÊM</p>
                 <div className="flex flex-wrap gap-2">
                     <Link
                         href="/wiki"
-                        className="text-xs font-mono text-gray-600 hover:text-gray-300 bg-gray-900 border border-gray-800 hover:border-gray-700 px-3 py-1.5 rounded transition-all"
+                        className="text-xs font-mono text-reader-muted hover:text-reader-text bg-reader-bg border border-reader-border hover:border-reader-accent px-3 py-1.5 rounded transition-all"
                     >
                         📋 Tất cả
                     </Link>
@@ -206,8 +208,8 @@ export default async function WikiDetailPage({ params }: { params: Promise<{ slu
                             key={cat}
                             href={`/wiki?cat=${encodeURIComponent(cat)}`}
                             className={`text-xs font-mono px-3 py-1.5 rounded transition-all border ${cat === entry.category
-                                ? "text-green-400 bg-green-950/40 border-green-900"
-                                : "text-gray-600 hover:text-gray-300 bg-gray-900 border-gray-800 hover:border-gray-700"
+                                ? "text-reader-accent bg-reader-accent/10 border-reader-accent/30"
+                                : "text-reader-muted hover:text-reader-text bg-reader-bg border-reader-border hover:border-reader-accent"
                                 }`}
                         >
                             {CATEGORY_ICONS[cat]} {cat}
@@ -216,5 +218,6 @@ export default async function WikiDetailPage({ params }: { params: Promise<{ slu
                 </div>
             </div>
         </main>
-    );
+    </WikiSettingsWrapper>
+);
 }
