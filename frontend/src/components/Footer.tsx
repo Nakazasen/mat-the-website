@@ -89,7 +89,7 @@ export default function Footer() {
                 {/* Bottom bar */}
                 <div className="mt-10 pt-6 border-t border-ash-800 flex flex-col sm:flex-row items-center justify-between gap-4">
                     <p className="text-ash-600 text-xs font-mono">
-                        © 2026 MẠT THẾ ☣ · TẤT CẢ QUYỀN ĐƯỢC BẢO LƯU (v2.5)
+                        © 2026 MẠT THẾ ☣ · TẤT CẢ QUYỀN ĐƯỢC BẢO LƯU (v2.6)
                     </p>
                     <div className="flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full bg-toxic-green-DEFAULT animate-pulse" />

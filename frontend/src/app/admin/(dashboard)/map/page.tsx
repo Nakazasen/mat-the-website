@@ -113,7 +113,7 @@ export default function AdminMapPage() {
     }, []);
 
     const systemMapLocation = locations.find(l => (l.type as any) === 'system_map' && l.image_url);
-    const MAP_BOUNDS: [number, number][] = [[8, 100], [24, 110]]; // Fixed bounds covering Vietnam area
+    const MAP_BOUNDS: [number, number][] = [[0, 90], [27, 138]]; // 16:9 aspect ratio bounds covering SEA
 
     const handleMapClick = (lat: number, lng: number) => {
         setFormData(prev => ({ ...prev, lat, lng }));
