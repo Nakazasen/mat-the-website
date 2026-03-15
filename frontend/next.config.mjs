@@ -1,4 +1,5 @@
 /** @type {import('next').NextConfig} */
+// Force redeploy - implement custom map background
 const nextConfig = {
     images: {
         remotePatterns: [
