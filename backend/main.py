@@ -1357,7 +1357,7 @@ async def get_wiki_entries(
         
         resp = (
             query.order("is_main_character", desc=True)
-            .order("sort_order", desc=False, nulls_first=False)
+            .order("sort_order", desc=False, nullsfirst=False)
             .order("category")
             .order("title")
             .range(offset, offset + limit - 1)
