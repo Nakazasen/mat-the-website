@@ -30,6 +30,9 @@ const CATEGORY_ICONS: Record<string, string> = {
 export default function AdminWikiPage() {
     const [entries, setEntries] = useState<WikiEntry[]>([]);
     const [filter, setFilter] = useState<string>("all");
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -43,14 +46,18 @@ export default function AdminWikiPage() {
     const load = useCallback(async () => {
         setLoading(true);
         try {
-            const data = await getWikiEntries(filter === "all" ? undefined : filter);
-            setEntries(data);
+            const response = await getWikiEntries(filter === "all" ? undefined : filter, undefined, page);
+            setEntries(response.entries);
+            setTotalPages(response.total_pages);
+            setTotal(response.total);
         } catch {
             showToast("error", "Không tải được danh sách Wiki");
         } finally {
             setLoading(false);
         }
-    }, [filter]);
+    }, [filter, page]);
+
+    useEffect(() => { setPage(1); }, [filter]);
 
     useEffect(() => { load(); }, [load]);
 
@@ -127,7 +134,7 @@ export default function AdminWikiPage() {
                     <h1 className="text-xl font-mono text-gray-100 tracking-wide flex items-center gap-2">
                         <BookOpen size={20} className="text-green-500" /> CẨM NANG MẠT THẾ
                     </h1>
-                    <p className="text-xs font-mono text-gray-600 mt-1">{entries.length} entries · Quản lý Bách Khoa</p>
+                    <p className="text-xs font-mono text-gray-600 mt-1">{total} entries · Quản lý Bách Khoa</p>
                 </div>
                 <button onClick={openNew} className="flex items-center gap-2 px-4 py-2 bg-green-900 hover:bg-green-800 border border-green-700 text-green-300 text-sm font-mono rounded transition-colors">
                     <PlusCircle size={16} /> Thêm mới
@@ -188,6 +195,29 @@ export default function AdminWikiPage() {
                             </div>
                         </div>
                     ))}
+
+                    {/* Pagination */}
+                    {totalPages > 1 && (
+                        <div className="flex items-center justify-center gap-4 mt-6">
+                            <button 
+                                onClick={() => setPage(p => Math.max(1, p - 1))}
+                                disabled={page === 1}
+                                className="px-3 py-1.5 bg-[#0d0d0d] border border-gray-800 text-gray-400 rounded hover:border-gray-600 disabled:opacity-30 disabled:cursor-not-allowed font-mono text-xs transition-colors"
+                            >
+                                ← Trước
+                            </button>
+                            <span className="text-xs font-mono text-gray-600 uppercase tracking-widest">
+                                Trang {page} / {totalPages}
+                            </span>
+                            <button 
+                                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                                disabled={page === totalPages}
+                                className="px-3 py-1.5 bg-[#0d0d0d] border border-gray-800 text-gray-400 rounded hover:border-gray-600 disabled:opacity-30 disabled:cursor-not-allowed font-mono text-xs transition-colors"
+                            >
+                                Sau →
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
 

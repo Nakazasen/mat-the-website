@@ -146,6 +146,14 @@ export interface WikiEntryIn {
     is_main_character?: boolean;
 }
 
+export interface WikiEntriesResponse {
+    entries: WikiEntry[];
+    total: number;
+    page: number;
+    limit: number;
+    total_pages: number;
+}
+
 export async function getUserRole(token: string): Promise<string> {
     try {
         const res = await fetch(`${API_BASE_URL}/api/user/role`, {
@@ -163,10 +171,18 @@ export async function getUserRole(token: string): Promise<string> {
 
 export const WIKI_CATEGORIES = ["Nhân vật", "Sinh vật", "Thế lực", "Vật phẩm", "Địa điểm"] as const;
 
-export async function getWikiEntries(category?: string, search?: string): Promise<WikiEntry[]> {
+export async function getWikiEntries(
+    category?: string, 
+    search?: string,
+    page: number = 1,
+    limit: number = 50
+): Promise<WikiEntriesResponse> {
     const params = new URLSearchParams();
     if (category) params.set("category", category);
     if (search) params.set("search", search);
+    params.set("page", page.toString());
+    params.set("limit", limit.toString());
+    
     const res = await fetch(`${API_BASE_URL}/api/wiki?${params}`, { cache: "no-store" });
     if (!res.ok) throw new Error("Failed to fetch wiki entries");
     return res.json();

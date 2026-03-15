@@ -65,17 +65,65 @@ function WikiCard({ entry }: { entry: WikiEntry }) {
     );
 }
 
-async function WikiGrid({ category }: { category?: string }) {
+function Pagination({ currentPage, totalPages, cat }: { currentPage: number; totalPages: number; cat?: string }) {
+    if (totalPages <= 1) return null;
+
+    const prevPage = currentPage > 1 ? currentPage - 1 : null;
+    const nextPage = currentPage < totalPages ? currentPage + 1 : null;
+
+    const getUrl = (p: number) => {
+        const params = new URLSearchParams();
+        if (cat) params.set("cat", cat);
+        params.set("page", p.toString());
+        return `/wiki?${params.toString()}`;
+    };
+
+    return (
+        <div className="flex justify-center items-center gap-4 mt-12 pb-10">
+            {prevPage ? (
+                <Link href={getUrl(prevPage)} 
+                    className="px-4 py-2 bg-reader-bg border border-reader-border text-reader-text rounded-lg hover:border-reader-accent transition-colors font-mono text-sm">
+                    ← Trước
+                </Link>
+            ) : (
+                <span className="px-4 py-2 border border-reader-border text-reader-muted rounded-lg font-mono text-sm opacity-50 cursor-not-allowed">
+                    ← Trước
+                </span>
+            )}
+
+            <div className="text-xs font-mono text-reader-muted uppercase tracking-widest">
+                Trang {currentPage} / {totalPages}
+            </div>
+
+            {nextPage ? (
+                <Link href={getUrl(nextPage)} 
+                    className="px-4 py-2 bg-reader-bg border border-reader-border text-reader-text rounded-lg hover:border-reader-accent transition-colors font-mono text-sm">
+                    Sau →
+                </Link>
+            ) : (
+                <span className="px-4 py-2 border border-reader-border text-reader-muted rounded-lg font-mono text-sm opacity-50 cursor-not-allowed">
+                    Sau →
+                </span>
+            )}
+        </div>
+    );
+}
+
+async function WikiGrid({ category, page }: { category?: string; page: number }) {
     let entries: WikiEntry[] = [];
+    let totalPages = 1;
+    
     try {
-        entries = await getWikiEntries(category);
+        const response = await getWikiEntries(category, undefined, page);
+        entries = response.entries;
+        totalPages = response.total_pages;
     } catch {
-        return <p className="col-span-3 text-center text-gray-700 font-mono py-20">Không kết nối được với server. Vui lòng thử lại.</p>;
+        return <p className="col-span-1 sm:col-span-2 lg:col-span-3 text-center text-gray-700 font-mono py-20">Không kết nối được với server. Vui lòng thử lại.</p>;
     }
 
     if (entries.length === 0) {
         return (
-            <div className="col-span-3 text-center py-20 border border-dashed border-reader-border rounded-lg">
+            <div className="col-span-1 sm:col-span-2 lg:col-span-3 text-center py-20 border border-dashed border-reader-border rounded-lg">
                 <p className="text-reader-muted font-mono text-sm">Chưa có dữ liệu trong mục này.</p>
                 <p className="text-reader-muted/60 font-mono text-xs mt-2">Các thông tin đang được biên soạn...</p>
             </div>
@@ -84,14 +132,19 @@ async function WikiGrid({ category }: { category?: string }) {
 
     return (
         <>
-            {entries.map(entry => <WikiCard key={entry.id} entry={entry} />)}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {entries.map(entry => <WikiCard key={entry.id} entry={entry} />)}
+            </div>
+            
+            <Pagination currentPage={page} totalPages={totalPages} cat={category} />
         </>
     );
 }
 
-export default async function WikiPage({ searchParams }: { searchParams: Promise<{ cat?: string }> }) {
-    const { cat } = await searchParams;
+export default async function WikiPage({ searchParams }: { searchParams: Promise<{ cat?: string; page?: string }> }) {
+    const { cat, page: pageParam } = await searchParams;
     const activeCategory = WIKI_CATEGORIES.includes(cat as typeof WIKI_CATEGORIES[number]) ? cat : undefined;
+    const currentPage = parseInt(pageParam || "1") || 1;
 
     return (
         <WikiSettingsWrapper>
@@ -144,17 +197,16 @@ export default async function WikiPage({ searchParams }: { searchParams: Promise
                                 <Link href="/wiki" className="text-xs font-mono text-reader-muted hover:text-reader-text transition-colors ml-2">✕ Bỏ lọc</Link>
                             </div>
                         )}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <Suspense fallback={
-                                <>
-                                    {[...Array(6)].map((_, i) => (
-                                        <div key={i} className="h-64 bg-reader-bg border border-reader-border rounded-xl animate-pulse" />
-                                    ))}
-                                </>
-                            }>
-                                <WikiGrid category={activeCategory} />
-                            </Suspense>
-                        </div>
+                        
+                        <Suspense fallback={
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {[...Array(6)].map((_, i) => (
+                                    <div key={i} className="h-64 bg-reader-bg border border-reader-border rounded-xl animate-pulse" />
+                                ))}
+                            </div>
+                        }>
+                            <WikiGrid category={activeCategory} page={currentPage} />
+                        </Suspense>
                     </div>
                 </div>
             </main>

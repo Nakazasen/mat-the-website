@@ -1343,17 +1343,37 @@ class WikiEntryIn(BaseModel):
 async def get_wiki_entries(
     category: Optional[str] = Query(None, description="Lọc theo category"),
     search: Optional[str] = Query(None, description="Tìm kiếm theo tiêu đề"),
-    limit: int = Query(50, ge=1, le=200),
+    page: int = Query(1, ge=1, description="Số trang"),
+    limit: int = Query(50, ge=1, le=200, description="Số lượng mỗi trang"),
 ):
     """Lấy danh sách tất cả wiki entries, có thể lọc theo category hoặc tìm kiếm."""
     try:
-        query = supabase.table("wiki_entries").select("*")
+        offset = (page - 1) * limit
+        query = supabase.table("wiki_entries").select("*", count="exact")
         if category:
             query = query.eq("category", category)
         if search:
             query = query.ilike("title", f"%{search}%")
-        resp = query.order("is_main_character", desc=True).order("sort_order", desc=False, nullsfirst=False).order("category").order("title").limit(limit).execute()
-        return resp.data
+        
+        resp = (
+            query.order("is_main_character", desc=True)
+            .order("sort_order", desc=False, nulls_first=False)
+            .order("category")
+            .order("title")
+            .range(offset, offset + limit - 1)
+            .execute()
+        )
+        
+        total = resp.count or 0
+        total_pages = (total + limit - 1) // limit if limit > 0 else 1
+        
+        return {
+            "entries": resp.data,
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "total_pages": total_pages
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

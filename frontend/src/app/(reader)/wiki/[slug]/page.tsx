@@ -16,8 +16,9 @@ const CATEGORY_ICONS: Record<string, string> = {
 // Pre-generate known slugs for static generation
 export async function generateStaticParams() {
     try {
-        const entries = await getWikiEntries();
-        return entries.map((e) => ({ slug: e.slug }));
+        // Fetch a large number for static generation, or implement a loop if needed
+        const response = await getWikiEntries(undefined, undefined, 1, 1000);
+        return response.entries.map((e) => ({ slug: e.slug }));
     } catch {
         return [];
     }

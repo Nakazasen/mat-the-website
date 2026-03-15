@@ -62,7 +62,7 @@ export default function FactionHierarchyEditor({ factionId, factionTitle, member
 
     // Load characters for picker
     useEffect(() => {
-        getWikiEntries("Nhân vật").then(setCharacters).catch(() => {});
+        getWikiEntries("Nhân vật", undefined, 1, 1000).then(res => setCharacters(res.entries)).catch(() => {});
     }, []);
 
     const tree = buildTree(members);
