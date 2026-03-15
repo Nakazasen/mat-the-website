@@ -35,6 +35,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     }
 }
 
+export const dynamic = "force-dynamic";
+
 export default async function WikiDetailPage({ params }: { params: Promise<{ slug: string }> }) {
     const { slug } = await params;
 
@@ -45,12 +47,16 @@ export default async function WikiDetailPage({ params }: { params: Promise<{ slu
         notFound();
     }
 
-    const categoryIcon = CATEGORY_ICONS[entry.category] || "📖";
-    const formattedDate = new Date(entry.created_at).toLocaleDateString("vi-VN", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-    });
+    if (!entry) notFound();
+
+    const categoryIcon = entry.category ? (CATEGORY_ICONS[entry.category] || "📖") : "📖";
+    const formattedDate = entry.created_at 
+        ? new Date(entry.created_at).toLocaleDateString("vi-VN", {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+        })
+        : "N/A";
 
     return (
         <main className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
