@@ -359,7 +359,7 @@ export async function getHomepageSettings(): Promise<HomepageSettings> {
 // MAP LOCATIONS API (Phase 09)
 // ============================================================
 
-export type MapLocationType = 'safe_zone' | 'danger_zone' | 'neutral' | 'outpost' | 'ruins';
+export type MapLocationType = 'safe_zone' | 'danger_zone' | 'neutral' | 'outpost' | 'ruins' | 'system_map';
 
 export interface MapLocation {
     id: string;

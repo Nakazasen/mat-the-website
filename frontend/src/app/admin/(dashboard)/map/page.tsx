@@ -112,8 +112,7 @@ export default function AdminMapPage() {
         init();
     }, []);
 
-    // Find custom background map from locations
-    const systemMapLocation = locations.find(l => l.type === 'system_map' && l.image_url);
+    const systemMapLocation = locations.find(l => (l.type as any) === 'system_map' && l.image_url);
     const MAP_BOUNDS: [number, number][] = [[8, 100], [24, 110]]; // Fixed bounds covering Vietnam area
 
     const handleMapClick = (lat: number, lng: number) => {

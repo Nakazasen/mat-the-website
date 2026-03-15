@@ -53,8 +53,7 @@ export default function ReaderMapPage() {
         fetchMap();
     }, []);
 
-    // Find custom background map
-    const systemMapLocation = locations.find(l => l.type === 'system_map' && l.image_url);
+    const systemMapLocation = locations.find(l => (l.type as any) === 'system_map' && l.image_url);
     const MAP_BOUNDS: [number, number][] = [[8, 100], [24, 110]]; // Fixed bounds covering Vietnam area
 
     if (loading) {
