@@ -121,44 +121,34 @@ app = FastAPI(
     redoc_url=None,  # disable redoc để giảm memory trên Render free tier
 )
 
-# === CUSTOM LOGGING & CORS MIDDLEWARE (TRULY NUCLEAR OPTION) ===
-@app.middleware("http")
-async def add_cors_and_logging(request, call_next):
-    # Log incoming request
-    print(f"DEBUG: Request {request.method} {request.url}")
-    
-    # Handle preflight (OPTIONS) requests manually
-    if request.method == "OPTIONS":
-        from fastapi.responses import Response
-        response = Response(content=None, status_code=204)
-        response.headers["Access-Control-Allow-Origin"] = "*"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "*"
-        response.headers["Access-Control-Max-Age"] = "86400"
-        return response
+# === CORS MIDDLEWARE ===
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
 
-    # Process request
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS if ALLOWED_ORIGINS != ["*"] else ["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+)
+
+@app.middleware("http")
+async def log_requests(request, call_next):
+    # Log incoming request for better debugging on Render/Vercel
+    print(f"DEBUG: {request.method} {request.url}")
     try:
         response = await call_next(request)
+        return response
     except Exception as e:
         import traceback
-        error_msg = f"CRASH in {request.method} {request.url}: {str(e)}"
-        print(f"ERROR: {error_msg}")
+        print(f"ERROR: Crash in {request.method} {request.url}: {str(e)}")
         print(traceback.format_exc())
-        
-        # Create a JSON error response manually to ensure headers are added
         from fastapi.responses import JSONResponse
-        response = JSONResponse(
+        return JSONResponse(
             status_code=500,
-            content={"detail": f"Server Error: {str(e)}", "error": str(e)}
+            content={"detail": f"Internal Server Error: {str(e)}"}
         )
-
-    # Add CORS headers to ALL responses (even errors)
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "*"
-    
-    return response
 
 # === DATA MODELS ===
 class Chapter(BaseModel):
@@ -1139,8 +1129,11 @@ async def upload_image(
         # Read file
         contents = await file.read()
         
-        # Upload to R2
-        r2_client.put_object(
+        # Upload to R2 (Wrapped in threadpool to avoid blocking event loop)
+        from fastapi.concurrency import run_in_threadpool
+        
+        await run_in_threadpool(
+            r2_client.put_object,
             Bucket=R2_BUCKET,
             Key=filename,
             Body=contents,

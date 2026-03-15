@@ -5,7 +5,7 @@ import imageCompression from 'browser-image-compression';
 // Then fetches content directly from Cloudflare CDN
 
 const API_BASE_URL =
-    process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, "");
 
 export interface Chapter {
     id: number;
