@@ -22,7 +22,7 @@ function toSlug(text: string): string {
         .replace(/\s+/g, "-");
 }
 
-const EMPTY_FORM: WikiEntryIn = { title: "", category: "Sinh vật", slug: "", summary: "", content: "", image_url: "", tags: [] };
+const EMPTY_FORM: WikiEntryIn = { title: "", category: "Sinh vật", slug: "", summary: "", content: "", image_url: "", tags: [], sort_order: 0, is_main_character: false };
 const CATEGORY_ICONS: Record<string, string> = {
     "Nhân vật": "👤", "Sinh vật": "🧟", "Thế lực": "⚔️", "Vật phẩm": "🗡️", "Địa điểm": "📍"
 };
@@ -70,6 +70,7 @@ export default function AdminWikiPage() {
             title: entry.title, category: entry.category, slug: entry.slug,
             summary: entry.summary || "", content: entry.content || "",
             image_url: entry.image_url || "", tags: entry.tags || [],
+            sort_order: entry.sort_order || 0, is_main_character: entry.is_main_character || false,
         });
         setEditingId(entry.id);
         setShowForm(true);
@@ -196,7 +197,7 @@ export default function AdminWikiPage() {
                         </div>
 
                         <div className="p-6 space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                                 {/* Category */}
                                 <div>
                                     <label className="block text-xs font-mono text-gray-500 mb-1">Category *</label>
@@ -205,11 +206,28 @@ export default function AdminWikiPage() {
                                         {WIKI_CATEGORIES.map(c => <option key={c} value={c}>{CATEGORY_ICONS[c]} {c}</option>)}
                                     </select>
                                 </div>
-                                {/* Title */}
+                                {/* Sort Order */}
                                 <div>
+                                    <label className="block text-xs font-mono text-gray-500 mb-1">Thứ tự (0=đầu)</label>
+                                    <input type="number" value={form.sort_order}
+                                        onChange={e => setForm(f => ({ ...f, sort_order: parseInt(e.target.value) || 0 }))}
+                                        className="w-full bg-[#0d0d0d] border border-gray-800 rounded px-3 py-2 text-xs font-mono text-gray-300 focus:outline-none focus:border-green-700" />
+                                </div>
+                                {/* Is Main Character */}
+                                <div className="flex items-end pb-2">
+                                    <label className="flex items-center gap-2 cursor-pointer group">
+                                        <input type="checkbox" checked={form.is_main_character}
+                                            onChange={e => setForm(f => ({ ...f, is_main_character: e.target.checked }))}
+                                            className="w-4 h-4 rounded bg-[#0d0d0d] border-gray-800 text-green-600 focus:ring-0 focus:ring-offset-0" />
+                                        <span className="text-xs font-mono text-gray-500 group-hover:text-gray-300 transition-colors">Nổi bật / Chính</span>
+                                    </label>
+                                </div>
+
+                                {/* Title */}
+                                <div className="md:col-span-3">
                                     <label className="block text-xs font-mono text-gray-500 mb-1">Tiêu đề *</label>
                                     <input value={form.title}
-                                        onChange={e => setForm(f => ({ ...f, title: e.target.value, slug: toSlug(e.target.value) }))}
+                                        onChange={e => setForm(f => ({ ...f, title: e.target.value, slug: f.slug || toSlug(e.target.value) }))}
                                         placeholder="VD: Zombie Cấp 1 - Hunter" className="w-full bg-[#0d0d0d] border border-gray-800 rounded px-3 py-2 text-xs font-mono text-gray-300 focus:outline-none focus:border-green-700" />
                                 </div>
                             </div>

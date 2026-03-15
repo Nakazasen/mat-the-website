@@ -128,6 +128,8 @@ export interface WikiEntry {
     content?: string;
     image_url?: string;
     tags?: string[];
+    sort_order: number;
+    is_main_character: boolean;
     created_at: string;
     updated_at: string;
 }
@@ -140,6 +142,8 @@ export interface WikiEntryIn {
     content?: string;
     image_url?: string;
     tags?: string[];
+    sort_order?: number;
+    is_main_character?: boolean;
 }
 
 export async function getUserRole(token: string): Promise<string> {

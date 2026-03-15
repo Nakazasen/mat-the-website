@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Tag, Calendar, BookOpen } from "lucide-react";
+import { ArrowLeft, Tag, Calendar, BookOpen, Star } from "lucide-react";
 import { getWikiEntry, getWikiEntries, WIKI_CATEGORIES } from "@/lib/api";
 import FactionOrgChart from "@/components/FactionOrgChart";
 
@@ -98,8 +98,13 @@ export default async function WikiDetailPage({ params }: { params: Promise<{ slu
                 )}
 
                 {/* Title */}
-                <h1 className="font-biohazard text-3xl sm:text-4xl text-worn-white tracking-wide mb-4 leading-tight">
+                <h1 className="font-biohazard text-3xl sm:text-4xl text-worn-white tracking-wide mb-4 leading-tight flex items-center gap-3">
                     {entry.title}
+                    {entry.is_main_character && (
+                        <span className="bg-yellow-500 text-black px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 shadow-[0_0_10px_rgba(234,179,8,0.3)] shrink-0">
+                            <Star size={10} fill="currentColor" /> CHÍNH
+                        </span>
+                    )}
                 </h1>
 
                 {/* Meta info */}

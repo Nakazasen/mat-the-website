@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { BookOpen, Filter } from "lucide-react";
+import { BookOpen, Filter, Star } from "lucide-react";
 import Link from "next/link";
 import { getWikiEntries, WikiEntry, WIKI_CATEGORIES } from "@/lib/api";
 
@@ -15,24 +15,42 @@ const CATEGORY_ICONS: Record<string, string> = {
 function WikiCard({ entry }: { entry: WikiEntry }) {
     return (
         <Link href={`/wiki/${entry.slug}`}
-            className="group bg-[#111] border border-gray-800 rounded-xl overflow-hidden hover:border-green-900 transition-all duration-300 hover:shadow-[0_0_20px_rgba(0,255,159,0.05)]">
+            className={`group bg-[#111] border rounded-xl overflow-hidden transition-all duration-300 hover:shadow-[0_0_20px_rgba(0,255,159,0.05)]
+                ${entry.is_main_character ? "border-yellow-900/50 shadow-[0_0_15px_rgba(234,179,8,0.03)] hover:border-yellow-600" : "border-gray-800 hover:border-green-900"}`}>
             {entry.image_url && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={entry.image_url} alt={entry.title}
-                    className="w-full h-40 object-cover group-hover:scale-105 transition-transform duration-500" />
+                <div className="relative overflow-hidden">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={entry.image_url} alt={entry.title}
+                        className="w-full h-40 object-cover group-hover:scale-105 transition-transform duration-500" />
+                    {entry.is_main_character && (
+                        <div className="absolute top-2 right-2 bg-yellow-500 text-black px-1.5 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 shadow-lg z-10">
+                            <Star size={10} fill="currentColor" /> CHÍNH
+                        </div>
+                    )}
+                </div>
             )}
             {!entry.image_url && (
-                <div className="w-full h-40 bg-[#0d0d0d] flex items-center justify-center text-4xl border-b border-gray-800">
+                <div className={`w-full h-40 flex items-center justify-center text-4xl border-b relative
+                    ${entry.is_main_character ? "bg-[#1a140a] border-yellow-900/40" : "bg-[#0d0d0d] border-gray-800"}`}>
                     {CATEGORY_ICONS[entry.category] || "📖"}
+                    {entry.is_main_character && (
+                        <div className="absolute top-2 right-2 bg-yellow-500 text-black px-1.5 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 shadow-lg z-10">
+                            <Star size={10} fill="currentColor" /> CHÍNH
+                        </div>
+                    )}
                 </div>
             )}
             <div className="p-4">
                 <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xs font-mono text-green-600 bg-green-950/40 border border-green-900 px-2 py-0.5 rounded">
+                    <span className={`text-xs font-mono px-2 py-0.5 rounded border
+                        ${entry.is_main_character ? "text-yellow-500 bg-yellow-950/40 border-yellow-900/60" : "text-green-600 bg-green-950/40 border-green-900"}`}>
                         {CATEGORY_ICONS[entry.category]} {entry.category}
                     </span>
                 </div>
-                <h3 className="font-mono text-gray-200 text-sm font-semibold group-hover:text-green-400 transition-colors">{entry.title}</h3>
+                <h3 className={`font-mono text-sm font-semibold transition-colors
+                    ${entry.is_main_character ? "text-yellow-500 group-hover:text-yellow-400" : "text-gray-200 group-hover:text-green-400"}`}>
+                    {entry.title}
+                </h3>
                 {entry.summary && <p className="text-xs text-gray-600 font-reading mt-2 leading-relaxed line-clamp-2">{entry.summary}</p>}
                 {entry.tags && entry.tags.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-3">

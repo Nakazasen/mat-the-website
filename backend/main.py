@@ -1321,6 +1321,8 @@ class WikiEntryOut(BaseModel):
     content: Optional[str] = None
     image_url: Optional[str] = None
     tags: Optional[list[str]] = None
+    sort_order: int = 0
+    is_main_character: bool = False
     created_at: str
     updated_at: str
 
@@ -1333,6 +1335,8 @@ class WikiEntryIn(BaseModel):
     content: Optional[str] = None
     image_url: Optional[str] = None
     tags: Optional[list[str]] = None
+    sort_order: Optional[int] = None
+    is_main_character: Optional[bool] = None
 
 
 @app.get("/api/wiki", summary="Lấy danh sách Wiki")
@@ -1348,7 +1352,7 @@ async def get_wiki_entries(
             query = query.eq("category", category)
         if search:
             query = query.ilike("title", f"%{search}%")
-        resp = query.order("category").order("title").limit(limit).execute()
+        resp = query.order("sort_order").order("category").order("title").limit(limit).execute()
         return resp.data
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
