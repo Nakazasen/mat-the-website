@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { PlusCircle, Edit2, Trash2, BookOpen, X, Save, Loader2, AlertCircle, CheckCircle, Upload, Users } from "lucide-react";
+import { PlusCircle, Edit2, Trash2, BookOpen, X, Save, Loader2, AlertCircle, CheckCircle, Upload, Users, Star } from "lucide-react";
 import {
     WikiEntry, WikiEntryIn, WIKI_CATEGORIES, FactionMember,
     getWikiEntries, createWikiEntry, updateWikiEntry, deleteWikiEntry, uploadImageR2, getFactionHierarchy
@@ -163,7 +163,11 @@ export default function AdminWikiPage() {
                                     <img src={entry.image_url} alt={entry.title} className="w-10 h-10 rounded object-cover border border-gray-800" />
                                 )}
                                 <div className="min-w-0">
-                                    <div className="font-mono text-sm text-gray-200 truncate">{entry.title}</div>
+                                    <div className="font-mono text-sm text-gray-200 truncate flex items-center gap-2">
+                                        {entry.is_main_character && <Star size={12} className="text-yellow-500 fill-yellow-500" />}
+                                        {entry.title}
+                                        <span className="text-[10px] text-gray-700 font-mono ml-1">#{entry.sort_order}</span>
+                                    </div>
                                     <div className="text-xs text-gray-600 font-mono">{CATEGORY_ICONS[entry.category]} {entry.category} · /{entry.slug}</div>
                                 </div>
                             </div>
@@ -208,7 +212,7 @@ export default function AdminWikiPage() {
                                 </div>
                                 {/* Sort Order */}
                                 <div>
-                                    <label className="block text-xs font-mono text-gray-500 mb-1">Thứ tự (0=đầu)</label>
+                                    <label className="block text-xs font-mono text-gray-500 mb-1">Thứ tự sắp xếp</label>
                                     <input type="number" value={form.sort_order}
                                         onChange={e => setForm(f => ({ ...f, sort_order: parseInt(e.target.value) || 0 }))}
                                         className="w-full bg-[#0d0d0d] border border-gray-800 rounded px-3 py-2 text-xs font-mono text-gray-300 focus:outline-none focus:border-green-700" />
