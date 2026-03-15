@@ -183,9 +183,23 @@ export async function getWikiEntries(
     params.set("page", page.toString());
     params.set("limit", limit.toString());
     
-    const res = await fetch(`${API_BASE_URL}/api/wiki?${params}`, { cache: "no-store" });
-    if (!res.ok) throw new Error("Failed to fetch wiki entries");
-    return res.json();
+    const response = await fetch(`${API_BASE_URL}/api/wiki?${params.toString()}`, { cache: "no-store" });
+    if (!response.ok) throw new Error("Failed to fetch wiki entries");
+    
+    const data = await response.json();
+    
+    // Backward compatibility: If it's an array (old API), wrap it in the expected object structure
+    if (Array.isArray(data)) {
+        return {
+            entries: data,
+            total: data.length,
+            page: 1,
+            limit: Math.max(data.length, limit),
+            total_pages: 1
+        };
+    }
+    
+    return data;
 }
 
 export async function getWikiEntry(slug: string): Promise<WikiEntry> {
