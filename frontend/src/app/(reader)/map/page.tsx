@@ -163,7 +163,7 @@ export default function ReaderMapPage() {
                                             </div>
                                             <h3 className="text-sm font-bold text-white mb-2 uppercase tracking-wide">{loc.name}</h3>
                                             <div
-                                                className="text-[10px] text-ash-400 leading-relaxed italic mb-0 rich-text-content"
+                                                className="text-xs text-gray-200 leading-relaxed mb-0 rich-text-content"
                                                 dangerouslySetInnerHTML={{ __html: loc.description || "Chưa có dữ liệu chi tiết về khu vực này." }}
                                             />
                                         </div>
