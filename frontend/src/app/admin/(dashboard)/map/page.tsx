@@ -135,7 +135,7 @@ export default function AdminMapPage() {
                 const created = await createMapLocation(formData, token);
                 setLocations(prev => [created, ...prev]);
                 setSuccess("Đã thêm điểm mới lên bản đồ!");
-                setFormData({ ...formData, name: '', description: '', image_url: '' });
+                setFormData({ name: '', type: 'neutral', description: '', lat: 10.762622, lng: 106.660172, image_url: '' });
             }
         } catch (err: any) {
             setError(err.message);
@@ -151,7 +151,7 @@ export default function AdminMapPage() {
             setLocations(prev => prev.filter(l => l.id !== id));
             if (selectedLocation?.id === id) {
                 setSelectedLocation(null);
-                setFormData({ ...formData, name: '', description: '', image_url: '' });
+                setFormData({ name: '', type: 'neutral', description: '', lat: 10.762622, lng: 106.660172, image_url: '' });
             }
             setSuccess("Đã xoá điểm đánh dấu.");
         } catch (err) {
@@ -282,7 +282,7 @@ export default function AdminMapPage() {
                             {selectedLocation && (
                                 <button
                                     type="button"
-                                    onClick={() => { setSelectedLocation(null); setFormData({ ...formData, name: '', description: '', image_url: '' }); }}
+                                    onClick={() => { setSelectedLocation(null); setFormData({ name: '', type: 'neutral', description: '', lat: 10.762622, lng: 106.660172, image_url: '' }); }}
                                     className="text-[10px] text-gray-500 hover:text-white uppercase font-mono"
                                 >
                                     Hủy
