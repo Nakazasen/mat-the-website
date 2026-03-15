@@ -34,6 +34,37 @@ const TYPE_CONFIG = {
     system_map: { icon: MapPin, color: 'text-emerald-400', label: 'BẢN ĐỒ HỆ THỐNG', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30' },
 };
 
+// Function to create custom DivIcon based on location type
+const createCustomIcon = (type: string) => {
+    if (typeof window === 'undefined') return null;
+    const L = require('leaflet');
+    
+    let bgClass = 'bg-blue-500';
+    let ringClass = 'ring-blue-500/50';
+
+    if (type === 'safe_zone') { bgClass = 'bg-green-500'; ringClass = 'ring-green-500/50'; }
+    else if (type === 'danger_zone') { bgClass = 'bg-red-500'; ringClass = 'ring-red-500/50'; }
+    else if (type === 'outpost') { bgClass = 'bg-yellow-500'; ringClass = 'ring-yellow-500/50'; }
+    else if (type === 'ruins') { bgClass = 'bg-gray-500'; ringClass = 'ring-gray-500/50'; }
+    else if (type === 'system_map') { bgClass = 'bg-emerald-400'; ringClass = 'ring-emerald-400/50'; }
+
+    const html = `
+        <div class="relative flex items-center justify-center w-8 h-8">
+            <div class="absolute inset-0 rounded-full ${bgClass} opacity-20 animate-ping"></div>
+            <div class="relative w-4 h-4 rounded-full ${bgClass} ring-4 ${ringClass} shadow-lg border-2 border-[#0d0d0d]"></div>
+        </div>
+    `;
+
+    return L.divIcon({
+        html,
+        className: 'custom-leaflet-icon',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16], 
+        popupAnchor: [0, -16]
+    });
+};
+
+
 export default function ReaderMapPage() {
     const [locations, setLocations] = useState<MapLocation[]>([]);
     const [loading, setLoading] = useState(true);
@@ -118,7 +149,7 @@ export default function ReaderMapPage() {
                     {locations.filter(l => (l.type as any) !== 'system_map').map(loc => {
                         const config = TYPE_CONFIG[loc.type as keyof typeof TYPE_CONFIG] || TYPE_CONFIG.neutral;
                         return (
-                            <Marker key={loc.id} position={[loc.lat, loc.lng] as any}>
+                            <Marker key={loc.id} position={[loc.lat, loc.lng] as any} icon={createCustomIcon(loc.type as string)}>
                                 <Popup className="map-popup">
                                     <div className="w-64 bg-ash-900 overflow-hidden rounded-lg border border-ash-800 shadow-2xl">
                                         {loc.image_url && (
@@ -180,6 +211,10 @@ export default function ReaderMapPage() {
                     top: 10px !important;
                     right: 10px !important;
                     z-index: 10;
+                }
+                .custom-leaflet-icon {
+                    background: transparent !important;
+                    border: none !important;
                 }
             `}</style>
         </div>
