@@ -1352,7 +1352,7 @@ async def get_wiki_entries(
             query = query.eq("category", category)
         if search:
             query = query.ilike("title", f"%{search}%")
-        resp = query.order("is_main_character", desc=True).order("sort_order", desc=False, nulls_first=False).order("category").order("title").limit(limit).execute()
+        resp = query.order("is_main_character", desc=True).order("sort_order", desc=False, nullsfirst=False).order("category").order("title").limit(limit).execute()
         return resp.data
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
