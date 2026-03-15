@@ -115,7 +115,7 @@ export default function ReaderMapPage() {
                         />
                     )}
 
-                    {locations.filter(l => l.type !== 'system_map').map(loc => {
+                    {locations.filter(l => (l.type as any) !== 'system_map').map(loc => {
                         const config = TYPE_CONFIG[loc.type as keyof typeof TYPE_CONFIG] || TYPE_CONFIG.neutral;
                         return (
                             <Marker key={loc.id} position={[loc.lat, loc.lng] as any}>
