@@ -216,6 +216,18 @@ export default function ReaderMapPage() {
                     background: transparent !important;
                     border: none !important;
                 }
+                .rich-text-content {
+                    font-size: 14px !important;
+                    color: #f3f4f6 !important;
+                    line-height: 1.6 !important;
+                }
+                .rich-text-content p, 
+                .rich-text-content span, 
+                .rich-text-content div {
+                    font-size: 14px !important;
+                    color: #f3f4f6 !important;
+                    line-height: 1.6 !important;
+                }
             `}</style>
         </div>
     );
