@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createAdminClient } from '@/lib/supabase-admin';
@@ -8,7 +8,6 @@ import { ArrowLeft, Save, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import RichTextEditor from '@/components/Editor';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
-const ADMIN_TOKEN = process.env.NEXT_PUBLIC_ADMIN_TOKEN || "mat-the-admin-2026";
 
 export default function NewChapterPage() {
     const router = useRouter();
@@ -19,6 +18,18 @@ export default function NewChapterPage() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
+    const [token, setToken] = useState<string | null>(null);
+
+    useEffect(() => {
+        const loadSession = async () => {
+            const supabase = createAdminClient();
+            if (!supabase) return;
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) return;
+            setToken(session.access_token);
+        };
+        loadSession();
+    }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -135,7 +146,7 @@ export default function NewChapterPage() {
                         content={content}
                         onChange={(html) => setContent(html)}
                         placeholder="Bắt đầu viết chương mới ở đây..."
-                        adminToken={ADMIN_TOKEN}
+                        adminToken={token || undefined}
                     />
                 </div>
 

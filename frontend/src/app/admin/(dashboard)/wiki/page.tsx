@@ -2,14 +2,14 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { PlusCircle, Edit2, Trash2, BookOpen, X, Save, Loader2, AlertCircle, CheckCircle, Upload, Users, Star } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { createAdminClient } from "@/lib/supabase-admin";
 import {
     WikiEntry, WikiEntryIn, WIKI_CATEGORIES, FactionMember,
     getWikiEntries, createWikiEntry, updateWikiEntry, deleteWikiEntry, uploadImageR2, getFactionHierarchy
 } from "@/lib/api";
 import RichTextEditor from "@/components/Editor";
 import FactionHierarchyEditor from "@/components/FactionHierarchyEditor";
-
-const ADMIN_TOKEN = process.env.NEXT_PUBLIC_ADMIN_TOKEN || "mat-the-admin-2026";
 
 // ── Auto-generate slug from title ─────────────────────────
 function toSlug(text: string): string {
@@ -28,6 +28,7 @@ const CATEGORY_ICONS: Record<string, string> = {
 };
 
 export default function AdminWikiPage() {
+    const router = useRouter();
     const [entries, setEntries] = useState<WikiEntry[]>([]);
     const [filter, setFilter] = useState<string>("all");
     const [page, setPage] = useState(1);
@@ -42,6 +43,21 @@ export default function AdminWikiPage() {
     const [hierarchyEntry, setHierarchyEntry] = useState<WikiEntry | null>(null);
     const [hierarchyMembers, setHierarchyMembers] = useState<FactionMember[]>([]);
     const [isUploadingImg, setIsUploadingImg] = useState(false);
+    const [token, setToken] = useState<string | null>(null);
+
+    useEffect(() => {
+        const loadSession = async () => {
+            const supabase = createAdminClient();
+            if (!supabase) return;
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                router.push("/admin/login");
+                return;
+            }
+            setToken(session.access_token);
+        };
+        loadSession();
+    }, [router]);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -84,6 +100,10 @@ export default function AdminWikiPage() {
     }
 
     async function handleSave() {
+        if (!token) {
+            showToast("error", "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
+            return;
+        }
         if (!form.title || !form.slug || !form.category) {
             showToast("error", "Vui lòng điền Tiêu đề, Slug và Category");
             return;
@@ -91,10 +111,10 @@ export default function AdminWikiPage() {
         setSaving(true);
         try {
             if (editingId) {
-                await updateWikiEntry(editingId, form, ADMIN_TOKEN);
+                await updateWikiEntry(editingId, form, token as string);
                 showToast("success", "Đã cập nhật entry!");
             } else {
-                await createWikiEntry(form, ADMIN_TOKEN);
+                await createWikiEntry(form, token as string);
                 showToast("success", "Đã tạo entry mới!");
             }
             setShowForm(false);
@@ -107,9 +127,13 @@ export default function AdminWikiPage() {
     }
 
     async function handleDelete(entry: WikiEntry) {
+        if (!token) {
+            showToast("error", "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
+            return;
+        }
         if (!confirm(`Xóa "${entry.title}"? Không thể khôi phục!`)) return;
         try {
-            await deleteWikiEntry(entry.id, ADMIN_TOKEN);
+            await deleteWikiEntry(entry.id, token as string);
             showToast("success", "Đã xóa entry!");
             load();
         } catch {
@@ -287,7 +311,8 @@ export default function AdminWikiPage() {
                                             if (file) {
                                                 setIsUploadingImg(true);
                                                 try {
-                                                    const url = await uploadImageR2(file, ADMIN_TOKEN);
+                                                    if (!token) throw new Error("Missing access token");
+                                                    const url = await uploadImageR2(file, token as string);
                                                     setForm(f => ({ ...f, image_url: url }));
                                                     showToast("success", "Tải ảnh bìa thành công!");
                                                 } catch (err) {
@@ -323,7 +348,7 @@ export default function AdminWikiPage() {
                                 <RichTextEditor
                                     content={form.content || ""}
                                     onChange={(html) => setForm(f => ({ ...f, content: html }))}
-                                    adminToken={ADMIN_TOKEN}
+                                    adminToken={token || undefined}
                                 />
                             </div>
 
@@ -343,7 +368,7 @@ export default function AdminWikiPage() {
                     factionId={hierarchyEntry.id}
                     factionTitle={hierarchyEntry.title}
                     members={hierarchyMembers}
-                    adminToken={ADMIN_TOKEN}
+                    adminToken={token || ""}
                     onClose={() => setHierarchyEntry(null)}
                     onRefresh={async () => {
                         try {

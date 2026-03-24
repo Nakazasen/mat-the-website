@@ -98,7 +98,6 @@ export default function AdminMapPage() {
             if (!supabase) return;
             const { data: { session } } = await supabase.auth.getSession();
             if (session) setToken(session.access_token);
-            else setToken(process.env.NEXT_PUBLIC_ADMIN_TOKEN || "mat-the-admin-2026");
 
             try {
                 const data = await getMapLocations();

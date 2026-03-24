@@ -7,7 +7,6 @@ import { getNovelSettings, NovelSettings, uploadImageR2, getUserRole } from '@/l
 import { Save, AlertTriangle, CheckCircle2, Loader2, BookOpen, User, FileText, Image as ImageIcon, Tag, Upload, ShieldAlert } from 'lucide-react';
 import RichTextEditor from '@/components/Editor';
 
-const ADMIN_TOKEN = process.env.NEXT_PUBLIC_ADMIN_TOKEN || "mat-the-admin-2026";
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 export default function AdminNovelPage() {
@@ -209,7 +208,8 @@ export default function AdminNovelPage() {
                                     const file = e.target.files?.[0];
                                     if (file) {
                                         try {
-                                            const url = await uploadImageR2(file, ADMIN_TOKEN);
+                                            if (!token) throw new Error("Missing access token");
+                                            const url = await uploadImageR2(file, token as string);
                                             setSettings(s => ({ ...s, cover_url: url }));
                                         } catch (err) {
                                             setError("Lỗi tải ảnh bìa. Vui lòng thử lại.");
@@ -240,7 +240,8 @@ export default function AdminNovelPage() {
                                         const file = e.target.files?.[0];
                                         if (file) {
                                             try {
-                                                const url = await uploadImageR2(file, ADMIN_TOKEN);
+                                                if (!token) throw new Error("Missing access token");
+                                                const url = await uploadImageR2(file, token as string);
                                                 setSettings(s => ({ ...s, donate_qr_url: url }));
                                             } catch (err) {
                                                 setError("Lỗi tải ảnh QR. Vui lòng thử lại.");
@@ -308,7 +309,7 @@ export default function AdminNovelPage() {
                         content={settings.description}
                         onChange={(html) => setSettings({ ...settings, description: html })}
                         placeholder="Nhập giới thiệu truyện..."
-                        adminToken={ADMIN_TOKEN}
+                        adminToken={token || undefined}
                     />
                 </div>
 

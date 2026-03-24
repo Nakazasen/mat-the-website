@@ -22,7 +22,7 @@ export default function GuidePage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
-    const [token, setToken] = useState(process.env.NEXT_PUBLIC_ADMIN_TOKEN || "mat-the-admin-2026");
+    const [token, setToken] = useState<string | null>(null);
 
     useEffect(() => {
         const supabase = createAdminClient();
@@ -132,7 +132,7 @@ export default function GuidePage() {
                     content={content}
                     onChange={setContent}
                     placeholder="Bắt đầu soạn thảo hướng dẫn..."
-                    adminToken={token}
+                    adminToken={token || undefined}
                 />
             )}
         </div>

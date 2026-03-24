@@ -11,6 +11,7 @@ import LikeButton from "./LikeButton";
 import DonateSection from "./DonateSection";
 import { splitIntoChunks } from "@/lib/tts-utils";
 import { renderRichKaraoke } from "@/lib/karaoke";
+import { sanitizeHtmlClient } from "@/lib/sanitize-html";
 
 interface ReadingClientProps {
     chapterId: number;
@@ -42,14 +43,16 @@ export default function ReadingClient({
         setIsMounted(true);
     }, []);
 
+    const sanitizedContent = useMemo(() => sanitizeHtmlClient(content), [content]);
+
     const karaokeNodes = useMemo(() => {
         if (!isMounted) return null;
-        return renderRichKaraoke(content, activeChunkIndex, theme, (idx: number, el: HTMLElement | null) => {
+        return renderRichKaraoke(sanitizedContent, activeChunkIndex, theme, (idx: number, el: HTMLElement | null) => {
             if (activeChunkIndex === idx && el) {
                 activeChunkRef.current = el;
             }
         }).nodes;
-    }, [content, activeChunkIndex, theme, isMounted]);
+    }, [sanitizedContent, activeChunkIndex, theme, isMounted]);
 
     // Bookmarks state
     const [isBookmarked, setIsBookmarked] = useState(false);
@@ -87,7 +90,7 @@ export default function ReadingClient({
     };
 
     // Split content into chunks for Karaoke
-    const chunks = splitIntoChunks(content);
+    const chunks = splitIntoChunks(sanitizedContent);
 
     // Auto-scroll to active chunk
     useEffect(() => {
@@ -308,7 +311,7 @@ export default function ReadingClient({
                     style={{ fontSize: `${fontSize}px`, lineHeight: 1.8 }}
                 >
                     {!isMounted ? (
-                        <div dangerouslySetInnerHTML={{ __html: content }} />
+                        <div dangerouslySetInnerHTML={{ __html: sanitizedContent }} />
                     ) : (
                         karaokeNodes
                     )}

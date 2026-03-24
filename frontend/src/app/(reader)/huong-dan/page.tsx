@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { BookOpen, HelpCircle, Map, Heart, MessageSquare, Search } from "lucide-react";
 import { getPublicGuide } from "@/lib/api";
+import { sanitizeHtmlClient } from "@/lib/sanitize-html";
 
 export default function HuongDanPage() {
     const [guide, setGuide] = useState<{ title: string; content: string } | null>(null);
@@ -56,7 +57,7 @@ export default function HuongDanPage() {
                             prose-a:text-[var(--reader-accent)] prose-a:no-underline hover:prose-a:underline
                             prose-strong:text-[var(--reader-text)]
                             prose-img:rounded-lg prose-img:border prose-img:border-[var(--reader-border)]"
-                        dangerouslySetInnerHTML={{ __html: guide!.content }}
+                        dangerouslySetInnerHTML={{ __html: sanitizeHtmlClient(guide!.content) }}
                     />
                 ) : (
                     /* Default guide content when admin hasn't written anything yet */

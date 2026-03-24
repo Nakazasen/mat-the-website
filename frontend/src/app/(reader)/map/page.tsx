@@ -6,6 +6,7 @@ import 'leaflet/dist/leaflet.css';
 import { Shield, Skull, Flag, MapPin, Landmark, Loader2, AlertTriangle, ArrowLeft, Maximize2, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import { getMapLocations, type MapLocation } from '@/lib/api';
+import { sanitizeHtmlClient } from '@/lib/sanitize-html';
 
 // Dynamic imports for Leaflet
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false });
@@ -164,7 +165,7 @@ export default function ReaderMapPage() {
                                             <h3 className="text-sm font-bold text-white mb-2 uppercase tracking-wide">{loc.name}</h3>
                                             <div
                                                 className="text-xs text-gray-200 leading-relaxed mb-0 rich-text-content"
-                                                dangerouslySetInnerHTML={{ __html: loc.description || "Chưa có dữ liệu chi tiết về khu vực này." }}
+                                                dangerouslySetInnerHTML={{ __html: sanitizeHtmlClient(loc.description || "Chưa có dữ liệu chi tiết về khu vực này.") }}
                                             />
                                         </div>
                                     </div>
