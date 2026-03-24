@@ -23,6 +23,10 @@ try:
     from security_utils import sanitize_html, sanitize_plaintext, extract_bearer_token
 except ModuleNotFoundError:
     from backend.security_utils import sanitize_html, sanitize_plaintext, extract_bearer_token
+try:
+    from routes.engagement import create_engagement_router
+except ModuleNotFoundError:
+    from backend.routes.engagement import create_engagement_router
 
 load_dotenv(override=True)
 
@@ -127,6 +131,8 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"],
 )
+
+app.include_router(create_engagement_router(supabase))
 
 @app.middleware("http")
 async def log_requests(request, call_next):
@@ -884,46 +890,6 @@ async def admin_delete_chapter(
 
 # === ANALYTICS ROUTES ===
 
-@app.post("/api/chapters/{chapter_number}/view", summary="Tﾄハg lﾆｰ盻｣t ﾄ黛ｻ皇 chﾆｰﾆ｡ng")
-async def increment_view(chapter_number: int):
-    """
-    Tﾄハg s盻・lﾆｰ盻｣t ﾄ黛ｻ皇 cho m盻冲 chﾆｰﾆ｡ng.
-    S盻ｭ d盻･ng RPC trﾃｪn Supabase ﾄ黛ｻ・ﾄ黛ｺ｣m b蘯｣o tﾃｭnh nguyﾃｪn t盻ｭ (atomic increment).
-    """
-    try:
-        # G盻絞 RPC function ﾄ妥｣ ﾄ柁ｰ盻｣c t蘯｡o trong Supabase
-        # Function: increment_chapter_view(chapter_num int)
-        supabase.rpc("increment_chapter_view", {"chapter_num": chapter_number}).execute()
-        return {"status": "success"}
-    except Exception as e:
-        # Fallback: N蘯ｿu RPC chﾆｰa ﾄ柁ｰ盻｣c cﾃi ﾄ黛ｺｷt, th盻ｱc hi盻㌻ update th盻ｧ cﾃｴng (khﾃｴng atomic nhﾆｰng v蘯ｫn ch蘯｡y ﾄ柁ｰ盻｣c)
-        try:
-            for _ in range(5):
-                resp = (
-                    supabase.table("chapters")
-                    .select("id, view_count")
-                    .eq("chapter_number", chapter_number)
-                    .single()
-                    .execute()
-                )
-                if not resp.data:
-                    break
-                chapter_id = resp.data["id"]
-                current_views = resp.data.get("view_count") or 0
-                updated = (
-                    supabase.table("chapters")
-                    .update({"view_count": current_views + 1})
-                    .eq("id", chapter_id)
-                    .eq("view_count", current_views)
-                    .execute()
-                )
-                if updated.data:
-                    return {"status": "success", "note": "manual_update"}
-        except:
-            pass
-        return {"status": "error", "detail": str(e)}
-
-
 @app.get("/api/admin/analytics/top-chapters", summary="[Admin] Top chﾆｰﾆ｡ng ﾄ黛ｻ皇 nhi盻「 nh蘯･t")
 async def admin_get_top_chapters(
     limit: int = Query(10, ge=1, le=50),
@@ -967,11 +933,6 @@ async def admin_get_top_liked(
 
 
 # === COMMENT ROUTES ===
-
-class CommentCreate(BaseModel):
-    user_name: str
-    content: str
-
 
 class Comment(BaseModel):
     id: str
@@ -1051,83 +1012,6 @@ async def admin_delete_comment(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@app.post("/api/chapters/{chapter_number}/comments", summary="G盻ｭi bﾃｬnh lu蘯ｭn m盻嬖")
-async def create_comment(chapter_number: int, body: CommentCreate):
-    """G盻ｭi m盻冲 bﾃｬnh lu蘯ｭn 蘯ｩn danh cho chﾆｰﾆ｡ng."""
-    try:
-        safe_name = sanitize_plaintext(body.user_name) or "ẩn danh"
-        safe_content = sanitize_plaintext(body.content) or ""
-        if len(safe_content) < 1 or len(safe_content) > 2000:
-            raise HTTPException(status_code=400, detail="Nội dung bình luận không hợp lệ")
-        data = {
-            "chapter_number": chapter_number,
-            "user_name": safe_name,
-            "content": safe_content
-        }
-        result = supabase.table("comments").insert(data).execute()
-        return {"status": "success", "comment": result.data[0]}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/api/chapters/{chapter_number}/comments", summary="L蘯･y danh sﾃ｡ch bﾃｬnh lu蘯ｭn")
-async def get_comments(chapter_number: int, limit: int = 50):
-    """L蘯･y danh sﾃ｡ch bﾃｬnh lu蘯ｭn c盻ｧa m盻冲 chﾆｰﾆ｡ng, chﾆｰﾆ｡ng m盻嬖 nh蘯･t lﾃｪn ﾄ黛ｺｧu."""
-    try:
-        resp = (
-            supabase.table("comments")
-            .select("*")
-            .eq("chapter_number", chapter_number)
-            .order("created_at", desc=True)
-            .limit(limit)
-            .execute()
-        )
-        comments = resp.data or []
-        for comment in comments:
-            comment["user_name"] = sanitize_plaintext(comment.get("user_name")) or "ẩn danh"
-            comment["content"] = sanitize_plaintext(comment.get("content")) or ""
-        return comments
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# ============================================================
-# LIKE SYSTEM
-# ============================================================
-
-@app.post("/api/chapters/{chapter_number}/like", summary="Th蘯｣ tim cho chﾆｰﾆ｡ng")
-async def like_chapter(chapter_number: int):
-    """Tăng likes_count của chương lên 1 với CAS retry để giảm race condition."""
-    try:
-        for _ in range(5):
-            resp = (
-                supabase.table("chapters")
-                .select("id, likes_count")
-                .eq("chapter_number", chapter_number)
-                .single()
-                .execute()
-            )
-            if not resp.data:
-                raise HTTPException(status_code=404, detail="Chương không tồn tại")
-
-            current_likes = resp.data.get("likes_count") or 0
-            chapter_id = resp.data["id"]
-            updated = (
-                supabase.table("chapters")
-                .update({"likes_count": current_likes + 1})
-                .eq("id", chapter_id)
-                .eq("likes_count", current_likes)
-                .execute()
-            )
-            if updated.data:
-                return {"status": "ok", "likes_count": current_likes + 1}
-
-        raise HTTPException(status_code=409, detail="Xung đột lượt thích, vui lòng thử lại")
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 # ============================================================
 # IMAGE UPLOAD (CLOUDFLARE R2)
