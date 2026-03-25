@@ -124,6 +124,24 @@ export interface AdminAiPlaygroundResponse {
     results: AdminAiPlaygroundResult[];
 }
 
+export interface OracleHealthStatus {
+    ok: boolean;
+    status: string;
+    active_model: string;
+    model_catalog: string[];
+    has_api_key: boolean;
+    rate_limit_configured: boolean;
+    cache_configured: boolean;
+    detail: string;
+    upstream_status?: number | null;
+    upstream_error?: string | null;
+}
+
+export interface AdminOracleResetResponse {
+    deleted_rows: number;
+    detail: string;
+}
+
 // Fetch general novel settings (Title, Author, Desc etc)
 export async function getNovelSettings(): Promise<NovelSettings> {
     const res = await fetch(`${API_BASE_URL}/api/novel`, {
@@ -170,6 +188,34 @@ export async function runAdminAiPlayground(
     const payload = await res.json();
     if (!res.ok) {
         throw new Error(payload.detail || "Failed to run AI playground");
+    }
+    return payload;
+}
+
+export async function getAdminOracleHealth(token: string): Promise<OracleHealthStatus> {
+    const res = await fetch(`${API_BASE_URL}/oracle/admin/health`, {
+        headers: {
+            Authorization: `Bearer ${token}`,
+        },
+        cache: "no-store",
+    });
+    const payload = await res.json();
+    if (!res.ok) {
+        throw new Error(payload.detail || "Failed to fetch Oracle health");
+    }
+    return payload;
+}
+
+export async function resetAdminOracleRateLimit(token: string): Promise<AdminOracleResetResponse> {
+    const res = await fetch(`${API_BASE_URL}/oracle/admin/reset-rate-limit`, {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${token}`,
+        },
+    });
+    const payload = await res.json();
+    if (!res.ok) {
+        throw new Error(payload.detail || "Failed to reset Oracle rate limits");
     }
     return payload;
 }

@@ -8,7 +8,7 @@ POST /oracle/ask
   Tier 3: Gemini API -> call with chapter-capped context, then store in cache
 
 Security: API key is never exposed to the frontend.
-Rate limit: 10 AI queries per IP per day (local wiki queries are unlimited).
+Rate limit: 50 AI queries per IP per day (local wiki queries are unlimited).
 """
 
 import hashlib
@@ -29,7 +29,7 @@ DEFAULT_MODEL = "gemini-3.1-flash-lite-preview"
 BASE_GEMINI_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 )
-DAILY_AI_LIMIT = 10
+DAILY_AI_LIMIT = 50
 
 SYSTEM_PROMPT_TEMPLATE = """
 Ban la "He Thong" - mot tri tue nhan tao bi an trong cau chuyen "Mat The Sinh Hoa Nguy Co".
@@ -95,6 +95,11 @@ class AdminAiPlaygroundResponse(BaseModel):
     prompt: str
     chapter_progress: int
     results: list[AdminAiPlaygroundResult]
+
+
+class AdminOracleResetResponse(BaseModel):
+    deleted_rows: int
+    detail: str
 
 
 def hash_question(question: str, chapter_cap: int) -> str:
@@ -468,6 +473,43 @@ async def oracle_health():
         from backend.main import supabase
 
     return await build_oracle_health(supabase)
+
+
+@router.get("/admin/health", response_model=OracleHealthResponse)
+async def admin_oracle_health(authorization: Optional[str] = Header(None)):
+    try:
+        from main import supabase, verify_admin
+    except ImportError:
+        from backend.main import supabase, verify_admin
+
+    user = await verify_admin(authorization)
+    if user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Only superadmin can inspect Oracle health.")
+
+    return await build_oracle_health(supabase)
+
+
+@router.post("/admin/reset-rate-limit", response_model=AdminOracleResetResponse)
+async def admin_reset_oracle_rate_limit(authorization: Optional[str] = Header(None)):
+    try:
+        from main import supabase, verify_admin
+    except ImportError:
+        from backend.main import supabase, verify_admin
+
+    user = await verify_admin(authorization)
+    if user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Only superadmin can reset Oracle rate limits.")
+
+    try:
+        existing = supabase.table("oracle_rate_limits").select("id").execute()
+        deleted_rows = len(existing.data or [])
+        supabase.table("oracle_rate_limits").delete().neq("id", 0).execute()
+        return AdminOracleResetResponse(
+            deleted_rows=deleted_rows,
+            detail="Oracle rate limits have been reset.",
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to reset Oracle rate limits: {exc}")
 
 
 @router.post("/ask", response_model=OracleResponse)

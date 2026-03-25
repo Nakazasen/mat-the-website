@@ -11,6 +11,9 @@ import {
     updateNovelSettings,
     runAdminAiPlayground,
     AdminAiPlaygroundResult,
+    getAdminOracleHealth,
+    OracleHealthStatus,
+    resetAdminOracleRateLimit,
 } from '@/lib/api';
 import { Save, AlertTriangle, CheckCircle2, Loader2, BookOpen, User, FileText, Image as ImageIcon, Tag, Upload, ShieldAlert, Bot, FlaskConical, Plus, Play, Wand2, ChevronLeft, ChevronRight } from 'lucide-react';
 import RichTextEditor from '@/components/Editor';
@@ -58,6 +61,10 @@ export default function AdminNovelPage() {
     const [playgroundResults, setPlaygroundResults] = useState<AdminAiPlaygroundResult[]>([]);
     const [playgroundRunning, setPlaygroundRunning] = useState(false);
     const [playgroundError, setPlaygroundError] = useState<string | null>(null);
+    const [oracleHealth, setOracleHealth] = useState<OracleHealthStatus | null>(null);
+    const [oracleHealthLoading, setOracleHealthLoading] = useState(false);
+    const [oracleResetLoading, setOracleResetLoading] = useState(false);
+    const [oracleAdminMessage, setOracleAdminMessage] = useState<string | null>(null);
 
     useEffect(() => {
         const loadData = async () => {
@@ -204,6 +211,34 @@ export default function AdminNovelPage() {
             setPlaygroundError(err?.message || 'Không thể chạy AI playground.');
         } finally {
             setPlaygroundRunning(false);
+        }
+    };
+
+    const checkOracleHealth = async () => {
+        if (!token) return;
+        setOracleHealthLoading(true);
+        setOracleAdminMessage(null);
+        try {
+            const response = await getAdminOracleHealth(token);
+            setOracleHealth(response);
+        } catch (err: any) {
+            setOracleAdminMessage(err?.message || 'Khong the kiem tra Oracle health.');
+        } finally {
+            setOracleHealthLoading(false);
+        }
+    };
+
+    const resetOracleRateLimit = async () => {
+        if (!token) return;
+        setOracleResetLoading(true);
+        setOracleAdminMessage(null);
+        try {
+            const response = await resetAdminOracleRateLimit(token);
+            setOracleAdminMessage(`${response.detail} Deleted rows: ${response.deleted_rows}.`);
+        } catch (err: any) {
+            setOracleAdminMessage(err?.message || 'Khong the reset Oracle rate limit.');
+        } finally {
+            setOracleResetLoading(false);
         }
     };
 
@@ -565,7 +600,7 @@ export default function AdminNovelPage() {
                                 className="inline-flex items-center gap-2 rounded bg-green-600 px-4 py-2.5 text-xs font-mono tracking-widest text-white hover:bg-green-500 disabled:bg-gray-800 disabled:text-gray-500"
                             >
                                 {playgroundRunning ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
-                                TEST MODEL HIỆN TẠI
+                                TEST MODEL HIEN TAI
                             </button>
                             <button
                                 type="button"
@@ -574,7 +609,25 @@ export default function AdminNovelPage() {
                                 className="inline-flex items-center gap-2 rounded border border-gray-700 px-4 py-2.5 text-xs font-mono tracking-widest text-gray-300 hover:border-green-500 hover:text-green-300 disabled:border-gray-800 disabled:text-gray-600"
                             >
                                 {playgroundRunning ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
-                                AUTOTEST TOÀN BỘ
+                                AUTOTEST TOAN BO
+                            </button>
+                            <button
+                                type="button"
+                                onClick={checkOracleHealth}
+                                disabled={oracleHealthLoading}
+                                className="inline-flex items-center gap-2 rounded border border-cyan-800 px-4 py-2.5 text-xs font-mono tracking-widest text-cyan-300 hover:border-cyan-500 hover:text-cyan-200 disabled:border-gray-800 disabled:text-gray-600"
+                            >
+                                {oracleHealthLoading ? <Loader2 size={14} className="animate-spin" /> : <ShieldAlert size={14} />}
+                                KIEM TRA ORACLE
+                            </button>
+                            <button
+                                type="button"
+                                onClick={resetOracleRateLimit}
+                                disabled={oracleResetLoading}
+                                className="inline-flex items-center gap-2 rounded border border-amber-800 px-4 py-2.5 text-xs font-mono tracking-widest text-amber-300 hover:border-amber-500 hover:text-amber-200 disabled:border-gray-800 disabled:text-gray-600"
+                            >
+                                {oracleResetLoading ? <Loader2 size={14} className="animate-spin" /> : <AlertTriangle size={14} />}
+                                RESET RATE LIMIT
                             </button>
                         </div>
 
@@ -584,6 +637,25 @@ export default function AdminNovelPage() {
                             </div>
                         )}
 
+                        {oracleAdminMessage && (
+                            <div className="rounded border border-amber-900/40 bg-amber-950/20 px-4 py-3 text-sm text-amber-200">
+                                {oracleAdminMessage}
+                            </div>
+                        )}
+
+                        {oracleHealth && (
+                            <div className="rounded border border-cyan-900/40 bg-cyan-950/10 px-4 py-3 text-sm text-cyan-100 space-y-2">
+                                <div className="font-mono text-xs uppercase tracking-widest text-cyan-300">
+                                    Oracle Health: {oracleHealth.status}
+                                </div>
+                                <div>Active model: {oracleHealth.active_model}</div>
+                                <div>Has API key: {oracleHealth.has_api_key ? 'yes' : 'no'}</div>
+                                <div>Cache configured: {oracleHealth.cache_configured ? 'yes' : 'no'}</div>
+                                <div>Rate limit configured: {oracleHealth.rate_limit_configured ? 'yes' : 'no'}</div>
+                                <div>Detail: {oracleHealth.detail}</div>
+                                {oracleHealth.upstream_error && <div>Upstream error: {oracleHealth.upstream_error}</div>}
+                            </div>
+                        )}
                         {playgroundResults.length > 0 && (
                             <div className="grid grid-cols-1 gap-3">
                                 {playgroundResults.map((result) => (
