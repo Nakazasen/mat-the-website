@@ -26,7 +26,17 @@ type DiagnosticCode =
 interface OracleErrorPayload {
   error?: string;
   error_code?: DiagnosticCode;
+  answer?: string;
+  source?: "cache" | "local_wiki" | "gemini";
 }
+
+interface FloatingPosition {
+  x: number;
+  y: number;
+}
+
+const BUTTON_SIZE = 48;
+const PANEL_GAP = 10;
 
 const SOURCE_LABELS: Record<string, string> = {
   cache: "Bộ nhớ cache",
@@ -63,6 +73,31 @@ function getInitialMessage(chapterProgress: number): Message {
   };
 }
 
+function getDefaultButtonPosition(isMobile: boolean): FloatingPosition {
+  if (typeof window === "undefined") {
+    return { x: 0, y: 0 };
+  }
+
+  const margin = isMobile ? 12 : 24;
+  const bottomOffset = isMobile ? 84 : 24;
+  return {
+    x: window.innerWidth - BUTTON_SIZE - margin,
+    y: window.innerHeight - BUTTON_SIZE - bottomOffset,
+  };
+}
+
+function clampButtonPosition(position: FloatingPosition): FloatingPosition {
+  if (typeof window === "undefined") {
+    return position;
+  }
+
+  const margin = 8;
+  return {
+    x: Math.min(Math.max(position.x, margin), window.innerWidth - BUTTON_SIZE - margin),
+    y: Math.min(Math.max(position.y, margin), window.innerHeight - BUTTON_SIZE - margin),
+  };
+}
+
 export default function OraclePanel({
   chapterProgress,
   defaultOpen = false,
@@ -73,14 +108,25 @@ export default function OraclePanel({
   const [isLoading, setIsLoading] = useState(false);
   const [diagnostic, setDiagnostic] = useState<DiagnosticCode>("ready");
   const [isMobile, setIsMobile] = useState(false);
+  const [buttonPosition, setButtonPosition] = useState<FloatingPosition>({ x: 0, y: 0 });
+  const [hasCustomPosition, setHasCustomPosition] = useState(false);
+  const [dragState, setDragState] = useState<{ offsetX: number; offsetY: number } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    const updateViewport = () => setIsMobile(window.innerWidth < 768);
+    const updateViewport = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      setButtonPosition((prev) =>
+        hasCustomPosition ? clampButtonPosition(prev) : getDefaultButtonPosition(mobile),
+      );
+    };
+
     updateViewport();
     window.addEventListener("resize", updateViewport);
     return () => window.removeEventListener("resize", updateViewport);
-  }, []);
+  }, [hasCustomPosition]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -91,17 +137,51 @@ export default function OraclePanel({
     setDiagnostic("ready");
   }, [chapterProgress]);
 
-  const panelPosition = useMemo(
-    () => ({
-      buttonBottom: isMobile ? "84px" : "24px",
-      buttonRight: isMobile ? "12px" : "36px",
-      panelBottom: isMobile ? "138px" : "80px",
-      panelRight: isMobile ? "12px" : "20px",
-      panelWidth: isMobile ? "min(340px, calc(100vw - 24px))" : "clamp(300px, 90vw, 380px)",
-      panelMaxHeight: isMobile ? "52vh" : "500px",
-    }),
-    [isMobile],
-  );
+  useEffect(() => {
+    if (!dragState) return;
+
+    const handlePointerMove = (event: PointerEvent) => {
+      setButtonPosition(
+        clampButtonPosition({
+          x: event.clientX - dragState.offsetX,
+          y: event.clientY - dragState.offsetY,
+        }),
+      );
+    };
+
+    const handlePointerUp = () => {
+      setDragState(null);
+      setHasCustomPosition(true);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+  }, [dragState]);
+
+  const panelMetrics = useMemo(() => {
+    if (typeof window === "undefined") {
+      return {
+        width: 340,
+        maxHeight: 500,
+        left: 0,
+        top: 0,
+      };
+    }
+
+    const width = isMobile ? Math.min(340, window.innerWidth - 24) : Math.min(380, window.innerWidth - 40);
+    const maxHeight = isMobile ? Math.floor(window.innerHeight * 0.52) : 500;
+    const preferredLeft = buttonPosition.x + BUTTON_SIZE - width;
+    const left = Math.min(Math.max(preferredLeft, 12), window.innerWidth - width - 12);
+    const preferredTop = buttonPosition.y - maxHeight - PANEL_GAP;
+    const top = Math.max(12, preferredTop);
+
+    return { width, maxHeight, left, top };
+  }, [buttonPosition.x, buttonPosition.y, isMobile]);
 
   const submitQuestion = async (question: string) => {
     const trimmed = question.trim();
@@ -122,7 +202,7 @@ export default function OraclePanel({
         }),
       });
 
-      const payload = await res.json().catch(() => ({} as OracleErrorPayload));
+      const payload = (await res.json().catch(() => ({}))) as OracleErrorPayload;
 
       if (!res.ok) {
         const errorCode = payload.error_code ?? "backend_error";
@@ -130,7 +210,10 @@ export default function OraclePanel({
         setDiagnostic(errorCode);
         setMessages((prev) => [
           ...prev,
-          { role: "oracle", text: `[CHẨN ĐOÁN HỆ THỐNG]\n${errorMessage}` },
+          {
+            role: "oracle",
+            text: `[CHẨN ĐOÁN HỆ THỐNG]\n${errorMessage}`,
+          },
         ]);
         return;
       }
@@ -138,13 +221,20 @@ export default function OraclePanel({
       setDiagnostic("ready");
       setMessages((prev) => [
         ...prev,
-        { role: "oracle", text: payload.answer ?? "Không nhận được phản hồi hợp lệ.", source: payload.source },
+        {
+          role: "oracle",
+          text: payload.answer ?? "Không nhận được phản hồi hợp lệ.",
+          source: payload.source,
+        },
       ]);
     } catch {
       setDiagnostic("backend_offline");
       setMessages((prev) => [
         ...prev,
-        { role: "oracle", text: "[CHẨN ĐOÁN HỆ THỐNG]\nKhông kết nối được tới Oracle backend." },
+        {
+          role: "oracle",
+          text: "[CHẨN ĐOÁN HỆ THỐNG]\nKhông kết nối được tới Oracle backend.",
+        },
       ]);
     } finally {
       setIsLoading(false);
@@ -156,25 +246,40 @@ export default function OraclePanel({
     await submitQuestion(input);
   };
 
+  const handleButtonPointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (!buttonRef.current) return;
+    const rect = buttonRef.current.getBoundingClientRect();
+    setDragState({
+      offsetX: event.clientX - rect.left,
+      offsetY: event.clientY - rect.top,
+    });
+  };
+
   const diagnosticMeta = DIAGNOSTIC_META[diagnostic];
 
   return (
     <>
       <button
-        onClick={() => setIsOpen((prev) => !prev)}
+        ref={buttonRef}
+        onClick={() => {
+          if (!dragState) {
+            setIsOpen((prev) => !prev);
+          }
+        }}
+        onPointerDown={handleButtonPointerDown}
         title="AI Oracle"
         style={{
           position: "fixed",
-          bottom: panelPosition.buttonBottom,
-          right: panelPosition.buttonRight,
-          width: "48px",
-          height: "48px",
+          left: `${buttonPosition.x}px`,
+          top: `${buttonPosition.y}px`,
+          width: `${BUTTON_SIZE}px`,
+          height: `${BUTTON_SIZE}px`,
           borderRadius: "50%",
           background: isOpen ? "rgba(220, 38, 38, 0.92)" : "rgba(57, 255, 20, 0.12)",
           border: `2px solid ${isOpen ? "#dc2626" : "rgba(57,255,20,0.45)"}`,
           color: isOpen ? "#fff" : "#39FF14",
           fontSize: "18px",
-          cursor: "pointer",
+          cursor: dragState ? "grabbing" : "grab",
           zIndex: 60,
           display: "flex",
           alignItems: "center",
@@ -182,8 +287,10 @@ export default function OraclePanel({
           boxShadow: isOpen
             ? "0 0 20px rgba(220,38,38,0.4)"
             : "0 0 20px rgba(57,255,20,0.25)",
-          transition: "all 0.25s ease",
+          transition: dragState ? "none" : "all 0.25s ease",
           backdropFilter: "blur(8px)",
+          touchAction: "none",
+          userSelect: "none",
         }}
       >
         {isOpen ? "X" : "AI"}
@@ -193,10 +300,10 @@ export default function OraclePanel({
         <div
           style={{
             position: "fixed",
-            bottom: panelPosition.panelBottom,
-            right: panelPosition.panelRight,
-            width: panelPosition.panelWidth,
-            maxHeight: panelPosition.panelMaxHeight,
+            left: `${panelMetrics.left}px`,
+            top: `${panelMetrics.top}px`,
+            width: `${panelMetrics.width}px`,
+            maxHeight: `${panelMetrics.maxHeight}px`,
             background: "rgba(10, 10, 10, 0.97)",
             border: "1px solid rgba(57, 255, 20, 0.2)",
             borderRadius: "10px",
