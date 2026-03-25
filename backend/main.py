@@ -1,4 +1,4 @@
-﻿"""
+"""
 FastAPI Backend - M蘯｡t Th蘯ｿ Sinh Hoﾃ｡ Nguy Cﾆ｡
 Cung c蘯･p API metadata chﾆｰﾆ｡ng. N盻冓 dung chﾆｰﾆ｡ng ﾄ柁ｰ盻｣c fetch t盻ｫ Cloudflare R2.
 """
@@ -27,6 +27,19 @@ try:
     from routes.engagement import create_engagement_router
 except ModuleNotFoundError:
     from backend.routes.engagement import create_engagement_router
+try:
+    from routes.hq_dashboard import router as hq_router
+except ModuleNotFoundError:
+    from backend.routes.hq_dashboard import router as hq_router
+try:
+    from routes.ai_oracle import router as oracle_router
+except ModuleNotFoundError:
+    from backend.routes.ai_oracle import router as oracle_router
+try:
+    from routes.wiki_search import router as wiki_router
+except ModuleNotFoundError:
+    from backend.routes.wiki_search import router as wiki_router
+
 
 load_dotenv(override=True)
 
@@ -133,6 +146,10 @@ app.add_middleware(
 )
 
 app.include_router(create_engagement_router(supabase))
+app.include_router(hq_router)
+app.include_router(oracle_router)
+app.include_router(wiki_router)
+
 
 @app.middleware("http")
 async def log_requests(request, call_next):
@@ -451,6 +468,16 @@ class NovelSettings(BaseModel):
     max_chapter: int = 0
     total_views: int = 0
     total_likes: int = 0
+    ai_model_name: str = "gemini-1.5-flash"
+
+
+class AdminNovelUpdate(BaseModel):
+    title: Optional[str] = None
+    author: Optional[str] = None
+    description: Optional[str] = None
+    status: Optional[str] = None
+    genres: Optional[list[str]] = None
+    ai_model_name: Optional[str] = None
 
 
 @app.get("/api/novel", response_model=NovelSettings)
@@ -493,7 +520,8 @@ async def get_novel_settings():
         final_data["total_chapters"] = total_chapters
         final_data["max_chapter"] = max_chapter
         final_data["total_views"] = total_views
-        final_data["total_likes"] = total_likes
+                final_data["total_likes"] = total_likes
+        final_data["ai_model_name"] = resp.data.get("ai_model_name", "gemini-1.5-flash")
         
         return NovelSettings(**final_data)
     except Exception as e:
@@ -506,11 +534,29 @@ async def get_novel_settings():
             cover_url="/hero-bg.png",
             status="ﾄ紳ng c蘯ｭp nh蘯ｭt",
             genres=["M蘯｡t Th蘯ｿ"],
-            total_chapters=813,
-            max_chapter=813,
+            total_chapters=0,
+            max_chapter=0,
             total_views=0,
-            total_likes=0
+            total_likes=0,
+            ai_model_name="gemini-1.5-flash"
         )
+
+
+@app.put("/api/admin/novel", summary="[Admin] Cập nhật thông tin truyện & cấu hình hệ thống")
+async def admin_update_novel(
+    body: AdminNovelUpdate,
+    authorization: Optional[str] = Header(None),
+):
+    """Cập nhật các thông tin chung của truyện và cấu hình AI."""
+    await verify_admin(authorization)
+    
+    data = body.model_dump(exclude_none=True)
+    if not data:
+        return {"message": "Không có gì thay đổi"}
+    
+    # Update novel settings (ID 1)
+    result = supabase.table("novel_settings").upsert({**data, "id": 1}).execute()
+    return {"message": "Cập nhật thành công", "data": result.data[0]}
 
 
 class HomepageSettings(BaseModel):

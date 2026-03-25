@@ -61,9 +61,11 @@ export default function Header() {
         { href: "/wiki", label: "BÁCH KHOA", icon: BookOpen },
         { href: "/leaderboard", label: "BẢNG PHONG THẦN", icon: Trophy },
         { href: "/map", label: "BẢN ĐỒ", icon: MapIcon },
+        { href: "/headquarters", label: "CĂN CỨ ĐỊA", icon: Zap },
         { href: "/huong-dan", label: "HƯỚNG DẪN", icon: HelpCircle },
         { href: "/chapters/1", label: "ĐỌC NGAY", icon: BookOpen, highlight: true },
     ];
+
 
     return (
         <>
@@ -226,7 +228,7 @@ export default function Header() {
                         {/* Status bar */}
                         <div className="flex items-center gap-2 px-8 pb-4 text-xs font-mono text-ash-600">
                             <Zap size={10} className="text-toxic-green-DEFAULT" />
-                            <span>ĐANG ONLINE · {novel?.max_chapter || 813}+ CHƯƠNG</span>
+                            <span>ĐANG ONLINE · {novel?.max_chapter || '?'} CHƯƠNG</span>
                         </div>
                     </div>
                 )}

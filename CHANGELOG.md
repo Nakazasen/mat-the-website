@@ -140,3 +140,27 @@ All notable changes to this project will be documented in this file.
 
 *Last updated: 2026-03-14 18:30:00*
 
+---
+## [2026-03-15] - Part 11: Wiki Pagination & Reader Customization
+### Added
+- **Wiki Pagination:** 📖
+  - Backend: Updated `/api/wiki` with `page` and `limit` parameters using Supabase `.range()`. Returns total item count and metadata.
+  - Reader: Implemented "Previous/Next" navigation and dynamic URL-based state (`?page=X`).
+  - Admin: Integrated pagination into the management list to handle 50+ entries.
+- **Wiki Reader Settings:** ⚙️
+  - Added a customization panel to the Wiki section (Index & Detail views).
+  - Users can now adjust Theme (Dark, Light, Sepia, etc.), Font Size, and Font Family on the Wiki, matching the reading experience of chapters.
+- **Admin Enhancements:**
+  - Added "Sort Order" (Thứ tự sắp xếp) and "Is Main" (Nổi bật/Chính) toggles to the Wiki entry form.
+
+### Fixed
+- **Entry Visibility:** Resolved the issue where entries (like "Hồ Du") would disappear when pushed past the first 50 items.
+- **Backend Sorting:** Fixed a fatal typo `nulls_first` -> `nullsfirst` in the Python Supabase client that caused 500 errors.
+- **Deployment Compatibility:** Added a backward-compatibility layer in the frontend to handle both old (array) and new (paginated object) API response formats during deployment transitions.
+
+### Changed
+- **API Client:** Updated `getWikiEntries` in `lib/api.ts` to support paginated response types.
+- **Character Picker:** Updated `FactionHierarchyEditor` to fetch up to 1000 characters to ensure full list availability for hierarchy building.
+
+*Last updated: 2026-03-16 01:25:00*
+

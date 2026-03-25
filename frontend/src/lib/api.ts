@@ -97,14 +97,37 @@ export interface NovelSettings {
     max_chapter: number;
     total_views: number;
     total_likes: number;
+    ai_model_name: string;
 }
 
 // Fetch general novel settings (Title, Author, Desc etc)
 export async function getNovelSettings(): Promise<NovelSettings> {
     const res = await fetch(`${API_BASE_URL}/api/novel`, {
-        next: { revalidate: 60 }, // cache 1 minute (instead of 1 hour)
+        cache: "no-store", // Bỏ qua cache để cập nhật tức thì khi admin đổi model
     });
     if (!res.ok) throw new Error("Failed to fetch novel settings");
+    return res.json();
+}
+
+/**
+ * [Admin] Cập nhật thông tin chung và cấu hình AI
+ */
+export async function updateNovelSettings(
+    data: Partial<NovelSettings>,
+    token: string = "mat-the-admin-2026"
+): Promise<any> {
+    const res = await fetch(`${API_BASE_URL}/api/admin/novel`, {
+        method: "PUT",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify(data)
+    });
+    if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || "Failed to update novel settings");
+    }
     return res.json();
 }
 

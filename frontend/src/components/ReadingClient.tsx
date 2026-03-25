@@ -12,6 +12,9 @@ import DonateSection from "./DonateSection";
 import { splitIntoChunks } from "@/lib/tts-utils";
 import { renderRichKaraoke } from "@/lib/karaoke";
 import { sanitizeHtmlClient } from "@/lib/sanitize-html";
+import SystemHUD from "./SystemHUD";
+import { useChapterMeta } from "@/hooks/useChapterMeta";
+import OraclePanel from "./OraclePanel";
 
 interface ReadingClientProps {
     chapterId: number;
@@ -34,6 +37,7 @@ export default function ReadingClient({
 }: ReadingClientProps) {
     const { theme, fontSize, fontFamily } = useTheme();
     const [readingProgress, setReadingProgress] = useState(0);
+    const chapterMeta = useChapterMeta(content);
     const [activeChunkIndex, setActiveChunkIndex] = useState<number | null>(null);
     const contentRef = useRef<HTMLDivElement>(null);
     const activeChunkRef = useRef<HTMLSpanElement>(null);
@@ -182,6 +186,19 @@ export default function ReadingClient({
 
     return (
         <div suppressHydrationWarning className={`min-h-screen bg-reader-bg text-reader-text transition-colors duration-300 ${fontFamily === 'serif' ? 'font-serif' : 'font-sans'}`}>
+            {/* === THE SYSTEM HUD === */}
+            {isMounted && (
+                <SystemHUD
+                    chapterNumber={chapterNumber}
+                    totalChapters={totalChapters}
+                    readingProgress={readingProgress}
+                    dangerLevel={chapterMeta.dangerLevel}
+                    dangerLabel={chapterMeta.dangerLabel}
+                    dangerColor={chapterMeta.dangerColor}
+                    characterStatus={chapterMeta.characterStatus}
+                />
+            )}
+            {isMounted && <OraclePanel chapterProgress={chapterNumber} />}
             {/* Progress bar */}
             <div
                 className="reading-progress"
@@ -196,14 +213,14 @@ export default function ReadingClient({
                         <Link
                             href="/"
                             className="p-2 text-ash-500 hover:text-toxic-green-DEFAULT transition-colors"
-                            title="Trang chủ"
+                            title="Trang ch盻ｧ"
                         >
                             <Home size={15} />
                         </Link>
                         <Link
                             href="/chapters"
                             className="p-2 text-ash-500 hover:text-toxic-green-DEFAULT transition-colors"
-                            title="Mục lục"
+                            title="M盻･c l盻･c"
                         >
                             <List size={15} />
                         </Link>
@@ -212,7 +229,7 @@ export default function ReadingClient({
                     {/* Center: Chapter info */}
                     <div className="text-center flex-1 overflow-hidden">
                         <div className="font-mono text-xs text-toxic-green-DEFAULT truncate">
-                            Chương {chapterNumber}
+                            Chﾆｰﾆ｡ng {chapterNumber}
                         </div>
                         <div className="text-ash-400 text-[10px] truncate hidden sm:block">
                             {chapterTitle}
@@ -228,11 +245,11 @@ export default function ReadingClient({
                                 ? 'bg-toxic-green-DEFAULT/10 border-toxic-green-DEFAULT/40 text-toxic-green-DEFAULT shadow-[0_0_15px_rgba(57,255,20,0.2)]'
                                 : 'bg-ash-900/40 border-ash-800/60 text-ash-500 hover:border-toxic-green-DEFAULT/40 hover:text-toxic-green-DEFAULT'
                                 }`}
-                            title={isBookmarked ? "Bỏ lưu khỏi Tủ sách" : "Lưu vào Tủ sách"}
+                            title={isBookmarked ? "B盻・lﾆｰu kh盻淑 T盻ｧ sﾃ｡ch" : "Lﾆｰu vﾃo T盻ｧ sﾃ｡ch"}
                         >
                             <Bookmark size={14} fill={isBookmarked ? "currentColor" : "none"} className={isBookmarkLoading ? "animate-pulse" : ""} />
                             <span className="text-[10px] font-mono tracking-widest hidden xs:inline">
-                                {isBookmarked ? "ĐÃ LƯU" : "LƯU TRANG"}
+                                {isBookmarked ? "ﾄ静・LﾆｯU" : "LﾆｯU TRANG"}
                             </span>
                         </button>
                     </div>
@@ -250,7 +267,7 @@ export default function ReadingClient({
                 {/* Chapter title */}
                 <div className="mb-10 text-center">
                     <div className="font-mono text-xs text-toxic-green-DEFAULT tracking-[0.3em] mb-3">
-                        CHƯƠNG {chapterNumber} / {totalChapters}
+                        CHﾆｯﾆNG {chapterNumber} / {totalChapters}
                     </div>
                     <h1 className="font-biohazard text-3xl sm:text-4xl text-reader-text tracking-wide leading-tight">
                         {chapterTitle}
@@ -274,16 +291,16 @@ export default function ReadingClient({
                                 className="flex items-center gap-1 px-4 py-2 border border-reader-border rounded-full text-reader-muted hover:border-reader-accent hover:text-reader-accent transition-all font-mono text-xs group"
                             >
                                 <ChevronLeft size={14} className="group-hover:-translate-x-1 transition-transform" />
-                                TRƯỚC
+                                TRﾆｯ盻咾
                             </Link>
                         ) : (
-                            <span className={`px-4 py-2 border border-reader-border rounded-full text-reader-muted font-mono text-xs cursor-not-allowed ${theme === 'dark' ? 'opacity-30' : 'opacity-60 font-bold'}`}>ĐẦU</span>
+                            <span className={`px-4 py-2 border border-reader-border rounded-full text-reader-muted font-mono text-xs cursor-not-allowed ${theme === 'dark' ? 'opacity-30' : 'opacity-60 font-bold'}`}>ﾄ雪ｺｦU</span>
                         )}
 
                         <Link
                             href="/chapters"
                             className="w-10 h-10 flex items-center justify-center border border-reader-border rounded-full text-reader-muted hover:border-reader-accent hover:text-reader-accent transition-all"
-                            title="Mục lục"
+                            title="M盻･c l盻･c"
                         >
                             <List size={16} />
                         </Link>
@@ -293,11 +310,11 @@ export default function ReadingClient({
                                 href={`/chapters/${nextId}`}
                                 className="flex items-center gap-1 px-4 py-2 border border-reader-border rounded-full text-reader-muted hover:border-blood-red-bright hover:text-blood-red-bright transition-all font-mono text-xs group"
                             >
-                                TIẾP
+                                TI蘯ｾP
                                 <ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />
                             </Link>
                         ) : (
-                            <span className={`px-4 py-2 border border-reader-border rounded-full text-reader-muted font-mono text-xs cursor-not-allowed ${theme === 'dark' ? 'opacity-30' : 'opacity-60 font-bold'}`}>HẾT</span>
+                            <span className={`px-4 py-2 border border-reader-border rounded-full text-reader-muted font-mono text-xs cursor-not-allowed ${theme === 'dark' ? 'opacity-30' : 'opacity-60 font-bold'}`}>H蘯ｾT</span>
                         )}
                     </div>
 
@@ -319,7 +336,7 @@ export default function ReadingClient({
 
                 {/* === SOCIAL SHARE === */}
                 <div className="mt-12 mb-8 flex flex-col items-center">
-                    <div className="text-[10px] font-mono text-reader-muted mb-4 tracking-[0.4em]">CHIA SẺ TRUYỆN</div>
+                    <div className="text-[10px] font-mono text-reader-muted mb-4 tracking-[0.4em]">CHIA S蘯ｺ TRUY盻・</div>
                     <div className="flex gap-4">
                         <button
                             onClick={() => {
@@ -358,11 +375,11 @@ export default function ReadingClient({
                                 size={18}
                                 className="group-hover:-translate-x-1 transition-transform"
                             />
-                            <span>CHƯƠNG TRƯỚC</span>
+                            <span>CHﾆｯﾆNG TRﾆｯ盻咾</span>
                         </Link>
                     ) : (
                         <div className={`flex-1 flex items-center justify-center py-4 border border-reader-border rounded text-reader-muted font-biohazard tracking-wider text-sm cursor-not-allowed ${theme === 'dark' ? 'opacity-30' : 'opacity-60'}`}>
-                            ĐÂY LÀ ĐẦU TRUYỆN
+                            ﾄ静・ Lﾃ ﾄ雪ｺｦU TRUY盻・
                         </div>
                     )}
 
@@ -371,7 +388,7 @@ export default function ReadingClient({
                             href={`/chapters/${nextId}`}
                             className="flex-1 flex items-center justify-center gap-2 py-4 bg-blood-red border border-blood-red-bright/30 rounded text-white hover:bg-blood-red-bright hover:shadow-[0_0_20px_rgba(139,0,0,0.5)] transition-all font-biohazard tracking-wider text-sm sm:text-base group"
                         >
-                            <span>CHƯƠNG TIẾP</span>
+                            <span>CHﾆｯﾆNG TI蘯ｾP</span>
                             <ChevronRight
                                 size={18}
                                 className="group-hover:translate-x-1 transition-transform"
@@ -379,7 +396,7 @@ export default function ReadingClient({
                         </Link>
                     ) : (
                         <div className={`flex-1 flex items-center justify-center py-4 border border-reader-border rounded text-reader-muted font-biohazard tracking-wider text-sm cursor-not-allowed ${theme === 'dark' ? 'opacity-30' : 'opacity-60'}`}>
-                            HẾT TRUYỆN (TẠM THỜI)
+                            H蘯ｾT TRUY盻・ (T蘯M TH盻廬)
                         </div>
                     )}
                 </div>
@@ -387,7 +404,8 @@ export default function ReadingClient({
                 {/* === LIKE BUTTON === */}
                 <div className="flex justify-center py-8 border-t border-reader-border mt-8">
                     <div className="flex flex-col items-center gap-3">
-                        <p className="text-xs font-mono text-reader-muted">Chương hay? Để lại một trái tim nhé! ☣️</p>
+                        <p className="text-xs font-mono text-reader-muted">Chương hay? Để lại một trái tim nhé! 💝</p>
+
                         <LikeButton chapterNumber={chapterNumber} />
                     </div>
                 </div>
@@ -404,30 +422,30 @@ export default function ReadingClient({
                         href="/"
                         className="text-reader-muted hover:text-reader-accent text-xs font-mono transition-colors flex items-center gap-1"
                     >
-                        <Home size={12} /> TRANG CHỦ
+                        <Home size={12} /> TRANG CH盻ｦ
                     </Link>
-                    <span className="text-reader-border">·</span>
+                    <span className="text-reader-border">ﾂｷ</span>
                     <Link
                         href="/chapters"
                         className="text-reader-muted hover:text-reader-accent text-xs font-mono transition-colors flex items-center gap-1"
                     >
-                        <List size={12} /> MỤC LỤC
+                        <List size={12} /> M盻､C L盻､C
                     </Link>
                     {nextId && (
                         <>
-                            <span className="text-reader-border">·</span>
+                            <span className="text-reader-border">ﾂｷ</span>
                             <Link
                                 href={`/chapters/${nextId}`}
                                 className="text-reader-muted hover:text-blood-red-bright text-xs font-mono transition-colors flex items-center gap-1"
                             >
-                                TIẾP <ChevronRight size={12} />
+                                TI蘯ｾP <ChevronRight size={12} />
                             </Link>
                         </>
                     )}
                 </div>
             </div>
 
-            {/* === MOBILE STICKY BOTTOM NAV XỊN === */}
+            {/* === MOBILE STICKY BOTTOM NAV X盻劾 === */}
             <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden pb-safe">
                 {/* Visual Glassmorphism background */}
                 <div className="absolute inset-0 bg-ash-950/80 backdrop-blur-lg border-t border-ash-800/50 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]" />
@@ -438,7 +456,7 @@ export default function ReadingClient({
                         className="flex flex-col items-center justify-center gap-1 text-ash-500 hover:text-toxic-green-DEFAULT transition-colors"
                     >
                         <Home size={18} />
-                        <span className="text-[10px] font-mono">CHỦ</span>
+                        <span className="text-[10px] font-mono">CH盻ｦ</span>
                     </Link>
 
                     <button
@@ -448,7 +466,7 @@ export default function ReadingClient({
                             }`}
                     >
                         <Bookmark size={18} fill={isBookmarked ? "currentColor" : "none"} className={isBookmarkLoading ? "animate-pulse" : ""} />
-                        <span className="text-[10px] font-mono">{isBookmarked ? "ĐÃ LƯU" : "LƯU"}</span>
+                        <span className="text-[10px] font-mono">{isBookmarked ? "ﾄ静・LﾆｯU" : "LﾆｯU"}</span>
                     </button>
 
                     {prevId ? (
@@ -457,12 +475,12 @@ export default function ReadingClient({
                             className="col-span-1 flex flex-col items-center justify-center gap-1 text-ash-300 hover:text-toxic-green-DEFAULT transition-colors border-l border-ash-800/40"
                         >
                             <ChevronLeft size={20} />
-                            <span className="text-[10px] font-mono">TRƯỚC</span>
+                            <span className="text-[10px] font-mono">TRﾆｯ盻咾</span>
                         </Link>
                     ) : (
                         <div className="flex flex-col items-center justify-center gap-1 text-ash-800 border-l border-ash-800/40">
                             <ChevronLeft size={20} />
-                            <span className="text-[10px] font-mono">ĐẦU</span>
+                            <span className="text-[10px] font-mono">ﾄ雪ｺｦU</span>
                         </div>
                     )}
 
@@ -472,12 +490,12 @@ export default function ReadingClient({
                             className="col-span-1 flex flex-col items-center justify-center gap-1 text-white bg-blood-red-DEFAULT h-full transition-colors border-l border-ash-800/40"
                         >
                             <ChevronRight size={20} />
-                            <span className="text-[10px] font-mono">TIẾP</span>
+                            <span className="text-[10px] font-mono">TI蘯ｾP</span>
                         </Link>
                     ) : (
                         <div className="flex flex-col items-center justify-center gap-1 text-ash-700 border-l border-ash-800/40">
                             <ChevronRight size={20} />
-                            <span className="text-[10px] font-mono">HẾT</span>
+                            <span className="text-[10px] font-mono">H蘯ｾT</span>
                         </div>
                     )}
 

@@ -82,7 +82,7 @@ export default async function ChaptersPage({
                             <BookOpen size={14} />
                             <span>
                                 Tổng cộng{" "}
-                                <span className="text-toxic-green-DEFAULT font-bold">{max_chapter || total || "813"}</span>{" "}
+                                <span className="text-toxic-green-DEFAULT font-bold">{max_chapter || total || "?"}</span>{" "}
                                 chương
                                 <span className="ml-2 text-[10px] text-toxic-green-DEFAULT/40 border border-toxic-green-DEFAULT/20 px-1 rounded animate-pulse">
                                     LIVE

@@ -2,7 +2,7 @@
   "meta": {
     "schema_version": "1.1.0",
     "awf_version": "4.0.2",
-    "last_updated": "2026-03-14T18:35:00+07:00"
+    "last_updated": "2026-03-16T01:25:00+07:00"
   },
   "project": {
     "name": "Mạt Thế - Sinh Hoá Nguy Cơ",
@@ -76,7 +76,7 @@
     {
       "path": "/api/wiki",
       "method": "GET/POST",
-      "explained": "Quản lý danh sách bách khoa"
+      "explained": "Quản lý danh sách bách khoa. GET hỗ trợ tham số page/limit để phân trang."
     },
     {
       "path": "/api/wiki/{slug}",
@@ -137,6 +137,16 @@
       "name": "Rich Text Editor (Tiptap)",
       "status": "complete",
       "description": "Soạn thảo văn bản chuyên nghiệp. Đã tích hợp 'Clean Text' và tối ưu UX khi upload ảnh (loading state, disabled save button)."
+    },
+    {
+      "name": "Wiki Pagination",
+      "status": "complete",
+      "description": "Phân trang cho danh sách bách khoa để xử lý lượng lớn dữ liệu (>50 entries). Đồng bộ giữa Reader và Admin."
+    },
+    {
+      "name": "Wiki Reader Settings",
+      "status": "complete",
+      "description": "Tích hợp bảng cài đặt giao diện (Theme, Font) vào trang bách khoa tương tự như khi đọc chương truyện."
     }
   ],
   "knowledge_items": {
@@ -156,12 +166,16 @@
       {
         "title": "Hydration Mismatch on Theme",
         "detail": "Cần dùng isMounted hook hoặc suppressHydrationWarning khi truy cập localStorage để tránh lỗi hydration NextJS."
+      },
+      {
+        "title": "Supabase Python order() parameters",
+        "detail": "Trong Supabase Python SDK, tham số sắp xếp nulls là 'nullsfirst' hoặc 'nullslast' (không có dấu gạch dưới). Nhầm lẫn sang 'nulls_first' sẽ gây crash 500."
       }
     ]
   },
   "git": {
     "github_user": "Nakazasen",
     "git_email": "buiducvinhct1102@gmail.com",
-    "last_commit": "fix: distinguish Rank 1 (Green) and Rank 2 (Cyan) in org chart"
+    "last_commit": "fix: correct sorting parameter typo in backend API (nulls_first -> nullsfirst)"
   }
 }

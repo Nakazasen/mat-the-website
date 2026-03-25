@@ -31,7 +31,7 @@ export async function generateMetadata(): Promise<Metadata> {
                 default: "Mạt Thế - Sinh Hoá Nguy Cơ ☣️",
                 template: "%s | Mạt Thế - Sinh Hoá Nguy Cơ",
             },
-            description: "Đọc truyện Mạt Thế - Sinh Hoá Nguy Cơ full 813+ chương. Thế giới tàn lụi, zombie, dị biến sinh học.",
+            description: "Đọc truyện Mạt Thế - Sinh Hoá Nguy Cơ full hàng ngàn chương. Thế giới tàn lụi, zombie, dị biến sinh học.",
         };
     }
 }

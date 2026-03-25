@@ -1,0 +1,162 @@
+"use client";
+
+import { useState, useRef, useEffect, useCallback } from "react";
+
+interface WikiCharacter {
+  name: string;
+  faction?: string;
+  status?: string;
+  ability?: string;
+  first_appearance?: number;
+}
+
+interface CharacterTooltipProps {
+  name: string;
+  chapterProgress: number;
+  children: React.ReactNode;
+}
+
+export default function CharacterTooltip({
+  name,
+  chapterProgress,
+  children,
+}: CharacterTooltipProps) {
+  const [isVisible, setIsVisible] = useState(false);
+  const [character, setCharacter] = useState<WikiCharacter | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [position, setPosition] = useState<"above" | "below">("above");
+  const triggerRef = useRef<HTMLSpanElement>(null);
+  const fetchedRef = useRef(false);
+
+  const fetchCharacter = useCallback(async () => {
+    if (fetchedRef.current || isLoading) return;
+    fetchedRef.current = true;
+    setIsLoading(true);
+    try {
+      const params = new URLSearchParams({
+        name: name,
+        chapter: String(chapterProgress),
+      });
+      const res = await fetch(`/api/wiki/character?${params}`);
+      if (res.ok) {
+        const data = await res.json();
+        setCharacter(data);
+      }
+    } catch {
+      // Silently fail — tooltip just won't show character data
+    } finally {
+      setIsLoading(false);
+    }
+  }, [name, chapterProgress, isLoading]);
+
+  const handleMouseEnter = () => {
+    // Determine if tooltip should appear above or below
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setPosition(rect.top > 150 ? "above" : "below");
+    }
+    setIsVisible(true);
+    fetchCharacter();
+  };
+
+  const statusColor = (status?: string) => {
+    if (!status) return "#737373";
+    if (status.includes("chết") || status.includes("tử vong")) return "#ef4444";
+    if (status.includes("bị thương")) return "#f59e0b";
+    return "#39FF14";
+  };
+
+  return (
+    <span className="character-tooltip-wrapper" style={{ position: "relative", display: "inline" }}>
+      <span
+        ref={triggerRef}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={() => setIsVisible(false)}
+        style={{
+          color: "var(--toxic-green)",
+          borderBottom: "1px dashed rgba(57,255,20,0.5)",
+          cursor: "crosshair",
+          transition: "border-color 0.2s",
+        }}
+      >
+        {children}
+      </span>
+
+      {isVisible && (
+        <div
+          style={{
+            position: "absolute",
+            [position === "above" ? "bottom" : "top"]: "calc(100% + 8px)",
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 9999,
+            width: "220px",
+            background: "rgba(10, 10, 10, 0.95)",
+            border: "1px solid rgba(57, 255, 20, 0.4)",
+            borderRadius: "4px",
+            padding: "10px 12px",
+            fontFamily: "'JetBrains Mono', 'Courier Prime', monospace",
+            fontSize: "11px",
+            color: "#d4d0c8",
+            boxShadow: "0 0 20px rgba(57,255,20,0.15), 0 4px 24px rgba(0,0,0,0.8)",
+            pointerEvents: "none",
+            animation: "fadeInTooltip 0.15s ease-out",
+          }}
+        >
+          {/* Header */}
+          <div style={{
+            color: "#39FF14",
+            fontWeight: 700,
+            marginBottom: "6px",
+            borderBottom: "1px solid rgba(57,255,20,0.2)",
+            paddingBottom: "4px",
+            letterSpacing: "0.05em",
+            fontSize: "12px",
+          }}>
+            ◈ QUICK SCAN
+          </div>
+
+          {isLoading ? (
+            <div style={{ color: "#737373", fontSize: "10px" }}>
+              ĐANG QUÉT DỮ LIỆU...
+            </div>
+          ) : character ? (
+            <>
+              <div style={{ marginBottom: "3px" }}>
+                <span style={{ color: "#737373" }}>TÊN: </span>
+                <span style={{ color: "#fff", fontWeight: 600 }}>{character.name}</span>
+              </div>
+              {character.faction && (
+                <div style={{ marginBottom: "3px" }}>
+                  <span style={{ color: "#737373" }}>PHE PHÁI: </span>
+                  <span>{character.faction}</span>
+                </div>
+              )}
+              {character.status && (
+                <div style={{ marginBottom: "3px" }}>
+                  <span style={{ color: "#737373" }}>TRẠNG THÁI: </span>
+                  <span style={{ color: statusColor(character.status) }}>{character.status}</span>
+                </div>
+              )}
+              {character.ability && (
+                <div style={{ marginBottom: "3px" }}>
+                  <span style={{ color: "#737373" }}>NĂNG LỰC: </span>
+                  <span style={{ color: "#f59e0b" }}>{character.ability}</span>
+                </div>
+              )}
+              {character.first_appearance && (
+                <div style={{ color: "#555", fontSize: "10px", marginTop: "4px" }}>
+                  Xuất hiện: Chương {character.first_appearance}
+                </div>
+              )}
+            </>
+          ) : (
+            <div style={{ color: "#555", fontSize: "10px" }}>
+              Không tìm thấy dữ liệu
+            </div>
+          )}
+        </div>
+      )}
+    </span>
+  );
+}

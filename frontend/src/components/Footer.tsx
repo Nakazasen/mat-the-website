@@ -8,8 +8,8 @@ export default function Footer() {
         author: "Hàn Nhược Tuyết",
         status: "Đang cập nhật",
         genres: ["Mạt Thế", "Zombie"],
-        max_chapter: 813,
-        total_chapters: 813
+        max_chapter: 0,
+        total_chapters: 0
     };
 
     return (
@@ -75,7 +75,7 @@ export default function Footer() {
                                 { label: "Tác giả", value: novelInfo.author },
                                 { label: "Tình trạng", value: novelInfo.status },
                                 { label: "Thể loại", value: novelInfo.genres.join(" · ") },
-                                { label: "Số chương", value: `${novelInfo.max_chapter || 813}+ / ~5000` },
+                                { label: "Số chương", value: `${novelInfo.max_chapter || '?'} / ~5000` },
                             ].map(({ label, value }) => (
                                 <div key={label} className="flex justify-between text-sm gap-4">
                                     <span className="text-ash-500">{label}</span>
