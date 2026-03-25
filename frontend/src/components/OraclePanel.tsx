@@ -29,8 +29,8 @@ interface OracleErrorPayload {
 }
 
 const SOURCE_LABELS: Record<string, string> = {
-  cache: "Bo nho cache",
-  local_wiki: "Bach khoa dia phuong",
+  cache: "Bộ nhớ cache",
+  local_wiki: "Bách khoa địa phương",
   gemini: "AI Oracle",
 };
 
@@ -44,7 +44,7 @@ const DIAGNOSTIC_META: Record<
     border: "rgba(57,255,20,0.35)",
   },
   processing: {
-    label: "DANG XU LY",
+    label: "ĐANG XỬ LÝ",
     color: "#fbbf24",
     border: "rgba(251,191,36,0.35)",
   },
@@ -84,9 +84,9 @@ function getInitialMessage(chapterProgress: number): Message {
   return {
     role: "oracle",
     text:
-      `[HE THONG DA KHOI DONG]\n` +
-      `Ket noi thanh cong. Tien trinh doc: Chuong ${chapterProgress}.\n` +
-      `Toi chi tiet lo thong tin trong pham vi ban da doc. Hay dat cau hoi.`,
+      `[HỆ THỐNG ĐÃ KHỞI ĐỘNG]\n` +
+      `Kết nối thành công. Tiến trình đọc: Chương ${chapterProgress}.\n` +
+      `Tôi chỉ tiết lộ thông tin trong phạm vi bạn đã đọc. Hãy đặt câu hỏi.`,
   };
 }
 
@@ -137,14 +137,14 @@ export default function OraclePanel({
         const errorCode = errorData.error_code ?? "backend_error";
         const errorMessage =
           errorData.error ??
-          "Oracle khong the tra loi luc nay. Thu lai sau.";
+          "Oracle không thể trả lời lúc này. Thử lại sau.";
 
         setDiagnostic(errorCode);
         setMessages((prev) => [
           ...prev,
           {
             role: "oracle",
-            text: `[CHAN DOAN HE THONG]\n${errorMessage}`,
+            text: `[CHẨN ĐOÁN HỆ THỐNG]\n${errorMessage}`,
           },
         ]);
         return;
@@ -162,7 +162,7 @@ export default function OraclePanel({
         ...prev,
         {
           role: "oracle",
-          text: "[CHAN DOAN HE THONG]\nKhong ket noi duoc toi Oracle backend.",
+          text: "[CHẨN ĐOÁN HỆ THỐNG]\nKhông kết nối được tới Oracle backend.",
         },
       ]);
     } finally {
@@ -246,7 +246,7 @@ export default function OraclePanel({
                 marginTop: "2px",
               }}
             >
-              Pham vi: Chuong 1-{chapterProgress} | Chong spoiler ON
+              Phạm vi: Chương 1-{chapterProgress} | Chống spoiler ON
             </div>
             <div
               style={{
@@ -342,7 +342,7 @@ export default function OraclePanel({
                   animation: "hud-bar-blink 1s ease infinite",
                 }}
               >
-                DANG XU LY...
+                ĐANG XỬ LÝ...
               </div>
             )}
             <div ref={bottomRef} />
@@ -361,7 +361,7 @@ export default function OraclePanel({
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Dat cau hoi cho He Thong..."
+              placeholder="Đặt câu hỏi cho Hệ Thống..."
               maxLength={500}
               disabled={isLoading}
               style={{
@@ -392,7 +392,7 @@ export default function OraclePanel({
                 transition: "opacity 0.2s",
               }}
             >
-              GUI
+              GỬI
             </button>
           </form>
         </div>
