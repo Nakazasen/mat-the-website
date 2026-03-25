@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 interface Message {
   role: "user" | "oracle";
@@ -38,47 +38,20 @@ const DIAGNOSTIC_META: Record<
   DiagnosticCode,
   { label: string; color: string; border: string }
 > = {
-  ready: {
-    label: "ONLINE",
-    color: "#39FF14",
-    border: "rgba(57,255,20,0.35)",
-  },
-  processing: {
-    label: "ĐANG XỬ LÝ",
-    color: "#fbbf24",
-    border: "rgba(251,191,36,0.35)",
-  },
-  backend_offline: {
-    label: "BACKEND OFFLINE",
-    color: "#f87171",
-    border: "rgba(248,113,113,0.35)",
-  },
-  missing_api_key: {
-    label: "MISSING API KEY",
-    color: "#fb7185",
-    border: "rgba(251,113,133,0.35)",
-  },
-  rate_limited: {
-    label: "RATE LIMITED",
-    color: "#f59e0b",
-    border: "rgba(245,158,11,0.35)",
-  },
-  model_exhausted: {
-    label: "MODEL EXHAUSTED",
-    color: "#f97316",
-    border: "rgba(249,115,22,0.35)",
-  },
-  invalid_question: {
-    label: "INVALID INPUT",
-    color: "#c084fc",
-    border: "rgba(192,132,252,0.35)",
-  },
-  backend_error: {
-    label: "BACKEND ERROR",
-    color: "#94a3b8",
-    border: "rgba(148,163,184,0.35)",
-  },
+  ready: { label: "ONLINE", color: "#39FF14", border: "rgba(57,255,20,0.35)" },
+  processing: { label: "ĐANG XỬ LÝ", color: "#fbbf24", border: "rgba(251,191,36,0.35)" },
+  backend_offline: { label: "BACKEND OFFLINE", color: "#f87171", border: "rgba(248,113,113,0.35)" },
+  missing_api_key: { label: "MISSING API KEY", color: "#fb7185", border: "rgba(251,113,133,0.35)" },
+  rate_limited: { label: "RATE LIMITED", color: "#f59e0b", border: "rgba(245,158,11,0.35)" },
+  model_exhausted: { label: "MODEL EXHAUSTED", color: "#f97316", border: "rgba(249,115,22,0.35)" },
+  invalid_question: { label: "INVALID INPUT", color: "#c084fc", border: "rgba(192,132,252,0.35)" },
+  backend_error: { label: "BACKEND ERROR", color: "#94a3b8", border: "rgba(148,163,184,0.35)" },
 };
+
+const QUICK_PROMPTS = [
+  "Hàn Phong là ai?",
+  "Thế thân phe xuất hiện từ chương bao nhiêu?",
+];
 
 function getInitialMessage(chapterProgress: number): Message {
   return {
@@ -86,7 +59,7 @@ function getInitialMessage(chapterProgress: number): Message {
     text:
       `[HỆ THỐNG ĐÃ KHỞI ĐỘNG]\n` +
       `Kết nối thành công. Tiến trình đọc: Chương ${chapterProgress}.\n` +
-      `Tôi chỉ tiết lộ thông tin trong phạm vi bạn đã đọc. Hãy đặt câu hỏi.`,
+      `Tôi chỉ tiết lộ thông tin trong phạm vi bạn đã đọc. Hãy đặt câu hỏi rõ ràng.`,
   };
 }
 
@@ -99,25 +72,42 @@ export default function OraclePanel({
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [diagnostic, setDiagnostic] = useState<DiagnosticCode>("ready");
+  const [isMobile, setIsMobile] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const updateViewport = () => setIsMobile(window.innerWidth < 768);
+    updateViewport();
+    window.addEventListener("resize", updateViewport);
+    return () => window.removeEventListener("resize", updateViewport);
+  }, []);
+
+  useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, diagnostic]);
+  }, [messages, diagnostic, isOpen]);
 
   useEffect(() => {
     setMessages([getInitialMessage(chapterProgress)]);
     setDiagnostic("ready");
   }, [chapterProgress]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const question = input.trim();
-    if (!question || isLoading) {
-      return;
-    }
+  const panelPosition = useMemo(
+    () => ({
+      buttonBottom: isMobile ? "84px" : "24px",
+      buttonRight: isMobile ? "12px" : "36px",
+      panelBottom: isMobile ? "138px" : "80px",
+      panelRight: isMobile ? "12px" : "20px",
+      panelWidth: isMobile ? "min(340px, calc(100vw - 24px))" : "clamp(300px, 90vw, 380px)",
+      panelMaxHeight: isMobile ? "52vh" : "500px",
+    }),
+    [isMobile],
+  );
 
-    setMessages((prev) => [...prev, { role: "user", text: question }]);
+  const submitQuestion = async (question: string) => {
+    const trimmed = question.trim();
+    if (!trimmed || isLoading) return;
+
+    setMessages((prev) => [...prev, { role: "user", text: trimmed }]);
     setInput("");
     setIsLoading(true);
     setDiagnostic("processing");
@@ -127,47 +117,43 @@ export default function OraclePanel({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          question,
+          question: trimmed,
           chapter_progress: chapterProgress,
         }),
       });
 
-      if (!res.ok) {
-        const errorData = (await res.json().catch(() => ({}))) as OracleErrorPayload;
-        const errorCode = errorData.error_code ?? "backend_error";
-        const errorMessage =
-          errorData.error ??
-          "Oracle không thể trả lời lúc này. Thử lại sau.";
+      const payload = await res.json().catch(() => ({} as OracleErrorPayload));
 
+      if (!res.ok) {
+        const errorCode = payload.error_code ?? "backend_error";
+        const errorMessage = payload.error ?? "Oracle không thể trả lời lúc này. Thử lại sau.";
         setDiagnostic(errorCode);
         setMessages((prev) => [
           ...prev,
-          {
-            role: "oracle",
-            text: `[CHẨN ĐOÁN HỆ THỐNG]\n${errorMessage}`,
-          },
+          { role: "oracle", text: `[CHẨN ĐOÁN HỆ THỐNG]\n${errorMessage}` },
         ]);
         return;
       }
 
-      const data = await res.json();
       setDiagnostic("ready");
       setMessages((prev) => [
         ...prev,
-        { role: "oracle", text: data.answer, source: data.source },
+        { role: "oracle", text: payload.answer ?? "Không nhận được phản hồi hợp lệ.", source: payload.source },
       ]);
     } catch {
       setDiagnostic("backend_offline");
       setMessages((prev) => [
         ...prev,
-        {
-          role: "oracle",
-          text: "[CHẨN ĐOÁN HỆ THỐNG]\nKhông kết nối được tới Oracle backend.",
-        },
+        { role: "oracle", text: "[CHẨN ĐOÁN HỆ THỐNG]\nKhông kết nối được tới Oracle backend." },
       ]);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await submitQuestion(input);
   };
 
   const diagnosticMeta = DIAGNOSTIC_META[diagnostic];
@@ -179,15 +165,15 @@ export default function OraclePanel({
         title="AI Oracle"
         style={{
           position: "fixed",
-          bottom: "24px",
-          right: "36px",
-          width: "44px",
-          height: "44px",
+          bottom: panelPosition.buttonBottom,
+          right: panelPosition.buttonRight,
+          width: "48px",
+          height: "48px",
           borderRadius: "50%",
-          background: isOpen ? "rgba(220, 38, 38, 0.9)" : "rgba(57, 255, 20, 0.1)",
-          border: `2px solid ${isOpen ? "#dc2626" : "rgba(57,255,20,0.4)"}`,
+          background: isOpen ? "rgba(220, 38, 38, 0.92)" : "rgba(57, 255, 20, 0.12)",
+          border: `2px solid ${isOpen ? "#dc2626" : "rgba(57,255,20,0.45)"}`,
           color: isOpen ? "#fff" : "#39FF14",
-          fontSize: "20px",
+          fontSize: "18px",
           cursor: "pointer",
           zIndex: 60,
           display: "flex",
@@ -195,7 +181,7 @@ export default function OraclePanel({
           justifyContent: "center",
           boxShadow: isOpen
             ? "0 0 20px rgba(220,38,38,0.4)"
-            : "0 0 20px rgba(57,255,20,0.2)",
+            : "0 0 20px rgba(57,255,20,0.25)",
           transition: "all 0.25s ease",
           backdropFilter: "blur(8px)",
         }}
@@ -207,10 +193,10 @@ export default function OraclePanel({
         <div
           style={{
             position: "fixed",
-            bottom: "80px",
-            right: "20px",
-            width: "clamp(300px, 90vw, 380px)",
-            maxHeight: "500px",
+            bottom: panelPosition.panelBottom,
+            right: panelPosition.panelRight,
+            width: panelPosition.panelWidth,
+            maxHeight: panelPosition.panelMaxHeight,
             background: "rgba(10, 10, 10, 0.97)",
             border: "1px solid rgba(57, 255, 20, 0.2)",
             borderRadius: "10px",
@@ -229,13 +215,7 @@ export default function OraclePanel({
               background: "rgba(15,15,15,0.5)",
             }}
           >
-            <div
-              style={{
-                fontSize: "9px",
-                letterSpacing: "0.25em",
-                color: "rgba(57,255,20,0.5)",
-              }}
-            >
+            <div style={{ fontSize: "9px", letterSpacing: "0.25em", color: "rgba(57,255,20,0.5)" }}>
               AI ORACLE - THE SYSTEM
             </div>
             <div
@@ -292,7 +272,7 @@ export default function OraclePanel({
                 <div
                   style={{
                     alignSelf: message.role === "user" ? "flex-end" : "flex-start",
-                    maxWidth: "85%",
+                    maxWidth: "88%",
                     padding: "8px 12px",
                     borderRadius:
                       message.role === "user"
@@ -309,9 +289,8 @@ export default function OraclePanel({
                     }`,
                     fontSize: "12px",
                     lineHeight: 1.6,
-                    color: message.role === "user" ? "rgba(255,255,255,0.9)" : "#d4d0c8",
-                    fontFamily:
-                      message.role === "oracle" ? "'Courier Prime', monospace" : undefined,
+                    color: message.role === "user" ? "rgba(255,255,255,0.92)" : "#d4d0c8",
+                    fontFamily: message.role === "oracle" ? "'Courier Prime', monospace" : undefined,
                     whiteSpace: "pre-wrap",
                   }}
                 >
@@ -346,6 +325,29 @@ export default function OraclePanel({
               </div>
             )}
             <div ref={bottomRef} />
+          </div>
+
+          <div style={{ padding: "0 12px 10px", display: "flex", flexWrap: "wrap", gap: "8px" }}>
+            {QUICK_PROMPTS.map((prompt) => (
+              <button
+                key={prompt}
+                type="button"
+                onClick={() => submitQuestion(prompt)}
+                disabled={isLoading}
+                style={{
+                  background: "rgba(57,255,20,0.08)",
+                  border: "1px solid rgba(57,255,20,0.18)",
+                  borderRadius: "999px",
+                  padding: "6px 10px",
+                  color: "#baf7ab",
+                  fontSize: "11px",
+                  cursor: isLoading ? "not-allowed" : "pointer",
+                  opacity: isLoading ? 0.5 : 1,
+                }}
+              >
+                {prompt}
+              </button>
+            ))}
           </div>
 
           <form

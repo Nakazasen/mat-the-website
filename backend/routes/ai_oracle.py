@@ -42,6 +42,7 @@ QUY TAC TUYET DOI:
 4. Khong duoc tra ve tieu de rong kieu "[THONG BAO HE THONG]" neu khong co noi dung giai thich theo sau.
 5. Neu cau hoi khong du du kien trong pham vi da doc, hay tra loi ngan gon theo phong cach He Thong va neu ro gioi han du lieu.
 6. Khong bia thong tin khong co trong truyen hoac trong wiki context.
+7. Neu cau hoi la ve nhan vat, the luc, vat pham hoac su kien, uu tien tra loi bang chi tiet cu the thay vi noi chung chung.
 
 Thong tin ngu canh (wiki):
 {wiki_context}
@@ -49,6 +50,11 @@ Thong tin ngu canh (wiki):
 
 WIKI_EMPTY_CONTEXT = "Khong co du lieu wiki lien quan."
 MIN_CACHEABLE_LENGTH = 24
+QUESTION_STOPWORDS = {
+    "ai", "la", "gi", "nao", "bao", "nhieu", "co", "khong", "cho", "toi",
+    "mot", "nhung", "trong", "the", "than", "phe", "xuat", "hien", "tu",
+    "chuong", "voi", "ve", "nay", "kia", "roi", "sao", "cac", "nhan", "vat",
+}
 
 
 class OracleRequest(BaseModel):
