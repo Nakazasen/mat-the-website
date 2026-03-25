@@ -387,7 +387,7 @@ export default function HeadquartersPage() {
                     }}
                   />
                   <p style={{ fontSize: "10px", color: "rgba(255,255,255,0.3)", marginTop: "6px" }}>
-                    Nhập tên model Gemini (VD: gemini-1.5-flash, gemini-2.0-flash-exp).
+                    Nhập tên model Gemini (VD: gemini-3.1-flash-lite-preview, gemini-3.1-pro).
                   </p>
                 </div>
                 

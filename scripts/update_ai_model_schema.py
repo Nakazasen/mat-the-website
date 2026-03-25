@@ -20,12 +20,12 @@ def update_schema():
     
     try:
         # This will fail if column doesn't exist
-        resp = supabase.table("novel_settings").update({"ai_model_name": "gemini-1.5-flash"}).eq("id", 1).execute()
+        resp = supabase.table("novel_settings").update({"ai_model_name": "gemini-3.1-flash-lite-preview"}).eq("id", 1).execute()
         print("Column already exists or added successfully.")
     except Exception as e:
         print(f"Failed to update (normal if column missing): {e}")
         print("\nACTION REQUIRED: Please run the following SQL in your Supabase SQL Editor:")
-        print("ALTER TABLE novel_settings ADD COLUMN IF NOT EXISTS ai_model_name TEXT DEFAULT 'gemini-1.5-flash';")
+        print("ALTER TABLE novel_settings ADD COLUMN IF NOT EXISTS ai_model_name TEXT DEFAULT 'gemini-3.1-flash-lite-preview';")
 
 if __name__ == "__main__":
     update_schema()

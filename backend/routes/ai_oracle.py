@@ -27,7 +27,7 @@ router = APIRouter(prefix="/oracle", tags=["ai_oracle"])
 # Config
 # =============================================
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-DEFAULT_MODEL = "gemini-1.5-flash"
+DEFAULT_MODEL = "gemini-3.1-flash-lite-preview"
 BASE_GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 DAILY_AI_LIMIT = 10  # Max Gemini calls per IP per day
 

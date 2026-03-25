@@ -468,7 +468,7 @@ class NovelSettings(BaseModel):
     max_chapter: int = 0
     total_views: int = 0
     total_likes: int = 0
-    ai_model_name: str = "gemini-1.5-flash"
+    ai_model_name: str = "gemini-3.1-flash-lite-preview"
 
 
 class AdminNovelUpdate(BaseModel):
