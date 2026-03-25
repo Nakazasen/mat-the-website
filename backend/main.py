@@ -7,7 +7,7 @@ import io
 import os
 import re
 import unicodedata
-# Force re-deploy to Vercel and Render (Trigger: 2026-03-25 23:10)
+# Force re-deploy to Vercel and Render (Trigger: 2026-03-25 23:14)
 from typing import Optional, List
 from urllib.parse import quote
 import boto3
@@ -47,7 +47,14 @@ except (ImportError, ModuleNotFoundError):
 
 load_dotenv(override=True)
 
-from database import supabase
+# === SUPABASE CLIENT ===
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise RuntimeError("SUPABASE_URL and SUPABASE_KEY must be configured in .env")
+
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # === CLOUDFLARE R2 CLIENT ===
 R2_ACCESS_KEY = os.getenv("R2_ACCESS_KEY_ID")

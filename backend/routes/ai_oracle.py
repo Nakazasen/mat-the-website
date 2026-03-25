@@ -240,9 +240,9 @@ async def ask_oracle(body: OracleRequest, request: Request):
     Enforces chapter-based spoiler protection and multi-tier caching.
     """
     try:
-        from database import supabase
+        from main import supabase
     except ImportError:
-        from backend.database import supabase
+        from backend.main import supabase
 
     question = body.question.strip()
     if len(question) < 5:

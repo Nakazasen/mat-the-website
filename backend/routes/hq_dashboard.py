@@ -6,10 +6,15 @@ Returns the most recent resource snapshot for the given faction at or before cha
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
-try:
-    from database import supabase
-except ImportError:
-    from backend.database import supabase
+
+
+def _get_supabase():
+    """Lazy import to avoid circular/path issues on Render."""
+    try:
+        from main import supabase
+    except ImportError:
+        from backend.main import supabase
+    return supabase
 
 router = APIRouter(prefix="/hq", tags=["hq_dashboard"])
 
@@ -39,6 +44,7 @@ async def get_hq_status(
     Returns the most recent HQ snapshot at or before the given chapter.
     This ensures no future data is revealed (spoiler-safe).
     """
+    supabase = _get_supabase()
     try:
         result = (
             supabase.table("hq_snapshots")
@@ -78,6 +84,7 @@ async def get_hq_history(
     Returns the last N snapshots up to the current chapter.
     Used by the Dashboard to draw progression charts.
     """
+    supabase = _get_supabase()
     try:
         result = (
             supabase.table("hq_snapshots")

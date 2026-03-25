@@ -11,7 +11,15 @@ import re
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from typing import Optional
-from database import supabase
+
+
+def _get_supabase():
+    """Lazy import to avoid circular/path issues on Render."""
+    try:
+        from main import supabase
+    except ImportError:
+        from backend.main import supabase
+    return supabase
 
 router = APIRouter(prefix="/wiki", tags=["wiki_search"])
 
@@ -41,6 +49,7 @@ async def get_character(
     Returns a character profile from the wiki, filtered by chapter progress.
     Returns null if not found (not a 404 — soft fail for UI).
     """
+    supabase = _get_supabase()
     if not supabase:
         raise HTTPException(status_code=503, detail="Database not configured")
 
