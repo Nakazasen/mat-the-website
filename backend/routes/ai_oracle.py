@@ -242,9 +242,17 @@ async def call_gemini(question: str, chapter_cap: int, wiki_context: str, model_
             json=payload,
         )
         if not resp.is_success:
+            detail = f"Gemini API error: {resp.status_code}"
+            try:
+                payload = resp.json()
+                message = payload.get("error", {}).get("message")
+                if message:
+                    detail = f"{detail} - {message}"
+            except Exception:
+                pass
             raise HTTPException(
-                status_code=502,
-                detail=f"Gemini API error: {resp.status_code}"
+                status_code=resp.status_code,
+                detail=detail,
             )
         data = resp.json()
         try:
@@ -253,25 +261,44 @@ async def call_gemini(question: str, chapter_cap: int, wiki_context: str, model_
             raise HTTPException(status_code=502, detail="Invalid Gemini response format")
 
 
-async def resolve_ai_settings(supabase) -> tuple[str, Optional[str]]:
+def normalize_model_catalog(raw_catalog, fallback_model: str) -> list[str]:
+    if isinstance(raw_catalog, list):
+        catalog = [f"{item}".strip() for item in raw_catalog if f"{item}".strip()]
+    else:
+        catalog = []
+    if fallback_model and fallback_model not in catalog:
+        catalog.insert(0, fallback_model)
+    if not catalog:
+        catalog = [fallback_model or DEFAULT_MODEL]
+    return list(dict.fromkeys(catalog))
+
+
+def is_model_retryable(exc: HTTPException) -> bool:
+    detail = str(exc.detail).lower()
+    return exc.status_code == 429 or "resource exhausted" in detail or "rate limit" in detail or "quota" in detail
+
+
+async def resolve_ai_settings(supabase) -> tuple[str, list[str], Optional[str]]:
     try:
         settings_resp = (
             supabase.table("novel_settings")
-            .select("ai_model_name, ai_api_key")
+            .select("ai_model_name, ai_model_catalog, ai_api_key")
             .eq("id", 1)
             .single()
             .execute()
         )
 
         if settings_resp.data:
+            model_name = settings_resp.data.get("ai_model_name", DEFAULT_MODEL)
             return (
-                settings_resp.data.get("ai_model_name", DEFAULT_MODEL),
+                model_name,
+                normalize_model_catalog(settings_resp.data.get("ai_model_catalog"), model_name),
                 settings_resp.data.get("ai_api_key"),
             )
     except Exception:
         pass
 
-    return DEFAULT_MODEL, None
+    return DEFAULT_MODEL, [DEFAULT_MODEL], None
 
 
 # =============================================
@@ -320,10 +347,26 @@ async def ask_oracle(body: OracleRequest, request: Request):
             detail="HỆ THỐNG ĐANG BỊ NHIỄU SÓNG. Vui lòng thử lại vào ngày mai.",
         )
 
-    ai_model, custom_key = await resolve_ai_settings(supabase)
+    ai_model, model_catalog, custom_key = await resolve_ai_settings(supabase)
 
-    # Call Gemini
-    answer = await call_gemini(question, chapter_cap, wiki_context, model_name=ai_model, api_key=custom_key)
+    answer = None
+    last_error: Optional[HTTPException] = None
+    for model_name in model_catalog:
+        try:
+            answer = await call_gemini(question, chapter_cap, wiki_context, model_name=model_name, api_key=custom_key)
+            ai_model = model_name
+            break
+        except HTTPException as exc:
+            last_error = exc
+            if not is_model_retryable(exc):
+                raise
+            continue
+
+    if answer is None:
+        if last_error:
+            raise last_error
+        raise HTTPException(status_code=502, detail="No AI model available")
+
     await store_cache(supabase, question_hash, chapter_cap, answer, "gemini")
     return OracleResponse(answer=answer, source="gemini", chapter_cap=chapter_cap)
 
@@ -349,7 +392,7 @@ async def admin_ai_playground(
 
     prompt = body.prompt.strip() or "Tra loi ngan gon bang tieng Viet: xac nhan model dang hoat dong."
     chapter_progress = max(1, min(body.chapter_progress, 9999))
-    stored_model, stored_key = await resolve_ai_settings(supabase)
+    stored_model, stored_catalog, stored_key = await resolve_ai_settings(supabase)
     chosen_key = body.api_key.strip() if body.api_key else (stored_key or "")
     used_saved_key = not bool(body.api_key and body.api_key.strip())
 
@@ -384,7 +427,7 @@ async def admin_ai_playground(
                 status = "missing_key"
             elif exc.status_code == 429:
                 status = "rate_limited"
-            elif exc.status_code == 502:
+            elif exc.status_code in (400, 401, 403):
                 status = "auth_error"
             results.append(
                 AdminAiPlaygroundResult(

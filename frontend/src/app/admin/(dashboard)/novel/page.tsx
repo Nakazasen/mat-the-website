@@ -12,11 +12,10 @@ import {
     runAdminAiPlayground,
     AdminAiPlaygroundResult,
 } from '@/lib/api';
-import { Save, AlertTriangle, CheckCircle2, Loader2, BookOpen, User, FileText, Image as ImageIcon, Tag, Upload, ShieldAlert, Bot, FlaskConical, Plus, Play, Wand2 } from 'lucide-react';
+import { Save, AlertTriangle, CheckCircle2, Loader2, BookOpen, User, FileText, Image as ImageIcon, Tag, Upload, ShieldAlert, Bot, FlaskConical, Plus, Play, Wand2, ChevronLeft, ChevronRight } from 'lucide-react';
 import RichTextEditor from '@/components/Editor';
 
 const DEFAULT_AI_MODEL = 'gemini-3.1-flash-lite-preview';
-const AI_MODEL_STORAGE_KEY = 'admin-ai-model-catalog';
 const DEFAULT_AI_MODELS = [
     'gemini-3.1-flash-lite-preview',
     'gemini-3.1-flash-preview',
@@ -64,7 +63,7 @@ export default function AdminNovelPage() {
         const loadData = async () => {
             const supabase = createAdminClient();
             if (!supabase) {
-                setError('Loi cau hinh: thieu NEXT_PUBLIC_SUPABASE_URL.');
+                setError('Lỗi cấu hình: thiếu NEXT_PUBLIC_SUPABASE_URL.');
                 setLoading(false);
                 return;
             }
@@ -83,9 +82,10 @@ export default function AdminNovelPage() {
                 const data = await getNovelSettings();
                 setSettings(data);
                 setAiModelName(data.ai_model_name || DEFAULT_AI_MODEL);
+                setModelCatalog(Array.from(new Set([...(data.ai_model_catalog || []), ...DEFAULT_AI_MODELS])));
                 setPlaygroundChapter(Math.max(data.max_chapter || 1, 1));
             } catch {
-                setError('Khong the tai du lieu cau hinh hien tai.');
+                setError('Không thể tải dữ liệu cấu hình hiện tại.');
             } finally {
                 setLoading(false);
             }
@@ -93,31 +93,6 @@ export default function AdminNovelPage() {
 
         loadData();
     }, [router]);
-
-    useEffect(() => {
-        if (typeof window === 'undefined') return;
-        try {
-            const raw = window.localStorage.getItem(AI_MODEL_STORAGE_KEY);
-            if (!raw) return;
-            const parsed = JSON.parse(raw);
-            if (Array.isArray(parsed)) {
-                const sanitized = parsed
-                    .map((value) => `${value}`.trim())
-                    .filter(Boolean);
-                if (sanitized.length > 0) {
-                    setModelCatalog(Array.from(new Set([...DEFAULT_AI_MODELS, ...sanitized])));
-                }
-            }
-        } catch {
-            // Ignore malformed local storage and keep defaults.
-        }
-    }, []);
-
-    useEffect(() => {
-        if (typeof window === 'undefined') return;
-        const customModels = modelCatalog.filter((model) => !DEFAULT_AI_MODELS.includes(model));
-        window.localStorage.setItem(AI_MODEL_STORAGE_KEY, JSON.stringify(customModels));
-    }, [modelCatalog]);
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -140,6 +115,7 @@ export default function AdminNovelPage() {
 
             if (userRole === 'superadmin') {
                 payload.ai_model_name = aiModelName.trim() || DEFAULT_AI_MODEL;
+                payload.ai_model_catalog = Array.from(new Set(modelCatalog.map((model) => model.trim()).filter(Boolean)));
                 if (aiApiKeyInput.trim()) {
                     payload.ai_api_key = aiApiKeyInput.trim();
                 }
@@ -152,10 +128,11 @@ export default function AdminNovelPage() {
                 ...prev,
                 has_ai_key: prev.has_ai_key || Boolean(payload.ai_api_key),
                 ai_model_name: payload.ai_model_name || prev.ai_model_name,
+                ai_model_catalog: payload.ai_model_catalog || prev.ai_model_catalog,
             }));
             setTimeout(() => setSuccess(false), 3000);
         } catch (err: any) {
-            setError(err?.message || 'Loi khong xac dinh khi luu cau hinh.');
+            setError(err?.message || 'Lỗi không xác định khi lưu cấu hình.');
         } finally {
             setSaving(false);
         }
@@ -182,18 +159,33 @@ export default function AdminNovelPage() {
     };
 
     const removeModelFromCatalog = (model: string) => {
-        if (DEFAULT_AI_MODELS.includes(model)) return;
         setModelCatalog((current) => current.filter((item) => item !== model));
         if (aiModelName === model) {
-            setAiModelName(DEFAULT_AI_MODEL);
+            const fallbackModel = modelCatalog.find((item) => item !== model) || DEFAULT_AI_MODEL;
+            setAiModelName(fallbackModel);
         }
+    };
+
+    const moveModel = (index: number, direction: 'left' | 'right') => {
+        setModelCatalog((current) => {
+            const next = [...current];
+            const targetIndex = direction === 'left' ? index - 1 : index + 1;
+            if (targetIndex < 0 || targetIndex >= next.length) {
+                return current;
+            }
+
+            const currentValue = next[index];
+            next[index] = next[targetIndex];
+            next[targetIndex] = currentValue;
+            return next;
+        });
     };
 
     const runPlayground = async (models: string[]) => {
         if (!token) return;
         const dedupedModels = Array.from(new Set(models.map((model) => model.trim()).filter(Boolean)));
         if (dedupedModels.length === 0) {
-            setPlaygroundError('Chon it nhat mot model de test.');
+            setPlaygroundError('Chọn ít nhất một model để test.');
             return;
         }
 
@@ -209,7 +201,7 @@ export default function AdminNovelPage() {
             }, token);
             setPlaygroundResults(response.results);
         } catch (err: any) {
-            setPlaygroundError(err?.message || 'Khong the chay AI playground.');
+            setPlaygroundError(err?.message || 'Không thể chạy AI playground.');
         } finally {
             setPlaygroundRunning(false);
         }
@@ -225,7 +217,7 @@ export default function AdminNovelPage() {
         return (
             <div className="flex flex-col items-center justify-center h-64 gap-3">
                 <Loader2 className="animate-spin text-green-500" size={32} />
-                <p className="font-mono text-xs text-gray-500 tracking-widest">DANG TAI CAU HINH...</p>
+                <p className="font-mono text-xs text-gray-500 tracking-widest">ĐANG TẢI CẤU HÌNH...</p>
             </div>
         );
     }
@@ -235,15 +227,15 @@ export default function AdminNovelPage() {
             <div className="mb-8">
                 <h1 className="text-2xl font-mono text-gray-100 tracking-tight flex items-center gap-3">
                     <BookOpen className="text-green-500" size={24} />
-                    THONG TIN TRUYEN
+                    THÔNG TIN TRUYỆN
                 </h1>
-                <p className="text-gray-500 text-sm font-mono mt-1">Quan ly thong tin hien thi tren homepage va danh sach chuong.</p>
+                <p className="text-gray-500 text-sm font-mono mt-1">Quản lý thông tin hiển thị trên homepage và danh sách chương.</p>
             </div>
 
             {success && (
                 <div className="flex items-center gap-2 text-green-400 bg-green-950/30 border border-green-800/50 rounded p-4 text-sm mb-6">
                     <CheckCircle2 size={16} />
-                    <span>Da luu thay doi thanh cong.</span>
+                    <span>Đã lưu thay đổi thành công.</span>
                 </div>
             )}
 
@@ -258,7 +250,7 @@ export default function AdminNovelPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
                         <label className="flex items-center gap-2 text-xs font-mono text-gray-500 tracking-widest uppercase">
-                            <FileText size={12} /> Ten truyen
+                            <FileText size={12} /> Tên truyện
                         </label>
                         <input
                             type="text"
@@ -266,13 +258,13 @@ export default function AdminNovelPage() {
                             onChange={(e) => setSettings({ ...settings, title: e.target.value })}
                             required
                             className="w-full bg-[#0a0a0a] border border-gray-800 rounded px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500/20 transition-all"
-                            placeholder="Mat The - Sinh Hoa Nguy Co"
+                            placeholder="Mạt Thế - Sinh Hóa Nguy Cơ"
                         />
                     </div>
 
                     <div className="space-y-2">
                         <label className="flex items-center gap-2 text-xs font-mono text-gray-500 tracking-widest uppercase">
-                            <User size={12} /> Tac gia
+                            <User size={12} /> Tác giả
                         </label>
                         <input
                             type="text"
@@ -280,28 +272,28 @@ export default function AdminNovelPage() {
                             onChange={(e) => setSettings({ ...settings, author: e.target.value })}
                             required
                             className="w-full bg-[#0a0a0a] border border-gray-800 rounded px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500/20 transition-all"
-                            placeholder="Ho Phong"
+                            placeholder="Hà Phong"
                         />
                     </div>
 
                     <div className="space-y-2">
                         <label className="flex items-center gap-2 text-xs font-mono text-gray-500 tracking-widest uppercase">
-                            <Tag size={12} /> Tinh trang
+                            <Tag size={12} /> Tình trạng
                         </label>
                         <select
                             value={settings.status}
                             onChange={(e) => setSettings({ ...settings, status: e.target.value })}
                             className="w-full bg-[#0a0a0a] border border-gray-800 rounded px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500/20 transition-all appearance-none"
                         >
-                            <option value="Dang cap nhat">Dang cap nhat</option>
-                            <option value="Hoan thanh">Hoan thanh</option>
-                            <option value="Tam ngung">Tam ngung</option>
+                            <option value="Dang cap nhat">Đang cập nhật</option>
+                            <option value="Hoan thanh">Hoàn thành</option>
+                            <option value="Tam ngung">Tạm ngừng</option>
                         </select>
                     </div>
 
                     <div className="space-y-2">
                         <label className="flex items-center gap-2 text-xs font-mono text-gray-500 tracking-widest uppercase">
-                            <ImageIcon size={12} /> Anh bia (URL)
+                            <ImageIcon size={12} /> Ảnh bìa (URL)
                         </label>
                         <div className="flex gap-2">
                             <input
@@ -311,7 +303,7 @@ export default function AdminNovelPage() {
                                 className="w-full bg-[#0a0a0a] border border-gray-800 rounded px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500/20 transition-all"
                                 placeholder="/hero-bg.png"
                             />
-                            <label className="flex items-center justify-center px-4 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 rounded cursor-pointer transition-colors" title="Tai anh len R2">
+                            <label className="flex items-center justify-center px-4 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 rounded cursor-pointer transition-colors" title="Tải ảnh lên R2">
                                 <Upload size={16} />
                                 <input
                                     type="file"
@@ -324,7 +316,7 @@ export default function AdminNovelPage() {
                                             const url = await uploadImageR2(file, token);
                                             setSettings((s) => ({ ...s, cover_url: url }));
                                         } catch {
-                                            setError('Loi tai anh bia. Vui long thu lai.');
+                                            setError('Lỗi tải ảnh bìa. Vui lòng thử lại.');
                                         }
                                     }}
                                 />
@@ -343,9 +335,9 @@ export default function AdminNovelPage() {
                                     value={settings.donate_qr_url || ''}
                                     onChange={(e) => setSettings({ ...settings, donate_qr_url: e.target.value })}
                                     className="w-full bg-[#0a0a0a] border border-gray-800 rounded px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500/20 transition-all"
-                                    placeholder="Link anh QR..."
+                                    placeholder="Link ảnh QR..."
                                 />
-                                <label className="flex items-center justify-center px-4 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 rounded cursor-pointer transition-colors" title="Tai QR len R2">
+                                <label className="flex items-center justify-center px-4 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 rounded cursor-pointer transition-colors" title="Tải QR lên R2">
                                     <Upload size={16} />
                                     <input
                                         type="file"
@@ -358,7 +350,7 @@ export default function AdminNovelPage() {
                                                 const url = await uploadImageR2(file, token);
                                                 setSettings((s) => ({ ...s, donate_qr_url: url }));
                                             } catch {
-                                                setError('Loi tai anh QR. Vui long thu lai.');
+                                                setError('Lỗi tải ảnh QR. Vui lòng thử lại.');
                                             }
                                         }}
                                     />
@@ -367,14 +359,14 @@ export default function AdminNovelPage() {
                         ) : (
                             <div className="flex items-center gap-2 bg-[#0a0a0a] border border-gray-800 rounded px-4 py-2.5 text-gray-500 text-sm italic">
                                 <ShieldAlert size={14} className="text-amber-500" />
-                                <span>Chi superadmin duoc xem va chinh sua QR Donate.</span>
+                                <span>Chỉ superadmin được xem và chỉnh sửa QR Donate.</span>
                             </div>
                         )}
                     </div>
                 </div>
 
                 <div className="space-y-2">
-                    <label className="flex items-center gap-2 text-xs font-mono text-gray-500 tracking-widest uppercase">The loai</label>
+                    <label className="flex items-center gap-2 text-xs font-mono text-gray-500 tracking-widest uppercase">Thể loại</label>
                     <div className="flex flex-wrap gap-2 mb-2 min-h-[32px]">
                         {settings.genres.map((genre) => (
                             <span
@@ -393,24 +385,24 @@ export default function AdminNovelPage() {
                             onChange={(e) => setGenreInput(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addGenre())}
                             className="flex-1 bg-[#0a0a0a] border border-gray-800 rounded px-4 py-2 text-gray-200 text-sm focus:outline-none focus:border-green-500 transition-all font-mono"
-                            placeholder="Them the loai va nhan Enter..."
+                            placeholder="Thêm thể loại và nhấn Enter..."
                         />
                         <button
                             type="button"
                             onClick={addGenre}
                             className="px-4 py-2 border border-gray-700 text-gray-400 hover:text-gray-200 rounded text-sm font-mono transition-colors"
                         >
-                            THEM
+                            THÊM
                         </button>
                     </div>
                 </div>
 
                 <div className="space-y-2">
-                    <label className="flex items-center gap-2 text-xs font-mono text-gray-500 tracking-widest uppercase">Gioi thieu truyen</label>
+                    <label className="flex items-center gap-2 text-xs font-mono text-gray-500 tracking-widest uppercase">Giới thiệu truyện</label>
                     <RichTextEditor
                         content={settings.description}
                         onChange={(html) => setSettings({ ...settings, description: html })}
-                        placeholder="Nhap gioi thieu truyen..."
+                        placeholder="Nhập giới thiệu truyện..."
                         adminToken={token || undefined}
                     />
                 </div>
@@ -421,7 +413,7 @@ export default function AdminNovelPage() {
                         <div className="space-y-4">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <label className="text-[11px] font-mono text-gray-500 uppercase tracking-widest">Model Name</label>
+                                    <label className="text-[11px] font-mono text-gray-500 uppercase tracking-widest">Tên Model</label>
                                     <input
                                         type="text"
                                         value={aiModelName}
@@ -432,14 +424,14 @@ export default function AdminNovelPage() {
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-[11px] font-mono text-gray-500 uppercase tracking-widest">
-                                        API Key {settings.has_ai_key ? '(configured)' : '(not set)'}
+                                        API Key {settings.has_ai_key ? '(đã cấu hình)' : '(chưa có)'}
                                     </label>
                                     <input
                                         type="password"
                                         value={aiApiKeyInput}
                                         onChange={(e) => setAiApiKeyInput(e.target.value)}
                                         className="w-full bg-black border border-gray-800 rounded px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:border-green-500"
-                                        placeholder="Nhap API key moi de ghi de"
+                                        placeholder="Nhập API key mới để ghi đè"
                                     />
                                 </div>
                             </div>
@@ -449,29 +441,49 @@ export default function AdminNovelPage() {
                                     <Bot size={12} />
                                     Model Catalog
                                 </div>
+                                <p className="text-xs text-gray-500">
+                                    Danh sách này được lưu server-side. Backend sẽ tự thử model tiếp theo trong catalog nếu model hiện tại bị rate-limit hoặc hết quota/RPD.
+                                </p>
                                 <div className="flex flex-wrap gap-2">
-                                    {modelCatalog.map((model) => {
+                                    {modelCatalog.map((model, index) => {
                                         const isActive = aiModelName === model;
                                         return (
-                                            <button
+                                            <div
                                                 key={model}
-                                                type="button"
-                                                onClick={() => setAiModelName(model)}
                                                 className={`inline-flex items-center gap-2 rounded border px-3 py-1.5 text-xs font-mono transition-colors ${isActive ? 'border-green-500 bg-green-950/30 text-green-300' : 'border-gray-800 bg-black text-gray-400 hover:border-gray-700 hover:text-gray-200'}`}
                                             >
-                                                <span>{model}</span>
-                                                {!DEFAULT_AI_MODELS.includes(model) && (
-                                                    <span
-                                                        onClick={(event) => {
-                                                            event.stopPropagation();
-                                                            removeModelFromCatalog(model);
-                                                        }}
-                                                        className="cursor-pointer text-red-400"
-                                                    >
-                                                        x
-                                                    </span>
-                                                )}
-                                            </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setAiModelName(model)}
+                                                    className="text-left"
+                                                >
+                                                    <span className="mr-2 text-[10px] text-gray-500">{index + 1}.</span>
+                                                    <span>{model}</span>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => moveModel(index, 'left')}
+                                                    disabled={index === 0}
+                                                    className="text-gray-500 hover:text-gray-200 disabled:cursor-not-allowed disabled:text-gray-800"
+                                                >
+                                                    <ChevronLeft size={12} />
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => moveModel(index, 'right')}
+                                                    disabled={index === modelCatalog.length - 1}
+                                                    className="text-gray-500 hover:text-gray-200 disabled:cursor-not-allowed disabled:text-gray-800"
+                                                >
+                                                    <ChevronRight size={12} />
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeModelFromCatalog(model)}
+                                                    className="text-red-400"
+                                                >
+                                                    x
+                                                </button>
+                                            </div>
                                         );
                                     })}
                                 </div>
@@ -482,7 +494,7 @@ export default function AdminNovelPage() {
                                         onChange={(e) => setCustomModelInput(e.target.value)}
                                         onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addModelToCatalog())}
                                         className="flex-1 bg-black border border-gray-800 rounded px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:border-green-500"
-                                        placeholder="Them model name bat ky..."
+                                        placeholder="Thêm model name bất kỳ..."
                                     />
                                     <button
                                         type="button"
@@ -490,7 +502,7 @@ export default function AdminNovelPage() {
                                         className="inline-flex items-center gap-2 rounded border border-gray-700 px-4 py-2 text-xs font-mono text-gray-300 hover:border-green-500 hover:text-green-300"
                                     >
                                         <Plus size={14} />
-                                        THEM MODEL
+                                        THÊM MODEL
                                     </button>
                                 </div>
                             </div>
@@ -498,7 +510,7 @@ export default function AdminNovelPage() {
                     ) : (
                         <div className="flex items-center gap-2 text-sm text-gray-500 italic">
                             <ShieldAlert size={14} className="text-amber-500" />
-                            <span>Chi superadmin duoc thay doi AI model va API key.</span>
+                            <span>Chỉ superadmin được thay đổi AI model và API key.</span>
                         </div>
                     )}
                 </div>
@@ -508,7 +520,7 @@ export default function AdminNovelPage() {
                         <div className="flex items-center justify-between gap-3">
                             <div>
                                 <p className="text-xs font-mono tracking-widest text-gray-400">AI PLAYGROUND</p>
-                                <p className="mt-1 text-sm text-gray-500">Autotest model dang chon hoac quet toan bo catalog voi key luu san hay key tam thoi.</p>
+                                <p className="mt-1 text-sm text-gray-500">Autotest model đang chọn hoặc quét toàn bộ catalog với key lưu sẵn hay key tạm thời.</p>
                             </div>
                             <FlaskConical className="text-green-500" size={18} />
                         </div>
@@ -524,7 +536,7 @@ export default function AdminNovelPage() {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <label className="text-[11px] font-mono text-gray-500 uppercase tracking-widest">Chapter Progress</label>
+                                <label className="text-[11px] font-mono text-gray-500 uppercase tracking-widest">Tiến Độ Chương</label>
                                 <input
                                     type="number"
                                     min={1}
@@ -534,13 +546,13 @@ export default function AdminNovelPage() {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <label className="text-[11px] font-mono text-gray-500 uppercase tracking-widest">Temporary API Key</label>
+                                <label className="text-[11px] font-mono text-gray-500 uppercase tracking-widest">API Key Tạm Thời</label>
                                 <input
                                     type="password"
                                     value={playgroundApiKey}
                                     onChange={(e) => setPlaygroundApiKey(e.target.value)}
                                     className="w-full bg-black border border-gray-800 rounded px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:border-green-500"
-                                    placeholder="Bo trong de dung key da luu"
+                                    placeholder="Bỏ trống để dùng key đã lưu"
                                 />
                             </div>
                         </div>
@@ -553,7 +565,7 @@ export default function AdminNovelPage() {
                                 className="inline-flex items-center gap-2 rounded bg-green-600 px-4 py-2.5 text-xs font-mono tracking-widest text-white hover:bg-green-500 disabled:bg-gray-800 disabled:text-gray-500"
                             >
                                 {playgroundRunning ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
-                                TEST CURRENT
+                                TEST MODEL HIỆN TẠI
                             </button>
                             <button
                                 type="button"
@@ -562,7 +574,7 @@ export default function AdminNovelPage() {
                                 className="inline-flex items-center gap-2 rounded border border-gray-700 px-4 py-2.5 text-xs font-mono tracking-widest text-gray-300 hover:border-green-500 hover:text-green-300 disabled:border-gray-800 disabled:text-gray-600"
                             >
                                 {playgroundRunning ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
-                                AUTOTEST ALL
+                                AUTOTEST TOÀN BỘ
                             </button>
                         </div>
 
@@ -577,11 +589,11 @@ export default function AdminNovelPage() {
                                 {playgroundResults.map((result) => (
                                     <div key={result.model} className={`rounded border px-4 py-3 ${getStatusTone(result.status)}`}>
                                         <div className="flex flex-wrap items-center justify-between gap-2">
-                                            <div className="font-mono text-sm">{result.model}</div>
-                                            <div className="font-mono text-xs uppercase tracking-widest">
-                                                {result.status} · {result.latency_ms}ms · {result.used_saved_key ? 'saved-key' : 'temp-key'}
+                                                <div className="font-mono text-sm">{result.model}</div>
+                                                <div className="font-mono text-xs uppercase tracking-widest">
+                                                    {result.status} · {result.latency_ms}ms · {result.used_saved_key ? 'saved-key' : 'temp-key'}
+                                                </div>
                                             </div>
-                                        </div>
                                         {result.error && <p className="mt-2 text-sm">{result.error}</p>}
                                         {result.answer_preview && <p className="mt-2 text-sm text-gray-200">{result.answer_preview}</p>}
                                     </div>
@@ -600,12 +612,12 @@ export default function AdminNovelPage() {
                         {saving ? (
                             <>
                                 <Loader2 className="animate-spin" size={16} />
-                                DANG LUU...
+                                ĐANG LƯU...
                             </>
                         ) : (
                             <>
                                 <Save size={16} />
-                                LUU CAU HINH
+                                LƯU CẤU HÌNH
                             </>
                         )}
                     </button>

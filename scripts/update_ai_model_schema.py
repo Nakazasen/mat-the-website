@@ -26,6 +26,7 @@ def update_schema():
         print(f"Failed to update (normal if column missing): {e}")
         print("\nACTION REQUIRED: Please run the following SQL in your Supabase SQL Editor:")
         print("ALTER TABLE novel_settings ADD COLUMN IF NOT EXISTS ai_model_name TEXT DEFAULT 'gemini-3.1-flash-lite-preview';")
+        print("ALTER TABLE novel_settings ADD COLUMN IF NOT EXISTS ai_model_catalog JSONB DEFAULT '[\"gemini-3.1-flash-lite-preview\"]'::jsonb;")
         print("ALTER TABLE novel_settings ADD COLUMN IF NOT EXISTS ai_api_key TEXT;")
 
 if __name__ == "__main__":

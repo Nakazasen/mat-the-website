@@ -98,6 +98,7 @@ export interface NovelSettings {
     total_views: number;
     total_likes: number;
     ai_model_name?: string;
+    ai_model_catalog?: string[];
     has_ai_key?: boolean;
 }
 

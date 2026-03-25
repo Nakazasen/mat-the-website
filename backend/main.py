@@ -473,6 +473,7 @@ class NovelSettings(BaseModel):
     total_views: int = 0
     total_likes: int = 0
     ai_model_name: str = "gemini-3.1-flash-lite-preview"
+    ai_model_catalog: list[str] = ["gemini-3.1-flash-lite-preview"]
     has_ai_key: bool = False  # Frontend diagnostic
 
 
@@ -485,6 +486,7 @@ class AdminNovelUpdate(BaseModel):
     genres: Optional[list[str]] = None
     donate_qr_url: Optional[str] = None
     ai_model_name: Optional[str] = None
+    ai_model_catalog: Optional[list[str]] = None
     ai_api_key: Optional[str] = None
 
 
@@ -515,7 +517,8 @@ async def get_novel_settings():
             "total_chapters": total_chapters,
             "max_chapter": max_chapter,
             "total_views": total_views,
-            "total_likes": total_likes
+            "total_likes": total_likes,
+            "ai_model_catalog": ["gemini-3.1-flash-lite-preview"],
         }
 
         if not resp.data:
@@ -530,6 +533,7 @@ async def get_novel_settings():
         final_data["total_views"] = total_views
         final_data["total_likes"] = total_likes
         final_data["ai_model_name"] = resp.data.get("ai_model_name", "gemini-3.1-flash-lite-preview")
+        final_data["ai_model_catalog"] = resp.data.get("ai_model_catalog") or [final_data["ai_model_name"]]
         
         # Security: Never return the actual API key to the frontend
         db_key = resp.data.get("ai_api_key")
@@ -552,7 +556,8 @@ async def get_novel_settings():
             max_chapter=0,
             total_views=0,
             total_likes=0,
-            ai_model_name="gemini-1.5-flash"
+            ai_model_name="gemini-1.5-flash",
+            ai_model_catalog=["gemini-1.5-flash"],
         )
 
 
@@ -571,7 +576,7 @@ async def admin_update_novel(
     if "description" in data:
         data["description"] = sanitize_html(data.get("description")) or ""
 
-    ai_fields = {"ai_model_name", "ai_api_key"}
+    ai_fields = {"ai_model_name", "ai_model_catalog", "ai_api_key"}
     if any(field in data for field in ai_fields) and user.get("role") != "superadmin":
         raise HTTPException(
             status_code=403,
