@@ -46,6 +46,7 @@ Thông tin ngữ cảnh (wiki):
 """.strip()
 
 WIKI_EMPTY_CONTEXT = "Khong co du lieu wiki lien quan."
+MIN_CACHEABLE_LENGTH = 24
 
 
 class OracleRequest(BaseModel):
@@ -104,6 +105,47 @@ def get_ip_hash(request: Request) -> str:
     return hashlib.md5(ip.encode()).hexdigest()
 
 
+def normalize_answer_text(text: str) -> str:
+    return re.sub(r"\s+", " ", text or "").strip()
+
+
+def is_garbage_answer(text: str) -> bool:
+    normalized = normalize_answer_text(text)
+    if not normalized:
+        return True
+    if len(normalized) < MIN_CACHEABLE_LENGTH:
+        return True
+
+    lowered = normalized.lower()
+    garbage_markers = (
+        "[he thong khoi dong]",
+        "[thong bao he thong]",
+        "[du lieu he thong]",
+        "chuong",
+        "context:*",
+    )
+    if lowered in garbage_markers:
+        return True
+    if lowered.startswith("[he thong khoi dong]") and len(normalized) < 96:
+        return True
+    if lowered.startswith("[thong bao he thong]") and len(normalized) < 96:
+        return True
+    return False
+
+
+async def delete_cache_entry(supabase, question_hash: str, chapter_cap: int):
+    try:
+        (
+            supabase.table("oracle_cache")
+            .delete()
+            .eq("question_hash", question_hash)
+            .eq("chapter_cap", chapter_cap)
+            .execute()
+        )
+    except Exception:
+        pass
+
+
 async def check_cache(supabase, question_hash: str, chapter_cap: int) -> Optional[str]:
     try:
         result = (
@@ -115,10 +157,14 @@ async def check_cache(supabase, question_hash: str, chapter_cap: int) -> Optiona
             .execute()
         )
         if result.data:
+            response = result.data[0].get("response", "")
+            if is_garbage_answer(response):
+                await delete_cache_entry(supabase, question_hash, chapter_cap)
+                return None
             supabase.table("oracle_cache").update(
                 {"hit_count": result.data[0].get("hit_count", 0) + 1}
             ).eq("question_hash", question_hash).execute()
-            return result.data[0]["response"]
+            return response
     except Exception:
         pass
     return None
@@ -131,6 +177,8 @@ async def store_cache(
     response: str,
     source: str,
 ):
+    if is_garbage_answer(response):
+        return
     try:
         supabase.table("oracle_cache").upsert(
             {
