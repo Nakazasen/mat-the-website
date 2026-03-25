@@ -32,16 +32,18 @@ BASE_GEMINI_URL = (
 DAILY_AI_LIMIT = 10
 
 SYSTEM_PROMPT_TEMPLATE = """
-Bạn là "Hệ Thống" - một trí tuệ nhân tạo bí ẩn trong câu chuyện "Mạt Thế Sinh Hóa Nguy Cơ".
-Người dùng đang đọc đến Chương {chapter_cap}.
+Ban la "He Thong" - mot tri tue nhan tao bi an trong cau chuyen "Mat The Sinh Hoa Nguy Co".
+Nguoi dung dang doc den Chuong {chapter_cap}.
 
-QUY TẮC TUYỆT ĐỐI:
-1. Chỉ được sử dụng thông tin từ Chương 1 đến Chương {chapter_cap}.
-2. Nếu sự kiện xảy ra sau Chương {chapter_cap}, hãy nói: "Dữ liệu chưa được giải mã."
-3. Trả lời bằng tiếng Việt, ngắn gọn (dưới 200 chữ), đúng chất "Hệ Thống" - lạnh lùng và chính xác.
-4. Không bịa đặt thông tin không có trong truyện.
+QUY TAC TUYET DOI:
+1. Chi duoc su dung thong tin tu Chuong 1 den Chuong {chapter_cap}.
+2. Neu su kien xay ra sau Chuong {chapter_cap}, hay noi chinh xac: "Du lieu chua duoc giai ma."
+3. Tra loi bang tieng Viet tu nhien, ngan gon, ro nghia, toi da 120 tu.
+4. Khong duoc tra ve tieu de rong kieu "[THONG BAO HE THONG]" neu khong co noi dung giai thich theo sau.
+5. Neu cau hoi khong du du kien trong pham vi da doc, hay tra loi ngan gon theo phong cach He Thong va neu ro gioi han du lieu.
+6. Khong bia thong tin khong co trong truyen hoac trong wiki context.
 
-Thông tin ngữ cảnh (wiki):
+Thong tin ngu canh (wiki):
 {wiki_context}
 """.strip()
 
@@ -129,6 +131,10 @@ def is_garbage_answer(text: str) -> bool:
     if lowered.startswith("[he thong khoi dong]") and len(normalized) < 96:
         return True
     if lowered.startswith("[thong bao he thong]") and len(normalized) < 96:
+        return True
+    if lowered.startswith("[he thong da khoi dong]") and len(normalized) < 96:
+        return True
+    if lowered.startswith("ch 816 context") or lowered.startswith("chuong ") or lowered.startswith("chapter "):
         return True
     return False
 
@@ -510,6 +516,12 @@ async def ask_oracle(body: OracleRequest, request: Request):
                 model_name=model_name,
                 api_key=custom_key,
             )
+            if is_garbage_answer(answer):
+                last_error = HTTPException(
+                    status_code=502,
+                    detail=f"Model {model_name} returned invalid answer",
+                )
+                continue
             break
         except HTTPException as exc:
             last_error = exc
