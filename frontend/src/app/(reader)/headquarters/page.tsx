@@ -137,7 +137,7 @@ export default function HeadquartersPage() {
                 ]);
 
                 if (!statusRes.ok) {
-                    throw new Error(`Khong th? t?i d? li?u HQ (${statusRes.status})`);
+                    throw new Error(`Không thể tải dữ liệu HQ (${statusRes.status})`);
                 }
 
                 const statusData = (await statusRes.json()) as HQStatus;
@@ -146,7 +146,7 @@ export default function HeadquartersPage() {
                 setStatus(statusData);
                 setHistory(Array.isArray(historyData) ? historyData : []);
             } catch (e: any) {
-                setError(e?.message ?? "Khong th? k?t n?i d? li?u Headquarters.");
+                setError(e?.message ?? "Không thể kết nối dữ liệu Headquarters.");
             } finally {
                 setIsLoading(false);
             }
@@ -186,15 +186,15 @@ export default function HeadquartersPage() {
                             letterSpacing: "0.06em",
                         }}
                     >
-                        S? Ch? Huy
+                        Sở Chỉ Huy
                     </h1>
                     <p style={{ margin: "6px 0 0", fontSize: 13, color: "rgba(255,255,255,0.52)" }}>
-                        B?ng ?i?u hanh nh?p vai theo di?n bi?n ch??ng, khong l? d? li?u t??ng lai.
+                        Bảng điều hành nhập vai theo diễn biến chương, không lộ dữ liệu tương lai.
                     </p>
 
                     <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 12 }}>
                         <span style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", fontFamily: "monospace" }}>
-                            CH??NG:
+                            CHƯƠNG:
                         </span>
                         <input
                             type="range"
@@ -214,7 +214,7 @@ export default function HeadquartersPage() {
             <div style={{ maxWidth: 920, margin: "28px auto 0", padding: "0 20px" }}>
                 {isLoading && (
                     <div style={{ textAlign: "center", padding: "56px 0", color: "rgba(57,255,20,0.6)", fontFamily: "monospace" }}>
-                        ?ang ??ng b? d? li?u HQ...
+                        Đang đồng bộ dữ liệu HQ...
                     </div>
                 )}
 
@@ -236,31 +236,31 @@ export default function HeadquartersPage() {
                 {status && !isLoading && !error && (
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 18 }}>
                         <section style={{ background: "rgba(20,24,22,0.8)", border: "1px solid rgba(57,255,20,0.14)", borderRadius: 8, padding: 18 }}>
-                            <div style={{ fontSize: 10, color: "rgba(57,255,20,0.55)", letterSpacing: "0.2em", marginBottom: 12 }}>TAI NGUYEN</div>
-                            <StatBar label="L??ng th?c" value={status.food_days} max={365} color="#39FF14" unit=" ngay" />
-                            <StatBar label="Tinh h?ch" value={status.crystal_count} max={100_000} color="#a855f7" />
-                            <StatBar label="N??c" value={status.water_unit} max={1_000_000} color="#38bdf8" unit="L" />
+                            <div style={{ fontSize: 10, color: "rgba(57,255,20,0.55)", letterSpacing: "0.2em", marginBottom: 12 }}>TÀI NGUYÊN</div>
+                            <StatBar label="Lương thực" value={status.food_days} max={365} color="#39FF14" unit=" ngày" />
+                            <StatBar label="Tinh hạch" value={status.crystal_count} max={100_000} color="#a855f7" />
+                            <StatBar label="Nước" value={status.water_unit} max={1_000_000} color="#38bdf8" unit="L" />
                         </section>
 
                         <section style={{ background: "rgba(20,24,22,0.8)", border: "1px solid rgba(57,255,20,0.14)", borderRadius: 8, padding: 18 }}>
                             <div style={{ fontSize: 10, color: "rgba(57,255,20,0.55)", letterSpacing: "0.2em", marginBottom: 12 }}>
-                                NHAN L?C ({formatNumber(status.total_population)})
+                                NHÂN LỰC ({formatNumber(status.total_population)})
                             </div>
-                            <StatBar label="Chi?n binh" value={status.warriors} max={status.total_population || 1} color="#ef4444" />
-                            <StatBar label="Nghien c?u" value={status.researchers} max={status.total_population || 1} color="#f59e0b" />
-                            <StatBar label="Dan th??ng" value={status.civilians} max={status.total_population || 1} color="#6b7280" />
+                            <StatBar label="Chiến binh" value={status.warriors} max={status.total_population || 1} color="#ef4444" />
+                            <StatBar label="Nghiên cứu" value={status.researchers} max={status.total_population || 1} color="#f59e0b" />
+                            <StatBar label="Dân thường" value={status.civilians} max={status.total_population || 1} color="#6b7280" />
                         </section>
 
                         <section style={{ background: "rgba(20,24,22,0.8)", border: "1px solid rgba(57,255,20,0.14)", borderRadius: 8, padding: 18 }}>
-                            <div style={{ fontSize: 10, color: "rgba(57,255,20,0.55)", letterSpacing: "0.2em", marginBottom: 12 }}>C? S? H? T?NG</div>
+                            <div style={{ fontSize: 10, color: "rgba(57,255,20,0.55)", letterSpacing: "0.2em", marginBottom: 12 }}>CƠ SỞ HẠ TẦNG</div>
                             <div style={{ marginBottom: 16 }}>
                                 <div style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", fontFamily: "monospace", marginBottom: 6 }}>
-                                    T??ng phong th? (Lv {status.wall_level}/5)
+                                    Tường phòng thủ (Lv {status.wall_level}/5)
                                 </div>
                                 <WallLevel level={status.wall_level} />
                             </div>
-                            <StatBar label="Lanh th?" value={status.territory_km2} max={3000} color="#10b981" unit=" km2" />
-                            <StatBar label="S? khi" value={status.morale} max={100} color="#f59e0b" unit="%" />
+                            <StatBar label="Lãnh thổ" value={status.territory_km2} max={3000} color="#10b981" unit=" km2" />
+                            <StatBar label="Sĩ khí" value={status.morale} max={100} color="#f59e0b" unit="%" />
                         </section>
 
                         <section
@@ -273,10 +273,10 @@ export default function HeadquartersPage() {
                             }}
                         >
                             <div style={{ fontSize: 10, color: "rgba(57,255,20,0.55)", letterSpacing: "0.2em", marginBottom: 8 }}>
-                                D?U M?C G?N NH?T: CH??NG {status.chapter_id}
+                                DẤU MỐC GẦN NHẤT: CHƯƠNG {status.chapter_id}
                             </div>
                             <p style={{ margin: 0, fontSize: 13, lineHeight: 1.65, color: "rgba(255,255,255,0.55)" }}>
-                                D? li?u ch? hi?n th? theo ch??ng b?n ch?n ?? gi? tr?i nghi?m spoiler-safe.
+                                Dữ liệu chỉ hiển thị theo chương bạn chọn để giữ trải nghiệm spoiler-safe.
                             </p>
                             {history.length > 0 && (
                                 <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>

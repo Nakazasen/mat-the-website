@@ -863,32 +863,6 @@ async def admin_update_homepage(
     return {"message": "C蘯ｭp nh蘯ｭt trang ch盻ｧ thﾃnh cﾃｴng", "settings": result.data[0] if result.data else data}
 
 
-@app.put("/api/admin/novel", summary="[Admin] C蘯ｭp nh蘯ｭt thﾃｴng tin truy盻㌻")
-async def admin_update_novel(
-    body: NovelSettings,
-    authorization: Optional[str] = Header(None),
-):
-    """C蘯ｭp nh蘯ｭt thﾃｴng tin chung c盻ｧa truy盻㌻."""
-    await verify_admin(authorization)
-    
-    # Upsert vﾃo dﾃｲng ID=1
-    data = body.dict()
-    user = await verify_admin(authorization)
-    if user.get("role") != "superadmin":
-        data.pop("ai_model_name", None)
-        data.pop("ai_api_key", None)
-        data.pop("has_ai_key", None)
-    data["description"] = sanitize_html(data.get("description")) or ""
-    data["id"] = 1
-    
-    result = supabase.table("novel_settings").upsert(data).execute()
-    
-    # Defensive check: if result.data is empty, use the input data as fallback
-    novel_data = result.data[0] if result.data and len(result.data) > 0 else data
-    
-    return {"message": "C蘯ｭp nh蘯ｭt thﾃｴng tin thﾃnh cﾃｴng", "novel": novel_data}
-
-
 @app.get("/api/admin/chapters/{chapter_number}/content", summary="[Admin] L蘯･y n盻冓 dung chﾆｰﾆ｡ng t盻ｫ R2")
 async def admin_get_chapter_content(
     chapter_number: int,
