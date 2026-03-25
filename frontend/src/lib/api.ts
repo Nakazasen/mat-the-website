@@ -115,7 +115,7 @@ export async function getNovelSettings(): Promise<NovelSettings> {
  */
 export async function updateNovelSettings(
     data: Partial<NovelSettings>,
-    token: string = "mat-the-admin-2026"
+    token: string
 ): Promise<any> {
     const res = await fetch(`${API_BASE_URL}/api/admin/novel`, {
         method: "PUT",

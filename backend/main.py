@@ -373,7 +373,7 @@ async def admin_create_chapter(
     authorization: Optional[str] = Header(None),
 ):
     """Thﾃｪm chﾆｰﾆ｡ng m盻嬖: Upload n盻冓 dung lﾃｪn R2, lﾆｰu metadata vﾃo Supabase."""
-    await verify_admin(authorization)
+    user = await verify_admin(authorization)
 
     if not r2_client:
         raise HTTPException(status_code=500, detail="R2 chﾆｰa ﾄ柁ｰ盻｣c c蘯･u hﾃｬnh trﾃｪn server")
@@ -480,8 +480,10 @@ class AdminNovelUpdate(BaseModel):
     title: Optional[str] = None
     author: Optional[str] = None
     description: Optional[str] = None
+    cover_url: Optional[str] = None
     status: Optional[str] = None
     genres: Optional[list[str]] = None
+    donate_qr_url: Optional[str] = None
     ai_model_name: Optional[str] = None
     ai_api_key: Optional[str] = None
 
@@ -560,12 +562,22 @@ async def admin_update_novel(
     authorization: Optional[str] = Header(None),
 ):
     """Cập nhật các thông tin chung của truyện và cấu hình AI."""
-    await verify_admin(authorization)
+    user = await verify_admin(authorization)
     
     data = body.model_dump(exclude_none=True)
     if not data:
         return {"message": "Không có gì thay đổi"}
     
+    if "description" in data:
+        data["description"] = sanitize_html(data.get("description")) or ""
+
+    ai_fields = {"ai_model_name", "ai_api_key"}
+    if any(field in data for field in ai_fields) and user.get("role") != "superadmin":
+        raise HTTPException(
+            status_code=403,
+            detail="Only superadmin can update AI model or API key.",
+        )
+
     # Update novel settings (ID 1)
     result = supabase.table("novel_settings").upsert({**data, "id": 1}).execute()
     return {"message": "Cập nhật thành công", "data": result.data[0]}
@@ -861,6 +873,11 @@ async def admin_update_novel(
     
     # Upsert vﾃo dﾃｲng ID=1
     data = body.dict()
+    user = await verify_admin(authorization)
+    if user.get("role") != "superadmin":
+        data.pop("ai_model_name", None)
+        data.pop("ai_api_key", None)
+        data.pop("has_ai_key", None)
     data["description"] = sanitize_html(data.get("description")) or ""
     data["id"] = 1
     

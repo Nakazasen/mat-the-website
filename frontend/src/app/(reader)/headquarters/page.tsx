@@ -2,474 +2,305 @@
 
 import { useEffect, useState } from "react";
 import { useNovel } from "@/context/NovelContext";
-import { getNovelSettings, updateNovelSettings } from "@/lib/api";
 
-// =========================================================
-// Types
-// =========================================================
 interface HQStatus {
-  chapter_id: number;
-  faction: string;
-  food_days: number;
-  crystal_count: number;
-  water_unit: number;
-  warriors: number;
-  researchers: number;
-  civilians: number;
-  wall_level: number;
-  territory_km2: number;
-  morale: number;
-  total_population: number;
+    chapter_id: number;
+    faction: string;
+    food_days: number;
+    crystal_count: number;
+    water_unit: number;
+    warriors: number;
+    researchers: number;
+    civilians: number;
+    wall_level: number;
+    territory_km2: number;
+    morale: number;
+    total_population: number;
 }
 
 interface HQHistoryPoint {
-  chapter_id: number;
-  food_days: number;
-  crystal_count: number;
-  warriors: number;
-  morale: number;
+    chapter_id: number;
+    food_days: number;
+    crystal_count: number;
+    warriors: number;
+    morale: number;
 }
 
-// =========================================================
-// Helpers
-// =========================================================
 const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
-function formatNumber(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return String(n);
+function formatNumber(value: number): string {
+    if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+    if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
+    return `${value}`;
 }
 
 function StatBar({
-  label,
-  value,
-  max,
-  color,
-  unit = "",
+    label,
+    value,
+    max,
+    color,
+    unit = "",
 }: {
-  label: string;
-  value: number;
-  max: number;
-  color: string;
-  unit?: string;
+    label: string;
+    value: number;
+    max: number;
+    color: string;
+    unit?: string;
 }) {
-  const pct = Math.min(100, (value / max) * 100);
-  return (
-    <div style={{ marginBottom: "16px" }}>
-      <div style={{
-        display: "flex", justifyContent: "space-between",
-        fontSize: "11px", color: "rgba(255,255,255,0.5)",
-        letterSpacing: "0.12em", marginBottom: "5px",
-        fontFamily: "'Courier Prime', monospace",
-      }}>
-        <span>{label}</span>
-        <span style={{ color }}>
-          {formatNumber(value)}{unit}
-        </span>
-      </div>
-      <div style={{
-        height: "4px", background: "rgba(255,255,255,0.07)",
-        borderRadius: "2px", overflow: "hidden",
-      }}>
-        <div style={{
-          height: "100%", width: `${pct}%`,
-          background: color,
-          borderRadius: "2px",
-          transition: "width 1s cubic-bezier(0.23, 1, 0.32, 1)",
-          boxShadow: `0 0 8px ${color}`,
-        }} />
-      </div>
-    </div>
-  );
+    const pct = Math.min(100, Math.max(0, (value / Math.max(max, 1)) * 100));
+    return (
+        <div style={{ marginBottom: 16 }}>
+            <div
+                style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    fontSize: 11,
+                    color: "rgba(255,255,255,0.55)",
+                    letterSpacing: "0.12em",
+                    marginBottom: 6,
+                    fontFamily: "monospace",
+                }}
+            >
+                <span>{label}</span>
+                <span style={{ color }}>
+                    {formatNumber(value)}
+                    {unit}
+                </span>
+            </div>
+            <div
+                style={{
+                    height: 5,
+                    background: "rgba(255,255,255,0.08)",
+                    borderRadius: 3,
+                    overflow: "hidden",
+                }}
+            >
+                <div
+                    style={{
+                        height: "100%",
+                        width: `${pct}%`,
+                        background: color,
+                        boxShadow: `0 0 8px ${color}`,
+                        transition: "width 350ms ease",
+                    }}
+                />
+            </div>
+        </div>
+    );
 }
 
 function WallLevel({ level }: { level: number }) {
-  return (
-    <div style={{ display: "flex", gap: "5px", marginTop: "4px" }}>
-      {[1, 2, 3, 4, 5].map((l) => (
-        <div key={l} style={{
-          flex: 1, height: "8px", borderRadius: "2px",
-          background: l <= level ? "#39FF14" : "rgba(255,255,255,0.07)",
-          boxShadow: l <= level ? "0 0 6px rgba(57,255,20,0.6)" : "none",
-          transition: "background 0.4s ease",
-        }} />
-      ))}
-    </div>
-  );
+    return (
+        <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+            {[1, 2, 3, 4, 5].map((slot) => (
+                <div
+                    key={slot}
+                    style={{
+                        flex: 1,
+                        height: 8,
+                        borderRadius: 3,
+                        background: slot <= level ? "#39FF14" : "rgba(255,255,255,0.08)",
+                        boxShadow: slot <= level ? "0 0 8px rgba(57,255,20,0.55)" : "none",
+                    }}
+                />
+            ))}
+        </div>
+    );
 }
 
-// =========================================================
-// Main component
-// =========================================================
 export default function HeadquartersPage() {
-  const [chapter, setChapter] = useState<number>(() => {
-    // Read last chapter from localStorage (set by ReadingClient)
-    if (typeof window !== "undefined") {
-      return parseInt(localStorage.getItem("lastReadChapter") ?? "1", 10);
-    }
-    return 1;
-  });
+    const [chapter, setChapter] = useState<number>(() => {
+        if (typeof window !== "undefined") {
+            const stored = Number.parseInt(localStorage.getItem("lastReadChapter") ?? "1", 10);
+            return Number.isFinite(stored) && stored > 0 ? stored : 1;
+        }
+        return 1;
+    });
 
-  const [status, setStatus] = useState<HQStatus | null>(null);
-  const [history, setHistory] = useState<HQHistoryPoint[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+    const [status, setStatus] = useState<HQStatus | null>(null);
+    const [history, setHistory] = useState<HQHistoryPoint[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
-  // AI Model Config State
-  const [aiModel, setAiModel] = useState("gemini-1.5-flash");
-  const [aiApiKey, setAiApiKey] = useState("");
-  const [isUpdatingModel, setIsUpdatingModel] = useState(false);
-  const [modelUpdateMsg, setModelUpdateMsg] = useState("");
+    const { novel } = useNovel();
+    const maxChapter = novel?.max_chapter || 1000;
 
-  const { novel } = useNovel();
-  const maxChapter = novel?.max_chapter || 1000;
+    useEffect(() => {
+        const fetchData = async () => {
+            setIsLoading(true);
+            setError(null);
 
-  // Initialize AI Model from novel settings
-  useEffect(() => {
-    if (novel?.ai_model_name) {
-      setAiModel(novel.ai_model_name);
-    }
-  }, [novel]);
+            try {
+                const [statusRes, historyRes] = await Promise.all([
+                    fetch(`${BACKEND}/hq/status?chapter=${chapter}&faction=main`, { cache: "no-store" }),
+                    fetch(`${BACKEND}/hq/history?chapter=${chapter}&faction=main&limit=5`, { cache: "no-store" }),
+                ]);
 
-  const handleSaveModel = async () => {
-    setIsUpdatingModel(true);
-    setModelUpdateMsg("");
-    try {
-      const updateData: any = { ai_model_name: aiModel };
-      if (aiApiKey.trim()) {
-        updateData.ai_api_key = aiApiKey.trim();
-      }
-      
-      await updateNovelSettings(updateData);
-      setModelUpdateMsg("Successfully updated AI configuration!");
-      setAiApiKey(""); // Clear sensitive input
-      // Automatically clear message after 3 seconds
-      setTimeout(() => setModelUpdateMsg(""), 3000);
-    } catch (e: any) {
-      setModelUpdateMsg(`Error: ${e.message}`);
-    } finally {
-      setIsUpdatingModel(false);
-    }
-  };
+                if (!statusRes.ok) {
+                    throw new Error(`Khong th? t?i d? li?u HQ (${statusRes.status})`);
+                }
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const [statusRes, historyRes] = await Promise.all([
-          fetch(`${BACKEND}/hq/status?chapter=${chapter}&faction=main`),
-          fetch(`${BACKEND}/hq/history?chapter=${chapter}&faction=main&limit=5`),
-        ]);
+                const statusData = (await statusRes.json()) as HQStatus;
+                const historyData = historyRes.ok ? ((await historyRes.json()) as HQHistoryPoint[]) : [];
 
-        if (!statusRes.ok) throw new Error(`Backend error: ${statusRes.status}`);
-        const statusData = await statusRes.json();
-        const historyData = historyRes.ok ? await historyRes.json() : [];
+                setStatus(statusData);
+                setHistory(Array.isArray(historyData) ? historyData : []);
+            } catch (e: any) {
+                setError(e?.message ?? "Khong th? k?t n?i d? li?u Headquarters.");
+            } finally {
+                setIsLoading(false);
+            }
+        };
 
-        setStatus(statusData);
-        setHistory(historyData);
-      } catch (e: any) {
-        setError(e.message ?? "Không thể kết nối đến server.");
-      } finally {
-        setIsLoading(false);
-      }
-    };
+        fetchData();
+    }, [chapter]);
 
-    fetchData();
-  }, [chapter]);
+    return (
+        <div
+            style={{
+                minHeight: "100vh",
+                background: "#090b0a",
+                color: "#d4d0c8",
+                paddingBottom: 64,
+            }}
+        >
+            <div
+                style={{
+                    position: "sticky",
+                    top: 0,
+                    zIndex: 10,
+                    background: "rgba(10,12,11,0.92)",
+                    borderBottom: "1px solid rgba(57,255,20,0.15)",
+                    backdropFilter: "blur(10px)",
+                }}
+            >
+                <div style={{ maxWidth: 920, margin: "0 auto", padding: "20px 20px 16px" }}>
+                    <div style={{ fontSize: 10, color: "rgba(57,255,20,0.55)", letterSpacing: "0.26em" }}>
+                        HEADQUARTERS FEED
+                    </div>
+                    <h1
+                        style={{
+                            margin: "6px 0 0",
+                            fontSize: "clamp(1.7rem, 4.8vw, 2.4rem)",
+                            color: "#39FF14",
+                            letterSpacing: "0.06em",
+                        }}
+                    >
+                        S? Ch? Huy
+                    </h1>
+                    <p style={{ margin: "6px 0 0", fontSize: 13, color: "rgba(255,255,255,0.52)" }}>
+                        B?ng ?i?u hanh nh?p vai theo di?n bi?n ch??ng, khong l? d? li?u t??ng lai.
+                    </p>
 
-  return (
-    <div style={{
-      minHeight: "100vh",
-      background: "#0a0a0a",
-      color: "#d4d0c8",
-      fontFamily: "'Inter', sans-serif",
-      padding: "0 0 80px 0",
-    }}>
-      {/* ---- Header ---- */}
-      <div style={{
-        background: "rgba(13,13,13,0.95)",
-        borderBottom: "1px solid rgba(57,255,20,0.15)",
-        padding: "24px 20px 20px",
-        position: "sticky", top: 0, zIndex: 10,
-        backdropFilter: "blur(12px)",
-      }}>
-        <div style={{ maxWidth: "900px", margin: "0 auto" }}>
-          <div style={{ fontSize: "9px", color: "rgba(57,255,20,0.5)", letterSpacing: "0.3em", marginBottom: "4px" }}>
-            ◈ COMMAND CENTER — REAL-TIME INTEL
-          </div>
-          <h1 style={{
-            fontFamily: "'Bebas Neue', Impact, sans-serif",
-            fontSize: "clamp(1.8rem, 5vw, 2.5rem)",
-            color: "#39FF14",
-            letterSpacing: "0.1em",
-            textShadow: "0 0 30px rgba(57,255,20,0.4)",
-            margin: 0,
-          }}>
-            🏰 CĂN CỨ ĐỊA
-          </h1>
-          <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", marginTop: "4px" }}>
-            Trạng thái tài nguyên & nhân lực — Xem theo diễn biến truyện
-          </p>
+                    <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 12 }}>
+                        <span style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", fontFamily: "monospace" }}>
+                            CH??NG:
+                        </span>
+                        <input
+                            type="range"
+                            min={1}
+                            max={maxChapter}
+                            value={chapter}
+                            onChange={(event) => setChapter(Number(event.target.value))}
+                            style={{ flex: 1, maxWidth: 320, accentColor: "#39FF14", cursor: "pointer" }}
+                        />
+                        <span style={{ minWidth: 72, textAlign: "center", color: "#39FF14", fontFamily: "monospace" }}>
+                            CH.{chapter}
+                        </span>
+                    </div>
+                </div>
+            </div>
 
-          {/* Chapter Selector */}
-          <div style={{ marginTop: "12px", display: "flex", alignItems: "center", gap: "12px" }}>
-            <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.4)", fontFamily: "monospace" }}>
-              XEM TẠI CHƯƠNG:
-            </span>
-            <input
-              type="range"
-              min={1} max={maxChapter} value={chapter}
-              onChange={(e) => setChapter(Number(e.target.value))}
-              style={{
-                flex: 1, maxWidth: "300px",
-                accentColor: "#39FF14",
-                cursor: "pointer",
-              }}
-            />
-            <span style={{
-              minWidth: "60px", textAlign: "center",
-              fontFamily: "'Courier Prime', monospace",
-              color: "#39FF14", fontSize: "14px", fontWeight: 700,
-            }}>
-              CH.{chapter}
-            </span>
-          </div>
+            <div style={{ maxWidth: 920, margin: "28px auto 0", padding: "0 20px" }}>
+                {isLoading && (
+                    <div style={{ textAlign: "center", padding: "56px 0", color: "rgba(57,255,20,0.6)", fontFamily: "monospace" }}>
+                        ?ang ??ng b? d? li?u HQ...
+                    </div>
+                )}
+
+                {error && (
+                    <div
+                        style={{
+                            border: "1px solid rgba(239,68,68,0.25)",
+                            background: "rgba(127,29,29,0.18)",
+                            color: "#fca5a5",
+                            borderRadius: 8,
+                            padding: 14,
+                            fontSize: 13,
+                        }}
+                    >
+                        {error}
+                    </div>
+                )}
+
+                {status && !isLoading && !error && (
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 18 }}>
+                        <section style={{ background: "rgba(20,24,22,0.8)", border: "1px solid rgba(57,255,20,0.14)", borderRadius: 8, padding: 18 }}>
+                            <div style={{ fontSize: 10, color: "rgba(57,255,20,0.55)", letterSpacing: "0.2em", marginBottom: 12 }}>TAI NGUYEN</div>
+                            <StatBar label="L??ng th?c" value={status.food_days} max={365} color="#39FF14" unit=" ngay" />
+                            <StatBar label="Tinh h?ch" value={status.crystal_count} max={100_000} color="#a855f7" />
+                            <StatBar label="N??c" value={status.water_unit} max={1_000_000} color="#38bdf8" unit="L" />
+                        </section>
+
+                        <section style={{ background: "rgba(20,24,22,0.8)", border: "1px solid rgba(57,255,20,0.14)", borderRadius: 8, padding: 18 }}>
+                            <div style={{ fontSize: 10, color: "rgba(57,255,20,0.55)", letterSpacing: "0.2em", marginBottom: 12 }}>
+                                NHAN L?C ({formatNumber(status.total_population)})
+                            </div>
+                            <StatBar label="Chi?n binh" value={status.warriors} max={status.total_population || 1} color="#ef4444" />
+                            <StatBar label="Nghien c?u" value={status.researchers} max={status.total_population || 1} color="#f59e0b" />
+                            <StatBar label="Dan th??ng" value={status.civilians} max={status.total_population || 1} color="#6b7280" />
+                        </section>
+
+                        <section style={{ background: "rgba(20,24,22,0.8)", border: "1px solid rgba(57,255,20,0.14)", borderRadius: 8, padding: 18 }}>
+                            <div style={{ fontSize: 10, color: "rgba(57,255,20,0.55)", letterSpacing: "0.2em", marginBottom: 12 }}>C? S? H? T?NG</div>
+                            <div style={{ marginBottom: 16 }}>
+                                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", fontFamily: "monospace", marginBottom: 6 }}>
+                                    T??ng phong th? (Lv {status.wall_level}/5)
+                                </div>
+                                <WallLevel level={status.wall_level} />
+                            </div>
+                            <StatBar label="Lanh th?" value={status.territory_km2} max={3000} color="#10b981" unit=" km2" />
+                            <StatBar label="S? khi" value={status.morale} max={100} color="#f59e0b" unit="%" />
+                        </section>
+
+                        <section
+                            style={{
+                                gridColumn: "1 / -1",
+                                background: "rgba(14,18,16,0.82)",
+                                border: "1px solid rgba(57,255,20,0.14)",
+                                borderRadius: 8,
+                                padding: 18,
+                            }}
+                        >
+                            <div style={{ fontSize: 10, color: "rgba(57,255,20,0.55)", letterSpacing: "0.2em", marginBottom: 8 }}>
+                                D?U M?C G?N NH?T: CH??NG {status.chapter_id}
+                            </div>
+                            <p style={{ margin: 0, fontSize: 13, lineHeight: 1.65, color: "rgba(255,255,255,0.55)" }}>
+                                D? li?u ch? hi?n th? theo ch??ng b?n ch?n ?? gi? tr?i nghi?m spoiler-safe.
+                            </p>
+                            {history.length > 0 && (
+                                <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
+                                    {history.map((point) => (
+                                        <span
+                                            key={point.chapter_id}
+                                            style={{
+                                                fontFamily: "monospace",
+                                                fontSize: 11,
+                                                color: "rgba(255,255,255,0.65)",
+                                                border: "1px solid rgba(255,255,255,0.12)",
+                                                borderRadius: 999,
+                                                padding: "4px 10px",
+                                            }}
+                                        >
+                                            CH.{point.chapter_id} F:{point.food_days} C:{formatNumber(point.crystal_count)} M:{point.morale}%
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
+                        </section>
+                    </div>
+                )}
+            </div>
         </div>
-      </div>
-
-      {/* ---- Main Content ---- */}
-      <div style={{ maxWidth: "900px", margin: "32px auto", padding: "0 20px" }}>
-        {isLoading && (
-          <div style={{
-            textAlign: "center", padding: "60px 0",
-            fontFamily: "monospace", color: "rgba(57,255,20,0.6)",
-            letterSpacing: "0.2em", fontSize: "13px",
-          }}>
-            ⟳ ĐANG KẾT NỐI VỚI HỆ THỐNG...
-          </div>
-        )}
-
-        {error && (
-          <div style={{
-            textAlign: "center", padding: "40px",
-            color: "#ef4444", background: "rgba(239,68,68,0.05)",
-            border: "1px solid rgba(239,68,68,0.2)", borderRadius: "6px",
-            fontFamily: "monospace", fontSize: "13px",
-          }}>
-            ⚠️ {error}
-          </div>
-        )}
-
-        {status && !isLoading && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "20px" }}>
-
-            {/* ---- Tài nguyên ---- */}
-            <div style={{
-              background: "rgba(26,26,26,0.8)",
-              border: "1px solid rgba(57,255,20,0.12)",
-              borderRadius: "8px", padding: "20px",
-            }}>
-              <div style={{
-                fontSize: "9px", color: "rgba(57,255,20,0.5)",
-                letterSpacing: "0.25em", marginBottom: "14px",
-              }}>
-                🌾 TÀI NGUYÊN
-              </div>
-              <StatBar label="LƯƠNG THỰC" value={status.food_days} max={365} color="#39FF14" unit=" ngày" />
-              <StatBar label="TINH HẠCH" value={status.crystal_count} max={100000} color="#a855f7" />
-              <StatBar label="NGUỒN NƯỚC" value={status.water_unit} max={1_000_000} color="#38bdf8" unit="L" />
-            </div>
-
-            {/* ---- Nhân lực ---- */}
-            <div style={{
-              background: "rgba(26,26,26,0.8)",
-              border: "1px solid rgba(57,255,20,0.12)",
-              borderRadius: "8px", padding: "20px",
-            }}>
-              <div style={{
-                fontSize: "9px", color: "rgba(57,255,20,0.5)",
-                letterSpacing: "0.25em", marginBottom: "14px",
-              }}>
-                👥 DÂN SỐ — {formatNumber(status.total_population)} người
-              </div>
-              <StatBar label="CHIẾN BINH" value={status.warriors} max={status.total_population || 1} color="#ef4444" />
-              <StatBar label="NHÀ KHOA HỌC" value={status.researchers} max={status.total_population || 1} color="#f59e0b" />
-              <StatBar label="DÂN THƯỜNG" value={status.civilians} max={status.total_population || 1} color="#6b7280" />
-            </div>
-
-            {/* ---- Cơ sở hạ tầng ---- */}
-            <div style={{
-              background: "rgba(26,26,26,0.8)",
-              border: "1px solid rgba(57,255,20,0.12)",
-              borderRadius: "8px", padding: "20px",
-            }}>
-              <div style={{
-                fontSize: "9px", color: "rgba(57,255,20,0.5)",
-                letterSpacing: "0.25em", marginBottom: "14px",
-              }}>
-                🏗️ CƠ SỞ HẠ TẦNG
-              </div>
-
-              <div style={{ marginBottom: "16px" }}>
-                <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.5)", letterSpacing: "0.12em", marginBottom: "5px", fontFamily: "monospace" }}>
-                  TƯỜNG PHÒNG THỦ (LV {status.wall_level}/5)
-                </div>
-                <WallLevel level={status.wall_level} />
-              </div>
-
-              <StatBar label="LÃNH THỔ" value={status.territory_km2} max={3000} color="#10b981" unit=" km²" />
-              <StatBar label="SĨ KHÍ" value={status.morale} max={100} color="#f59e0b" unit="%" />
-            </div>
-
-            {/* ---- Last known chapter ---- */}
-            <div style={{
-              background: "rgba(26,26,26,0.8)",
-              border: "1px solid rgba(57,255,20,0.12)",
-              borderRadius: "8px", padding: "20px",
-              gridColumn: "1 / -1",
-              display: "flex", alignItems: "center", gap: "16px",
-            }}>
-              <div style={{ flex: 1 }}>
-                <div style={{
-                  fontSize: "9px", color: "rgba(57,255,20,0.5)",
-                  letterSpacing: "0.25em", marginBottom: "6px",
-                }}>
-                  📡 PHÂN TÍCH DỮ LIỆU — CẬP NHẬT ĐẾN CHƯƠNG {status.chapter_id}
-                </div>
-                <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "12px", lineHeight: 1.6, margin: 0 }}>
-                  Dữ liệu mốc gần nhất được ghi nhận. Dữ liệu sẽ tự động cập nhật khi bạn kéo slider đến chương tiếp theo.
-                  Nội dung tương lai được ẩn để tránh spoiler.
-                </p>
-              </div>
-              <div style={{
-                fontFamily: "'Bebas Neue', Impact, sans-serif",
-                fontSize: "3rem", color: "rgba(57,255,20,0.15)",
-                lineHeight: 1, flexShrink: 0,
-              }}>
-                ☣
-              </div>
-            </div>
-
-            {/* ---- Cấu hình Hệ Thống (AI Model) ---- */}
-            <div style={{
-              background: "rgba(13,13,13,0.9)",
-              border: "1px dashed rgba(57,255,20,0.3)",
-              borderRadius: "8px", padding: "20px",
-              gridColumn: "1 / -1",
-              marginTop: "20px",
-            }}>
-              <div style={{
-                fontSize: "9px", color: "#39FF14",
-                letterSpacing: "0.25em", marginBottom: "14px",
-                display: "flex", alignItems: "center", gap: "8px"
-              }}>
-                <span style={{ fontSize: "14px" }}>⚙</span> CẤU HÌNH HỆ THỐNG (TECHNICAL COMMAND)
-              </div>
-              
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "20px", alignItems: "flex-end" }}>
-                <div style={{ flex: 1, minWidth: "250px" }}>
-                  <label style={{ 
-                    display: "block", fontSize: "11px", color: "rgba(255,255,255,0.4)", 
-                    marginBottom: "8px", fontFamily: "monospace" 
-                  }}>
-                    AI MODEL (GEMINI NAME):
-                  </label>
-                  <input
-                    type="text"
-                    value={aiModel}
-                    onChange={(e) => setAiModel(e.target.value)}
-                    placeholder="e.g. gemini-1.5-flash"
-                    style={{
-                      width: "100%",
-                      background: "rgba(0,0,0,0.3)",
-                      border: "1px solid rgba(57,255,20,0.2)",
-                      borderRadius: "4px",
-                      padding: "10px 12px",
-                      color: "#39FF14",
-                      fontFamily: "'Courier Prime', monospace",
-                      fontSize: "14px",
-                      outline: "none",
-                    }}
-                  />
-                  <p style={{ fontSize: "10px", color: "rgba(255,255,255,0.3)", marginTop: "6px" }}>
-                    Nhập tên model Gemini (VD: gemini-3.1-flash-lite-preview, gemini-3.1-pro).
-                  </p>
-                </div>
-
-                {/* API Key Input */}
-                <div style={{ flex: 1, minWidth: "250px" }}>
-                  <label style={{ 
-                    display: "block", fontSize: "11px", color: "rgba(255,255,255,0.4)", 
-                    marginBottom: "8px", fontFamily: "monospace" 
-                  }}>
-                    AI API KEY (Bảo mật)
-                    {novel?.has_ai_key && (
-                      <span style={{ marginLeft: "8px", color: "#39FF14", fontSize: "10px" }}>
-                        [ĐÃ CẤU HÌNH]
-                      </span>
-                    )}
-                  </label>
-                  <input
-                    type="password"
-                    value={aiApiKey}
-                    onChange={(e) => setAiApiKey(e.target.value)}
-                    placeholder="Nhập API Key để ghi đè (để trống nếu không đổi)..."
-                    style={{
-                      width: "100%",
-                      background: "rgba(0,0,0,0.3)",
-                      border: "1px solid rgba(57,255,20,0.2)",
-                      borderRadius: "4px",
-                      padding: "10px 12px",
-                      color: "#39FF14",
-                      fontFamily: "'Courier Prime', monospace",
-                      fontSize: "14px",
-                      outline: "none",
-                    }}
-                  />
-                  <p style={{ fontSize: "10px", color: "rgba(255,255,255,0.3)", marginTop: "6px" }}>
-                    Key sẽ được lưu ẩn danh. Hệ thống sẽ không bao giờ hiển thị lại key này.
-                  </p>
-                </div>
-                
-                <button
-                  onClick={handleSaveModel}
-                  disabled={isUpdatingModel}
-                  style={{
-                    background: isUpdatingModel ? "rgba(57,255,20,0.1)" : "rgba(57,255,20,0.15)",
-                    border: "1px solid #39FF14",
-                    color: "#39FF14",
-                    padding: "10px 24px",
-                    borderRadius: "4px",
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    cursor: isUpdatingModel ? "not-allowed" : "pointer",
-                    transition: "all 0.2s ease",
-                    fontFamily: "monospace",
-                    height: "42px",
-                  }}
-                  onMouseOver={(e) => (e.currentTarget.style.background = "rgba(57,255,20,0.25)")}
-                  onMouseOut={(e) => (e.currentTarget.style.background = "rgba(57,255,20,0.15)")}
-                >
-                  {isUpdatingModel ? "LOADING..." : "UPDATE SYSTEM"}
-                </button>
-              </div>
-              
-              {modelUpdateMsg && (
-                <div style={{ 
-                  marginTop: "12px", fontSize: "12px", 
-                  color: modelUpdateMsg.includes("Error") ? "#ef4444" : "#39FF14",
-                  fontFamily: "monospace"
-                }}>
-                  {modelUpdateMsg}
-                </div>
-              )}
-            </div>
-
-          </div>
-        )}
-      </div>
-    </div>
-  );
+    );
 }

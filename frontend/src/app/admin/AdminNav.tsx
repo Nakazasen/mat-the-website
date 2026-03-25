@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { BookOpen, Settings, LogOut, BarChart3, Home, LibraryBig, Users, Map as MapIcon, FileText, Menu, X, MessageSquare } from 'lucide-react';
 import { createAdminClient } from '@/lib/supabase-admin';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mat-the-website.onrender.com';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 const navItems = [
     { href: '/admin', label: 'Dashboard', icon: BarChart3, exact: true },

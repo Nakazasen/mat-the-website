@@ -3,11 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase-admin';
-import { getNovelSettings, NovelSettings, uploadImageR2, getUserRole } from '@/lib/api';
+import { getNovelSettings, NovelSettings, uploadImageR2, getUserRole, updateNovelSettings } from '@/lib/api';
 import { Save, AlertTriangle, CheckCircle2, Loader2, BookOpen, User, FileText, Image as ImageIcon, Tag, Upload, ShieldAlert } from 'lucide-react';
 import RichTextEditor from '@/components/Editor';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 export default function AdminNovelPage() {
     const router = useRouter();
@@ -22,7 +20,9 @@ export default function AdminNovelPage() {
         total_chapters: 0,
         max_chapter: 0,
         total_views: 0,
-        total_likes: 0
+        total_likes: 0,
+        ai_model_name: 'gemini-3.1-flash-lite-preview',
+        has_ai_key: false,
     });
     const [genreInput, setGenreInput] = useState('');
     const [loading, setLoading] = useState(true);
@@ -31,12 +31,14 @@ export default function AdminNovelPage() {
     const [success, setSuccess] = useState(false);
     const [token, setToken] = useState<string | null>(null);
     const [userRole, setUserRole] = useState<string>('editor');
+    const [aiModelName, setAiModelName] = useState('gemini-3.1-flash-lite-preview');
+    const [aiApiKeyInput, setAiApiKeyInput] = useState('');
 
     useEffect(() => {
         const loadData = async () => {
             const supabase = createAdminClient();
             if (!supabase) {
-                setError('Lỗi cấu hình: Thiếu NEXT_PUBLIC_SUPABASE_URL.');
+                setError('Loi cau hinh: thieu NEXT_PUBLIC_SUPABASE_URL.');
                 setLoading(false);
                 return;
             }
@@ -49,15 +51,14 @@ export default function AdminNovelPage() {
             setToken(session.access_token);
 
             try {
-                // Fetch user role
                 const role = await getUserRole(session.access_token);
                 setUserRole(role);
 
-                // Fetch novel settings
                 const data = await getNovelSettings();
                 setSettings(data);
-            } catch (err: any) {
-                console.warn("Could not load settings, using defaults.", err);
+                setAiModelName(data.ai_model_name || 'gemini-3.1-flash-lite-preview');
+            } catch {
+                setError('Khong the tai du lieu cau hinh hien tai.');
             } finally {
                 setLoading(false);
             }
@@ -69,27 +70,40 @@ export default function AdminNovelPage() {
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!token) return;
+
         setSaving(true);
         setError(null);
         setSuccess(false);
 
         try {
-            const res = await fetch(`${API_BASE_URL}/api/admin/novel`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`,
-                },
-                body: JSON.stringify(settings),
-            });
+            const payload: Partial<NovelSettings> & { ai_api_key?: string } = {
+                title: settings.title,
+                author: settings.author,
+                description: settings.description,
+                status: settings.status,
+                cover_url: settings.cover_url,
+                genres: settings.genres,
+                donate_qr_url: settings.donate_qr_url,
+            };
 
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.detail || 'Lỗi không xác định');
+            if (userRole === 'superadmin') {
+                payload.ai_model_name = aiModelName.trim() || 'gemini-3.1-flash-lite-preview';
+                if (aiApiKeyInput.trim()) {
+                    payload.ai_api_key = aiApiKeyInput.trim();
+                }
+            }
 
+            await updateNovelSettings(payload, token);
             setSuccess(true);
+            setAiApiKeyInput('');
+            setSettings((prev) => ({
+                ...prev,
+                has_ai_key: prev.has_ai_key || Boolean(payload.ai_api_key),
+                ai_model_name: payload.ai_model_name || prev.ai_model_name,
+            }));
             setTimeout(() => setSuccess(false), 3000);
         } catch (err: any) {
-            setError(err.message);
+            setError(err?.message || 'Loi khong xac dinh khi luu cau hinh.');
         } finally {
             setSaving(false);
         }
@@ -104,14 +118,14 @@ export default function AdminNovelPage() {
     };
 
     const removeGenre = (genre: string) => {
-        setSettings({ ...settings, genres: settings.genres.filter(g => g !== genre) });
+        setSettings({ ...settings, genres: settings.genres.filter((g) => g !== genre) });
     };
 
     if (loading) {
         return (
             <div className="flex flex-col items-center justify-center h-64 gap-3">
                 <Loader2 className="animate-spin text-green-500" size={32} />
-                <p className="font-mono text-xs text-gray-500 tracking-widest">ĐANG TẢI CẤU HÌNH...</p>
+                <p className="font-mono text-xs text-gray-500 tracking-widest">DANG TAI CAU HINH...</p>
             </div>
         );
     }
@@ -121,15 +135,15 @@ export default function AdminNovelPage() {
             <div className="mb-8">
                 <h1 className="text-2xl font-mono text-gray-100 tracking-tight flex items-center gap-3">
                     <BookOpen className="text-green-500" size={24} />
-                    THÔNG TIN TRUYỆN
+                    THONG TIN TRUYEN
                 </h1>
-                <p className="text-gray-500 text-sm font-mono mt-1">Quản lý các thông tin hiển thị trên trang chủ và mục lục.</p>
+                <p className="text-gray-500 text-sm font-mono mt-1">Quan ly thong tin hien thi tren homepage va danh sach chuong.</p>
             </div>
 
             {success && (
-                <div className="flex items-center gap-2 text-green-400 bg-green-950/30 border border-green-800/50 rounded p-4 text-sm mb-6 animate-in fade-in slide-in-from-top-2">
+                <div className="flex items-center gap-2 text-green-400 bg-green-950/30 border border-green-800/50 rounded p-4 text-sm mb-6">
                     <CheckCircle2 size={16} />
-                    <span>Đã lưu tất cả thay đổi thành công!</span>
+                    <span>Da luu thay doi thanh cong.</span>
                 </div>
             )}
 
@@ -142,10 +156,9 @@ export default function AdminNovelPage() {
 
             <form onSubmit={handleSave} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Title */}
                     <div className="space-y-2">
                         <label className="flex items-center gap-2 text-xs font-mono text-gray-500 tracking-widest uppercase">
-                            <FileText size={12} /> Tên truyện
+                            <FileText size={12} /> Ten truyen
                         </label>
                         <input
                             type="text"
@@ -153,15 +166,13 @@ export default function AdminNovelPage() {
                             onChange={(e) => setSettings({ ...settings, title: e.target.value })}
                             required
                             className="w-full bg-[#0a0a0a] border border-gray-800 rounded px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500/20 transition-all"
-                            placeholder="Ví dụ: Mạt Thế - Sinh Hoá Nguy Cơ"
+                            placeholder="Mat The - Sinh Hoa Nguy Co"
                         />
-                        <p className="text-[10px] text-gray-600 font-mono italic">Mẹo: Dùng dấu gạch ngang '-' để tách tiêu đề to và nhỏ (ví dụ: Mạt Thế - Sinh Hoá Nguy Cơ)</p>
                     </div>
 
-                    {/* Author */}
                     <div className="space-y-2">
                         <label className="flex items-center gap-2 text-xs font-mono text-gray-500 tracking-widest uppercase">
-                            <User size={12} /> Tác giả
+                            <User size={12} /> Tac gia
                         </label>
                         <input
                             type="text"
@@ -169,30 +180,28 @@ export default function AdminNovelPage() {
                             onChange={(e) => setSettings({ ...settings, author: e.target.value })}
                             required
                             className="w-full bg-[#0a0a0a] border border-gray-800 rounded px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500/20 transition-all"
-                            placeholder="Hà Phong"
+                            placeholder="Ho Phong"
                         />
                     </div>
 
-                    {/* Status */}
                     <div className="space-y-2">
                         <label className="flex items-center gap-2 text-xs font-mono text-gray-500 tracking-widest uppercase">
-                            <Tag size={12} /> Tình trạng
+                            <Tag size={12} /> Tinh trang
                         </label>
                         <select
                             value={settings.status}
                             onChange={(e) => setSettings({ ...settings, status: e.target.value })}
                             className="w-full bg-[#0a0a0a] border border-gray-800 rounded px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500/20 transition-all appearance-none"
                         >
-                            <option value="Đang cập nhật">Đang cập nhật</option>
-                            <option value="Hoàn thành">Hoàn thành</option>
-                            <option value="Tạm ngưng">Tạm ngưng</option>
+                            <option value="Dang cap nhat">Dang cap nhat</option>
+                            <option value="Hoan thanh">Hoan thanh</option>
+                            <option value="Tam ngung">Tam ngung</option>
                         </select>
                     </div>
 
-                    {/* Cover URL */}
                     <div className="space-y-2">
                         <label className="flex items-center gap-2 text-xs font-mono text-gray-500 tracking-widest uppercase">
-                            <ImageIcon size={12} /> Ảnh bìa (URL)
+                            <ImageIcon size={12} /> Anh bia (URL)
                         </label>
                         <div className="flex gap-2">
                             <input
@@ -202,25 +211,27 @@ export default function AdminNovelPage() {
                                 className="w-full bg-[#0a0a0a] border border-gray-800 rounded px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500/20 transition-all"
                                 placeholder="/hero-bg.png"
                             />
-                            <label className="flex items-center justify-center px-4 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 rounded cursor-pointer transition-colors" title="Tải ảnh lên R2">
+                            <label className="flex items-center justify-center px-4 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 rounded cursor-pointer transition-colors" title="Tai anh len R2">
                                 <Upload size={16} />
-                                <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
-                                    const file = e.target.files?.[0];
-                                    if (file) {
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={async (e) => {
+                                        const file = e.target.files?.[0];
+                                        if (!file || !token) return;
                                         try {
-                                            if (!token) throw new Error("Missing access token");
-                                            const url = await uploadImageR2(file, token as string);
-                                            setSettings(s => ({ ...s, cover_url: url }));
-                                        } catch (err) {
-                                            setError("Lỗi tải ảnh bìa. Vui lòng thử lại.");
+                                            const url = await uploadImageR2(file, token);
+                                            setSettings((s) => ({ ...s, cover_url: url }));
+                                        } catch {
+                                            setError('Loi tai anh bia. Vui long thu lai.');
                                         }
-                                    }
-                                }} />
+                                    }}
+                                />
                             </label>
                         </div>
                     </div>
 
-                    {/* QR Code URL (Only for superadmin) */}
                     <div className="space-y-2">
                         <label className="flex items-center gap-2 text-xs font-mono text-gray-500 tracking-widest uppercase">
                             <ImageIcon size={12} /> QR Donate (URL)
@@ -232,52 +243,46 @@ export default function AdminNovelPage() {
                                     value={settings.donate_qr_url || ''}
                                     onChange={(e) => setSettings({ ...settings, donate_qr_url: e.target.value })}
                                     className="w-full bg-[#0a0a0a] border border-gray-800 rounded px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500/20 transition-all"
-                                    placeholder="Link ảnh QR Momo/Bank..."
+                                    placeholder="Link anh QR..."
                                 />
-                                <label className="flex items-center justify-center px-4 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 rounded cursor-pointer transition-colors" title="Tải QR lên R2">
+                                <label className="flex items-center justify-center px-4 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 rounded cursor-pointer transition-colors" title="Tai QR len R2">
                                     <Upload size={16} />
-                                    <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
-                                        const file = e.target.files?.[0];
-                                        if (file) {
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={async (e) => {
+                                            const file = e.target.files?.[0];
+                                            if (!file || !token) return;
                                             try {
-                                                if (!token) throw new Error("Missing access token");
-                                                const url = await uploadImageR2(file, token as string);
-                                                setSettings(s => ({ ...s, donate_qr_url: url }));
-                                            } catch (err) {
-                                                setError("Lỗi tải ảnh QR. Vui lòng thử lại.");
+                                                const url = await uploadImageR2(file, token);
+                                                setSettings((s) => ({ ...s, donate_qr_url: url }));
+                                            } catch {
+                                                setError('Loi tai anh QR. Vui long thu lai.');
                                             }
-                                        }
-                                    }} />
+                                        }}
+                                    />
                                 </label>
                             </div>
                         ) : (
                             <div className="flex items-center gap-2 bg-[#0a0a0a] border border-gray-800 rounded px-4 py-2.5 text-gray-500 text-sm italic">
                                 <ShieldAlert size={14} className="text-amber-500" />
-                                <span>Chỉ Quản trị viên cấp cao (Super Admin) mới được xem và thay đổi mã QR Donate.</span>
+                                <span>Chi superadmin duoc xem va chinh sua QR Donate.</span>
                             </div>
                         )}
                     </div>
                 </div>
 
-                {/* Genres */}
                 <div className="space-y-2">
-                    <label className="flex items-center gap-2 text-xs font-mono text-gray-500 tracking-widest uppercase">
-                        Thể loại
-                    </label>
+                    <label className="flex items-center gap-2 text-xs font-mono text-gray-500 tracking-widest uppercase">The loai</label>
                     <div className="flex flex-wrap gap-2 mb-2 min-h-[32px]">
                         {settings.genres.map((genre) => (
                             <span
                                 key={genre}
-                                className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-900/20 text-green-400 border border-green-800/30 rounded text-xs font-mono group"
+                                className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-900/20 text-green-400 border border-green-800/30 rounded text-xs font-mono"
                             >
                                 {genre}
-                                <button
-                                    type="button"
-                                    onClick={() => removeGenre(genre)}
-                                    className="hover:text-red-400 transition-colors"
-                                >
-                                    ×
-                                </button>
+                                <button type="button" onClick={() => removeGenre(genre)} className="hover:text-red-400 transition-colors">x</button>
                             </span>
                         ))}
                     </div>
@@ -288,47 +293,78 @@ export default function AdminNovelPage() {
                             onChange={(e) => setGenreInput(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addGenre())}
                             className="flex-1 bg-[#0a0a0a] border border-gray-800 rounded px-4 py-2 text-gray-200 text-sm focus:outline-none focus:border-green-500 transition-all font-mono"
-                            placeholder="Thêm thể loại và nhấn Enter..."
+                            placeholder="Them the loai va nhan Enter..."
                         />
                         <button
                             type="button"
                             onClick={addGenre}
                             className="px-4 py-2 border border-gray-700 text-gray-400 hover:text-gray-200 rounded text-sm font-mono transition-colors"
                         >
-                            THÊM
+                            THEM
                         </button>
                     </div>
                 </div>
 
-                {/* Description */}
                 <div className="space-y-2">
-                    <label className="flex items-center gap-2 text-xs font-mono text-gray-500 tracking-widest uppercase">
-                        Giới thiệu truyện
-                    </label>
+                    <label className="flex items-center gap-2 text-xs font-mono text-gray-500 tracking-widest uppercase">Gioi thieu truyen</label>
                     <RichTextEditor
                         content={settings.description}
                         onChange={(html) => setSettings({ ...settings, description: html })}
-                        placeholder="Nhập giới thiệu truyện..."
+                        placeholder="Nhap gioi thieu truyen..."
                         adminToken={token || undefined}
                     />
                 </div>
 
-                {/* Submit */}
+                <div className="rounded border border-gray-800 bg-[#0a0a0a] p-4 space-y-3">
+                    <p className="text-xs font-mono tracking-widest text-gray-400">AI COMMAND</p>
+                    {userRole === 'superadmin' ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <label className="text-[11px] font-mono text-gray-500 uppercase tracking-widest">Model Name</label>
+                                <input
+                                    type="text"
+                                    value={aiModelName}
+                                    onChange={(e) => setAiModelName(e.target.value)}
+                                    className="w-full bg-black border border-gray-800 rounded px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:border-green-500"
+                                    placeholder="gemini-3.1-flash-lite-preview"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[11px] font-mono text-gray-500 uppercase tracking-widest">
+                                    API Key {settings.has_ai_key ? '(configured)' : '(not set)'}
+                                </label>
+                                <input
+                                    type="password"
+                                    value={aiApiKeyInput}
+                                    onChange={(e) => setAiApiKeyInput(e.target.value)}
+                                    className="w-full bg-black border border-gray-800 rounded px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:border-green-500"
+                                    placeholder="Nhap API key moi de ghi de"
+                                />
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-2 text-sm text-gray-500 italic">
+                            <ShieldAlert size={14} className="text-amber-500" />
+                            <span>Chi superadmin duoc thay doi AI model va API key.</span>
+                        </div>
+                    )}
+                </div>
+
                 <div className="flex justify-end pt-4">
                     <button
                         type="submit"
                         disabled={saving}
-                        className="flex items-center gap-2 px-8 py-3 bg-green-600 hover:bg-green-500 disabled:bg-gray-800 disabled:text-gray-600 text-white font-mono text-sm tracking-widest rounded transition-all shadow-lg shadow-green-900/10"
+                        className="flex items-center gap-2 px-8 py-3 bg-green-600 hover:bg-green-500 disabled:bg-gray-800 disabled:text-gray-600 text-white font-mono text-sm tracking-widest rounded transition-all"
                     >
                         {saving ? (
                             <>
                                 <Loader2 className="animate-spin" size={16} />
-                                ĐANG LƯU...
+                                DANG LUU...
                             </>
                         ) : (
                             <>
                                 <Save size={16} />
-                                LƯU CẤU HÌNH
+                                LUU CAU HINH
                             </>
                         )}
                     </button>
