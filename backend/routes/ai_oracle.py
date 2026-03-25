@@ -239,7 +239,10 @@ async def ask_oracle(body: OracleRequest, request: Request):
     The System Oracle endpoint.
     Enforces chapter-based spoiler protection and multi-tier caching.
     """
-    from database import supabase
+    try:
+        from database import supabase
+    except ImportError:
+        from backend.database import supabase
 
     question = body.question.strip()
     if len(question) < 5:

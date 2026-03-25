@@ -6,7 +6,10 @@ Returns the most recent resource snapshot for the given faction at or before cha
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
-from database import supabase
+try:
+    from database import supabase
+except ImportError:
+    from backend.database import supabase
 
 router = APIRouter(prefix="/hq", tags=["hq_dashboard"])
 
