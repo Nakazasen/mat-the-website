@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface Message {
   role: "user" | "oracle";
@@ -13,76 +13,156 @@ interface OraclePanelProps {
   defaultOpen?: boolean;
 }
 
+type DiagnosticCode =
+  | "ready"
+  | "processing"
+  | "backend_offline"
+  | "missing_api_key"
+  | "rate_limited"
+  | "model_exhausted"
+  | "invalid_question"
+  | "backend_error";
+
+interface OracleErrorPayload {
+  error?: string;
+  error_code?: DiagnosticCode;
+}
+
 const SOURCE_LABELS: Record<string, string> = {
-  cache: "⚡ Bộ nhớ cache",
-  local_wiki: "📖 Bách khoa địa phương",
-  gemini: "🤖 AI Oracle",
+  cache: "Bo nho cache",
+  local_wiki: "Bach khoa dia phuong",
+  gemini: "AI Oracle",
 };
 
-export default function OraclePanel({ chapterProgress, defaultOpen = false }: OraclePanelProps) {
+const DIAGNOSTIC_META: Record<
+  DiagnosticCode,
+  { label: string; color: string; border: string }
+> = {
+  ready: {
+    label: "ONLINE",
+    color: "#39FF14",
+    border: "rgba(57,255,20,0.35)",
+  },
+  processing: {
+    label: "DANG XU LY",
+    color: "#fbbf24",
+    border: "rgba(251,191,36,0.35)",
+  },
+  backend_offline: {
+    label: "BACKEND OFFLINE",
+    color: "#f87171",
+    border: "rgba(248,113,113,0.35)",
+  },
+  missing_api_key: {
+    label: "MISSING API KEY",
+    color: "#fb7185",
+    border: "rgba(251,113,133,0.35)",
+  },
+  rate_limited: {
+    label: "RATE LIMITED",
+    color: "#f59e0b",
+    border: "rgba(245,158,11,0.35)",
+  },
+  model_exhausted: {
+    label: "MODEL EXHAUSTED",
+    color: "#f97316",
+    border: "rgba(249,115,22,0.35)",
+  },
+  invalid_question: {
+    label: "INVALID INPUT",
+    color: "#c084fc",
+    border: "rgba(192,132,252,0.35)",
+  },
+  backend_error: {
+    label: "BACKEND ERROR",
+    color: "#94a3b8",
+    border: "rgba(148,163,184,0.35)",
+  },
+};
+
+function getInitialMessage(chapterProgress: number): Message {
+  return {
+    role: "oracle",
+    text:
+      `[HE THONG DA KHOI DONG]\n` +
+      `Ket noi thanh cong. Tien trinh doc: Chuong ${chapterProgress}.\n` +
+      `Toi chi tiet lo thong tin trong pham vi ban da doc. Hay dat cau hoi.`,
+  };
+}
+
+export default function OraclePanel({
+  chapterProgress,
+  defaultOpen = false,
+}: OraclePanelProps) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: "oracle",
-      text: `[HỆ THỐNG ĐÃ KHỞI ĐỘNG]\nKết nối thành công. Tiến trình đọc: Chương ${chapterProgress}.\nTôi chỉ tiết lộ thông tin trong phạm vi bạn đã đọc. Hãy đặt câu hỏi.`,
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([getInitialMessage(chapterProgress)]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [remaining, setRemaining] = useState<number | null>(null);
+  const [diagnostic, setDiagnostic] = useState<DiagnosticCode>("ready");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, diagnostic]);
+
+  useEffect(() => {
+    setMessages([getInitialMessage(chapterProgress)]);
+    setDiagnostic("ready");
+  }, [chapterProgress]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const q = input.trim();
-    if (!q || isLoading) return;
+    const question = input.trim();
+    if (!question || isLoading) {
+      return;
+    }
 
-    setMessages((prev) => [...prev, { role: "user", text: q }]);
+    setMessages((prev) => [...prev, { role: "user", text: question }]);
     setInput("");
     setIsLoading(true);
+    setDiagnostic("processing");
 
     try {
       const res = await fetch("/api/oracle/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: q, chapter_progress: chapterProgress }),
+        body: JSON.stringify({
+          question,
+          chapter_progress: chapterProgress,
+        }),
       });
 
-      if (res.status === 429) {
+      if (!res.ok) {
+        const errorData = (await res.json().catch(() => ({}))) as OracleErrorPayload;
+        const errorCode = errorData.error_code ?? "backend_error";
+        const errorMessage =
+          errorData.error ??
+          "Oracle khong the tra loi luc nay. Thu lai sau.";
+
+        setDiagnostic(errorCode);
         setMessages((prev) => [
           ...prev,
           {
             role: "oracle",
-            text: "[CẢNH BÁO HỆ THỐNG] Băng thông AI đã cạn kiệt hôm nay. Thử lại vào ngày mai.",
-            source: undefined,
+            text: `[CHAN DOAN HE THONG]\n${errorMessage}`,
           },
         ]);
         return;
       }
 
-      if (!res.ok) {
-        throw new Error(`Server error ${res.status}`);
-      }
-
       const data = await res.json();
+      setDiagnostic("ready");
       setMessages((prev) => [
         ...prev,
         { role: "oracle", text: data.answer, source: data.source },
       ]);
-
-      if (data.source === "gemini" && remaining !== null) {
-        setRemaining((r) => (r !== null ? Math.max(0, r - 1) : null));
-      }
     } catch {
+      setDiagnostic("backend_offline");
       setMessages((prev) => [
         ...prev,
         {
           role: "oracle",
-          text: "[LỖI HỆ THỐNG] Mất kết nối với Oracle. Thử lại sau.",
+          text: "[CHAN DOAN HE THONG]\nKhong ket noi duoc toi Oracle backend.",
         },
       ]);
     } finally {
@@ -90,22 +170,21 @@ export default function OraclePanel({ chapterProgress, defaultOpen = false }: Or
     }
   };
 
+  const diagnosticMeta = DIAGNOSTIC_META[diagnostic];
+
   return (
     <>
-      {/* Toggle button (fixed bottom-right) */}
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => setIsOpen((prev) => !prev)}
         title="AI Oracle"
         style={{
           position: "fixed",
           bottom: "24px",
-          right: "36px", // Offset from HUD tab on the right
+          right: "36px",
           width: "44px",
           height: "44px",
           borderRadius: "50%",
-          background: isOpen
-            ? "rgba(220, 38, 38, 0.9)"
-            : "rgba(57, 255, 20, 0.1)",
+          background: isOpen ? "rgba(220, 38, 38, 0.9)" : "rgba(57, 255, 20, 0.1)",
           border: `2px solid ${isOpen ? "#dc2626" : "rgba(57,255,20,0.4)"}`,
           color: isOpen ? "#fff" : "#39FF14",
           fontSize: "20px",
@@ -121,10 +200,9 @@ export default function OraclePanel({ chapterProgress, defaultOpen = false }: Or
           backdropFilter: "blur(8px)",
         }}
       >
-        {isOpen ? "✕" : "🤖"}
+        {isOpen ? "X" : "AI"}
       </button>
 
-      {/* Chat panel */}
       {isOpen && (
         <div
           style={{
@@ -144,7 +222,6 @@ export default function OraclePanel({ chapterProgress, defaultOpen = false }: Or
             overflow: "hidden",
           }}
         >
-          {/* Header */}
           <div
             style={{
               padding: "12px 14px 10px",
@@ -152,8 +229,14 @@ export default function OraclePanel({ chapterProgress, defaultOpen = false }: Or
               background: "rgba(15,15,15,0.5)",
             }}
           >
-            <div style={{ fontSize: "9px", letterSpacing: "0.25em", color: "rgba(57,255,20,0.5)" }}>
-              ◈ AI ORACLE — THE SYSTEM
+            <div
+              style={{
+                fontSize: "9px",
+                letterSpacing: "0.25em",
+                color: "rgba(57,255,20,0.5)",
+              }}
+            >
+              AI ORACLE - THE SYSTEM
             </div>
             <div
               style={{
@@ -163,11 +246,37 @@ export default function OraclePanel({ chapterProgress, defaultOpen = false }: Or
                 marginTop: "2px",
               }}
             >
-              Phạm vi: Chương 1–{chapterProgress} | Chống spoiler ON
+              Pham vi: Chuong 1-{chapterProgress} | Chong spoiler ON
+            </div>
+            <div
+              style={{
+                marginTop: "8px",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "4px 8px",
+                borderRadius: "999px",
+                border: `1px solid ${diagnosticMeta.border}`,
+                color: diagnosticMeta.color,
+                fontSize: "10px",
+                fontFamily: "monospace",
+                letterSpacing: "0.08em",
+                background: "rgba(255,255,255,0.02)",
+              }}
+            >
+              <span
+                style={{
+                  width: "6px",
+                  height: "6px",
+                  borderRadius: "50%",
+                  background: diagnosticMeta.color,
+                  boxShadow: `0 0 10px ${diagnosticMeta.color}`,
+                }}
+              />
+              {diagnosticMeta.label}
             </div>
           </div>
 
-          {/* Message list */}
           <div
             style={{
               flex: 1,
@@ -178,33 +287,37 @@ export default function OraclePanel({ chapterProgress, defaultOpen = false }: Or
               gap: "10px",
             }}
           >
-            {messages.map((m, i) => (
-              <div key={i} style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+            {messages.map((message, index) => (
+              <div key={index} style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
                 <div
                   style={{
-                    alignSelf: m.role === "user" ? "flex-end" : "flex-start",
+                    alignSelf: message.role === "user" ? "flex-end" : "flex-start",
                     maxWidth: "85%",
                     padding: "8px 12px",
-                    borderRadius: m.role === "user" ? "12px 12px 4px 12px" : "12px 12px 12px 4px",
+                    borderRadius:
+                      message.role === "user"
+                        ? "12px 12px 4px 12px"
+                        : "12px 12px 12px 4px",
                     background:
-                      m.role === "user"
+                      message.role === "user"
                         ? "rgba(57,255,20,0.12)"
                         : "rgba(30,30,30,0.8)",
                     border: `1px solid ${
-                      m.role === "user"
+                      message.role === "user"
                         ? "rgba(57,255,20,0.3)"
                         : "rgba(255,255,255,0.06)"
                     }`,
                     fontSize: "12px",
                     lineHeight: 1.6,
-                    color: m.role === "user" ? "rgba(255,255,255,0.9)" : "#d4d0c8",
-                    fontFamily: m.role === "oracle" ? "'Courier Prime', monospace" : undefined,
+                    color: message.role === "user" ? "rgba(255,255,255,0.9)" : "#d4d0c8",
+                    fontFamily:
+                      message.role === "oracle" ? "'Courier Prime', monospace" : undefined,
                     whiteSpace: "pre-wrap",
                   }}
                 >
-                  {m.text}
+                  {message.text}
                 </div>
-                {m.source && (
+                {message.source && (
                   <div
                     style={{
                       fontSize: "9px",
@@ -213,7 +326,7 @@ export default function OraclePanel({ chapterProgress, defaultOpen = false }: Or
                       paddingLeft: "4px",
                     }}
                   >
-                    {SOURCE_LABELS[m.source] ?? m.source}
+                    {SOURCE_LABELS[message.source] ?? message.source}
                   </div>
                 )}
               </div>
@@ -229,13 +342,12 @@ export default function OraclePanel({ chapterProgress, defaultOpen = false }: Or
                   animation: "hud-bar-blink 1s ease infinite",
                 }}
               >
-                ⟳ ĐANG XỬ LÝ...
+                DANG XU LY...
               </div>
             )}
             <div ref={bottomRef} />
           </div>
 
-          {/* Input */}
           <form
             onSubmit={handleSubmit}
             style={{
@@ -249,7 +361,7 @@ export default function OraclePanel({ chapterProgress, defaultOpen = false }: Or
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Đặt câu hỏi cho Hệ Thống..."
+              placeholder="Dat cau hoi cho He Thong..."
               maxLength={500}
               disabled={isLoading}
               style={{
@@ -280,7 +392,7 @@ export default function OraclePanel({ chapterProgress, defaultOpen = false }: Or
                 transition: "opacity 0.2s",
               }}
             >
-              GỬI
+              GUI
             </button>
           </form>
         </div>
