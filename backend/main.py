@@ -520,8 +520,8 @@ async def get_novel_settings():
         final_data["total_chapters"] = total_chapters
         final_data["max_chapter"] = max_chapter
         final_data["total_views"] = total_views
-                final_data["total_likes"] = total_likes
-        final_data["ai_model_name"] = resp.data.get("ai_model_name", "gemini-1.5-flash")
+        final_data["total_likes"] = total_likes
+        final_data["ai_model_name"] = resp.data.get("ai_model_name", "gemini-3.1-flash-lite-preview")
         
         return NovelSettings(**final_data)
     except Exception as e:
