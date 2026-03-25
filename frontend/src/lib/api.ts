@@ -97,7 +97,7 @@ export interface NovelSettings {
     max_chapter: number;
     total_views: number;
     total_likes: number;
-    ai_model_name: string;
+    ai_model_name?: string;
 }
 
 // Fetch general novel settings (Title, Author, Desc etc)

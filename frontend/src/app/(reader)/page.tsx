@@ -19,7 +19,8 @@ export default async function HomePage() {
         total_chapters: 0,
         max_chapter: 0,
         total_views: 0,
-        total_likes: 0
+        total_likes: 0,
+        ai_model_name: "gemini-3.1-flash-lite-preview"
     };
 
     let homeSettings: HomepageSettings = {
