@@ -187,9 +187,12 @@ async def check_rate_limit(supabase, ip_hash: str) -> bool:
         return True  # Fail open — don't block users if DB is down
 
 
-async def call_gemini(question: str, chapter_cap: int, wiki_context: str, model_name: str = DEFAULT_MODEL) -> str:
+async def call_gemini(question: str, chapter_cap: int, wiki_context: str, model_name: str = DEFAULT_MODEL, api_key: Optional[str] = None) -> str:
     """Call Gemini API and return text response."""
-    if not GEMINI_API_KEY:
+    # Prioritize provided key (from DB) over global env key
+    current_key = api_key or GEMINI_API_KEY
+    
+    if not current_key:
         raise HTTPException(status_code=503, detail="AI service not configured")
 
     gemini_url = BASE_GEMINI_URL.format(model=model_name)
@@ -212,7 +215,7 @@ async def call_gemini(question: str, chapter_cap: int, wiki_context: str, model_
 
     async with httpx.AsyncClient(timeout=20.0) as client:
         resp = await client.post(
-            f"{gemini_url}?key={GEMINI_API_KEY}",
+            f"{gemini_url}?key={current_key}",
             json=payload,
         )
         if not resp.is_success:
@@ -270,14 +273,24 @@ async def ask_oracle(body: OracleRequest, request: Request):
             detail="HỆ THỐNG ĐANG BỊ NHIỄU SÓNG. Vui lòng thử lại vào ngày mai.",
         )
 
-    # Get model name from novel settings
+    # Get model name and potential custom API key from novel settings
     try:
-        settings_resp = supabase.table("novel_settings").select("ai_model_name").eq("id", 1).single().execute()
-        ai_model = settings_resp.data.get("ai_model_name", DEFAULT_MODEL) if settings_resp.data else DEFAULT_MODEL
+        settings_resp = supabase.table("novel_settings")\
+            .select("ai_model_name, ai_api_key")\
+            .eq("id", 1).single().execute()
+        
+        ai_model = DEFAULT_MODEL
+        custom_key = None
+        
+        if settings_resp.data:
+            ai_model = settings_resp.data.get("ai_model_name", DEFAULT_MODEL)
+            custom_key = settings_resp.data.get("ai_api_key")
+            
     except Exception:
         ai_model = DEFAULT_MODEL
+        custom_key = None
 
     # Call Gemini
-    answer = await call_gemini(question, chapter_cap, wiki_context, model_name=ai_model)
+    answer = await call_gemini(question, chapter_cap, wiki_context, model_name=ai_model, api_key=custom_key)
     await store_cache(supabase, question_hash, chapter_cap, answer, "gemini")
     return OracleResponse(answer=answer, source="gemini", chapter_cap=chapter_cap)

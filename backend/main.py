@@ -7,7 +7,7 @@ import io
 import os
 import re
 import unicodedata
-# Force re-deploy to Vercel and Render (Trigger: 2026-03-13 06:29)
+# Force re-deploy to Vercel and Render (Trigger: 2026-03-25 23:02)
 from typing import Optional, List
 from urllib.parse import quote
 import boto3
@@ -19,25 +19,32 @@ from fastapi.responses import StreamingResponse, PlainTextResponse
 from pydantic import BaseModel
 from supabase import create_client, Client
 from dotenv import load_dotenv
+import sys
+# Ensure the current directory is in sys.path to handle different execution contexts (Local vs Render)
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+
 try:
     from security_utils import sanitize_html, sanitize_plaintext, extract_bearer_token
-except ModuleNotFoundError:
-    from backend.security_utils import sanitize_html, sanitize_plaintext, extract_bearer_token
+except ImportError:
+    try:
+        from backend.security_utils import sanitize_html, sanitize_plaintext, extract_bearer_token
+    except ImportError:
+        # Fallback for some environments
+        sys.path.append(os.path.join(current_dir, ".."))
+        from backend.security_utils import sanitize_html, sanitize_plaintext, extract_bearer_token
+
+# Import routers with robust path handling
 try:
     from routes.engagement import create_engagement_router
-except ModuleNotFoundError:
-    from backend.routes.engagement import create_engagement_router
-try:
     from routes.hq_dashboard import router as hq_router
-except ModuleNotFoundError:
-    from backend.routes.hq_dashboard import router as hq_router
-try:
     from routes.ai_oracle import router as oracle_router
-except ModuleNotFoundError:
-    from backend.routes.ai_oracle import router as oracle_router
-try:
     from routes.wiki_search import router as wiki_router
-except ModuleNotFoundError:
+except ImportError:
+    from backend.routes.engagement import create_engagement_router
+    from backend.routes.hq_dashboard import router as hq_router
+    from backend.routes.ai_oracle import router as oracle_router
     from backend.routes.wiki_search import router as wiki_router
 
 
@@ -469,6 +476,7 @@ class NovelSettings(BaseModel):
     total_views: int = 0
     total_likes: int = 0
     ai_model_name: str = "gemini-3.1-flash-lite-preview"
+    has_ai_key: bool = False  # Frontend diagnostic
 
 
 class AdminNovelUpdate(BaseModel):
@@ -478,6 +486,7 @@ class AdminNovelUpdate(BaseModel):
     status: Optional[str] = None
     genres: Optional[list[str]] = None
     ai_model_name: Optional[str] = None
+    ai_api_key: Optional[str] = None
 
 
 @app.get("/api/novel", response_model=NovelSettings)
@@ -522,6 +531,12 @@ async def get_novel_settings():
         final_data["total_views"] = total_views
         final_data["total_likes"] = total_likes
         final_data["ai_model_name"] = resp.data.get("ai_model_name", "gemini-3.1-flash-lite-preview")
+        
+        # Security: Never return the actual API key to the frontend
+        db_key = resp.data.get("ai_api_key")
+        final_data["has_ai_key"] = bool(db_key and len(db_key) > 5)
+        if "ai_api_key" in final_data:
+            del final_data["ai_api_key"]
         
         return NovelSettings(**final_data)
     except Exception as e:

@@ -118,6 +118,7 @@ export default function HeadquartersPage() {
 
   // AI Model Config State
   const [aiModel, setAiModel] = useState("gemini-1.5-flash");
+  const [aiApiKey, setAiApiKey] = useState("");
   const [isUpdatingModel, setIsUpdatingModel] = useState(false);
   const [modelUpdateMsg, setModelUpdateMsg] = useState("");
 
@@ -135,8 +136,14 @@ export default function HeadquartersPage() {
     setIsUpdatingModel(true);
     setModelUpdateMsg("");
     try {
-      await updateNovelSettings({ ai_model_name: aiModel });
-      setModelUpdateMsg("Successfully updated AI model!");
+      const updateData: any = { ai_model_name: aiModel };
+      if (aiApiKey.trim()) {
+        updateData.ai_api_key = aiApiKey.trim();
+      }
+      
+      await updateNovelSettings(updateData);
+      setModelUpdateMsg("Successfully updated AI configuration!");
+      setAiApiKey(""); // Clear sensitive input
       // Automatically clear message after 3 seconds
       setTimeout(() => setModelUpdateMsg(""), 3000);
     } catch (e: any) {
@@ -388,6 +395,41 @@ export default function HeadquartersPage() {
                   />
                   <p style={{ fontSize: "10px", color: "rgba(255,255,255,0.3)", marginTop: "6px" }}>
                     Nhập tên model Gemini (VD: gemini-3.1-flash-lite-preview, gemini-3.1-pro).
+                  </p>
+                </div>
+
+                {/* API Key Input */}
+                <div style={{ flex: 1, minWidth: "250px" }}>
+                  <label style={{ 
+                    display: "block", fontSize: "11px", color: "rgba(255,255,255,0.4)", 
+                    marginBottom: "8px", fontFamily: "monospace" 
+                  }}>
+                    AI API KEY (Bảo mật)
+                    {novel?.has_ai_key && (
+                      <span style={{ marginLeft: "8px", color: "#39FF14", fontSize: "10px" }}>
+                        [ĐÃ CẤU HÌNH]
+                      </span>
+                    )}
+                  </label>
+                  <input
+                    type="password"
+                    value={aiApiKey}
+                    onChange={(e) => setAiApiKey(e.target.value)}
+                    placeholder="Nhập API Key để ghi đè (để trống nếu không đổi)..."
+                    style={{
+                      width: "100%",
+                      background: "rgba(0,0,0,0.3)",
+                      border: "1px solid rgba(57,255,20,0.2)",
+                      borderRadius: "4px",
+                      padding: "10px 12px",
+                      color: "#39FF14",
+                      fontFamily: "'Courier Prime', monospace",
+                      fontSize: "14px",
+                      outline: "none",
+                    }}
+                  />
+                  <p style={{ fontSize: "10px", color: "rgba(255,255,255,0.3)", marginTop: "6px" }}>
+                    Key sẽ được lưu ẩn danh. Hệ thống sẽ không bao giờ hiển thị lại key này.
                   </p>
                 </div>
                 
