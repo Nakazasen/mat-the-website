@@ -7,7 +7,7 @@ import io
 import os
 import re
 import unicodedata
-# Force re-deploy to Vercel and Render (Trigger: 2026-03-25 23:02)
+# Force re-deploy to Vercel and Render (Trigger: 2026-03-25 23:07)
 from typing import Optional, List
 from urllib.parse import quote
 import boto3
@@ -20,28 +20,25 @@ from pydantic import BaseModel
 from supabase import create_client, Client
 from dotenv import load_dotenv
 import sys
-# Ensure the current directory is in sys.path to handle different execution contexts (Local vs Render)
+# Add both current and parent directory to sys.path for maximum compatibility
 current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
 if current_dir not in sys.path:
     sys.path.insert(0, current_dir)
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
 
+# Consolidated imports with intelligent fallback
 try:
+    # Try importing as top-level modules first (when running from within backend/)
     from security_utils import sanitize_html, sanitize_plaintext, extract_bearer_token
-except ImportError:
-    try:
-        from backend.security_utils import sanitize_html, sanitize_plaintext, extract_bearer_token
-    except ImportError:
-        # Fallback for some environments
-        sys.path.append(os.path.join(current_dir, ".."))
-        from backend.security_utils import sanitize_html, sanitize_plaintext, extract_bearer_token
-
-# Import routers with robust path handling
-try:
     from routes.engagement import create_engagement_router
     from routes.hq_dashboard import router as hq_router
     from routes.ai_oracle import router as oracle_router
     from routes.wiki_search import router as wiki_router
-except ImportError:
+except (ImportError, ModuleNotFoundError):
+    # Fallback to absolute imports (when running from project root)
+    from backend.security_utils import sanitize_html, sanitize_plaintext, extract_bearer_token
     from backend.routes.engagement import create_engagement_router
     from backend.routes.hq_dashboard import router as hq_router
     from backend.routes.ai_oracle import router as oracle_router
