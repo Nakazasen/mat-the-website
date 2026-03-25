@@ -101,6 +101,28 @@ export interface NovelSettings {
     has_ai_key?: boolean;
 }
 
+export interface AdminAiPlaygroundRequest {
+    models: string[];
+    prompt?: string;
+    chapter_progress?: number;
+    api_key?: string;
+}
+
+export interface AdminAiPlaygroundResult {
+    model: string;
+    status: string;
+    latency_ms: number;
+    answer_preview?: string;
+    error?: string;
+    used_saved_key: boolean;
+}
+
+export interface AdminAiPlaygroundResponse {
+    prompt: string;
+    chapter_progress: number;
+    results: AdminAiPlaygroundResult[];
+}
+
 // Fetch general novel settings (Title, Author, Desc etc)
 export async function getNovelSettings(): Promise<NovelSettings> {
     const res = await fetch(`${API_BASE_URL}/api/novel`, {
@@ -130,6 +152,25 @@ export async function updateNovelSettings(
         throw new Error(err.detail || "Failed to update novel settings");
     }
     return res.json();
+}
+
+export async function runAdminAiPlayground(
+    data: AdminAiPlaygroundRequest,
+    token: string
+): Promise<AdminAiPlaygroundResponse> {
+    const res = await fetch(`${API_BASE_URL}/oracle/admin/playground`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify(data),
+    });
+    const payload = await res.json();
+    if (!res.ok) {
+        throw new Error(payload.detail || "Failed to run AI playground");
+    }
+    return payload;
 }
 
 // reportView moved to ANALYTICS section below (with localStorage anti-spam)

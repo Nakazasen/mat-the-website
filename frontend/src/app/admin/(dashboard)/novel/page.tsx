@@ -3,9 +3,27 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase-admin';
-import { getNovelSettings, NovelSettings, uploadImageR2, getUserRole, updateNovelSettings } from '@/lib/api';
-import { Save, AlertTriangle, CheckCircle2, Loader2, BookOpen, User, FileText, Image as ImageIcon, Tag, Upload, ShieldAlert } from 'lucide-react';
+import {
+    getNovelSettings,
+    NovelSettings,
+    uploadImageR2,
+    getUserRole,
+    updateNovelSettings,
+    runAdminAiPlayground,
+    AdminAiPlaygroundResult,
+} from '@/lib/api';
+import { Save, AlertTriangle, CheckCircle2, Loader2, BookOpen, User, FileText, Image as ImageIcon, Tag, Upload, ShieldAlert, Bot, FlaskConical, Plus, Play, Wand2 } from 'lucide-react';
 import RichTextEditor from '@/components/Editor';
+
+const DEFAULT_AI_MODEL = 'gemini-3.1-flash-lite-preview';
+const AI_MODEL_STORAGE_KEY = 'admin-ai-model-catalog';
+const DEFAULT_AI_MODELS = [
+    'gemini-3.1-flash-lite-preview',
+    'gemini-3.1-flash-preview',
+    'gemini-3.1-pro-preview',
+    'gemini-2.5-flash',
+    'gemini-2.5-pro',
+];
 
 export default function AdminNovelPage() {
     const router = useRouter();
@@ -21,7 +39,7 @@ export default function AdminNovelPage() {
         max_chapter: 0,
         total_views: 0,
         total_likes: 0,
-        ai_model_name: 'gemini-3.1-flash-lite-preview',
+        ai_model_name: DEFAULT_AI_MODEL,
         has_ai_key: false,
     });
     const [genreInput, setGenreInput] = useState('');
@@ -31,8 +49,16 @@ export default function AdminNovelPage() {
     const [success, setSuccess] = useState(false);
     const [token, setToken] = useState<string | null>(null);
     const [userRole, setUserRole] = useState<string>('editor');
-    const [aiModelName, setAiModelName] = useState('gemini-3.1-flash-lite-preview');
+    const [aiModelName, setAiModelName] = useState(DEFAULT_AI_MODEL);
     const [aiApiKeyInput, setAiApiKeyInput] = useState('');
+    const [customModelInput, setCustomModelInput] = useState('');
+    const [modelCatalog, setModelCatalog] = useState<string[]>(DEFAULT_AI_MODELS);
+    const [playgroundPrompt, setPlaygroundPrompt] = useState('Tra loi ngan gon bang tieng Viet: xac nhan model dang hoat dong va san sang phan hoi.');
+    const [playgroundChapter, setPlaygroundChapter] = useState(1);
+    const [playgroundApiKey, setPlaygroundApiKey] = useState('');
+    const [playgroundResults, setPlaygroundResults] = useState<AdminAiPlaygroundResult[]>([]);
+    const [playgroundRunning, setPlaygroundRunning] = useState(false);
+    const [playgroundError, setPlaygroundError] = useState<string | null>(null);
 
     useEffect(() => {
         const loadData = async () => {
@@ -56,7 +82,8 @@ export default function AdminNovelPage() {
 
                 const data = await getNovelSettings();
                 setSettings(data);
-                setAiModelName(data.ai_model_name || 'gemini-3.1-flash-lite-preview');
+                setAiModelName(data.ai_model_name || DEFAULT_AI_MODEL);
+                setPlaygroundChapter(Math.max(data.max_chapter || 1, 1));
             } catch {
                 setError('Khong the tai du lieu cau hinh hien tai.');
             } finally {
@@ -66,6 +93,31 @@ export default function AdminNovelPage() {
 
         loadData();
     }, [router]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        try {
+            const raw = window.localStorage.getItem(AI_MODEL_STORAGE_KEY);
+            if (!raw) return;
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+                const sanitized = parsed
+                    .map((value) => `${value}`.trim())
+                    .filter(Boolean);
+                if (sanitized.length > 0) {
+                    setModelCatalog(Array.from(new Set([...DEFAULT_AI_MODELS, ...sanitized])));
+                }
+            }
+        } catch {
+            // Ignore malformed local storage and keep defaults.
+        }
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const customModels = modelCatalog.filter((model) => !DEFAULT_AI_MODELS.includes(model));
+        window.localStorage.setItem(AI_MODEL_STORAGE_KEY, JSON.stringify(customModels));
+    }, [modelCatalog]);
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -87,7 +139,7 @@ export default function AdminNovelPage() {
             };
 
             if (userRole === 'superadmin') {
-                payload.ai_model_name = aiModelName.trim() || 'gemini-3.1-flash-lite-preview';
+                payload.ai_model_name = aiModelName.trim() || DEFAULT_AI_MODEL;
                 if (aiApiKeyInput.trim()) {
                     payload.ai_api_key = aiApiKeyInput.trim();
                 }
@@ -119,6 +171,54 @@ export default function AdminNovelPage() {
 
     const removeGenre = (genre: string) => {
         setSettings({ ...settings, genres: settings.genres.filter((g) => g !== genre) });
+    };
+
+    const addModelToCatalog = () => {
+        const nextModel = customModelInput.trim();
+        if (!nextModel) return;
+        setModelCatalog((current) => Array.from(new Set([...current, nextModel])));
+        setAiModelName(nextModel);
+        setCustomModelInput('');
+    };
+
+    const removeModelFromCatalog = (model: string) => {
+        if (DEFAULT_AI_MODELS.includes(model)) return;
+        setModelCatalog((current) => current.filter((item) => item !== model));
+        if (aiModelName === model) {
+            setAiModelName(DEFAULT_AI_MODEL);
+        }
+    };
+
+    const runPlayground = async (models: string[]) => {
+        if (!token) return;
+        const dedupedModels = Array.from(new Set(models.map((model) => model.trim()).filter(Boolean)));
+        if (dedupedModels.length === 0) {
+            setPlaygroundError('Chon it nhat mot model de test.');
+            return;
+        }
+
+        setPlaygroundRunning(true);
+        setPlaygroundError(null);
+
+        try {
+            const response = await runAdminAiPlayground({
+                models: dedupedModels,
+                prompt: playgroundPrompt,
+                chapter_progress: playgroundChapter,
+                api_key: playgroundApiKey.trim() || undefined,
+            }, token);
+            setPlaygroundResults(response.results);
+        } catch (err: any) {
+            setPlaygroundError(err?.message || 'Khong the chay AI playground.');
+        } finally {
+            setPlaygroundRunning(false);
+        }
+    };
+
+    const getStatusTone = (status: string) => {
+        if (status === 'success') return 'border-emerald-800/50 bg-emerald-950/20 text-emerald-300';
+        if (status === 'auth_error' || status === 'missing_key') return 'border-amber-800/50 bg-amber-950/20 text-amber-300';
+        return 'border-red-900/40 bg-red-950/20 text-red-300';
     };
 
     if (loading) {
@@ -318,28 +418,81 @@ export default function AdminNovelPage() {
                 <div className="rounded border border-gray-800 bg-[#0a0a0a] p-4 space-y-3">
                     <p className="text-xs font-mono tracking-widest text-gray-400">AI COMMAND</p>
                     {userRole === 'superadmin' ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <label className="text-[11px] font-mono text-gray-500 uppercase tracking-widest">Model Name</label>
-                                <input
-                                    type="text"
-                                    value={aiModelName}
-                                    onChange={(e) => setAiModelName(e.target.value)}
-                                    className="w-full bg-black border border-gray-800 rounded px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:border-green-500"
-                                    placeholder="gemini-3.1-flash-lite-preview"
-                                />
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-[11px] font-mono text-gray-500 uppercase tracking-widest">Model Name</label>
+                                    <input
+                                        type="text"
+                                        value={aiModelName}
+                                        onChange={(e) => setAiModelName(e.target.value)}
+                                        className="w-full bg-black border border-gray-800 rounded px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:border-green-500"
+                                        placeholder={DEFAULT_AI_MODEL}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[11px] font-mono text-gray-500 uppercase tracking-widest">
+                                        API Key {settings.has_ai_key ? '(configured)' : '(not set)'}
+                                    </label>
+                                    <input
+                                        type="password"
+                                        value={aiApiKeyInput}
+                                        onChange={(e) => setAiApiKeyInput(e.target.value)}
+                                        className="w-full bg-black border border-gray-800 rounded px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:border-green-500"
+                                        placeholder="Nhap API key moi de ghi de"
+                                    />
+                                </div>
                             </div>
+
                             <div className="space-y-2">
-                                <label className="text-[11px] font-mono text-gray-500 uppercase tracking-widest">
-                                    API Key {settings.has_ai_key ? '(configured)' : '(not set)'}
-                                </label>
-                                <input
-                                    type="password"
-                                    value={aiApiKeyInput}
-                                    onChange={(e) => setAiApiKeyInput(e.target.value)}
-                                    className="w-full bg-black border border-gray-800 rounded px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:border-green-500"
-                                    placeholder="Nhap API key moi de ghi de"
-                                />
+                                <div className="flex items-center gap-2 text-[11px] font-mono text-gray-500 uppercase tracking-widest">
+                                    <Bot size={12} />
+                                    Model Catalog
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    {modelCatalog.map((model) => {
+                                        const isActive = aiModelName === model;
+                                        return (
+                                            <button
+                                                key={model}
+                                                type="button"
+                                                onClick={() => setAiModelName(model)}
+                                                className={`inline-flex items-center gap-2 rounded border px-3 py-1.5 text-xs font-mono transition-colors ${isActive ? 'border-green-500 bg-green-950/30 text-green-300' : 'border-gray-800 bg-black text-gray-400 hover:border-gray-700 hover:text-gray-200'}`}
+                                            >
+                                                <span>{model}</span>
+                                                {!DEFAULT_AI_MODELS.includes(model) && (
+                                                    <span
+                                                        onClick={(event) => {
+                                                            event.stopPropagation();
+                                                            removeModelFromCatalog(model);
+                                                        }}
+                                                        className="cursor-pointer text-red-400"
+                                                    >
+                                                        x
+                                                    </span>
+                                                )}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        value={customModelInput}
+                                        onChange={(e) => setCustomModelInput(e.target.value)}
+                                        onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addModelToCatalog())}
+                                        className="flex-1 bg-black border border-gray-800 rounded px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:border-green-500"
+                                        placeholder="Them model name bat ky..."
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={addModelToCatalog}
+                                        className="inline-flex items-center gap-2 rounded border border-gray-700 px-4 py-2 text-xs font-mono text-gray-300 hover:border-green-500 hover:text-green-300"
+                                    >
+                                        <Plus size={14} />
+                                        THEM MODEL
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     ) : (
@@ -349,6 +502,94 @@ export default function AdminNovelPage() {
                         </div>
                     )}
                 </div>
+
+                {userRole === 'superadmin' && (
+                    <div className="rounded border border-gray-800 bg-[#0a0a0a] p-4 space-y-4">
+                        <div className="flex items-center justify-between gap-3">
+                            <div>
+                                <p className="text-xs font-mono tracking-widest text-gray-400">AI PLAYGROUND</p>
+                                <p className="mt-1 text-sm text-gray-500">Autotest model dang chon hoac quet toan bo catalog voi key luu san hay key tam thoi.</p>
+                            </div>
+                            <FlaskConical className="text-green-500" size={18} />
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2 md:col-span-2">
+                                <label className="text-[11px] font-mono text-gray-500 uppercase tracking-widest">Prompt Test</label>
+                                <textarea
+                                    value={playgroundPrompt}
+                                    onChange={(e) => setPlaygroundPrompt(e.target.value)}
+                                    rows={4}
+                                    className="w-full resize-none bg-black border border-gray-800 rounded px-4 py-3 text-gray-200 text-sm focus:outline-none focus:border-green-500"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[11px] font-mono text-gray-500 uppercase tracking-widest">Chapter Progress</label>
+                                <input
+                                    type="number"
+                                    min={1}
+                                    value={playgroundChapter}
+                                    onChange={(e) => setPlaygroundChapter(Number(e.target.value) || 1)}
+                                    className="w-full bg-black border border-gray-800 rounded px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:border-green-500"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[11px] font-mono text-gray-500 uppercase tracking-widest">Temporary API Key</label>
+                                <input
+                                    type="password"
+                                    value={playgroundApiKey}
+                                    onChange={(e) => setPlaygroundApiKey(e.target.value)}
+                                    className="w-full bg-black border border-gray-800 rounded px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:border-green-500"
+                                    placeholder="Bo trong de dung key da luu"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-3">
+                            <button
+                                type="button"
+                                onClick={() => runPlayground([aiModelName])}
+                                disabled={playgroundRunning}
+                                className="inline-flex items-center gap-2 rounded bg-green-600 px-4 py-2.5 text-xs font-mono tracking-widest text-white hover:bg-green-500 disabled:bg-gray-800 disabled:text-gray-500"
+                            >
+                                {playgroundRunning ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+                                TEST CURRENT
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => runPlayground(modelCatalog)}
+                                disabled={playgroundRunning}
+                                className="inline-flex items-center gap-2 rounded border border-gray-700 px-4 py-2.5 text-xs font-mono tracking-widest text-gray-300 hover:border-green-500 hover:text-green-300 disabled:border-gray-800 disabled:text-gray-600"
+                            >
+                                {playgroundRunning ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
+                                AUTOTEST ALL
+                            </button>
+                        </div>
+
+                        {playgroundError && (
+                            <div className="rounded border border-red-900/40 bg-red-950/20 px-4 py-3 text-sm text-red-300">
+                                {playgroundError}
+                            </div>
+                        )}
+
+                        {playgroundResults.length > 0 && (
+                            <div className="grid grid-cols-1 gap-3">
+                                {playgroundResults.map((result) => (
+                                    <div key={result.model} className={`rounded border px-4 py-3 ${getStatusTone(result.status)}`}>
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                            <div className="font-mono text-sm">{result.model}</div>
+                                            <div className="font-mono text-xs uppercase tracking-widest">
+                                                {result.status} · {result.latency_ms}ms · {result.used_saved_key ? 'saved-key' : 'temp-key'}
+                                            </div>
+                                        </div>
+                                        {result.error && <p className="mt-2 text-sm">{result.error}</p>}
+                                        {result.answer_preview && <p className="mt-2 text-sm text-gray-200">{result.answer_preview}</p>}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 <div className="flex justify-end pt-4">
                     <button

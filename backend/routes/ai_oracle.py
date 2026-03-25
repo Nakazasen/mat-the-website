@@ -15,10 +15,11 @@ import os
 import hashlib
 import re
 from datetime import datetime, timezone, timedelta
+from time import perf_counter
 from typing import Optional
 
 import httpx
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Header
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/oracle", tags=["ai_oracle"])
@@ -59,6 +60,28 @@ class OracleResponse(BaseModel):
     answer: str
     source: str  # "cache" | "local_wiki" | "gemini"
     chapter_cap: int
+
+
+class AdminAiPlaygroundRequest(BaseModel):
+    models: list[str]
+    prompt: str = "Tra loi ngan gon bang tieng Viet: xac nhan model dang hoat dong."
+    chapter_progress: int = 1
+    api_key: Optional[str] = None
+
+
+class AdminAiPlaygroundResult(BaseModel):
+    model: str
+    status: str
+    latency_ms: int
+    answer_preview: Optional[str] = None
+    error: Optional[str] = None
+    used_saved_key: bool
+
+
+class AdminAiPlaygroundResponse(BaseModel):
+    prompt: str
+    chapter_progress: int
+    results: list[AdminAiPlaygroundResult]
 
 
 # =============================================
@@ -230,6 +253,27 @@ async def call_gemini(question: str, chapter_cap: int, wiki_context: str, model_
             raise HTTPException(status_code=502, detail="Invalid Gemini response format")
 
 
+async def resolve_ai_settings(supabase) -> tuple[str, Optional[str]]:
+    try:
+        settings_resp = (
+            supabase.table("novel_settings")
+            .select("ai_model_name, ai_api_key")
+            .eq("id", 1)
+            .single()
+            .execute()
+        )
+
+        if settings_resp.data:
+            return (
+                settings_resp.data.get("ai_model_name", DEFAULT_MODEL),
+                settings_resp.data.get("ai_api_key"),
+            )
+    except Exception:
+        pass
+
+    return DEFAULT_MODEL, None
+
+
 # =============================================
 # Route
 # =============================================
@@ -276,24 +320,95 @@ async def ask_oracle(body: OracleRequest, request: Request):
             detail="HỆ THỐNG ĐANG BỊ NHIỄU SÓNG. Vui lòng thử lại vào ngày mai.",
         )
 
-    # Get model name and potential custom API key from novel settings
-    try:
-        settings_resp = supabase.table("novel_settings")\
-            .select("ai_model_name, ai_api_key")\
-            .eq("id", 1).single().execute()
-        
-        ai_model = DEFAULT_MODEL
-        custom_key = None
-        
-        if settings_resp.data:
-            ai_model = settings_resp.data.get("ai_model_name", DEFAULT_MODEL)
-            custom_key = settings_resp.data.get("ai_api_key")
-            
-    except Exception:
-        ai_model = DEFAULT_MODEL
-        custom_key = None
+    ai_model, custom_key = await resolve_ai_settings(supabase)
 
     # Call Gemini
     answer = await call_gemini(question, chapter_cap, wiki_context, model_name=ai_model, api_key=custom_key)
     await store_cache(supabase, question_hash, chapter_cap, answer, "gemini")
     return OracleResponse(answer=answer, source="gemini", chapter_cap=chapter_cap)
+
+
+@router.post("/admin/playground", response_model=AdminAiPlaygroundResponse)
+async def admin_ai_playground(
+    body: AdminAiPlaygroundRequest,
+    authorization: Optional[str] = Header(None),
+):
+    try:
+        from main import supabase, verify_admin
+    except ImportError:
+        from backend.main import supabase, verify_admin
+
+    user = await verify_admin(authorization)
+    if user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Only superadmin can use AI playground.")
+
+    models = [model.strip() for model in body.models if model.strip()]
+    models = list(dict.fromkeys(models))[:12]
+    if not models:
+        raise HTTPException(status_code=400, detail="At least one model is required.")
+
+    prompt = body.prompt.strip() or "Tra loi ngan gon bang tieng Viet: xac nhan model dang hoat dong."
+    chapter_progress = max(1, min(body.chapter_progress, 9999))
+    stored_model, stored_key = await resolve_ai_settings(supabase)
+    chosen_key = body.api_key.strip() if body.api_key else (stored_key or "")
+    used_saved_key = not bool(body.api_key and body.api_key.strip())
+
+    results: list[AdminAiPlaygroundResult] = []
+    for model in models:
+        start = perf_counter()
+        try:
+            if not chosen_key:
+                raise HTTPException(status_code=503, detail="AI service not configured")
+
+            answer = await call_gemini(
+                prompt,
+                chapter_progress,
+                "",
+                model_name=model or stored_model,
+                api_key=chosen_key,
+            )
+            latency_ms = int((perf_counter() - start) * 1000)
+            results.append(
+                AdminAiPlaygroundResult(
+                    model=model,
+                    status="success",
+                    latency_ms=latency_ms,
+                    answer_preview=answer[:240],
+                    used_saved_key=used_saved_key,
+                )
+            )
+        except HTTPException as exc:
+            latency_ms = int((perf_counter() - start) * 1000)
+            status = "upstream_error"
+            if exc.status_code == 503:
+                status = "missing_key"
+            elif exc.status_code == 429:
+                status = "rate_limited"
+            elif exc.status_code == 502:
+                status = "auth_error"
+            results.append(
+                AdminAiPlaygroundResult(
+                    model=model,
+                    status=status,
+                    latency_ms=latency_ms,
+                    error=str(exc.detail),
+                    used_saved_key=used_saved_key,
+                )
+            )
+        except Exception as exc:
+            latency_ms = int((perf_counter() - start) * 1000)
+            results.append(
+                AdminAiPlaygroundResult(
+                    model=model,
+                    status="internal_error",
+                    latency_ms=latency_ms,
+                    error=str(exc),
+                    used_saved_key=used_saved_key,
+                )
+            )
+
+    return AdminAiPlaygroundResponse(
+        prompt=prompt,
+        chapter_progress=chapter_progress,
+        results=results,
+    )
