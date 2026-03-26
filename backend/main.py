@@ -469,6 +469,7 @@ async def upsert_chapter_translation(chapter_row: dict, title: str, content: str
         return None
 
     content_hash = build_content_hash(content)
+    now_iso = datetime.now(timezone.utc).isoformat()
 
     existing_resp = (
         supabase.table("chapter_translations")
@@ -492,6 +493,7 @@ async def upsert_chapter_translation(chapter_row: dict, title: str, content: str
         "content_hash": content_hash,
         "last_error": None,
         "attempt_count": int(existing_row.get("attempt_count") or 0) + 1,
+        "updated_at": now_iso,
     }
     supabase.table("chapter_translations").upsert(status_payload, on_conflict="chapter_id,locale").execute()
 
@@ -506,10 +508,11 @@ async def upsert_chapter_translation(chapter_row: dict, title: str, content: str
             "summary": translated_content[:280],
             "translation_status": "published",
             "translation_source": "ai",
-            "translated_at": datetime.now(timezone.utc).isoformat(),
+            "translated_at": now_iso,
             "content_hash": content_hash,
             "last_error": None,
             "attempt_count": int(status_payload["attempt_count"]),
+            "updated_at": now_iso,
         }
         return supabase.table("chapter_translations").upsert(payload, on_conflict="chapter_id,locale").execute()
     except HTTPException as exc:
@@ -1125,6 +1128,10 @@ class AdminBatchTranslateRequest(BaseModel):
     only_missing: bool = True
 
 
+class AdminChapterStatusRequest(BaseModel):
+    chapter_numbers: list[int]
+
+
 @app.post("/api/admin/chapters/translate-batch", summary="[Admin] Batch translate chapters to EN/ZH-CN/JA")
 async def admin_translate_chapters_batch(
     body: AdminBatchTranslateRequest,
@@ -1228,6 +1235,114 @@ async def admin_translate_chapters_batch(
         "skipped_chapters": skipped_chapters,
         "failed_chapters": failed_chapters,
     }
+
+
+@app.post("/api/admin/chapters/translation-statuses", summary="[Admin] Get chapter translation statuses")
+async def admin_get_chapter_translation_statuses(
+    body: AdminChapterStatusRequest,
+    authorization: Optional[str] = Header(None),
+):
+    await verify_admin(authorization)
+
+    requested_numbers = sorted({int(number) for number in body.chapter_numbers if int(number) > 0})
+    if not requested_numbers:
+        return {"statuses": []}
+
+    chapter_rows_resp = (
+        supabase.table("chapters")
+        .select("id, chapter_number")
+        .in_("chapter_number", requested_numbers)
+        .execute()
+    )
+    chapter_rows = chapter_rows_resp.data or []
+    if not chapter_rows:
+        return {"statuses": []}
+
+    chapter_id_to_number = {row["id"]: row["chapter_number"] for row in chapter_rows}
+    translation_rows_resp = (
+        supabase.table("chapter_translations")
+        .select("chapter_id, locale, translation_status, attempt_count, last_error, updated_at")
+        .in_("chapter_id", list(chapter_id_to_number.keys()))
+        .execute()
+    )
+    translation_rows = translation_rows_resp.data or []
+
+    status_map: dict[int, dict] = {}
+    for chapter_number in requested_numbers:
+        status_map[chapter_number] = {
+            "chapter_number": chapter_number,
+            "published_locales": [],
+            "failed_locales": [],
+            "in_progress_locales": [],
+            "published_count": 0,
+            "failed_count": 0,
+            "in_progress_count": 0,
+            "attempt_count": 0,
+            "last_error": None,
+            "last_error_locale": None,
+            "last_error_updated_at": None,
+        }
+
+    for row in translation_rows:
+        chapter_number = chapter_id_to_number.get(row["chapter_id"])
+        if not chapter_number:
+            continue
+
+        target = status_map.setdefault(
+            chapter_number,
+            {
+                "chapter_number": chapter_number,
+                "published_locales": [],
+                "failed_locales": [],
+                "in_progress_locales": [],
+                "published_count": 0,
+                "failed_count": 0,
+                "in_progress_count": 0,
+                "attempt_count": 0,
+                "last_error": None,
+                "last_error_locale": None,
+                "last_error_updated_at": None,
+            },
+        )
+        locale = row.get("locale")
+        row_status = row.get("translation_status")
+        row_attempt = int(row.get("attempt_count") or 0)
+        row_updated_at = row.get("updated_at")
+        row_error = row.get("last_error")
+
+        if row_status == "published" and locale:
+            target["published_locales"].append(locale)
+        elif row_status == "failed" and locale:
+            target["failed_locales"].append(locale)
+        elif row_status == "in_progress" and locale:
+            target["in_progress_locales"].append(locale)
+
+        target["attempt_count"] = max(target["attempt_count"], row_attempt)
+        if row_error and (target["last_error_updated_at"] is None or (row_updated_at or "") >= (target["last_error_updated_at"] or "")):
+            target["last_error"] = row_error
+            target["last_error_locale"] = locale
+            target["last_error_updated_at"] = row_updated_at
+
+    for chapter_number, payload in status_map.items():
+        payload["published_locales"] = sorted(set(payload["published_locales"]))
+        payload["failed_locales"] = sorted(set(payload["failed_locales"]))
+        payload["in_progress_locales"] = sorted(set(payload["in_progress_locales"]))
+        payload["published_count"] = len(payload["published_locales"])
+        payload["failed_count"] = len(payload["failed_locales"])
+        payload["in_progress_count"] = len(payload["in_progress_locales"])
+        payload["status_label"] = (
+            "Đang dịch"
+            if payload["in_progress_count"] > 0
+            else f"Đã hoàn thành {payload['published_count']}/3"
+            if payload["published_count"] == 3
+            else f"Đã lỗi {payload['attempt_count']} lần"
+            if payload["failed_count"] > 0
+            else f"Đã hoàn thành {payload['published_count']}/3"
+            if payload["published_count"] > 0
+            else "Chưa dịch"
+        )
+
+    return {"statuses": [status_map[number] for number in requested_numbers]}
 
 
 class NovelSettings(BaseModel):

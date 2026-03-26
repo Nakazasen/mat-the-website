@@ -291,6 +291,39 @@ export async function translateAdminChaptersBatch(
     return payload;
 }
 
+export async function getAdminChapterTranslationStatuses(
+    chapterNumbers: number[],
+    token: string
+): Promise<{
+    statuses: Array<{
+        chapter_number: number;
+        published_locales: string[];
+        failed_locales: string[];
+        in_progress_locales: string[];
+        published_count: number;
+        failed_count: number;
+        in_progress_count: number;
+        attempt_count: number;
+        last_error?: string | null;
+        last_error_locale?: string | null;
+        status_label: string;
+    }>;
+}> {
+    const res = await fetch(`${API_BASE_URL}/api/admin/chapters/translation-statuses`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ chapter_numbers: chapterNumbers }),
+    });
+    const payload = await res.json();
+    if (!res.ok) {
+        throw new Error(payload.detail || "Failed to fetch chapter translation statuses");
+    }
+    return payload;
+}
+
 // reportView moved to ANALYTICS section below (with localStorage anti-spam)
 
 // Utility

@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 
 import { createAdminClient } from '@/lib/supabase-admin';
-import { translateAdminChapter, translateAdminChaptersBatch } from '@/lib/api';
+import { getAdminChapterTranslationStatuses, translateAdminChapter, translateAdminChaptersBatch } from '@/lib/api';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mat-the-website.onrender.com';
 const SAFE_BATCH_LIMIT = 2;
@@ -31,6 +31,20 @@ interface Chapter {
     chapter_number: number;
     title: string;
     word_count?: number;
+}
+
+interface ChapterTranslationStatus {
+    chapter_number: number;
+    published_locales: string[];
+    failed_locales: string[];
+    in_progress_locales: string[];
+    published_count: number;
+    failed_count: number;
+    in_progress_count: number;
+    attempt_count: number;
+    last_error?: string | null;
+    last_error_locale?: string | null;
+    status_label: string;
 }
 
 export default function AdminChaptersPage() {
@@ -58,6 +72,7 @@ export default function AdminChaptersPage() {
     const [batchBlockSize, setBatchBlockSize] = useState('2');
     const [fullBatchRunning, setFullBatchRunning] = useState(false);
     const [fullBatchProgress, setFullBatchProgress] = useState<{ completed: number; total: number; translated: number; skipped: number; failed: number } | null>(null);
+    const [translationStatusMap, setTranslationStatusMap] = useState<Record<number, ChapterTranslationStatus>>({});
 
     useEffect(() => {
         const supabase = createAdminClient();
@@ -97,6 +112,27 @@ export default function AdminChaptersPage() {
     useEffect(() => {
         fetchChapters(1);
     }, [fetchChapters]);
+
+    useEffect(() => {
+        const loadStatuses = async () => {
+            if (!token || chapters.length === 0) return;
+            try {
+                const result = await getAdminChapterTranslationStatuses(
+                    chapters.map((chapter) => chapter.chapter_number),
+                    token,
+                );
+                const nextMap: Record<number, ChapterTranslationStatus> = {};
+                for (const item of result.statuses || []) {
+                    nextMap[item.chapter_number] = item;
+                }
+                setTranslationStatusMap(nextMap);
+            } catch {
+                // Keep the page usable even if status summary fails.
+            }
+        };
+
+        loadStatuses();
+    }, [chapters, token]);
 
     const filteredChapters = useMemo(() => {
         if (!searchQuery.trim()) return chapters;
@@ -457,6 +493,28 @@ export default function AdminChaptersPage() {
                                             </td>
                                             <td className="px-4 py-3 text-gray-200">
                                                 <div className="max-w-xs md:max-w-md truncate font-medium">{chapter.title}</div>
+                                                {translationStatusMap[chapter.chapter_number] && (
+                                                    <div className="mt-2 space-y-1">
+                                                        <div className="text-[11px] font-mono text-cyan-300">
+                                                            {translationStatusMap[chapter.chapter_number].status_label}
+                                                        </div>
+                                                        <div className="text-[11px] text-gray-500">
+                                                            Hoàn thành {translationStatusMap[chapter.chapter_number].published_count}/3
+                                                            {translationStatusMap[chapter.chapter_number].in_progress_count > 0 && ` | Đang dịch: ${translationStatusMap[chapter.chapter_number].in_progress_locales.join(', ')}`}
+                                                            {translationStatusMap[chapter.chapter_number].failed_count > 0 && ` | Lỗi: ${translationStatusMap[chapter.chapter_number].failed_locales.join(', ')}`}
+                                                        </div>
+                                                        {translationStatusMap[chapter.chapter_number].attempt_count > 0 && (
+                                                            <div className="text-[11px] text-amber-300/90">
+                                                                Đã thử {translationStatusMap[chapter.chapter_number].attempt_count} lần
+                                                            </div>
+                                                        )}
+                                                        {translationStatusMap[chapter.chapter_number].last_error && (
+                                                            <div className="text-[11px] text-red-300/90 line-clamp-2">
+                                                                Lỗi gần nhất{translationStatusMap[chapter.chapter_number].last_error_locale ? ` (${translationStatusMap[chapter.chapter_number].last_error_locale})` : ''}: {translationStatusMap[chapter.chapter_number].last_error}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </td>
                                             <td className="px-4 py-3 text-right font-mono text-xs text-gray-600 hidden md:table-cell">
                                                 {chapter.word_count?.toLocaleString() || '—'}
