@@ -24,6 +24,7 @@ import { createAdminClient } from '@/lib/supabase-admin';
 import { translateAdminChapter, translateAdminChaptersBatch } from '@/lib/api';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mat-the-website.onrender.com';
+const SAFE_BATCH_LIMIT = 2;
 
 interface Chapter {
     id: number;
@@ -53,7 +54,8 @@ export default function AdminChaptersPage() {
     const [batchOnlyMissing, setBatchOnlyMissing] = useState(true);
     const [batchRunning, setBatchRunning] = useState(false);
     const [batchResult, setBatchResult] = useState<string | null>(null);
-    const [batchBlockSize, setBatchBlockSize] = useState('25');
+    const [batchFailureDetails, setBatchFailureDetails] = useState<Array<{ chapter_number: number; detail?: string }>>([]);
+    const [batchBlockSize, setBatchBlockSize] = useState('2');
     const [fullBatchRunning, setFullBatchRunning] = useState(false);
     const [fullBatchProgress, setFullBatchProgress] = useState<{ completed: number; total: number; translated: number; skipped: number; failed: number } | null>(null);
 
@@ -155,9 +157,15 @@ export default function AdminChaptersPage() {
 
         const startChapter = Math.max(1, parseInt(batchStart || '1', 10) || 1);
         const endChapter = Math.max(startChapter, parseInt(batchEnd || `${totalChapters || startChapter}`, 10) || startChapter);
+        const selectedCount = endChapter - startChapter + 1;
+        if (selectedCount > SAFE_BATCH_LIMIT) {
+            setError(`Batch thủ công hiện chỉ nên chạy tối đa ${SAFE_BATCH_LIMIT} chương mỗi lượt. Hãy chia nhỏ khoảng chương.`);
+            return;
+        }
 
         setBatchRunning(true);
         setBatchResult(null);
+        setBatchFailureDetails([]);
         setError(null);
 
         try {
@@ -170,10 +178,11 @@ export default function AdminChaptersPage() {
                 token,
             );
             setBatchResult(
-                `Da xu ly ${startChapter}-${endChapter}. Dich moi: ${result.translated_count}, bo qua: ${result.skipped_count}, loi: ${result.failed_count}.`
+                `Đã xử lý ${startChapter}-${endChapter}. Dịch mới: ${result.translated_count}, bỏ qua: ${result.skipped_count}, lỗi: ${result.failed_count}.`
             );
+            setBatchFailureDetails(result.failed_chapters || []);
         } catch (err: any) {
-            setError(err?.message || 'Khong the batch dich chuong.');
+            setError(err?.message || 'Không thể batch dịch chương.');
         } finally {
             setBatchRunning(false);
         }
@@ -183,9 +192,9 @@ export default function AdminChaptersPage() {
         if (!token) return;
 
         const total = Math.max(totalChapters, 0);
-        const blockSize = Math.max(1, parseInt(batchBlockSize || '25', 10) || 25);
+        const blockSize = Math.min(SAFE_BATCH_LIMIT, Math.max(1, parseInt(batchBlockSize || '2', 10) || 2));
         if (total === 0) {
-            setError('Khong co chuong nao de dich.');
+            setError('Không có chương nào để dịch.');
             return;
         }
 
@@ -193,12 +202,14 @@ export default function AdminChaptersPage() {
         setBatchRunning(false);
         setError(null);
         setBatchResult(null);
+        setBatchFailureDetails([]);
         setFullBatchProgress({ completed: 0, total, translated: 0, skipped: 0, failed: 0 });
 
         let translated = 0;
         let skipped = 0;
         let failed = 0;
         let completed = 0;
+        const aggregatedFailures: Array<{ chapter_number: number; detail?: string }> = [];
 
         try {
             for (let start = 1; start <= total; start += blockSize) {
@@ -216,6 +227,7 @@ export default function AdminChaptersPage() {
                 skipped += result.skipped_count;
                 failed += result.failed_count;
                 completed = end;
+                aggregatedFailures.push(...(result.failed_chapters || []));
 
                 setFullBatchProgress({
                     completed,
@@ -225,11 +237,12 @@ export default function AdminChaptersPage() {
                     failed,
                 });
                 setBatchResult(
-                    `Da chay toi chuong ${end}/${total}. Dich moi: ${translated}, bo qua: ${skipped}, loi: ${failed}.`
+                    `Đã chạy tới chương ${end}/${total}. Dịch mới: ${translated}, bỏ qua: ${skipped}, lỗi: ${failed}.`
                 );
+                setBatchFailureDetails([...aggregatedFailures]);
             }
         } catch (err: any) {
-            setError(err?.message || 'Khong the dich toan bo chuong con thieu.');
+            setError(err?.message || 'Không thể dịch toàn bộ chương còn thiếu.');
         } finally {
             setFullBatchRunning(false);
         }
@@ -304,7 +317,7 @@ export default function AdminChaptersPage() {
                     <div>
                         <p className="font-mono text-xs tracking-widest text-purple-300 uppercase">Batch Translate</p>
                         <p className="mt-1 text-xs text-gray-500">
-                            Chay hang loat theo khoang chuong. Nen chay theo block nhu 1-50, 51-100... de on dinh hon khi model bi quota/rate-limit.
+                            Chạy hàng loạt theo khoảng chương. Để ổn định, batch thủ công hiện chỉ nên chạy tối đa 2 chương mỗi lượt.
                         </p>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 w-full lg:w-auto">
@@ -314,7 +327,7 @@ export default function AdminChaptersPage() {
                             value={batchStart}
                             onChange={(event) => setBatchStart(event.target.value)}
                             className="bg-black border border-gray-800 rounded px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-purple-500"
-                            placeholder="Tu chuong"
+                            placeholder="Từ chương"
                         />
                         <input
                             type="number"
@@ -322,7 +335,7 @@ export default function AdminChaptersPage() {
                             value={batchEnd}
                             onChange={(event) => setBatchEnd(event.target.value)}
                             className="bg-black border border-gray-800 rounded px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-purple-500"
-                            placeholder="Den chuong"
+                            placeholder="Đến chương"
                         />
                         <label className="flex items-center gap-2 rounded border border-gray-800 px-3 py-2 text-xs font-mono text-gray-300">
                             <input
@@ -331,7 +344,7 @@ export default function AdminChaptersPage() {
                                 onChange={(event) => setBatchOnlyMissing(event.target.checked)}
                                 className="accent-purple-500"
                             />
-                            Chi dich chuong con thieu
+                            Chỉ dịch chương còn thiếu
                         </label>
                         <button
                             type="button"
@@ -340,7 +353,7 @@ export default function AdminChaptersPage() {
                             className="inline-flex items-center justify-center gap-2 rounded border border-purple-700/60 px-4 py-2 text-xs font-mono text-purple-300 hover:bg-purple-500/10 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                             {batchRunning ? <Loader2 size={14} className="animate-spin" /> : <CheckSquare size={14} />}
-                            {batchRunning ? 'DANG CHAY BATCH...' : 'DICH THEO KHOANG'}
+                            {batchRunning ? 'ĐANG CHẠY BATCH...' : 'DỊCH THEO KHOẢNG'}
                         </button>
                     </div>
                 </div>
@@ -348,7 +361,7 @@ export default function AdminChaptersPage() {
                     <div>
                         <p className="font-mono text-xs tracking-widest text-cyan-300 uppercase">Translate All Missing</p>
                         <p className="mt-1 text-xs text-gray-500">
-                            Tu dong chay tu chuong 1 den chuong {totalChapters}, chia block nho de han che timeout va de theo doi tien do.
+                            Tự động chạy từ chương 1 đến chương {totalChapters}, chia block nhỏ để hạn chế timeout và dễ theo dõi tiến độ.
                         </p>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-[140px_auto] gap-3 w-full lg:w-auto">
@@ -358,7 +371,7 @@ export default function AdminChaptersPage() {
                             value={batchBlockSize}
                             onChange={(event) => setBatchBlockSize(event.target.value)}
                             className="bg-black border border-gray-800 rounded px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-cyan-500"
-                            placeholder="Block size"
+                            placeholder="Kích thước block"
                         />
                         <button
                             type="button"
@@ -367,7 +380,7 @@ export default function AdminChaptersPage() {
                             className="inline-flex items-center justify-center gap-2 rounded border border-cyan-700/60 px-4 py-2 text-xs font-mono text-cyan-300 hover:bg-cyan-500/10 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                             {fullBatchRunning ? <Loader2 size={14} className="animate-spin" /> : <CheckSquare2 size={14} />}
-                            {fullBatchRunning ? 'DANG DICH TOAN BO...' : 'DICH TOAN BO CHUONG CHUA DICH'}
+                            {fullBatchRunning ? 'ĐANG DỊCH TOÀN BỘ...' : 'DỊCH TOÀN BỘ CHƯƠNG CHƯA DỊCH'}
                         </button>
                     </div>
                 </div>
@@ -379,10 +392,32 @@ export default function AdminChaptersPage() {
                 {fullBatchProgress && (
                     <div className="mt-3 rounded border border-cyan-900/50 bg-cyan-950/20 px-3 py-3 text-sm text-cyan-200">
                         <div className="font-mono text-xs uppercase tracking-widest text-cyan-300">
-                            Da xong {fullBatchProgress.completed} / {fullBatchProgress.total} chuong
+                            Đã xong {fullBatchProgress.completed} / {fullBatchProgress.total} chương
                         </div>
                         <div className="mt-1">
-                            Dich moi: {fullBatchProgress.translated} | Bo qua: {fullBatchProgress.skipped} | Loi: {fullBatchProgress.failed}
+                            Dịch mới: {fullBatchProgress.translated} | Bỏ qua: {fullBatchProgress.skipped} | Lỗi: {fullBatchProgress.failed}
+                        </div>
+                    </div>
+                )}
+                {batchFailureDetails.length > 0 && (
+                    <div className="mt-3 rounded border border-red-900/50 bg-red-950/20 px-3 py-3 text-sm text-red-200">
+                        <div className="font-mono text-xs uppercase tracking-widest text-red-300">
+                            Chi tiết lỗi
+                        </div>
+                        <div className="mt-2 space-y-2">
+                            {batchFailureDetails.slice(0, 12).map((item) => (
+                                <div key={`${item.chapter_number}-${item.detail || 'error'}`} className="rounded border border-red-900/40 bg-black/20 px-3 py-2">
+                                    <div className="font-medium">Chương {item.chapter_number}</div>
+                                    <div className="mt-1 text-xs text-red-300/90 whitespace-pre-wrap break-words">
+                                        {item.detail || 'Không rõ nguyên nhân lỗi.'}
+                                    </div>
+                                </div>
+                            ))}
+                            {batchFailureDetails.length > 12 && (
+                                <div className="text-xs text-red-300/80">
+                                    Còn {batchFailureDetails.length - 12} lỗi khác chưa hiển thị.
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}
