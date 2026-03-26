@@ -20,16 +20,16 @@ import RichTextEditor from '@/components/Editor';
 
 const DEFAULT_AI_MODEL = 'gemini-3-flash-preview';
 const DEFAULT_AI_MODELS = [
+    'gemini-3.1-flash-lite-preview',
+    'gemma-3n-1b-it',
+    'gemma-3n-e2b-it',
+    'gemma-3-4b-it',
+    'gemma-3-12b-it',
+    'gemma-3-27b-it',
+    'gemini-robotics-er-1.5-preview',
     'gemini-3-flash-preview',
     'gemini-2.5-flash',
     'gemini-2.5-flash-lite',
-    'gemini-3.1-flash-lite-preview',
-    'gemma-3-27b-it',
-    'gemma-3-12b-it',
-    'gemma-3-4b-it',
-    'gemma-3n-e2b-it',
-    'gemma-3n-1b-it',
-    'gemini-robotics-er-1.5-preview',
 ];
 const AI_KEY_SLOTS = 3;
 

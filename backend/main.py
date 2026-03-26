@@ -3,6 +3,7 @@ FastAPI Backend - M蘯｡t Th蘯ｿ Sinh Hoﾃ｡ Nguy Cﾆ｡
 Cung c蘯･p API metadata chﾆｰﾆ｡ng. N盻冓 dung chﾆｰﾆ｡ng ﾄ柁ｰ盻｣c fetch t盻ｫ Cloudflare R2.
 """
 
+import asyncio
 import io
 import hashlib
 import json
@@ -11,6 +12,7 @@ import re
 import unicodedata
 from datetime import datetime, timezone
 # Force re-deploy to Vercel and Render (Trigger: 2026-03-25 23:14)
+from time import monotonic
 from typing import Optional, List
 from urllib.parse import quote
 import boto3
@@ -92,18 +94,33 @@ SUPPORTED_LOCALES = ("vi", "en", "zh-CN", "ja")
 DEFAULT_LOCALE = "vi"
 TRANSLATION_GLOSSARY_PATH = os.path.join(current_dir, "translation_glossary.json")
 DEFAULT_TRANSLATION_MODELS = [
+    "gemini-3.1-flash-lite-preview",
+    "gemma-3n-1b-it",
+    "gemma-3n-e2b-it",
+    "gemma-3-4b-it",
+    "gemma-3-12b-it",
+    "gemma-3-27b-it",
+    "gemini-robotics-er-1.5-preview",
     "gemini-3-flash-preview",
     "gemini-2.5-flash",
     "gemini-2.5-flash-lite",
-    "gemini-3.1-flash-lite-preview",
-    "gemma-3-27b-it",
-    "gemma-3-12b-it",
-    "gemma-3-4b-it",
-    "gemma-3n-e2b-it",
-    "gemma-3n-1b-it",
-    "gemini-robotics-er-1.5-preview",
 ]
 TRANSLATION_MODEL_FALLBACK = DEFAULT_TRANSLATION_MODELS[0]
+MODEL_PRIORITY = {model: index for index, model in enumerate(DEFAULT_TRANSLATION_MODELS)}
+MODEL_MIN_INTERVAL_SECONDS = {
+    "gemini-3-flash-preview": 12.5,
+    "gemini-2.5-flash": 12.5,
+    "gemini-2.5-flash-lite": 6.5,
+    "gemini-3.1-flash-lite-preview": 4.5,
+    "gemini-robotics-er-1.5-preview": 6.5,
+    "gemma-3-27b-it": 2.5,
+    "gemma-3-12b-it": 2.5,
+    "gemma-3-4b-it": 2.5,
+    "gemma-3n-e2b-it": 2.5,
+    "gemma-3n-1b-it": 2.5,
+}
+TRANSLATION_RATE_LIMIT_STATE: dict[str, float] = {}
+TRANSLATION_RATE_LIMIT_LOCK = asyncio.Lock()
 
 
 def normalize_locale(value: Optional[str]) -> str:
@@ -235,7 +252,8 @@ def normalize_model_catalog(raw_catalog, fallback_model: str) -> list[str]:
         catalog = DEFAULT_TRANSLATION_MODELS.copy()
     else:
         catalog.extend(DEFAULT_TRANSLATION_MODELS)
-    return list(dict.fromkeys(catalog))
+    deduped = list(dict.fromkeys(catalog))
+    return sorted(deduped, key=lambda item: MODEL_PRIORITY.get(item, len(DEFAULT_TRANSLATION_MODELS) + 100))
 
 
 def normalize_api_key_catalog(raw_keys, fallback_key: str) -> list[str]:
@@ -275,6 +293,28 @@ def build_translation_failure_detail(
         )
     lines.append(f"Lỗi cuối cùng: {final_detail}")
     return "\n".join(lines)
+
+
+def get_model_min_interval_seconds(model_name: str) -> float:
+    return MODEL_MIN_INTERVAL_SECONDS.get(model_name, 6.5)
+
+
+def get_key_model_bucket(model_name: str, api_key: str) -> str:
+    key_hash = hashlib.sha1(api_key.encode("utf-8")).hexdigest()[:8] if api_key else "nokey"
+    return f"{model_name}|{key_hash}"
+
+
+async def throttle_translation_request(model_name: str, api_key: str):
+    bucket = get_key_model_bucket(model_name, api_key)
+    min_interval = get_model_min_interval_seconds(model_name)
+
+    async with TRANSLATION_RATE_LIMIT_LOCK:
+        now = monotonic()
+        last_sent = TRANSLATION_RATE_LIMIT_STATE.get(bucket, 0.0)
+        wait_seconds = max(0.0, min_interval - (now - last_sent))
+        if wait_seconds > 0:
+            await asyncio.sleep(wait_seconds)
+        TRANSLATION_RATE_LIMIT_STATE[bucket] = monotonic()
 
 
 def resolve_homepage_translation(locale: str):
@@ -460,6 +500,7 @@ SOURCE:
     async with httpx.AsyncClient(timeout=60.0) as client:
         for key_index, api_key in enumerate(api_keys, start=1):
             for model_name in model_catalog:
+                await throttle_translation_request(model_name, api_key)
                 gemini_url = (
                     "https://generativelanguage.googleapis.com/v1beta/models/"
                     f"{model_name}:generateContent?key={api_key}"

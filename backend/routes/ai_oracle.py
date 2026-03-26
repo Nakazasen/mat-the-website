@@ -26,18 +26,19 @@ router = APIRouter(prefix="/oracle", tags=["ai_oracle"])
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 DEFAULT_MODEL_CATALOG = [
+    "gemini-3.1-flash-lite-preview",
+    "gemma-3n-1b-it",
+    "gemma-3n-e2b-it",
+    "gemma-3-4b-it",
+    "gemma-3-12b-it",
+    "gemma-3-27b-it",
+    "gemini-robotics-er-1.5-preview",
     "gemini-3-flash-preview",
     "gemini-2.5-flash",
     "gemini-2.5-flash-lite",
-    "gemini-3.1-flash-lite-preview",
-    "gemma-3-27b-it",
-    "gemma-3-12b-it",
-    "gemma-3-4b-it",
-    "gemma-3n-e2b-it",
-    "gemma-3n-1b-it",
-    "gemini-robotics-er-1.5-preview",
 ]
 DEFAULT_MODEL = DEFAULT_MODEL_CATALOG[0]
+MODEL_PRIORITY = {model: index for index, model in enumerate(DEFAULT_MODEL_CATALOG)}
 BASE_GEMINI_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 )
@@ -352,7 +353,8 @@ def normalize_model_catalog(raw_catalog, fallback_model: str) -> list[str]:
         catalog = DEFAULT_MODEL_CATALOG.copy()
     else:
         catalog.extend(DEFAULT_MODEL_CATALOG)
-    return list(dict.fromkeys(catalog))
+    deduped = list(dict.fromkeys(catalog))
+    return sorted(deduped, key=lambda item: MODEL_PRIORITY.get(item, len(DEFAULT_MODEL_CATALOG) + 100))
 
 
 def normalize_api_key_catalog(raw_keys, fallback_key: Optional[str]) -> list[str]:
