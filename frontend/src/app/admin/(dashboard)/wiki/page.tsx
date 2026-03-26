@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { PlusCircle, Edit2, Trash2, BookOpen, X, Save, Loader2, AlertCircle, CheckCircle, Upload, Users, Star } from "lucide-react";
+import { PlusCircle, Edit2, Trash2, BookOpen, X, Save, Loader2, AlertCircle, CheckCircle, Upload, Users, Star, Languages } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase-admin";
 import {
     WikiEntry, WikiEntryIn, WIKI_CATEGORIES, FactionMember,
-    getWikiEntries, createWikiEntry, updateWikiEntry, deleteWikiEntry, uploadImageR2, getFactionHierarchy
+    getWikiEntries, createWikiEntry, updateWikiEntry, deleteWikiEntry, uploadImageR2, getFactionHierarchy,
+    translateAdminWikiEntry, translateAdminWikiBatch
 } from "@/lib/api";
 import RichTextEditor from "@/components/Editor";
 import FactionHierarchyEditor from "@/components/FactionHierarchyEditor";
@@ -44,6 +45,10 @@ export default function AdminWikiPage() {
     const [hierarchyMembers, setHierarchyMembers] = useState<FactionMember[]>([]);
     const [isUploadingImg, setIsUploadingImg] = useState(false);
     const [token, setToken] = useState<string | null>(null);
+    const [translatingId, setTranslatingId] = useState<string | null>(null);
+    const [batchTranslating, setBatchTranslating] = useState(false);
+    const [batchOnlyMissing, setBatchOnlyMissing] = useState(true);
+    const [batchResult, setBatchResult] = useState<{ translated: number; skipped: number; failed: number; failedEntries: Array<{ title: string; detail?: string }> } | null>(null);
 
     useEffect(() => {
         const loadSession = async () => {
@@ -141,6 +146,56 @@ export default function AdminWikiPage() {
         }
     }
 
+    async function handleTranslateEntry(entry: WikiEntry) {
+        if (!token) {
+            showToast("error", "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
+            return;
+        }
+        setTranslatingId(entry.id);
+        try {
+            const result = await translateAdminWikiEntry(entry.id, token);
+            showToast(
+                "success",
+                `Đã dịch ${entry.title}: ${result.translated_locales?.length || 0} locale thành công, ${result.failed_translations?.length || 0} locale lỗi.`,
+            );
+        } catch (e) {
+            showToast("error", `Lỗi dịch wiki: ${(e as Error).message}`);
+        } finally {
+            setTranslatingId(null);
+        }
+    }
+
+    async function handleBatchTranslate() {
+        if (!token) {
+            showToast("error", "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
+            return;
+        }
+        setBatchTranslating(true);
+        setBatchResult(null);
+        try {
+            const result = await translateAdminWikiBatch(
+                {
+                    category: filter === "all" ? undefined : filter,
+                    page,
+                    limit: 50,
+                    only_missing: batchOnlyMissing,
+                },
+                token,
+            );
+            setBatchResult({
+                translated: result.translated_count,
+                skipped: result.skipped_count,
+                failed: result.failed_count,
+                failedEntries: result.failed_entries || [],
+            });
+            showToast("success", `Batch wiki xong: dịch ${result.translated_count}, bỏ qua ${result.skipped_count}, lỗi ${result.failed_count}.`);
+        } catch (e) {
+            showToast("error", `Lỗi batch wiki: ${(e as Error).message}`);
+        } finally {
+            setBatchTranslating(false);
+        }
+    }
+
     return (
         <div className="relative">
             {/* Toast */}
@@ -176,6 +231,56 @@ export default function AdminWikiPage() {
                 ))}
             </div>
 
+            <div className="mb-6 border border-gray-800 rounded-lg bg-[#0d0d0d] px-4 py-4">
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <div>
+                        <div className="text-xs font-mono text-cyan-400 uppercase tracking-widest">Wiki Translate</div>
+                        <p className="mt-1 text-xs font-mono text-gray-500">
+                            Dịch AI cho các mục wiki của trang hiện tại. Mỗi locale dùng 1 request payload JSON.
+                        </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3">
+                        <label className="flex items-center gap-2 text-xs font-mono text-gray-400">
+                            <input
+                                type="checkbox"
+                                checked={batchOnlyMissing}
+                                onChange={(e) => setBatchOnlyMissing(e.target.checked)}
+                                className="w-4 h-4 rounded bg-[#0d0d0d] border-gray-800 text-green-600 focus:ring-0 focus:ring-offset-0"
+                            />
+                            Chỉ dịch locale còn thiếu
+                        </label>
+                        <button
+                            onClick={handleBatchTranslate}
+                            disabled={batchTranslating || !token}
+                            className="flex items-center gap-2 px-4 py-2 bg-[#111827] hover:bg-[#172033] border border-cyan-700 text-cyan-300 text-xs font-mono rounded transition-colors disabled:opacity-50"
+                        >
+                            {batchTranslating ? <Loader2 size={14} className="animate-spin" /> : <Languages size={14} />}
+                            {batchTranslating ? "ĐANG DỊCH WIKI..." : "DỊCH AI TRANG HIỆN TẠI"}
+                        </button>
+                    </div>
+                </div>
+                {batchResult && (
+                    <div className="mt-4 space-y-2">
+                        <div className="rounded border border-gray-800 bg-[#081218] px-3 py-3 text-xs font-mono text-gray-200">
+                            Dịch mới: {batchResult.translated} | Bỏ qua: {batchResult.skipped} | Lỗi: {batchResult.failed}
+                        </div>
+                        {batchResult.failedEntries.length > 0 && (
+                            <div className="rounded border border-red-900/60 bg-[#1b0f0f] px-3 py-3">
+                                <div className="text-xs font-mono text-red-300 uppercase tracking-widest mb-2">Chi tiết lỗi</div>
+                                <div className="space-y-2">
+                                    {batchResult.failedEntries.slice(0, 5).map((item) => (
+                                        <div key={item.title} className="text-xs font-mono text-red-200 whitespace-pre-wrap">
+                                            <div className="font-semibold">{item.title}</div>
+                                            <div>{item.detail || "Không có chi tiết lỗi"}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+
             {/* Table */}
             {loading ? (
                 <div className="text-center py-20 text-gray-600 font-mono">Đang tải dữ liệu...</div>
@@ -203,6 +308,14 @@ export default function AdminWikiPage() {
                                 </div>
                             </div>
                             <div className="flex items-center gap-2 ml-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                    onClick={() => handleTranslateEntry(entry)}
+                                    disabled={translatingId === entry.id || !token}
+                                    className="p-2 text-gray-500 hover:text-cyan-400 transition-colors disabled:opacity-40"
+                                    title="Dịch 3 ngôn ngữ"
+                                >
+                                    {translatingId === entry.id ? <Loader2 size={14} className="animate-spin" /> : <Languages size={14} />}
+                                </button>
                                 {entry.category === "Thế lực" && (
                                     <button onClick={async () => {
                                         try {

@@ -887,6 +887,138 @@ async def upsert_homepage_translation(settings_payload: dict, locale: str):
         return None
 
 
+async def translate_wiki_payload_with_ai(entry_payload: dict, target_locale: str) -> dict:
+    _active_model, model_catalog, api_keys = await resolve_ai_settings_for_translation()
+    if not api_keys:
+        raise HTTPException(status_code=503, detail="AI translation is not configured")
+
+    glossary_prompt = build_glossary_prompt()
+    source_payload = {
+        "title": entry_payload.get("title") or "",
+        "summary": entry_payload.get("summary") or "",
+        "content": entry_payload.get("content") or "",
+    }
+    serialized_source = json.dumps(source_payload, ensure_ascii=False)
+
+    prompt = f"""
+Ban la bien dich vien chuyen nghiep cho wiki nhan vat, sinh vat va the luc trong tieu thuyet sinh ton hau tan the.
+Hay dich toan bo payload wiki sau tu {DEFAULT_LOCALE} sang {target_locale}.
+
+YEU CAU:
+1. Giu nguyen ten rieng theo glossary neu co.
+2. Khong duoc rut gon, khong them giai thich, khong them markdown.
+3. Truong content co the chua HTML, hay giu nguyen cau truc HTML va chi dich phan van ban.
+4. Tra ve DUY NHAT mot JSON hop le theo schema:
+{{"title":"...","summary":"...","content":"..."}}
+5. Khong boc JSON trong code fence.
+
+GLOSSARY:
+{glossary_prompt}
+
+SOURCE JSON:
+{serialized_source}
+""".strip()
+
+    payload = {
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        "generationConfig": {"maxOutputTokens": 8192, "temperature": 0.3},
+    }
+
+    def parse_wiki_translation_payload(raw_text: str) -> dict:
+        cleaned = (raw_text or "").strip()
+        if cleaned.startswith("```"):
+            cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r"\s*```$", "", cleaned)
+            cleaned = cleaned.strip()
+
+        parsed = json.loads(cleaned)
+        translated_title = sanitize_plaintext(str(parsed.get("title") or "").strip())
+        translated_summary = sanitize_html(parsed.get("summary")) if parsed.get("summary") is not None else ""
+        translated_content = sanitize_html(parsed.get("content")) if parsed.get("content") is not None else ""
+        if not translated_title:
+            raise ValueError("Missing title in JSON payload")
+        return {
+            "title": translated_title,
+            "summary": translated_summary,
+            "content": translated_content,
+        }
+
+    last_error: Optional[HTTPException] = None
+    attempts: list[dict] = []
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        for key_index, api_key in enumerate(api_keys, start=1):
+            for model_name in model_catalog:
+                await throttle_translation_request(model_name, api_key)
+                gemini_url = (
+                    "https://generativelanguage.googleapis.com/v1beta/models/"
+                    f"{model_name}:generateContent?key={api_key}"
+                )
+                response = await client.post(gemini_url, json=payload)
+                if response.is_success:
+                    data = response.json()
+                    try:
+                        raw_text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+                        return parse_wiki_translation_payload(raw_text)
+                    except Exception as exc:
+                        raise HTTPException(status_code=502, detail=f"Model {model_name}: invalid wiki translation payload: {exc}")
+
+                last_error = HTTPException(
+                    status_code=response.status_code,
+                    detail=f"Model {model_name}: Translation API error: {response.text}",
+                )
+                attempts.append(
+                    {
+                        "key_index": key_index,
+                        "model": model_name,
+                        "status_code": response.status_code,
+                        "message": response.text,
+                    }
+                )
+                if not is_translation_retryable(last_error):
+                    raise HTTPException(
+                        status_code=last_error.status_code,
+                        detail=build_translation_failure_detail(
+                            attempts,
+                            len(api_keys),
+                            len(model_catalog),
+                            str(last_error.detail),
+                        ),
+                    )
+
+    if last_error:
+        raise HTTPException(
+            status_code=last_error.status_code,
+            detail=build_translation_failure_detail(
+                attempts,
+                len(api_keys),
+                len(model_catalog),
+                str(last_error.detail),
+            ),
+        )
+    raise HTTPException(status_code=502, detail="Khong co mo hinh dich wiki kha dung")
+
+
+async def upsert_wiki_translation(entry_row: dict, locale: str):
+    locale = normalize_locale(locale)
+    if locale == DEFAULT_LOCALE:
+        return None
+
+    translated_payload = await translate_wiki_payload_with_ai(entry_row, locale)
+    payload = {
+        "wiki_entry_id": entry_row["id"],
+        "locale": locale,
+        "title": translated_payload["title"],
+        "summary": translated_payload.get("summary"),
+        "content": translated_payload.get("content"),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    return (
+        supabase.table("wiki_entry_translations")
+        .upsert(payload, on_conflict="wiki_entry_id,locale")
+        .execute()
+    )
+
+
 # === ADMIN AUTH ===
 async def verify_admin(authorization: Optional[str]) -> dict:
     """
@@ -2750,6 +2882,14 @@ class WikiEntryIn(BaseModel):
     is_main_character: Optional[bool] = None
 
 
+class AdminWikiBatchTranslateRequest(BaseModel):
+    category: Optional[str] = None
+    search: Optional[str] = None
+    page: int = 1
+    limit: int = 50
+    only_missing: bool = True
+
+
 @app.get("/api/wiki", summary="L蘯･y danh sﾃ｡ch Wiki")
 async def get_wiki_entries(
     category: Optional[str] = Query(None, description="L盻皇 theo category"),
@@ -2954,3 +3094,154 @@ async def update_guide(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/admin/wiki/{entry_id}/translate", summary="[Admin] Translate wiki entry to EN/ZH-CN/JA")
+async def admin_translate_wiki_entry(
+    entry_id: str,
+    authorization: Optional[str] = Header(None),
+):
+    await verify_admin(authorization)
+
+    entry_resp = (
+        supabase.table("wiki_entries")
+        .select("*")
+        .eq("id", entry_id)
+        .limit(1)
+        .execute()
+    )
+    if not entry_resp.data:
+        raise HTTPException(status_code=404, detail="Wiki entry not found")
+
+    entry_row = dict(entry_resp.data[0])
+    entry_row["summary"] = sanitize_html(entry_row.get("summary")) if entry_row.get("summary") is not None else None
+    entry_row["content"] = sanitize_html(entry_row.get("content")) if entry_row.get("content") is not None else None
+
+    translated_locales = []
+    failed_translations = []
+    for locale_code in ["en", "zh-CN", "ja"]:
+        try:
+            await upsert_wiki_translation(entry_row, locale_code)
+            translated_locales.append(locale_code)
+        except HTTPException as exc:
+            failed_translations.append(
+                {
+                    "locale": locale_code,
+                    "status_code": exc.status_code,
+                    "detail": str(exc.detail),
+                }
+            )
+        except Exception as exc:
+            failed_translations.append(
+                {
+                    "locale": locale_code,
+                    "status_code": 500,
+                    "detail": str(exc),
+                }
+            )
+
+    return {
+        "message": "Wiki translated",
+        "entry_id": entry_id,
+        "translated_locales": translated_locales,
+        "failed_translations": failed_translations,
+    }
+
+
+@app.post("/api/admin/wiki/translate-batch", summary="[Admin] Batch translate wiki entries to EN/ZH-CN/JA")
+async def admin_translate_wiki_batch(
+    body: AdminWikiBatchTranslateRequest,
+    authorization: Optional[str] = Header(None),
+):
+    await verify_admin(authorization)
+
+    page = max(1, body.page)
+    limit = min(max(1, body.limit), 100)
+    offset = (page - 1) * limit
+
+    query = supabase.table("wiki_entries").select("*", count="exact")
+    if body.category:
+        query = query.eq("category", body.category)
+    if body.search:
+        query = query.ilike("title", f"%{body.search}%")
+
+    wiki_resp = (
+        query.order("is_main_character", desc=True)
+        .order("sort_order", desc=False, nullsfirst=False)
+        .order("category")
+        .order("title")
+        .range(offset, offset + limit - 1)
+        .execute()
+    )
+    entry_rows = wiki_resp.data or []
+    if not entry_rows:
+        raise HTTPException(status_code=404, detail="No wiki entries found in selected batch")
+
+    translation_map: dict[str, set[str]] = {}
+    if body.only_missing:
+        translation_resp = (
+            supabase.table("wiki_entry_translations")
+            .select("wiki_entry_id, locale")
+            .in_("wiki_entry_id", [row["id"] for row in entry_rows])
+            .execute()
+        )
+        for row in (translation_resp.data or []):
+            translation_map.setdefault(row["wiki_entry_id"], set()).add(row["locale"])
+
+    translated_entries = []
+    skipped_entries = []
+    failed_entries = []
+
+    for entry_row in entry_rows:
+        needed_locales = ["en", "zh-CN", "ja"]
+        if body.only_missing:
+            existing_locales = translation_map.get(entry_row["id"], set())
+            needed_locales = [locale_code for locale_code in needed_locales if locale_code not in existing_locales]
+            if not needed_locales:
+                skipped_entries.append({"entry_id": entry_row["id"], "title": entry_row["title"]})
+                continue
+
+        completed_locales = []
+        entry_locale_errors = []
+        sanitized_entry = dict(entry_row)
+        sanitized_entry["summary"] = sanitize_html(sanitized_entry.get("summary")) if sanitized_entry.get("summary") is not None else None
+        sanitized_entry["content"] = sanitize_html(sanitized_entry.get("content")) if sanitized_entry.get("content") is not None else None
+        for locale_code in needed_locales:
+            try:
+                await upsert_wiki_translation(sanitized_entry, locale_code)
+                completed_locales.append(locale_code)
+            except HTTPException as exc:
+                entry_locale_errors.append(f"{locale_code}: {str(exc.detail)}")
+            except Exception as exc:
+                entry_locale_errors.append(f"{locale_code}: {str(exc)}")
+
+        if completed_locales:
+            translated_entries.append(
+                {
+                    "entry_id": entry_row["id"],
+                    "title": entry_row["title"],
+                    "translated_locales": completed_locales,
+                }
+            )
+        if entry_locale_errors:
+            failed_entries.append(
+                {
+                    "entry_id": entry_row["id"],
+                    "title": entry_row["title"],
+                    "detail": "\n".join(entry_locale_errors),
+                }
+            )
+
+    return {
+        "message": "Batch wiki translation completed",
+        "page": page,
+        "limit": limit,
+        "only_missing": body.only_missing,
+        "translated_count": len(translated_entries),
+        "skipped_count": len(skipped_entries),
+        "failed_count": len(failed_entries),
+        "translated_entries": translated_entries,
+        "skipped_entries": skipped_entries,
+        "failed_entries": failed_entries,
+        "total_entries": wiki_resp.count or len(entry_rows),
+    }

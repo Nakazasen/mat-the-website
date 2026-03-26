@@ -452,6 +452,53 @@ export async function updateWikiEntry(id: string, data: WikiEntryIn, token: stri
     return res.json();
 }
 
+export async function translateAdminWikiEntry(
+    entryId: string,
+    token: string
+): Promise<{ message: string; entry_id: string; translated_locales: string[]; failed_translations?: Array<{ locale: string; detail?: string }> }> {
+    const res = await fetch(`${API_BASE_URL}/api/admin/wiki/${entryId}/translate`, {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${token}`,
+        },
+    });
+    const payload = await res.json();
+    if (!res.ok) {
+        throw new Error(payload.detail || "Failed to translate wiki entry");
+    }
+    return payload;
+}
+
+export async function translateAdminWikiBatch(
+    data: { category?: string; search?: string; page?: number; limit?: number; only_missing?: boolean },
+    token: string
+): Promise<{
+    message: string;
+    page: number;
+    limit: number;
+    total_entries: number;
+    translated_count: number;
+    skipped_count: number;
+    failed_count: number;
+    translated_entries: Array<{ entry_id: string; title: string; translated_locales: string[] }>;
+    skipped_entries: Array<{ entry_id: string; title: string }>;
+    failed_entries: Array<{ entry_id: string; title: string; detail?: string }>;
+}> {
+    const res = await fetch(`${API_BASE_URL}/api/admin/wiki/translate-batch`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(data),
+    });
+    const payload = await res.json();
+    if (!res.ok) {
+        throw new Error(payload.detail || "Failed to batch translate wiki");
+    }
+    return payload;
+}
+
 export async function deleteWikiEntry(id: string, token: string): Promise<void> {
     const res = await fetch(`${API_BASE_URL}/api/wiki/${id}`, {
         method: "DELETE",
