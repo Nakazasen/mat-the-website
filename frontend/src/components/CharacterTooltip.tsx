@@ -1,6 +1,8 @@
 "use client";
 
+import React from "react";
 import { useState, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 
 interface WikiCharacter {
   name: string;
@@ -25,6 +27,7 @@ export default function CharacterTooltip({
   const [character, setCharacter] = useState<WikiCharacter | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [position, setPosition] = useState<"above" | "below">("above");
+  const [tooltipCoords, setTooltipCoords] = useState({ left: 0, top: 0 });
   const triggerRef = useRef<HTMLSpanElement>(null);
   const fetchedRef = useRef(false);
 
@@ -50,10 +53,14 @@ export default function CharacterTooltip({
   }, [name, chapterProgress, isLoading]);
 
   const handleMouseEnter = () => {
-    // Determine if tooltip should appear above or below
     if (triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
-      setPosition(rect.top > 150 ? "above" : "below");
+      const nextPosition = rect.top > 150 ? "above" : "below";
+      setPosition(nextPosition);
+      setTooltipCoords({
+        left: rect.left + rect.width / 2,
+        top: nextPosition === "above" ? rect.top - 8 : rect.bottom + 8,
+      });
     }
     setIsVisible(true);
     fetchCharacter();
@@ -82,13 +89,13 @@ export default function CharacterTooltip({
         {children}
       </span>
 
-      {isVisible && (
+      {isVisible && typeof document !== "undefined" && createPortal(
         <div
           style={{
-            position: "absolute",
-            [position === "above" ? "bottom" : "top"]: "calc(100% + 8px)",
-            left: "50%",
-            transform: "translateX(-50%)",
+            position: "fixed",
+            top: `${tooltipCoords.top}px`,
+            left: `${tooltipCoords.left}px`,
+            transform: `translate(-50%, ${position === "above" ? "-100%" : "0"})`,
             zIndex: 9999,
             width: "220px",
             background: "rgba(10, 10, 10, 0.95)",
@@ -103,7 +110,6 @@ export default function CharacterTooltip({
             animation: "fadeInTooltip 0.15s ease-out",
           }}
         >
-          {/* Header */}
           <div style={{
             color: "#39FF14",
             fontWeight: 700,
@@ -155,7 +161,8 @@ export default function CharacterTooltip({
               Không tìm thấy dữ liệu
             </div>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </span>
   );

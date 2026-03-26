@@ -11,6 +11,7 @@ interface SystemHUDProps {
   dangerLabel: string;
   dangerColor: string;
   characterStatus: CharacterStatus;
+  keywords: string[];
 }
 
 const HEARTBEAT_PATHS = {
@@ -18,11 +19,11 @@ const HEARTBEAT_PATHS = {
   danger: "M0,15 L6,15 L10,2 L14,28 L18,2 L22,28 L26,15 L28,15",
 };
 
-const STATUS_COLORS: Record<string, string> = {
-  "Bình thường": "#39FF14",
-  "Bị thương": "#f59e0b",
-  "Dị biến": "#a855f7",
-  "Nguy kịch": "#ef4444",
+const STATUS_META: Record<CharacterStatus, { label: string; color: string }> = {
+  NORMAL: { label: "NORMAL", color: "#39FF14" },
+  INJURED: { label: "INJURED", color: "#f59e0b" },
+  MUTATED: { label: "MUTATED", color: "#a855f7" },
+  CRITICAL: { label: "CRITICAL", color: "#ef4444" },
 };
 
 export default function SystemHUD({
@@ -33,6 +34,7 @@ export default function SystemHUD({
   dangerLabel,
   dangerColor,
   characterStatus,
+  keywords,
 }: SystemHUDProps) {
   const [tick, setTick] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
@@ -62,7 +64,8 @@ export default function SystemHUD({
     return () => clearInterval(interval);
   }, [dangerLevel]);
 
-  const statusColor = STATUS_COLORS[characterStatus] ?? "#39FF14";
+  const statusMeta = STATUS_META[characterStatus] ?? STATUS_META.NORMAL;
+  const statusColor = statusMeta.color;
   const isExtreme = dangerLevel === 3;
   const isCombat = dangerLevel >= 2;
   const heartPath = isCombat ? HEARTBEAT_PATHS.danger : HEARTBEAT_PATHS.normal;
@@ -86,7 +89,7 @@ export default function SystemHUD({
     >
       <button
         onClick={() => setIsMinimized((prev) => !prev)}
-        title={isMinimized ? "Mở HUD" : "Thu gọn HUD"}
+        title={isMinimized ? "Mo HUD" : "Thu gon HUD"}
         style={{
           background: "rgba(10,10,10,0.85)",
           border: "1px solid rgba(57,255,20,0.3)",
@@ -103,7 +106,7 @@ export default function SystemHUD({
           flexShrink: 0,
         }}
       >
-        {isMinimized ? "MỞ HUD" : "HUD THU"}
+        {isMinimized ? "MO HUD" : "HUD THU"}
       </button>
 
       <div
@@ -117,6 +120,8 @@ export default function SystemHUD({
           display: "flex",
           flexDirection: "column",
           gap: "10px",
+          position: "relative",
+          overflow: "hidden",
           fontFamily: "'Courier Prime', 'JetBrains Mono', monospace",
           boxShadow: isExtreme
             ? "0 0 30px rgba(220,38,38,0.15), inset 0 0 20px rgba(220,38,38,0.05)"
@@ -124,6 +129,18 @@ export default function SystemHUD({
           animation: isExtreme ? "hud-danger-pulse 1.2s ease-in-out infinite" : undefined,
         }}
       >
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            inset: 0,
+            background:
+              "linear-gradient(180deg, transparent 0%, rgba(57,255,20,0.03) 45%, rgba(57,255,20,0.12) 50%, transparent 55%, transparent 100%)",
+            animation: "scanline 3.2s linear infinite",
+            pointerEvents: "none",
+          }}
+        />
+
         <div
           style={{
             fontSize: "9px",
@@ -178,7 +195,12 @@ export default function SystemHUD({
               stroke={statusColor}
               strokeWidth="1.5"
               strokeLinecap="round"
-              style={{ filter: `drop-shadow(0 0 3px ${statusColor})`, transition: "d 0.4s ease, stroke 0.4s ease" }}
+              style={{
+                filter: `drop-shadow(0 0 3px ${statusColor})`,
+                transition: "d 0.4s ease, stroke 0.4s ease",
+                animation: `heartbeat-pulse ${isCombat ? 0.9 : 1.4}s ease-in-out infinite`,
+                transformOrigin: "center",
+              }}
             />
             <line
               x1={((tick % 30) / 30) * 28}
@@ -218,7 +240,31 @@ export default function SystemHUD({
                 flexShrink: 0,
               }}
             />
-            {characterStatus}
+            {statusMeta.label}
+          </div>
+        </div>
+
+        <div>
+          <div style={{ fontSize: "8px", color: "rgba(255,255,255,0.4)", letterSpacing: "0.15em", marginBottom: "4px" }}>
+            QUICK SCAN
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+            {(keywords.length > 0 ? keywords.slice(0, 3) : ["STABLE"]).map((keyword) => (
+              <span
+                key={keyword}
+                style={{
+                  fontSize: "8px",
+                  color: keyword === "STABLE" ? "rgba(57,255,20,0.75)" : dangerColor,
+                  border: `1px solid ${keyword === "STABLE" ? "rgba(57,255,20,0.2)" : "rgba(255,255,255,0.12)"}`,
+                  borderRadius: "999px",
+                  padding: "2px 6px",
+                  letterSpacing: "0.08em",
+                  background: "rgba(255,255,255,0.02)",
+                }}
+              >
+                {keyword}
+              </span>
+            ))}
           </div>
         </div>
 
@@ -233,7 +279,7 @@ export default function SystemHUD({
               justifyContent: "space-between",
             }}
           >
-            <span>CHƯƠNG</span>
+            <span>CHUONG</span>
             <span style={{ color: "rgba(57,255,20,0.7)" }}>
               {chapterNumber}/{totalChapters}
             </span>
@@ -262,7 +308,7 @@ export default function SystemHUD({
               justifyContent: "space-between",
             }}
           >
-            <span>TIẾN ĐỘ ĐỌC</span>
+            <span>READ PROGRESS</span>
             <span style={{ color: "rgba(57,255,20,0.7)" }}>{Math.round(readingProgress)}%</span>
           </div>
           <div style={{ height: "3px", background: "rgba(255,255,255,0.08)", borderRadius: "2px", overflow: "hidden" }}>

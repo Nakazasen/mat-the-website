@@ -1,4 +1,5 @@
 import React, { ReactNode } from 'react';
+import CharacterTooltip from '@/components/CharacterTooltip';
 import { splitIntoChunks, stripHtml } from './tts-utils';
 
 /**
@@ -8,6 +9,7 @@ export function renderRichKaraoke(
     html: string,
     activeChunkIndex: number | null,
     theme: string,
+    chapterProgress: number,
     onRef?: (index: number, el: HTMLElement | null) => void
 ): { nodes: ReactNode[], chunks: string[] } {
     if (typeof window === "undefined") return { nodes: [], chunks: [] };
@@ -19,10 +21,9 @@ export function renderRichKaraoke(
     const doc = parser.parseFromString(html, 'text/html');
 
     let currentChunkIdx = 0;
-    let currentChunkOffset = 0; // characters consumed in chunks[currentChunkIdx]
+    let currentChunkOffset = 0;
 
     function walk(node: Node, path: string): ReactNode {
-        // Text Node
         if (node.nodeType === Node.TEXT_NODE) {
             const text = node.textContent || "";
             if (!text) return null;
@@ -35,12 +36,7 @@ export function renderRichKaraoke(
                 const needed = chunk.length - currentChunkOffset;
                 const available = text.length - textOffset;
                 const toTake = Math.min(needed, available);
-
                 const slice = text.substring(textOffset, textOffset + toTake);
-                const isFullChunk = currentChunkOffset === 0 && toTake === chunk.length;
-
-                // For simplicity, we assign the chunk index to the span
-                // If a chunk is split across multiple nodes, they will all have the same index
                 const idx = currentChunkIdx;
 
                 elements.push(
@@ -67,40 +63,59 @@ export function renderRichKaraoke(
                 }
             }
 
-            // Remainder text (if any - should be none if logic is perfect)
             if (textOffset < text.length) {
                 elements.push(<span key={`${path}-rem`}>{text.substring(textOffset)}</span>);
             }
 
-            return <>{elements}</>;
+            return <React.Fragment key={`text-${path}`}>{elements}</React.Fragment>;
         }
 
-        // Image Node
         if (node.nodeName === 'IMG') {
             const img = node as HTMLImageElement;
             return <img key={`img-${path}`} src={img.src} alt={img.alt} className="rounded-lg border border-reader-border my-6 max-w-full h-auto mx-auto block" />;
         }
 
-        // Element Node (p, div, b, i, etc.)
         if (node.nodeType === Node.ELEMENT_NODE) {
             const el = node as HTMLElement;
+            const tag = el.tagName.toLowerCase() as any;
 
-            // Map common tags to React equivalents or generic tags
-            const Tag = el.tagName.toLowerCase() as any;
-
-            // Void elements: cannot have children in React
             const voidTags = ['br', 'hr', 'img', 'input', 'wbr'];
-            if (voidTags.includes(Tag)) {
-                return React.createElement(Tag, { key: `tag-${path}` });
+            if (voidTags.includes(tag)) {
+                return React.createElement(tag, { key: `tag-${path}` });
             }
 
             const children = Array.from(el.childNodes).map((child, i) => walk(child, `${path}-${i}`));
+            const characterName = el.getAttribute("data-character-name");
+
+            if (characterName) {
+                return (
+                    <CharacterTooltip
+                        key={`tooltip-${path}`}
+                        name={characterName}
+                        chapterProgress={chapterProgress}
+                    >
+                        <span className={el.className || undefined}>{children}</span>
+                    </CharacterTooltip>
+                );
+            }
 
             const validTags = ['p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'b', 'i', 'strong', 'em', 'u', 'ul', 'ol', 'li', 'blockquote', 'span', 'a', 'section', 'article'];
 
-            if (validTags.includes(Tag)) {
-                return React.createElement(Tag, { key: `tag-${path}`, className: el.className || undefined }, children);
+            if (validTags.includes(tag)) {
+                const props: Record<string, unknown> = {
+                    key: `tag-${path}`,
+                    className: el.className || undefined,
+                };
+
+                if (tag === "a") {
+                    props.href = el.getAttribute("href") ?? undefined;
+                    props.target = el.getAttribute("target") ?? undefined;
+                    props.rel = el.getAttribute("rel") ?? undefined;
+                }
+
+                return React.createElement(tag, props, children);
             }
+
             return <React.Fragment key={`frag-${path}`}>{children}</React.Fragment>;
         }
 

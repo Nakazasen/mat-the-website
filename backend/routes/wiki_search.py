@@ -3,14 +3,15 @@ Wiki Search Endpoint (Backend)
 GET /wiki/character?name=...&chapter=...
 
 Searches the Supabase wiki for character information,
-filtered to only include data from chapters ≤ chapter_progress.
-This provides spoiler-free Quick Scan data for the HUD.
+filtered to only include data from chapters <= chapter_progress.
+This provides spoiler-safe Quick Scan data for the HUD.
 """
 
 import re
+from typing import Optional
+
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
-from typing import Optional
 
 
 def _get_supabase():
@@ -20,6 +21,7 @@ def _get_supabase():
     except ImportError:
         from backend.main import supabase
     return supabase
+
 
 router = APIRouter(prefix="/wiki", tags=["wiki_search"])
 
@@ -36,8 +38,40 @@ class CharacterProfile(BaseModel):
 def normalize_name(name: str) -> str:
     """Lowercase, strip diacritics, remove punctuation for fuzzy matching."""
     import unicodedata
+
     nfkd = unicodedata.normalize("NFKD", name.lower().strip())
     return re.sub(r"[^\w\s]", "", "".join(c for c in nfkd if not unicodedata.combining(c))).strip()
+
+
+def query_character(supabase, search_value: str, chapter: int):
+    attempts = [
+        ("title", True),
+        ("name", True),
+        ("title", False),
+        ("name", False),
+    ]
+
+    for field_name, spoiler_safe in attempts:
+        try:
+            query = (
+                supabase.table("wiki_entries")
+                .select("*")
+                .ilike(field_name, f"%{search_value}%")
+                .limit(1)
+            )
+
+            if spoiler_safe:
+                query = query.lte("chapter_introduced", chapter).order("chapter_introduced", desc=False)
+            else:
+                query = query.order(field_name, desc=False)
+
+            result = query.execute()
+            if result.data:
+                return result.data[0]
+        except Exception:
+            continue
+
+    return None
 
 
 @router.get("/character", response_model=Optional[CharacterProfile])
@@ -47,37 +81,32 @@ async def get_character(
 ):
     """
     Returns a character profile from the wiki, filtered by chapter progress.
-    Returns null if not found (not a 404 — soft fail for UI).
+    Returns null if not found so the reader UI can fail softly.
     """
     supabase = _get_supabase()
     if not supabase:
         raise HTTPException(status_code=503, detail="Database not configured")
 
     try:
-        # Try exact name match first
-        result = (
-            supabase.table("wiki_entries")
-            .select("name, faction, status, ability, first_appearance, description, chapter_introduced")
-            .ilike("name", f"%{name.strip()}%")   # Case-insensitive partial match
-            .lte("chapter_introduced", chapter)   # Spoiler cap: only chapters ≤ reader progress
-            .order("chapter_introduced", desc=False)
-            .limit(1)
-            .execute()
-        )
+        row = query_character(supabase, name.strip(), chapter)
+        if not row:
+            normalized_query = normalize_name(name)
+            row = query_character(supabase, normalized_query, chapter)
 
-        if not result.data:
+        if not row:
             return None
 
-        row = result.data[0]
+        chapter_introduced = row.get("chapter_introduced")
+        if chapter_introduced is not None and chapter_introduced > chapter:
+            return None
+
         return CharacterProfile(
-            name=row.get("name", name),
+            name=row.get("name") or row.get("title") or name,
             faction=row.get("faction"),
             status=row.get("status"),
             ability=row.get("ability"),
-            first_appearance=row.get("first_appearance") or row.get("chapter_introduced"),
-            description=row.get("description"),
+            first_appearance=row.get("first_appearance") or chapter_introduced,
+            description=row.get("description") or row.get("summary"),
         )
-
-    except Exception as e:
-        # Soft fail — don't break the reader if wiki is unavailable
+    except Exception:
         return None

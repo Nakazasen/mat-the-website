@@ -9,9 +9,9 @@ import AudioPlayer from "./AudioPlayer";
 import CommentSection from "./CommentSection";
 import LikeButton from "./LikeButton";
 import DonateSection from "./DonateSection";
-import { splitIntoChunks } from "@/lib/tts-utils";
 import { renderRichKaraoke } from "@/lib/karaoke";
 import { sanitizeHtmlClient } from "@/lib/sanitize-html";
+import { annotateCharacterNames } from "@/lib/character-highlights";
 import SystemHUD from "./SystemHUD";
 import { useChapterMeta } from "@/hooks/useChapterMeta";
 import OraclePanel from "./OraclePanel";
@@ -35,10 +35,12 @@ export default function ReadingClient({
     nextId,
     totalChapters,
 }: ReadingClientProps) {
+    const BACKEND_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
     const { theme, fontSize, fontFamily } = useTheme();
     const [readingProgress, setReadingProgress] = useState(0);
-    const chapterMeta = useChapterMeta(content);
+    const chapterMeta = useChapterMeta(content, chapterNumber);
     const [activeChunkIndex, setActiveChunkIndex] = useState<number | null>(null);
+    const [characterNames, setCharacterNames] = useState<string[]>([]);
     const contentRef = useRef<HTMLDivElement>(null);
     const activeChunkRef = useRef<HTMLSpanElement>(null);
 
@@ -48,15 +50,19 @@ export default function ReadingClient({
     }, []);
 
     const sanitizedContent = useMemo(() => sanitizeHtmlClient(content), [content]);
+    const highlightedContent = useMemo(
+        () => annotateCharacterNames(sanitizedContent, characterNames),
+        [sanitizedContent, characterNames]
+    );
 
     const karaokeNodes = useMemo(() => {
         if (!isMounted) return null;
-        return renderRichKaraoke(sanitizedContent, activeChunkIndex, theme, (idx: number, el: HTMLElement | null) => {
+        return renderRichKaraoke(highlightedContent, activeChunkIndex, theme, chapterNumber, (idx: number, el: HTMLElement | null) => {
             if (activeChunkIndex === idx && el) {
                 activeChunkRef.current = el;
             }
         }).nodes;
-    }, [sanitizedContent, activeChunkIndex, theme, isMounted]);
+    }, [highlightedContent, activeChunkIndex, theme, chapterNumber, isMounted]);
 
     // Bookmarks state
     const [isBookmarked, setIsBookmarked] = useState(false);
@@ -93,8 +99,39 @@ export default function ReadingClient({
         setIsBookmarkLoading(false);
     };
 
-    // Split content into chunks for Karaoke
-    const chunks = splitIntoChunks(sanitizedContent);
+    useEffect(() => {
+        let isActive = true;
+
+        const fetchCharacterNames = async () => {
+            try {
+                const params = new URLSearchParams({
+                    category: "Nhân vật",
+                    limit: "200",
+                });
+                const response = await fetch(`${BACKEND_URL}/api/wiki?${params.toString()}`, { cache: "force-cache" });
+                if (!response.ok) return;
+
+                const payload = await response.json();
+                const entries = Array.isArray(payload?.entries) ? payload.entries : [];
+                const names = entries
+                    .map((entry: { title?: string }) => entry?.title?.trim())
+                    .filter((value: string | undefined): value is string => Boolean(value && value.length >= 2));
+
+                if (isActive) {
+                    setCharacterNames(names);
+                }
+            } catch {
+                if (isActive) {
+                    setCharacterNames([]);
+                }
+            }
+        };
+
+        fetchCharacterNames();
+        return () => {
+            isActive = false;
+        };
+    }, [BACKEND_URL]);
 
     // Auto-scroll to active chunk
     useEffect(() => {
@@ -196,6 +233,7 @@ export default function ReadingClient({
                     dangerLabel={chapterMeta.dangerLabel}
                     dangerColor={chapterMeta.dangerColor}
                     characterStatus={chapterMeta.characterStatus}
+                    keywords={chapterMeta.keywords}
                 />
             )}
             {isMounted && <OraclePanel chapterProgress={chapterNumber} />}
@@ -328,7 +366,7 @@ export default function ReadingClient({
                     style={{ fontSize: `${fontSize}px`, lineHeight: 1.8 }}
                 >
                     {!isMounted ? (
-                        <div dangerouslySetInnerHTML={{ __html: sanitizedContent }} />
+                        <div dangerouslySetInnerHTML={{ __html: highlightedContent }} />
                     ) : (
                         karaokeNodes
                     )}

@@ -1,65 +1,90 @@
 /**
- * useChapterMeta
- * Scans chapter content for keywords to derive:
- * - dangerLevel (0 = safe, 1 = tense, 2 = combat, 3 = extreme)
- * - characterStatus (for main character display on HUD)
- * No API calls — pure client-side logic.
+ * Client-side chapter scanner for the reader HUD.
  */
 
 export type DangerLevel = 0 | 1 | 2 | 3;
-export type CharacterStatus = "BÌNH THƯỜNG" | "BỊ THƯƠNG" | "DỊ BIẾN" | "NGUY KỊCH";
+export type CharacterStatus = "NORMAL" | "INJURED" | "MUTATED" | "CRITICAL";
 
 export interface ChapterMeta {
   dangerLevel: DangerLevel;
   characterStatus: CharacterStatus;
   dangerLabel: string;
   dangerColor: string;
+  keywords: string[];
 }
 
-// Keyword lists — matching story context
 const EXTREME_KEYWORDS = [
-  "hấp hối", "cận kề cái chết", "sắp chết", "không còn sức",
-  "tuyệt vọng", "mất đi ý thức", "ngã xuống", "thở hào hển",
+  "hap hoi",
+  "can ke cai chet",
+  "sap chet",
+  "khong con suc",
+  "tuyet vong",
+  "mat y thuc",
+  "nga xuong",
+  "thao hao",
 ];
 
 const COMBAT_KEYWORDS = [
-  "xác sống", "thây ma", "zombie", "tiếng súng", "chiến đấu",
-  "tấn công", "máu", "bắn", "chém", "đâm", "bạo lực",
-  "giết", "xông vào", "vây hãm", "giao tranh",
+  "xac song",
+  "thay ma",
+  "zombie",
+  "tieng sung",
+  "chien dau",
+  "tan cong",
+  "mau",
+  "ban",
+  "dam",
+  "bao luc",
+  "giet",
+  "giao tranh",
 ];
 
 const TENSE_KEYWORDS = [
-  "cảnh giác", "nguy hiểm", "rình rập", "lo lắng", "sợ hãi",
-  "tiếng động", "bóng tối", "im lặng đáng sợ", "mùi máu",
-  "không an toàn", "trốn thoát",
+  "canh giac",
+  "nguy hiem",
+  "lo lang",
+  "so hai",
+  "khong an toan",
+  "truy thoat",
 ];
 
 const INJURED_KEYWORDS = [
-  "bị thương", "vết thương", "đau đớn", "chảy máu", "băng bó",
-  "gãy xương", "sưng tấy",
+  "bi thuong",
+  "vet thuong",
+  "chay mau",
+  "gay xuong",
 ];
 
 const MUTATED_KEYWORDS = [
-  "dị biến", "biến đổi gen", "tiến hóa", "năng lực đặc biệt",
-  "hệ thống", "cấp độ tăng", "kỹ năng mới", "mutation",
+  "dot bien",
+  "tien hoa",
+  "nang luc dac biet",
+  "he thong",
+  "mutation",
 ];
 
+function normalizeContent(text: string): string {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
 function countKeywords(text: string, keywords: string[]): number {
-  const lower = text.toLowerCase();
+  const lower = normalizeContent(text);
   return keywords.reduce((acc, kw) => {
     const regex = new RegExp(kw, "g");
     return acc + (lower.match(regex)?.length ?? 0);
   }, 0);
 }
 
-export function useChapterMeta(content: string): ChapterMeta {
+export function useChapterMeta(content: string, _chapterNumber?: number): ChapterMeta {
   const extremeCount = countKeywords(content, EXTREME_KEYWORDS);
   const combatCount = countKeywords(content, COMBAT_KEYWORDS);
   const tenseCount = countKeywords(content, TENSE_KEYWORDS);
   const injuredCount = countKeywords(content, INJURED_KEYWORDS);
   const mutatedCount = countKeywords(content, MUTATED_KEYWORDS);
 
-  // Derive danger level
   let dangerLevel: DangerLevel = 0;
   if (extremeCount >= 2 || combatCount >= 8) {
     dangerLevel = 3;
@@ -69,27 +94,34 @@ export function useChapterMeta(content: string): ChapterMeta {
     dangerLevel = 1;
   }
 
-  // Derive character status
-  let characterStatus: CharacterStatus = "BÌNH THƯỜNG";
+  let characterStatus: CharacterStatus = "NORMAL";
   if (extremeCount >= 1) {
-    characterStatus = "NGUY KỊCH";
+    characterStatus = "CRITICAL";
   } else if (mutatedCount >= 1) {
-    characterStatus = "DỊ BIẾN";
+    characterStatus = "MUTATED";
   } else if (injuredCount >= 1) {
-    characterStatus = "BỊ THƯƠNG";
+    characterStatus = "INJURED";
   }
 
-  const DANGER_CONFIG = [
-    { label: "AN TOÀN", color: "#39FF14" },
-    { label: "CẢNH BÁO", color: "#f59e0b" },
-    { label: "CHIẾN ĐẤU", color: "#ef4444" },
-    { label: "CỰC KỲ NGUY HIỂM", color: "#dc2626" },
+  const dangerConfig = [
+    { label: "SAFE", color: "#39FF14" },
+    { label: "ALERT", color: "#f59e0b" },
+    { label: "COMBAT", color: "#ef4444" },
+    { label: "CRITICAL", color: "#dc2626" },
   ] as const;
+
+  const keywords: string[] = [];
+  if (tenseCount > 0) keywords.push("ALERT");
+  if (combatCount > 0) keywords.push("COMBAT");
+  if (injuredCount > 0) keywords.push("INJURED");
+  if (mutatedCount > 0) keywords.push("MUTATION");
+  if (extremeCount > 0) keywords.push("CRITICAL");
 
   return {
     dangerLevel,
     characterStatus,
-    dangerLabel: DANGER_CONFIG[dangerLevel].label,
-    dangerColor: DANGER_CONFIG[dangerLevel].color,
+    dangerLabel: dangerConfig[dangerLevel].label,
+    dangerColor: dangerConfig[dangerLevel].color,
+    keywords,
   };
 }
