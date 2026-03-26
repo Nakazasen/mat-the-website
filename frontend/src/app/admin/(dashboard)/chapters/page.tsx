@@ -47,6 +47,17 @@ interface ChapterTranslationStatus {
     status_label: string;
 }
 
+function formatBatchNetworkError(message: string | undefined, completed: number, total: number): string {
+    const normalized = (message || '').trim();
+    if (!normalized) {
+        return `Mất kết nối tới backend khi chạy block tiếp theo. Tiến độ đã giữ tới chương ${completed}/${total}. Bấm chạy lại để tiếp tục phần còn thiếu.`;
+    }
+    if (normalized.toLowerCase() === 'failed to fetch') {
+        return `Mất kết nối tới backend khi chạy block tiếp theo. Tiến độ đã giữ tới chương ${completed}/${total}. Bấm chạy lại để tiếp tục phần còn thiếu.`;
+    }
+    return normalized;
+}
+
 export default function AdminChaptersPage() {
     const router = useRouter();
     const [chapters, setChapters] = useState<Chapter[]>([]);
@@ -73,6 +84,25 @@ export default function AdminChaptersPage() {
     const [fullBatchRunning, setFullBatchRunning] = useState(false);
     const [fullBatchProgress, setFullBatchProgress] = useState<{ completed: number; total: number; translated: number; skipped: number; failed: number } | null>(null);
     const [translationStatusMap, setTranslationStatusMap] = useState<Record<number, ChapterTranslationStatus>>({});
+
+    useEffect(() => {
+        if (!error || error !== 'Failed to fetch') return;
+
+        if (fullBatchProgress) {
+            const nextMessage = formatBatchNetworkError(error, fullBatchProgress.completed, fullBatchProgress.total);
+            if (nextMessage !== error) {
+                setError(nextMessage);
+            }
+            return;
+        }
+
+        const startChapter = Math.max(1, parseInt(batchStart || '1', 10) || 1);
+        const endChapter = Math.max(startChapter, parseInt(batchEnd || `${totalChapters || startChapter}`, 10) || startChapter);
+        const nextMessage = formatBatchNetworkError(error, startChapter - 1, endChapter);
+        if (nextMessage !== error) {
+            setError(nextMessage);
+        }
+    }, [error, fullBatchProgress, batchStart, batchEnd, totalChapters]);
 
     useEffect(() => {
         const supabase = createAdminClient();

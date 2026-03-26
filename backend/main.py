@@ -304,6 +304,65 @@ def get_key_model_bucket(model_name: str, api_key: str) -> str:
     return f"{model_name}|{key_hash}"
 
 
+def clean_json_like_response(raw_text: str) -> str:
+    cleaned = (raw_text or "").strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\s*```$", "", cleaned)
+        cleaned = cleaned.strip()
+
+    first_brace = cleaned.find("{")
+    last_brace = cleaned.rfind("}")
+    if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
+        cleaned = cleaned[first_brace:last_brace + 1]
+    return cleaned.strip()
+
+
+def escape_json_string_control_chars(raw_text: str) -> str:
+    result: list[str] = []
+    in_string = False
+    escaped = False
+
+    for char in raw_text:
+        if escaped:
+            result.append(char)
+            escaped = False
+            continue
+
+        if char == "\\":
+            result.append(char)
+            escaped = True
+            continue
+
+        if char == '"':
+            result.append(char)
+            in_string = not in_string
+            continue
+
+        if in_string and char == "\n":
+            result.append("\\n")
+            continue
+        if in_string and char == "\r":
+            result.append("\\r")
+            continue
+        if in_string and char == "\t":
+            result.append("\\t")
+            continue
+
+        result.append(char)
+
+    return "".join(result)
+
+
+def parse_json_like_payload(raw_text: str) -> dict:
+    cleaned = clean_json_like_response(raw_text)
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        repaired = escape_json_string_control_chars(cleaned)
+        return json.loads(repaired)
+
+
 async def throttle_translation_request(model_name: str, api_key: str):
     bucket = get_key_model_bucket(model_name, api_key)
     min_interval = get_model_min_interval_seconds(model_name)
@@ -591,13 +650,7 @@ SOURCE CONTENT:
     }
 
     def parse_translation_payload(raw_text: str) -> dict:
-        cleaned = (raw_text or "").strip()
-        if cleaned.startswith("```"):
-            cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
-            cleaned = re.sub(r"\s*```$", "", cleaned)
-            cleaned = cleaned.strip()
-
-        parsed = json.loads(cleaned)
+        parsed = parse_json_like_payload(raw_text)
         translated_title = str(parsed.get("title") or "").strip()
         translated_content = str(parsed.get("content") or "").strip()
         if not translated_title or not translated_content:
@@ -624,7 +677,19 @@ SOURCE CONTENT:
                         raw_text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
                         return parse_translation_payload(raw_text)
                     except Exception as exc:
-                        raise HTTPException(status_code=502, detail=f"Model {model_name}: invalid chapter translation payload: {exc}")
+                        last_error = HTTPException(
+                            status_code=502,
+                            detail=f"Model {model_name}: invalid chapter translation payload: {exc}",
+                        )
+                        attempts.append(
+                            {
+                                "key_index": key_index,
+                                "model": model_name,
+                                "status_code": 502,
+                                "message": f"invalid chapter translation payload: {exc}",
+                            }
+                        )
+                        continue
 
                 last_error = HTTPException(
                     status_code=response.status_code,
@@ -787,13 +852,7 @@ SOURCE JSON:
     }
 
     def parse_homepage_translation_payload(raw_text: str) -> dict:
-        cleaned = (raw_text or "").strip()
-        if cleaned.startswith("```"):
-            cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
-            cleaned = re.sub(r"\s*```$", "", cleaned)
-            cleaned = cleaned.strip()
-
-        parsed = json.loads(cleaned)
+        parsed = parse_json_like_payload(raw_text)
         translated = prepare_homepage_settings_payload(parsed)
         translated["features_json"] = sanitize_homepage_features(parsed.get("features_json"))
         return translated
@@ -815,7 +874,19 @@ SOURCE JSON:
                         raw_text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
                         return parse_homepage_translation_payload(raw_text)
                     except Exception as exc:
-                        raise HTTPException(status_code=502, detail=f"Model {model_name}: invalid homepage translation payload: {exc}")
+                        last_error = HTTPException(
+                            status_code=502,
+                            detail=f"Model {model_name}: invalid homepage translation payload: {exc}",
+                        )
+                        attempts.append(
+                            {
+                                "key_index": key_index,
+                                "model": model_name,
+                                "status_code": 502,
+                                "message": f"invalid homepage translation payload: {exc}",
+                            }
+                        )
+                        continue
 
                 last_error = HTTPException(
                     status_code=response.status_code,
@@ -925,13 +996,7 @@ SOURCE JSON:
     }
 
     def parse_wiki_translation_payload(raw_text: str) -> dict:
-        cleaned = (raw_text or "").strip()
-        if cleaned.startswith("```"):
-            cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
-            cleaned = re.sub(r"\s*```$", "", cleaned)
-            cleaned = cleaned.strip()
-
-        parsed = json.loads(cleaned)
+        parsed = parse_json_like_payload(raw_text)
         translated_title = sanitize_plaintext(str(parsed.get("title") or "").strip())
         translated_summary = sanitize_html(parsed.get("summary")) if parsed.get("summary") is not None else ""
         translated_content = sanitize_html(parsed.get("content")) if parsed.get("content") is not None else ""
@@ -960,7 +1025,19 @@ SOURCE JSON:
                         raw_text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
                         return parse_wiki_translation_payload(raw_text)
                     except Exception as exc:
-                        raise HTTPException(status_code=502, detail=f"Model {model_name}: invalid wiki translation payload: {exc}")
+                        last_error = HTTPException(
+                            status_code=502,
+                            detail=f"Model {model_name}: invalid wiki translation payload: {exc}",
+                        )
+                        attempts.append(
+                            {
+                                "key_index": key_index,
+                                "model": model_name,
+                                "status_code": 502,
+                                "message": f"invalid wiki translation payload: {exc}",
+                            }
+                        )
+                        continue
 
                 last_error = HTTPException(
                     status_code=response.status_code,
