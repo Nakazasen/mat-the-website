@@ -1468,6 +1468,54 @@ async def admin_translate_homepage_i18n(
     }
 
 
+@app.put("/api/admin/homepage/auto-save", summary="[Admin] Luu trang chu va tu dong dich AI")
+async def admin_auto_save_homepage_i18n(
+    body: HomepageSettings,
+    authorization: Optional[str] = Header(None),
+    locale: str = Query(DEFAULT_LOCALE, description="Locale to update"),
+):
+    """Luu CMS trang chu. Neu locale la vi thi tu dong dich sang en, zh-CN va ja."""
+    await verify_admin(authorization)
+
+    target_locale = normalize_locale(locale)
+    payload = prepare_homepage_settings_payload(body.model_dump(exclude_none=True))
+    payload["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+    if target_locale == DEFAULT_LOCALE:
+        payload["id"] = 1
+        result = supabase.table("homepage_settings").upsert(payload).execute()
+        translated_locales = []
+        for auto_locale in (item for item in SUPPORTED_LOCALES if item != DEFAULT_LOCALE):
+            await upsert_homepage_translation(payload, auto_locale)
+            translated_locales.append(auto_locale)
+        return {
+            "message": "Da luu trang chu va tu dong dich",
+            "settings": result.data[0] if result.data else payload,
+            "auto_translated_locales": translated_locales,
+        }
+
+    payload.update(
+        {
+            "homepage_settings_id": 1,
+            "locale": target_locale,
+            "translation_status": "published",
+            "translation_source": "human",
+            "translated_at": datetime.now(timezone.utc).isoformat(),
+            "content_hash": build_content_hash(json.dumps(payload, ensure_ascii=False, sort_keys=True)),
+        }
+    )
+    result = (
+        supabase.table("homepage_settings_translations")
+        .upsert(payload, on_conflict="homepage_settings_id,locale")
+        .execute()
+    )
+    return {
+        "message": "Da luu ban dich trang chu",
+        "settings": result.data[0] if result.data else payload,
+        "auto_translated_locales": [],
+    }
+
+
 @app.get("/api/_legacy/homepage", response_model=HomepageSettings)
 async def get_homepage_settings():
     """L蘯･y c蘯･u hﾃｬnh n盻冓 dung hi盻ハ th盻・trﾃｪn trang ch盻ｧ."""

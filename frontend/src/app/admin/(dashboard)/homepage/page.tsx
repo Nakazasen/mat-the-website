@@ -108,7 +108,7 @@ export default function AdminHomepagePage() {
 
         try {
             const params = new URLSearchParams({ locale });
-            const res = await fetch(`${API_BASE_URL}/api/admin/homepage?${params.toString()}`, {
+            const res = await fetch(`${API_BASE_URL}/api/admin/homepage/auto-save?${params.toString()}`, {
                 method: "PUT",
                 headers: {
                     "Content-Type": "application/json",
@@ -123,6 +123,11 @@ export default function AdminHomepagePage() {
             }
 
             setSuccess(`Đã lưu cấu hình locale ${locale}.`);
+            if (locale === "vi" && Array.isArray(payload.auto_translated_locales) && payload.auto_translated_locales.length > 0) {
+                setSuccess(`ﾄ静｣ lﾆｰu locale vi vﾃ t盻ｱ ﾄ黛ｻ盻冨 d盻議h: ${payload.auto_translated_locales.join(", ")}`);
+            } else {
+                setSuccess(`ﾄ静｣ lﾆｰu c蘯･u hﾃｬnh locale ${locale}.`);
+            }
         } catch (eventualError: any) {
             setError(eventualError?.message || "Lưu cấu hình thất bại.");
         } finally {
