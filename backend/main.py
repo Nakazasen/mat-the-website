@@ -468,23 +468,66 @@ async def upsert_chapter_translation(chapter_row: dict, title: str, content: str
     if normalize_locale(locale) == DEFAULT_LOCALE:
         return None
 
-    translated_title = await translate_text_with_ai(title, DEFAULT_LOCALE, locale, f"chapter-title-{chapter_row['chapter_number']}")
-    translated_content = await translate_text_with_ai(content, DEFAULT_LOCALE, locale, f"chapter-content-{chapter_row['chapter_number']}")
-    payload = {
+    content_hash = build_content_hash(content)
+
+    existing_resp = (
+        supabase.table("chapter_translations")
+        .select("attempt_count, title, content, summary, translated_at")
+        .eq("chapter_id", chapter_row["id"])
+        .eq("locale", locale)
+        .limit(1)
+        .execute()
+    )
+    existing_row = existing_resp.data[0] if existing_resp.data else {}
+
+    status_payload = {
         "chapter_id": chapter_row["id"],
         "locale": locale,
-        "title": translated_title,
-        "content": translated_content,
-        "summary": translated_content[:280],
-        "translation_status": "published",
+        "title": existing_row.get("title") or "",
+        "content": existing_row.get("content") or "",
+        "summary": existing_row.get("summary"),
+        "translation_status": "in_progress",
         "translation_source": "ai",
-        "translated_at": datetime.now(timezone.utc).isoformat(),
-        "content_hash": build_content_hash(content),
+        "translated_at": existing_row.get("translated_at"),
+        "content_hash": content_hash,
+        "last_error": None,
+        "attempt_count": int(existing_row.get("attempt_count") or 0) + 1,
     }
+    supabase.table("chapter_translations").upsert(status_payload, on_conflict="chapter_id,locale").execute()
+
     try:
+        translated_title = await translate_text_with_ai(title, DEFAULT_LOCALE, locale, f"chapter-title-{chapter_row['chapter_number']}")
+        translated_content = await translate_text_with_ai(content, DEFAULT_LOCALE, locale, f"chapter-content-{chapter_row['chapter_number']}")
+        payload = {
+            "chapter_id": chapter_row["id"],
+            "locale": locale,
+            "title": translated_title,
+            "content": translated_content,
+            "summary": translated_content[:280],
+            "translation_status": "published",
+            "translation_source": "ai",
+            "translated_at": datetime.now(timezone.utc).isoformat(),
+            "content_hash": content_hash,
+            "last_error": None,
+            "attempt_count": int(status_payload["attempt_count"]),
+        }
         return supabase.table("chapter_translations").upsert(payload, on_conflict="chapter_id,locale").execute()
-    except Exception:
-        return None
+    except HTTPException as exc:
+        failure_payload = {
+            **status_payload,
+            "translation_status": "failed",
+            "last_error": str(exc.detail),
+        }
+        supabase.table("chapter_translations").upsert(failure_payload, on_conflict="chapter_id,locale").execute()
+        raise
+    except Exception as exc:
+        failure_payload = {
+            **status_payload,
+            "translation_status": "failed",
+            "last_error": str(exc),
+        }
+        supabase.table("chapter_translations").upsert(failure_payload, on_conflict="chapter_id,locale").execute()
+        raise
 
 
 async def upsert_homepage_translation(settings_payload: dict, locale: str):
@@ -1048,8 +1091,25 @@ async def admin_translate_chapter(
     translated_locales = []
     failed_translations = []
     for locale_code in ("en", "zh-CN", "ja"):
-        await upsert_chapter_translation(chapter_row, chapter_row["title"], content_text, locale_code)
-        translated_locales.append(locale_code)
+        try:
+            await upsert_chapter_translation(chapter_row, chapter_row["title"], content_text, locale_code)
+            translated_locales.append(locale_code)
+        except HTTPException as exc:
+            failed_translations.append(
+                {
+                    "locale": locale_code,
+                    "status_code": exc.status_code,
+                    "detail": str(exc.detail),
+                }
+            )
+        except Exception as exc:
+            failed_translations.append(
+                {
+                    "locale": locale_code,
+                    "status_code": 500,
+                    "detail": str(exc),
+                }
+            )
 
     return {
         "message": "Chapter translated",
@@ -1115,15 +1175,31 @@ async def admin_translate_chapters_batch(
         try:
             content_text = fetch_r2_content(chapter_row["content_url"])
             completed_locales = []
+            chapter_locale_errors = []
             for locale_code in needed_locales:
-                await upsert_chapter_translation(chapter_row, chapter_row["title"], content_text, locale_code)
-                completed_locales.append(locale_code)
-            translated_chapters.append(
-                {
-                    "chapter_number": chapter_row["chapter_number"],
-                    "translated_locales": completed_locales,
-                }
-            )
+                try:
+                    await upsert_chapter_translation(chapter_row, chapter_row["title"], content_text, locale_code)
+                    completed_locales.append(locale_code)
+                except HTTPException as exc:
+                    chapter_locale_errors.append(f"{locale_code}: {str(exc.detail)}")
+                except Exception as exc:
+                    chapter_locale_errors.append(f"{locale_code}: {str(exc)}")
+
+            if completed_locales:
+                translated_chapters.append(
+                    {
+                        "chapter_number": chapter_row["chapter_number"],
+                        "translated_locales": completed_locales,
+                    }
+                )
+            if chapter_locale_errors:
+                failed_chapters.append(
+                    {
+                        "chapter_number": chapter_row["chapter_number"],
+                        "status_code": 500,
+                        "detail": "\n".join(chapter_locale_errors),
+                    }
+                )
         except HTTPException as exc:
             failed_chapters.append(
                 {
