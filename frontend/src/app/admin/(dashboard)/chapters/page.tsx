@@ -7,6 +7,7 @@ import {
     AlertTriangle,
     ArrowRight,
     CheckSquare,
+    CheckSquare2,
     ChevronLeft,
     ChevronRight,
     Languages,
@@ -52,6 +53,9 @@ export default function AdminChaptersPage() {
     const [batchOnlyMissing, setBatchOnlyMissing] = useState(true);
     const [batchRunning, setBatchRunning] = useState(false);
     const [batchResult, setBatchResult] = useState<string | null>(null);
+    const [batchBlockSize, setBatchBlockSize] = useState('25');
+    const [fullBatchRunning, setFullBatchRunning] = useState(false);
+    const [fullBatchProgress, setFullBatchProgress] = useState<{ completed: number; total: number; translated: number; skipped: number; failed: number } | null>(null);
 
     useEffect(() => {
         const supabase = createAdminClient();
@@ -175,6 +179,62 @@ export default function AdminChaptersPage() {
         }
     };
 
+    const handleTranslateAllMissing = async () => {
+        if (!token) return;
+
+        const total = Math.max(totalChapters, 0);
+        const blockSize = Math.max(1, parseInt(batchBlockSize || '25', 10) || 25);
+        if (total === 0) {
+            setError('Khong co chuong nao de dich.');
+            return;
+        }
+
+        setFullBatchRunning(true);
+        setBatchRunning(false);
+        setError(null);
+        setBatchResult(null);
+        setFullBatchProgress({ completed: 0, total, translated: 0, skipped: 0, failed: 0 });
+
+        let translated = 0;
+        let skipped = 0;
+        let failed = 0;
+        let completed = 0;
+
+        try {
+            for (let start = 1; start <= total; start += blockSize) {
+                const end = Math.min(start + blockSize - 1, total);
+                const result = await translateAdminChaptersBatch(
+                    {
+                        start_chapter: start,
+                        end_chapter: end,
+                        only_missing: true,
+                    },
+                    token,
+                );
+
+                translated += result.translated_count;
+                skipped += result.skipped_count;
+                failed += result.failed_count;
+                completed = end;
+
+                setFullBatchProgress({
+                    completed,
+                    total,
+                    translated,
+                    skipped,
+                    failed,
+                });
+                setBatchResult(
+                    `Da chay toi chuong ${end}/${total}. Dich moi: ${translated}, bo qua: ${skipped}, loi: ${failed}.`
+                );
+            }
+        } catch (err: any) {
+            setError(err?.message || 'Khong the dich toan bo chuong con thieu.');
+        } finally {
+            setFullBatchRunning(false);
+        }
+    };
+
     return (
         <div className="pb-10">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
@@ -276,7 +336,7 @@ export default function AdminChaptersPage() {
                         <button
                             type="button"
                             onClick={handleBatchTranslate}
-                            disabled={!token || batchRunning}
+                            disabled={!token || batchRunning || fullBatchRunning}
                             className="inline-flex items-center justify-center gap-2 rounded border border-purple-700/60 px-4 py-2 text-xs font-mono text-purple-300 hover:bg-purple-500/10 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                             {batchRunning ? <Loader2 size={14} className="animate-spin" /> : <CheckSquare size={14} />}
@@ -284,9 +344,46 @@ export default function AdminChaptersPage() {
                         </button>
                     </div>
                 </div>
+                <div className="mt-4 flex flex-col gap-3 border-t border-gray-800 pt-4 lg:flex-row lg:items-end lg:justify-between">
+                    <div>
+                        <p className="font-mono text-xs tracking-widest text-cyan-300 uppercase">Translate All Missing</p>
+                        <p className="mt-1 text-xs text-gray-500">
+                            Tu dong chay tu chuong 1 den chuong {totalChapters}, chia block nho de han che timeout va de theo doi tien do.
+                        </p>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-[140px_auto] gap-3 w-full lg:w-auto">
+                        <input
+                            type="number"
+                            min={1}
+                            value={batchBlockSize}
+                            onChange={(event) => setBatchBlockSize(event.target.value)}
+                            className="bg-black border border-gray-800 rounded px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-cyan-500"
+                            placeholder="Block size"
+                        />
+                        <button
+                            type="button"
+                            onClick={handleTranslateAllMissing}
+                            disabled={!token || fullBatchRunning || batchRunning}
+                            className="inline-flex items-center justify-center gap-2 rounded border border-cyan-700/60 px-4 py-2 text-xs font-mono text-cyan-300 hover:bg-cyan-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            {fullBatchRunning ? <Loader2 size={14} className="animate-spin" /> : <CheckSquare2 size={14} />}
+                            {fullBatchRunning ? 'DANG DICH TOAN BO...' : 'DICH TOAN BO CHUONG CHUA DICH'}
+                        </button>
+                    </div>
+                </div>
                 {batchResult && (
                     <div className="mt-3 rounded border border-green-900/50 bg-green-950/30 px-3 py-2 text-sm text-green-300">
                         {batchResult}
+                    </div>
+                )}
+                {fullBatchProgress && (
+                    <div className="mt-3 rounded border border-cyan-900/50 bg-cyan-950/20 px-3 py-3 text-sm text-cyan-200">
+                        <div className="font-mono text-xs uppercase tracking-widest text-cyan-300">
+                            Da xong {fullBatchProgress.completed} / {fullBatchProgress.total} chuong
+                        </div>
+                        <div className="mt-1">
+                            Dich moi: {fullBatchProgress.translated} | Bo qua: {fullBatchProgress.skipped} | Loi: {fullBatchProgress.failed}
+                        </div>
                     </div>
                 )}
             </div>
