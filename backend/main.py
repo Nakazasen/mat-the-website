@@ -1059,6 +1059,101 @@ async def admin_translate_chapter(
     }
 
 
+class AdminBatchTranslateRequest(BaseModel):
+    start_chapter: int = 1
+    end_chapter: int
+    only_missing: bool = True
+
+
+@app.post("/api/admin/chapters/translate-batch", summary="[Admin] Batch translate chapters to EN/ZH-CN/JA")
+async def admin_translate_chapters_batch(
+    body: AdminBatchTranslateRequest,
+    authorization: Optional[str] = Header(None),
+):
+    await verify_admin(authorization)
+
+    start_chapter = max(1, body.start_chapter)
+    end_chapter = max(start_chapter, body.end_chapter)
+
+    chapters_resp = (
+        supabase.table("chapters")
+        .select("*")
+        .gte("chapter_number", start_chapter)
+        .lte("chapter_number", end_chapter)
+        .order("chapter_number")
+        .execute()
+    )
+    chapter_rows = chapters_resp.data or []
+    if not chapter_rows:
+        raise HTTPException(status_code=404, detail="No chapters found in selected range")
+
+    translation_map: dict[int, set[str]] = {}
+    if body.only_missing:
+        translation_resp = (
+            supabase.table("chapter_translations")
+            .select("chapter_id, locale, translation_status")
+            .eq("translation_status", "published")
+            .in_("chapter_id", [row["id"] for row in chapter_rows])
+            .execute()
+        )
+        for row in (translation_resp.data or []):
+            translation_map.setdefault(row["chapter_id"], set()).add(row["locale"])
+
+    translated_chapters = []
+    skipped_chapters = []
+    failed_chapters = []
+
+    for chapter_row in chapter_rows:
+        needed_locales = ["en", "zh-CN", "ja"]
+        if body.only_missing:
+            existing_locales = translation_map.get(chapter_row["id"], set())
+            needed_locales = [locale_code for locale_code in needed_locales if locale_code not in existing_locales]
+            if not needed_locales:
+                skipped_chapters.append(chapter_row["chapter_number"])
+                continue
+
+        try:
+            content_text = fetch_r2_content(chapter_row["content_url"])
+            completed_locales = []
+            for locale_code in needed_locales:
+                await upsert_chapter_translation(chapter_row, chapter_row["title"], content_text, locale_code)
+                completed_locales.append(locale_code)
+            translated_chapters.append(
+                {
+                    "chapter_number": chapter_row["chapter_number"],
+                    "translated_locales": completed_locales,
+                }
+            )
+        except HTTPException as exc:
+            failed_chapters.append(
+                {
+                    "chapter_number": chapter_row["chapter_number"],
+                    "status_code": exc.status_code,
+                    "detail": str(exc.detail),
+                }
+            )
+        except Exception as exc:
+            failed_chapters.append(
+                {
+                    "chapter_number": chapter_row["chapter_number"],
+                    "status_code": 500,
+                    "detail": str(exc),
+                }
+            )
+
+    return {
+        "message": "Batch chapter translation completed",
+        "range": {"start_chapter": start_chapter, "end_chapter": end_chapter},
+        "only_missing": body.only_missing,
+        "translated_count": len(translated_chapters),
+        "skipped_count": len(skipped_chapters),
+        "failed_count": len(failed_chapters),
+        "translated_chapters": translated_chapters,
+        "skipped_chapters": skipped_chapters,
+        "failed_chapters": failed_chapters,
+    }
+
+
 class NovelSettings(BaseModel):
     title: str
     author: str

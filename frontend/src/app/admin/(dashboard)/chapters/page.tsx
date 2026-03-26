@@ -6,9 +6,11 @@ import { useRouter } from 'next/navigation';
 import {
     AlertTriangle,
     ArrowRight,
+    CheckSquare,
     ChevronLeft,
     ChevronRight,
     Languages,
+    Loader2,
     Pencil,
     PlusCircle,
     RefreshCw,
@@ -18,7 +20,7 @@ import {
 } from 'lucide-react';
 
 import { createAdminClient } from '@/lib/supabase-admin';
-import { translateAdminChapter } from '@/lib/api';
+import { translateAdminChapter, translateAdminChaptersBatch } from '@/lib/api';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mat-the-website.onrender.com';
 
@@ -45,6 +47,11 @@ export default function AdminChaptersPage() {
 
     const [searchQuery, setSearchQuery] = useState('');
     const [jumpNumber, setJumpNumber] = useState('');
+    const [batchStart, setBatchStart] = useState('1');
+    const [batchEnd, setBatchEnd] = useState('');
+    const [batchOnlyMissing, setBatchOnlyMissing] = useState(true);
+    const [batchRunning, setBatchRunning] = useState(false);
+    const [batchResult, setBatchResult] = useState<string | null>(null);
 
     useEffect(() => {
         const supabase = createAdminClient();
@@ -73,6 +80,7 @@ export default function AdminChaptersPage() {
             setTotalPages(data.total_pages || 1);
             setTotalChapters(data.total || 0);
             setCurrentPage(page);
+            setBatchEnd((current) => current || String(data.total || data.total_pages || ''));
         } catch (err: any) {
             setError(err.message);
         } finally {
@@ -138,6 +146,35 @@ export default function AdminChaptersPage() {
         }
     };
 
+    const handleBatchTranslate = async () => {
+        if (!token) return;
+
+        const startChapter = Math.max(1, parseInt(batchStart || '1', 10) || 1);
+        const endChapter = Math.max(startChapter, parseInt(batchEnd || `${totalChapters || startChapter}`, 10) || startChapter);
+
+        setBatchRunning(true);
+        setBatchResult(null);
+        setError(null);
+
+        try {
+            const result = await translateAdminChaptersBatch(
+                {
+                    start_chapter: startChapter,
+                    end_chapter: endChapter,
+                    only_missing: batchOnlyMissing,
+                },
+                token,
+            );
+            setBatchResult(
+                `Da xu ly ${startChapter}-${endChapter}. Dich moi: ${result.translated_count}, bo qua: ${result.skipped_count}, loi: ${result.failed_count}.`
+            );
+        } catch (err: any) {
+            setError(err?.message || 'Khong the batch dich chuong.');
+        } finally {
+            setBatchRunning(false);
+        }
+    };
+
     return (
         <div className="pb-10">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
@@ -200,6 +237,58 @@ export default function AdminChaptersPage() {
                         NHẢY <ArrowRight size={14} />
                     </button>
                 </form>
+            </div>
+
+            <div className="mb-6 rounded-lg border border-gray-800 bg-[#0d0d0d] p-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                    <div>
+                        <p className="font-mono text-xs tracking-widest text-purple-300 uppercase">Batch Translate</p>
+                        <p className="mt-1 text-xs text-gray-500">
+                            Chay hang loat theo khoang chuong. Nen chay theo block nhu 1-50, 51-100... de on dinh hon khi model bi quota/rate-limit.
+                        </p>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 w-full lg:w-auto">
+                        <input
+                            type="number"
+                            min={1}
+                            value={batchStart}
+                            onChange={(event) => setBatchStart(event.target.value)}
+                            className="bg-black border border-gray-800 rounded px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-purple-500"
+                            placeholder="Tu chuong"
+                        />
+                        <input
+                            type="number"
+                            min={1}
+                            value={batchEnd}
+                            onChange={(event) => setBatchEnd(event.target.value)}
+                            className="bg-black border border-gray-800 rounded px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-purple-500"
+                            placeholder="Den chuong"
+                        />
+                        <label className="flex items-center gap-2 rounded border border-gray-800 px-3 py-2 text-xs font-mono text-gray-300">
+                            <input
+                                type="checkbox"
+                                checked={batchOnlyMissing}
+                                onChange={(event) => setBatchOnlyMissing(event.target.checked)}
+                                className="accent-purple-500"
+                            />
+                            Chi dich chuong con thieu
+                        </label>
+                        <button
+                            type="button"
+                            onClick={handleBatchTranslate}
+                            disabled={!token || batchRunning}
+                            className="inline-flex items-center justify-center gap-2 rounded border border-purple-700/60 px-4 py-2 text-xs font-mono text-purple-300 hover:bg-purple-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            {batchRunning ? <Loader2 size={14} className="animate-spin" /> : <CheckSquare size={14} />}
+                            {batchRunning ? 'DANG CHAY BATCH...' : 'DICH THEO KHOANG'}
+                        </button>
+                    </div>
+                </div>
+                {batchResult && (
+                    <div className="mt-3 rounded border border-green-900/50 bg-green-950/30 px-3 py-2 text-sm text-green-300">
+                        {batchResult}
+                    </div>
+                )}
             </div>
 
             {error && (

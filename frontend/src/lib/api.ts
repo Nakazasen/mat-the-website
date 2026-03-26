@@ -264,6 +264,33 @@ export async function translateAdminChapter(chapterNumber: number, token: string
     return payload;
 }
 
+export async function translateAdminChaptersBatch(
+    data: { start_chapter: number; end_chapter: number; only_missing?: boolean },
+    token: string
+): Promise<{
+    message: string;
+    translated_count: number;
+    skipped_count: number;
+    failed_count: number;
+    translated_chapters: Array<{ chapter_number: number; translated_locales: string[] }>;
+    skipped_chapters: number[];
+    failed_chapters: Array<{ chapter_number: number; detail?: string }>;
+}> {
+    const res = await fetch(`${API_BASE_URL}/api/admin/chapters/translate-batch`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(data),
+    });
+    const payload = await res.json();
+    if (!res.ok) {
+        throw new Error(payload.detail || "Failed to batch translate chapters");
+    }
+    return payload;
+}
+
 // reportView moved to ANALYTICS section below (with localStorage anti-spam)
 
 // Utility
