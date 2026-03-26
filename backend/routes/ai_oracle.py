@@ -25,7 +25,19 @@ from pydantic import BaseModel
 router = APIRouter(prefix="/oracle", tags=["ai_oracle"])
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-DEFAULT_MODEL = "gemini-3.1-flash-lite-preview"
+DEFAULT_MODEL_CATALOG = [
+    "gemini-3-flash-preview",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+    "gemini-3.1-flash-lite-preview",
+    "gemma-3-27b-it",
+    "gemma-3-12b-it",
+    "gemma-3-4b-it",
+    "gemma-3n-e2b-it",
+    "gemma-3n-1b-it",
+    "gemini-robotics-er-1.5-preview",
+]
+DEFAULT_MODEL = DEFAULT_MODEL_CATALOG[0]
 BASE_GEMINI_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 )
@@ -337,8 +349,19 @@ def normalize_model_catalog(raw_catalog, fallback_model: str) -> list[str]:
     if fallback_model and fallback_model not in catalog:
         catalog.insert(0, fallback_model)
     if not catalog:
-        catalog = [fallback_model or DEFAULT_MODEL]
+        catalog = DEFAULT_MODEL_CATALOG.copy()
+    else:
+        catalog.extend(DEFAULT_MODEL_CATALOG)
     return list(dict.fromkeys(catalog))
+
+
+def normalize_api_key_catalog(raw_keys, fallback_key: Optional[str]) -> list[str]:
+    keys = []
+    if isinstance(raw_keys, list):
+        keys.extend(f"{item}".strip() for item in raw_keys if f"{item}".strip())
+    if fallback_key and fallback_key.strip():
+        keys.insert(0, fallback_key.strip())
+    return list(dict.fromkeys([item for item in keys if item]))
 
 
 def is_model_retryable(exc: HTTPException) -> bool:
@@ -366,11 +389,11 @@ def classify_upstream_error(exc: HTTPException) -> str:
     return "upstream_error"
 
 
-async def resolve_ai_settings(supabase) -> tuple[str, list[str], Optional[str]]:
+async def resolve_ai_settings(supabase) -> tuple[str, list[str], list[str]]:
     try:
         settings_resp = (
             supabase.table("novel_settings")
-            .select("ai_model_name, ai_model_catalog, ai_api_key")
+            .select("ai_model_name, ai_model_catalog, ai_api_key, ai_api_keys")
             .eq("id", 1)
             .single()
             .execute()
@@ -383,12 +406,15 @@ async def resolve_ai_settings(supabase) -> tuple[str, list[str], Optional[str]]:
                     settings_resp.data.get("ai_model_catalog"),
                     model_name,
                 ),
-                settings_resp.data.get("ai_api_key"),
+                normalize_api_key_catalog(
+                    settings_resp.data.get("ai_api_keys"),
+                    settings_resp.data.get("ai_api_key"),
+                ),
             )
     except Exception:
         pass
 
-    return DEFAULT_MODEL, [DEFAULT_MODEL], None
+    return DEFAULT_MODEL, DEFAULT_MODEL_CATALOG.copy(), normalize_api_key_catalog([], GEMINI_API_KEY)
 
 
 def probe_table(supabase, table_name: str) -> bool:
@@ -402,8 +428,8 @@ def probe_table(supabase, table_name: str) -> bool:
 
 
 async def build_oracle_health(supabase) -> OracleHealthResponse:
-    active_model, model_catalog, custom_key = await resolve_ai_settings(supabase)
-    has_api_key = bool((custom_key or GEMINI_API_KEY).strip())
+    active_model, model_catalog, api_keys = await resolve_ai_settings(supabase)
+    has_api_key = bool(api_keys)
     cache_configured = probe_table(supabase, "oracle_cache")
     rate_limit_configured = probe_table(supabase, "oracle_rate_limits")
 
@@ -420,29 +446,30 @@ async def build_oracle_health(supabase) -> OracleHealthResponse:
         )
 
     last_error: Optional[HTTPException] = None
-    for model_name in model_catalog:
-        try:
-            await call_gemini(
-                question="Tra loi mot tu: ONLINE",
-                chapter_cap=1,
-                wiki_context="",
-                model_name=model_name,
-                api_key=custom_key,
-            )
-            return OracleHealthResponse(
-                ok=True,
-                status="ok",
-                active_model=model_name,
-                model_catalog=model_catalog,
-                has_api_key=True,
-                rate_limit_configured=rate_limit_configured,
-                cache_configured=cache_configured,
-                detail="Oracle backend san sang xu ly.",
-            )
-        except HTTPException as exc:
-            last_error = exc
-            if not is_model_retryable(exc):
-                break
+    for api_key in api_keys:
+        for model_name in model_catalog:
+            try:
+                await call_gemini(
+                    question="Tra loi mot tu: ONLINE",
+                    chapter_cap=1,
+                    wiki_context="",
+                    model_name=model_name,
+                    api_key=api_key,
+                )
+                return OracleHealthResponse(
+                    ok=True,
+                    status="ok",
+                    active_model=model_name,
+                    model_catalog=model_catalog,
+                    has_api_key=True,
+                    rate_limit_configured=rate_limit_configured,
+                    cache_configured=cache_configured,
+                    detail="Oracle backend san sang xu ly.",
+                )
+            except HTTPException as exc:
+                last_error = exc
+                if not is_model_retryable(exc):
+                    break
 
     if last_error:
         status = classify_upstream_error(last_error)
@@ -551,31 +578,34 @@ async def ask_oracle(body: OracleRequest, request: Request):
             detail="He thong da dat gioi han truy van trong ngay. Vui long thu lai vao ngay mai.",
         )
 
-    _, model_catalog, custom_key = await resolve_ai_settings(supabase)
+    _, model_catalog, api_keys = await resolve_ai_settings(supabase)
 
     answer = None
     last_error: Optional[HTTPException] = None
-    for model_name in model_catalog:
-        try:
-            answer = await call_gemini(
-                question,
-                chapter_cap,
-                wiki_context,
-                model_name=model_name,
-                api_key=custom_key,
-            )
-            if is_garbage_answer(answer):
-                last_error = HTTPException(
-                    status_code=502,
-                    detail=f"Model {model_name} returned invalid answer",
+    for api_key in api_keys:
+        for model_name in model_catalog:
+            try:
+                answer = await call_gemini(
+                    question,
+                    chapter_cap,
+                    wiki_context,
+                    model_name=model_name,
+                    api_key=api_key,
                 )
+                if is_garbage_answer(answer):
+                    last_error = HTTPException(
+                        status_code=502,
+                        detail=f"Model {model_name} returned invalid answer",
+                    )
+                    continue
+                break
+            except HTTPException as exc:
+                last_error = exc
+                if not is_model_retryable(exc):
+                    raise
                 continue
+        if answer is not None:
             break
-        except HTTPException as exc:
-            last_error = exc
-            if not is_model_retryable(exc):
-                raise
-            continue
 
     if answer is None:
         if last_error:
@@ -607,8 +637,8 @@ async def admin_ai_playground(
 
     prompt = body.prompt.strip() or "Tra loi ngan gon bang tieng Viet: xac nhan model dang hoat dong."
     chapter_progress = max(1, min(body.chapter_progress, 9999))
-    stored_model, _, stored_key = await resolve_ai_settings(supabase)
-    chosen_key = body.api_key.strip() if body.api_key else (stored_key or "")
+    stored_model, _, stored_keys = await resolve_ai_settings(supabase)
+    chosen_key = body.api_key.strip() if body.api_key else (stored_keys[0] if stored_keys else "")
     used_saved_key = not bool(body.api_key and body.api_key.strip())
 
     results: list[AdminAiPlaygroundResult] = []

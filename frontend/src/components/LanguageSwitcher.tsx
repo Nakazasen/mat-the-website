@@ -23,7 +23,7 @@ export default function LanguageSwitcher({ mobile = false }: { mobile?: boolean 
                     onClick={() => setLocale(item as Locale)}
                     className={`rounded-full px-2 py-1 text-[10px] font-mono tracking-widest transition-all ${
                         item === locale
-                            ? "bg-toxic-green-DEFAULT text-black"
+                            ? "border border-toxic-green-bright/60 bg-toxic-green-DEFAULT/20 text-toxic-green-bright"
                             : "text-ash-400 hover:text-toxic-green-DEFAULT"
                     }`}
                 >

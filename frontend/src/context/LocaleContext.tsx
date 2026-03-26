@@ -2,10 +2,11 @@
 
 import React from "react";
 import { createContext, useContext, useMemo } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 
 import { getDictionary, type Dictionary } from "@/lib/i18n/dictionaries";
 import {
+    getLocaleFromPath,
     LOCALE_COOKIE,
     type Locale,
     replaceLocaleInPath,
@@ -27,25 +28,26 @@ export function LocaleProvider({
     locale: Locale;
     children: React.ReactNode;
 }) {
-    const router = useRouter();
     const pathname = usePathname();
+    const activeLocale = getLocaleFromPath(pathname || "") ?? locale;
 
     const value = useMemo<LocaleContextValue>(() => {
-        const dictionary = getDictionary(locale);
+        const dictionary = getDictionary(activeLocale);
 
         return {
-            locale,
+            locale: activeLocale,
             dictionary,
             setLocale: (nextLocale: Locale) => {
                 document.cookie = `${LOCALE_COOKIE}=${nextLocale}; path=/; max-age=31536000; samesite=lax`;
-                router.push(replaceLocaleInPath(pathname || "/", nextLocale));
+                const nextPath = replaceLocaleInPath(pathname || "/", nextLocale);
+                window.location.assign(nextPath);
             },
             localizePath: (href: string) => {
                 if (!href.startsWith("/")) return href;
-                return replaceLocaleInPath(href, locale);
+                return replaceLocaleInPath(href, activeLocale);
             },
         };
-    }, [locale, pathname, router]);
+    }, [activeLocale, pathname]);
 
     return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;
 }

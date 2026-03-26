@@ -91,7 +91,19 @@ def slugify(text: str) -> str:
 SUPPORTED_LOCALES = ("vi", "en", "zh-CN", "ja")
 DEFAULT_LOCALE = "vi"
 TRANSLATION_GLOSSARY_PATH = os.path.join(current_dir, "translation_glossary.json")
-TRANSLATION_MODEL_FALLBACK = "gemini-3.1-flash-lite-preview"
+DEFAULT_TRANSLATION_MODELS = [
+    "gemini-3-flash-preview",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+    "gemini-3.1-flash-lite-preview",
+    "gemma-3-27b-it",
+    "gemma-3-12b-it",
+    "gemma-3-4b-it",
+    "gemma-3n-e2b-it",
+    "gemma-3n-1b-it",
+    "gemini-robotics-er-1.5-preview",
+]
+TRANSLATION_MODEL_FALLBACK = DEFAULT_TRANSLATION_MODELS[0]
 
 
 def normalize_locale(value: Optional[str]) -> str:
@@ -210,6 +222,40 @@ def resolve_novel_translation(locale: str):
     except Exception:
         return None
     return None
+
+
+def normalize_model_catalog(raw_catalog, fallback_model: str) -> list[str]:
+    if isinstance(raw_catalog, list):
+        catalog = [f"{item}".strip() for item in raw_catalog if f"{item}".strip()]
+    else:
+        catalog = []
+    if fallback_model and fallback_model not in catalog:
+        catalog.insert(0, fallback_model)
+    if not catalog:
+        catalog = DEFAULT_TRANSLATION_MODELS.copy()
+    else:
+        catalog.extend(DEFAULT_TRANSLATION_MODELS)
+    return list(dict.fromkeys(catalog))
+
+
+def normalize_api_key_catalog(raw_keys, fallback_key: str) -> list[str]:
+    keys = []
+    if isinstance(raw_keys, list):
+        keys.extend(f"{item}".strip() for item in raw_keys if f"{item}".strip())
+    if fallback_key and fallback_key.strip():
+        keys.insert(0, fallback_key.strip())
+    return list(dict.fromkeys([item for item in keys if item]))
+
+
+def is_translation_retryable(exc: HTTPException) -> bool:
+    detail = str(exc.detail).lower()
+    return (
+        exc.status_code == 429
+        or "resource exhausted" in detail
+        or "rate limit" in detail
+        or "quota" in detail
+        or exc.status_code in (400, 404, 401, 403)
+    )
 
 
 def resolve_homepage_translation(locale: str):
@@ -332,21 +378,36 @@ def apply_homepage_translation(payload: dict, locale: str) -> dict:
     return payload
 
 
-async def resolve_ai_settings_for_translation() -> tuple[str, str]:
+async def resolve_ai_settings_for_translation() -> tuple[str, list[str], list[str]]:
     try:
-        settings = supabase.table("novel_settings").select("ai_model_name, ai_api_key").eq("id", 1).single().execute()
+        settings = (
+            supabase.table("novel_settings")
+            .select("ai_model_name, ai_model_catalog, ai_api_key, ai_api_keys")
+            .eq("id", 1)
+            .single()
+            .execute()
+        )
         if settings.data:
             model_name = settings.data.get("ai_model_name") or TRANSLATION_MODEL_FALLBACK
             api_key = settings.data.get("ai_api_key") or os.getenv("GEMINI_API_KEY", "")
-            return model_name, api_key
+            return (
+                model_name,
+                normalize_model_catalog(settings.data.get("ai_model_catalog"), model_name),
+                normalize_api_key_catalog(settings.data.get("ai_api_keys"), api_key),
+            )
     except Exception:
         pass
-    return TRANSLATION_MODEL_FALLBACK, os.getenv("GEMINI_API_KEY", "")
+    fallback_key = os.getenv("GEMINI_API_KEY", "")
+    return (
+        TRANSLATION_MODEL_FALLBACK,
+        DEFAULT_TRANSLATION_MODELS.copy(),
+        normalize_api_key_catalog([], fallback_key),
+    )
 
 
 async def translate_text_with_ai(source_text: str, source_locale: str, target_locale: str, context_label: str) -> str:
-    model_name, api_key = await resolve_ai_settings_for_translation()
-    if not api_key:
+    _active_model, model_catalog, api_keys = await resolve_ai_settings_for_translation()
+    if not api_keys:
         raise HTTPException(status_code=503, detail="AI translation is not configured")
 
     glossary_prompt = build_glossary_prompt()
@@ -370,25 +431,37 @@ SOURCE:
 {source_text}
 """.strip()
 
-    gemini_url = (
-        "https://generativelanguage.googleapis.com/v1beta/models/"
-        f"{model_name}:generateContent?key={api_key}"
-    )
     payload = {
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
         "generationConfig": {"maxOutputTokens": 8192, "temperature": 0.3},
     }
 
+    last_error: Optional[HTTPException] = None
     async with httpx.AsyncClient(timeout=60.0) as client:
-        response = await client.post(gemini_url, json=payload)
-        if not response.is_success:
-            raise HTTPException(status_code=response.status_code, detail=f"Translation API error: {response.text}")
-        data = response.json()
+        for api_key in api_keys:
+            for model_name in model_catalog:
+                gemini_url = (
+                    "https://generativelanguage.googleapis.com/v1beta/models/"
+                    f"{model_name}:generateContent?key={api_key}"
+                )
+                response = await client.post(gemini_url, json=payload)
+                if response.is_success:
+                    data = response.json()
+                    try:
+                        return data["candidates"][0]["content"]["parts"][0]["text"].strip()
+                    except Exception as exc:
+                        raise HTTPException(status_code=502, detail=f"Invalid translation response: {exc}")
 
-    try:
-        return data["candidates"][0]["content"]["parts"][0]["text"].strip()
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Invalid translation response: {exc}")
+                last_error = HTTPException(
+                    status_code=response.status_code,
+                    detail=f"Translation API error: {response.text}",
+                )
+                if not is_translation_retryable(last_error):
+                    raise last_error
+
+    if last_error:
+        raise last_error
+    raise HTTPException(status_code=502, detail="No translation model available")
 
 
 async def upsert_chapter_translation(chapter_row: dict, title: str, content: str, locale: str):
@@ -996,8 +1069,9 @@ class NovelSettings(BaseModel):
     max_chapter: int = 0
     total_views: int = 0
     total_likes: int = 0
-    ai_model_name: str = "gemini-3.1-flash-lite-preview"
-    ai_model_catalog: list[str] = ["gemini-3.1-flash-lite-preview"]
+    ai_model_name: str = TRANSLATION_MODEL_FALLBACK
+    ai_model_catalog: list[str] = DEFAULT_TRANSLATION_MODELS.copy()
+    ai_api_keys_count: int = 0
     has_ai_key: bool = False  # Frontend diagnostic
     requested_locale: str = DEFAULT_LOCALE
     resolved_locale: str = DEFAULT_LOCALE
@@ -1015,6 +1089,7 @@ class AdminNovelUpdate(BaseModel):
     ai_model_name: Optional[str] = None
     ai_model_catalog: Optional[list[str]] = None
     ai_api_key: Optional[str] = None
+    ai_api_keys: Optional[list[str]] = None
 
 
 @app.get("/api/novel", response_model=NovelSettings)
@@ -1045,7 +1120,8 @@ async def get_novel_settings(locale: str = Query(DEFAULT_LOCALE, description="Re
             "max_chapter": max_chapter,
             "total_views": total_views,
             "total_likes": total_likes,
-            "ai_model_catalog": ["gemini-3.1-flash-lite-preview"],
+            "ai_model_catalog": DEFAULT_TRANSLATION_MODELS.copy(),
+            "ai_api_keys_count": 0,
         }
 
         requested_locale = normalize_locale(locale)
@@ -1064,8 +1140,10 @@ async def get_novel_settings(locale: str = Query(DEFAULT_LOCALE, description="Re
         final_data["max_chapter"] = max_chapter
         final_data["total_views"] = total_views
         final_data["total_likes"] = total_likes
-        final_data["ai_model_name"] = resp.data.get("ai_model_name", "gemini-3.1-flash-lite-preview")
-        final_data["ai_model_catalog"] = resp.data.get("ai_model_catalog") or [final_data["ai_model_name"]]
+        final_data["ai_model_name"] = resp.data.get("ai_model_name", TRANSLATION_MODEL_FALLBACK)
+        final_data["ai_model_catalog"] = normalize_model_catalog(resp.data.get("ai_model_catalog"), final_data["ai_model_name"])
+        key_catalog = normalize_api_key_catalog(resp.data.get("ai_api_keys"), resp.data.get("ai_api_key") or "")
+        final_data["ai_api_keys_count"] = len(key_catalog)
         final_data["requested_locale"] = requested_locale
         final_data["resolved_locale"] = DEFAULT_LOCALE
         final_data["is_fallback"] = False
@@ -1082,9 +1160,11 @@ async def get_novel_settings(locale: str = Query(DEFAULT_LOCALE, description="Re
         
         # Security: Never return the actual API key to the frontend
         db_key = resp.data.get("ai_api_key")
-        final_data["has_ai_key"] = bool(db_key and len(db_key) > 5)
+        final_data["has_ai_key"] = bool(key_catalog or (db_key and len(db_key) > 5))
         if "ai_api_key" in final_data:
             del final_data["ai_api_key"]
+        if "ai_api_keys" in final_data:
+            del final_data["ai_api_keys"]
         
         return NovelSettings(**final_data)
     except Exception as e:
@@ -1101,8 +1181,9 @@ async def get_novel_settings(locale: str = Query(DEFAULT_LOCALE, description="Re
             max_chapter=0,
             total_views=0,
             total_likes=0,
-            ai_model_name="gemini-1.5-flash",
-            ai_model_catalog=["gemini-1.5-flash"],
+            ai_model_name=TRANSLATION_MODEL_FALLBACK,
+            ai_model_catalog=DEFAULT_TRANSLATION_MODELS.copy(),
+            ai_api_keys_count=0,
             requested_locale=normalize_locale(locale),
             resolved_locale=DEFAULT_LOCALE,
             is_fallback=normalize_locale(locale) != DEFAULT_LOCALE,
@@ -1124,12 +1205,24 @@ async def admin_update_novel(
     if "description" in data:
         data["description"] = sanitize_html(data.get("description")) or ""
 
-    ai_fields = {"ai_model_name", "ai_model_catalog", "ai_api_key"}
+    ai_fields = {"ai_model_name", "ai_model_catalog", "ai_api_key", "ai_api_keys"}
     if any(field in data for field in ai_fields) and user.get("role") != "superadmin":
         raise HTTPException(
             status_code=403,
             detail="Only superadmin can update AI model or API key.",
         )
+
+    if "ai_model_catalog" in data:
+        data["ai_model_catalog"] = normalize_model_catalog(
+            data.get("ai_model_catalog"),
+            data.get("ai_model_name") or TRANSLATION_MODEL_FALLBACK,
+        )
+
+    if "ai_api_keys" in data:
+        normalized_keys = normalize_api_key_catalog(data.get("ai_api_keys"), data.get("ai_api_key") or "")
+        data["ai_api_keys"] = normalized_keys
+        if normalized_keys:
+            data["ai_api_key"] = normalized_keys[0]
 
     # Update novel settings (ID 1)
     result = supabase.table("novel_settings").upsert({**data, "id": 1}).execute()

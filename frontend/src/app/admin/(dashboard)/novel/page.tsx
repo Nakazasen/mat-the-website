@@ -18,14 +18,20 @@ import {
 import { Save, AlertTriangle, CheckCircle2, Loader2, BookOpen, User, FileText, Image as ImageIcon, Tag, Upload, ShieldAlert, Bot, FlaskConical, Plus, Play, Wand2, ChevronLeft, ChevronRight } from 'lucide-react';
 import RichTextEditor from '@/components/Editor';
 
-const DEFAULT_AI_MODEL = 'gemini-3.1-flash-lite-preview';
+const DEFAULT_AI_MODEL = 'gemini-3-flash-preview';
 const DEFAULT_AI_MODELS = [
-    'gemini-3.1-flash-lite-preview',
-    'gemini-3.1-flash-preview',
-    'gemini-3.1-pro-preview',
+    'gemini-3-flash-preview',
     'gemini-2.5-flash',
-    'gemini-2.5-pro',
+    'gemini-2.5-flash-lite',
+    'gemini-3.1-flash-lite-preview',
+    'gemma-3-27b-it',
+    'gemma-3-12b-it',
+    'gemma-3-4b-it',
+    'gemma-3n-e2b-it',
+    'gemma-3n-1b-it',
+    'gemini-robotics-er-1.5-preview',
 ];
+const AI_KEY_SLOTS = 3;
 
 export default function AdminNovelPage() {
     const router = useRouter();
@@ -53,6 +59,7 @@ export default function AdminNovelPage() {
     const [userRole, setUserRole] = useState<string>('editor');
     const [aiModelName, setAiModelName] = useState(DEFAULT_AI_MODEL);
     const [aiApiKeyInput, setAiApiKeyInput] = useState('');
+    const [aiApiKeysInputs, setAiApiKeysInputs] = useState<string[]>(Array.from({ length: AI_KEY_SLOTS }, () => ''));
     const [customModelInput, setCustomModelInput] = useState('');
     const [modelCatalog, setModelCatalog] = useState<string[]>(DEFAULT_AI_MODELS);
     const [playgroundPrompt, setPlaygroundPrompt] = useState('Tra loi ngan gon bang tieng Viet: xac nhan model dang hoat dong va san sang phan hoi.');
@@ -110,7 +117,7 @@ export default function AdminNovelPage() {
         setSuccess(false);
 
         try {
-            const payload: Partial<NovelSettings> & { ai_api_key?: string } = {
+            const payload: Partial<NovelSettings> & { ai_api_key?: string; ai_api_keys?: string[] } = {
                 title: settings.title,
                 author: settings.author,
                 description: settings.description,
@@ -123,17 +130,20 @@ export default function AdminNovelPage() {
             if (userRole === 'superadmin') {
                 payload.ai_model_name = aiModelName.trim() || DEFAULT_AI_MODEL;
                 payload.ai_model_catalog = Array.from(new Set(modelCatalog.map((model) => model.trim()).filter(Boolean)));
-                if (aiApiKeyInput.trim()) {
-                    payload.ai_api_key = aiApiKeyInput.trim();
+                const normalizedKeys = aiApiKeysInputs.map((item) => item.trim()).filter(Boolean);
+                if (normalizedKeys.length > 0) {
+                    payload.ai_api_keys = normalizedKeys;
+                    payload.ai_api_key = normalizedKeys[0];
                 }
             }
 
             await updateNovelSettings(payload, token);
             setSuccess(true);
-            setAiApiKeyInput('');
+            setAiApiKeysInputs(Array.from({ length: AI_KEY_SLOTS }, () => ''));
             setSettings((prev) => ({
                 ...prev,
                 has_ai_key: prev.has_ai_key || Boolean(payload.ai_api_key),
+                ai_api_keys_count: payload.ai_api_keys?.length || prev.ai_api_keys_count,
                 ai_model_name: payload.ai_model_name || prev.ai_model_name,
                 ai_model_catalog: payload.ai_model_catalog || prev.ai_model_catalog,
             }));
@@ -446,7 +456,7 @@ export default function AdminNovelPage() {
                     <p className="text-xs font-mono tracking-widest text-gray-400">AI COMMAND</p>
                     {userRole === 'superadmin' ? (
                         <div className="space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 gap-4">
                                 <div className="space-y-2">
                                     <label className="text-[11px] font-mono text-gray-500 uppercase tracking-widest">Tên Model</label>
                                     <input
@@ -456,8 +466,23 @@ export default function AdminNovelPage() {
                                         className="w-full bg-black border border-gray-800 rounded px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:border-green-500"
                                         placeholder={DEFAULT_AI_MODEL}
                                     />
+                                    <div className="mt-2 space-y-2">
+                                        {Array.from({ length: AI_KEY_SLOTS }, (_, index) => (
+                                            <input
+                                                key={`ai-key-slot-${index}`}
+                                                type="password"
+                                                value={aiApiKeysInputs[index] || ''}
+                                                onChange={(e) => setAiApiKeysInputs((current) => current.map((item, itemIndex) => itemIndex === index ? e.target.value : item))}
+                                                className="w-full bg-black border border-gray-800 rounded px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:border-green-500"
+                                                placeholder={`Nhap API key project ${index + 1}`}
+                                            />
+                                        ))}
+                                    </div>
+                                    <p className="text-xs text-gray-500">
+                                        Dang luu tren server: {settings.ai_api_keys_count || 0} key. Backend se xoay tung to hop <span className="font-mono text-gray-300">key x model</span> theo thu tu uu tien.
+                                    </p>
                                 </div>
-                                <div className="space-y-2">
+                                <div className="hidden">
                                     <label className="text-[11px] font-mono text-gray-500 uppercase tracking-widest">
                                         API Key {settings.has_ai_key ? '(đã cấu hình)' : '(chưa có)'}
                                     </label>
@@ -465,7 +490,7 @@ export default function AdminNovelPage() {
                                         type="password"
                                         value={aiApiKeyInput}
                                         onChange={(e) => setAiApiKeyInput(e.target.value)}
-                                        className="w-full bg-black border border-gray-800 rounded px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:border-green-500"
+                                        className="hidden"
                                         placeholder="Nhập API key mới để ghi đè"
                                     />
                                 </div>
@@ -478,6 +503,9 @@ export default function AdminNovelPage() {
                                 </div>
                                 <p className="text-xs text-gray-500">
                                     Danh sách này được lưu server-side. Backend sẽ tự thử model tiếp theo trong catalog nếu model hiện tại bị rate-limit hoặc hết quota/RPD.
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                    Rotation backend dang chay theo thu tu catalog va thu tung to hop key x model cho den khi co model tra loi thanh cong.
                                 </p>
                                 <div className="flex flex-wrap gap-2">
                                     {modelCatalog.map((model, index) => {

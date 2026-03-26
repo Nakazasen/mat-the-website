@@ -122,6 +122,7 @@ export interface NovelSettings {
     total_likes: number;
     ai_model_name?: string;
     ai_model_catalog?: string[];
+    ai_api_keys_count?: number;
     has_ai_key?: boolean;
     requested_locale?: Locale;
     resolved_locale?: Locale;
