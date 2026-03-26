@@ -549,6 +549,119 @@ SOURCE:
     raise HTTPException(status_code=502, detail="Không có mô hình dịch khả dụng")
 
 
+async def translate_chapter_payload_with_ai(
+    title: str,
+    content: str,
+    source_locale: str,
+    target_locale: str,
+    context_label: str,
+) -> dict:
+    _active_model, model_catalog, api_keys = await resolve_ai_settings_for_translation()
+    if not api_keys:
+        raise HTTPException(status_code=503, detail="AI translation is not configured")
+
+    glossary_prompt = build_glossary_prompt()
+    prompt = f"""
+Ban la bien dich vien chuyen nghiep cho tieu thuyet sinh ton hau tan the.
+Hay dich title va content sau tu {source_locale} sang {target_locale}.
+
+YEU CAU:
+1. Giu nguyen ten rieng theo glossary neu co.
+2. Khong duoc rut gon, khong them giai thich, khong them markdown.
+3. Giu nguyen ngat doan va thu tu noi dung.
+4. Tra ve DUY NHAT mot JSON hop le theo schema:
+{{"title":"...","content":"..."}}
+5. Khong boc JSON trong code fence.
+
+CONTEXT: {context_label}
+
+GLOSSARY:
+{glossary_prompt}
+
+SOURCE TITLE:
+{title}
+
+SOURCE CONTENT:
+{content}
+""".strip()
+
+    payload = {
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        "generationConfig": {"maxOutputTokens": 8192, "temperature": 0.3},
+    }
+
+    def parse_translation_payload(raw_text: str) -> dict:
+        cleaned = (raw_text or "").strip()
+        if cleaned.startswith("```"):
+            cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r"\s*```$", "", cleaned)
+            cleaned = cleaned.strip()
+
+        parsed = json.loads(cleaned)
+        translated_title = str(parsed.get("title") or "").strip()
+        translated_content = str(parsed.get("content") or "").strip()
+        if not translated_title or not translated_content:
+            raise ValueError("Missing title/content in JSON payload")
+        return {
+            "title": translated_title,
+            "content": translated_content,
+        }
+
+    last_error: Optional[HTTPException] = None
+    attempts: list[dict] = []
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        for key_index, api_key in enumerate(api_keys, start=1):
+            for model_name in model_catalog:
+                await throttle_translation_request(model_name, api_key)
+                gemini_url = (
+                    "https://generativelanguage.googleapis.com/v1beta/models/"
+                    f"{model_name}:generateContent?key={api_key}"
+                )
+                response = await client.post(gemini_url, json=payload)
+                if response.is_success:
+                    data = response.json()
+                    try:
+                        raw_text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+                        return parse_translation_payload(raw_text)
+                    except Exception as exc:
+                        raise HTTPException(status_code=502, detail=f"Model {model_name}: invalid chapter translation payload: {exc}")
+
+                last_error = HTTPException(
+                    status_code=response.status_code,
+                    detail=f"Model {model_name}: Translation API error: {response.text}",
+                )
+                attempts.append(
+                    {
+                        "key_index": key_index,
+                        "model": model_name,
+                        "status_code": response.status_code,
+                        "message": response.text,
+                    }
+                )
+                if not is_translation_retryable(last_error):
+                    raise HTTPException(
+                        status_code=last_error.status_code,
+                        detail=build_translation_failure_detail(
+                            attempts,
+                            len(api_keys),
+                            len(model_catalog),
+                            str(last_error.detail),
+                        ),
+                    )
+
+    if last_error:
+        raise HTTPException(
+            status_code=last_error.status_code,
+            detail=build_translation_failure_detail(
+                attempts,
+                len(api_keys),
+                len(model_catalog),
+                str(last_error.detail),
+            ),
+        )
+    raise HTTPException(status_code=502, detail="Không có mô hình dịch chương khả dụng")
+
+
 async def upsert_chapter_translation(chapter_row: dict, title: str, content: str, locale: str):
     if normalize_locale(locale) == DEFAULT_LOCALE:
         return None
@@ -583,8 +696,15 @@ async def upsert_chapter_translation(chapter_row: dict, title: str, content: str
     supabase.table("chapter_translations").upsert(status_payload, on_conflict="chapter_id,locale").execute()
 
     try:
-        translated_title = await translate_text_with_ai(title, DEFAULT_LOCALE, locale, f"chapter-title-{chapter_row['chapter_number']}")
-        translated_content = await translate_text_with_ai(content, DEFAULT_LOCALE, locale, f"chapter-content-{chapter_row['chapter_number']}")
+        translated_payload = await translate_chapter_payload_with_ai(
+            title,
+            content,
+            DEFAULT_LOCALE,
+            locale,
+            f"chapter-{chapter_row['chapter_number']}",
+        )
+        translated_title = translated_payload["title"]
+        translated_content = translated_payload["content"]
         payload = {
             "chapter_id": chapter_row["id"],
             "locale": locale,
