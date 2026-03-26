@@ -450,18 +450,18 @@ SOURCE:
                     try:
                         return data["candidates"][0]["content"]["parts"][0]["text"].strip()
                     except Exception as exc:
-                        raise HTTPException(status_code=502, detail=f"Invalid translation response: {exc}")
+                        raise HTTPException(status_code=502, detail=f"Model {model_name}: invalid translation response: {exc}")
 
                 last_error = HTTPException(
                     status_code=response.status_code,
-                    detail=f"Translation API error: {response.text}",
+                    detail=f"Model {model_name}: Translation API error: {response.text}",
                 )
                 if not is_translation_retryable(last_error):
                     raise last_error
 
     if last_error:
         raise last_error
-    raise HTTPException(status_code=502, detail="No translation model available")
+    raise HTTPException(status_code=502, detail="Không có mô hình dịch khả dụng")
 
 
 async def upsert_chapter_translation(chapter_row: dict, title: str, content: str, locale: str):
