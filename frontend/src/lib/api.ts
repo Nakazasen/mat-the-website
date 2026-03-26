@@ -1,5 +1,6 @@
 // === API CLIENT ===
 import imageCompression from 'browser-image-compression';
+import type { Locale } from '@/lib/i18n/config';
 
 // Frontend calls backend API to get chapter metadata + R2 URL
 // Then fetches content directly from Cloudflare CDN
@@ -14,6 +15,11 @@ export interface Chapter {
     content_url: string; // Cloudflare R2 public URL
     created_at: string;
     word_count?: number;
+    requested_locale?: Locale;
+    resolved_locale?: Locale;
+    is_fallback?: boolean;
+    translated_title?: string;
+    translated_content?: string;
 }
 
 export interface ChaptersResponse {
@@ -28,10 +34,17 @@ export interface ChaptersResponse {
 // Fetch paginated list of chapters
 export async function getChapters(
     page: number = 1,
-    limit: number = 50
+    limit: number = 50,
+    locale?: Locale
 ): Promise<ChaptersResponse> {
+    const params = new URLSearchParams({
+        page: page.toString(),
+        limit: limit.toString(),
+    });
+    if (locale) params.set("locale", locale);
+
     const res = await fetch(
-        `${API_BASE_URL}/api/chapters?page=${page}&limit=${limit}`,
+        `${API_BASE_URL}/api/chapters?${params.toString()}`,
         {
             cache: "no-store", // Tắt hoàn toàn cache cho danh sách chương
         }
@@ -41,9 +54,16 @@ export async function getChapters(
 }
 
 // Fetch latest N chapters for homepage
-export async function getLatestChapters(count: number = 10): Promise<Chapter[]> {
+export async function getLatestChapters(count: number = 10, locale?: Locale): Promise<Chapter[]> {
+    const params = new URLSearchParams({
+        page: "1",
+        limit: count.toString(),
+        sort: "desc",
+    });
+    if (locale) params.set("locale", locale);
+
     const res = await fetch(
-        `${API_BASE_URL}/api/chapters?page=1&limit=${count}&sort=desc`,
+        `${API_BASE_URL}/api/chapters?${params.toString()}`,
         {
             cache: "no-store", // Tắt hoàn toàn cache cho trang chủ
         }
@@ -54,8 +74,11 @@ export async function getLatestChapters(count: number = 10): Promise<Chapter[]> 
 }
 
 // Fetch single chapter metadata by chapter_number
-export async function getChapter(chapterNumber: number): Promise<Chapter> {
-    const res = await fetch(`${API_BASE_URL}/api/chapters/${chapterNumber}`, {
+export async function getChapter(chapterNumber: number, locale?: Locale): Promise<Chapter> {
+    const params = new URLSearchParams();
+    if (locale) params.set("locale", locale);
+
+    const res = await fetch(`${API_BASE_URL}/api/chapters/${chapterNumber}${params.toString() ? `?${params.toString()}` : ""}`, {
         next: { revalidate: 3600 }, // cache 1 hour
     });
     if (!res.ok) throw new Error(`Chapter ${chapterNumber} not found`);
@@ -100,6 +123,9 @@ export interface NovelSettings {
     ai_model_name?: string;
     ai_model_catalog?: string[];
     has_ai_key?: boolean;
+    requested_locale?: Locale;
+    resolved_locale?: Locale;
+    is_fallback?: boolean;
 }
 
 export interface AdminAiPlaygroundRequest {
@@ -143,8 +169,11 @@ export interface AdminOracleResetResponse {
 }
 
 // Fetch general novel settings (Title, Author, Desc etc)
-export async function getNovelSettings(): Promise<NovelSettings> {
-    const res = await fetch(`${API_BASE_URL}/api/novel`, {
+export async function getNovelSettings(locale?: Locale): Promise<NovelSettings> {
+    const params = new URLSearchParams();
+    if (locale) params.set("locale", locale);
+
+    const res = await fetch(`${API_BASE_URL}/api/novel${params.toString() ? `?${params.toString()}` : ""}`, {
         cache: "no-store", // Bỏ qua cache để cập nhật tức thì khi admin đổi model
     });
     if (!res.ok) throw new Error("Failed to fetch novel settings");
@@ -220,6 +249,20 @@ export async function resetAdminOracleRateLimit(token: string): Promise<AdminOra
     return payload;
 }
 
+export async function translateAdminChapter(chapterNumber: number, token: string): Promise<{ message: string; chapter_number: number; translated_locales: string[] }> {
+    const res = await fetch(`${API_BASE_URL}/api/admin/chapters/${chapterNumber}/translate`, {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${token}`,
+        },
+    });
+    const payload = await res.json();
+    if (!res.ok) {
+        throw new Error(payload.detail || "Failed to translate chapter");
+    }
+    return payload;
+}
+
 // reportView moved to ANALYTICS section below (with localStorage anti-spam)
 
 // Utility
@@ -244,6 +287,9 @@ export interface WikiEntry {
     is_main_character: boolean;
     created_at: string;
     updated_at: string;
+    requested_locale?: Locale;
+    resolved_locale?: Locale;
+    is_fallback?: boolean;
 }
 
 export interface WikiEntryIn {
@@ -287,13 +333,15 @@ export async function getWikiEntries(
     category?: string, 
     search?: string,
     page: number = 1,
-    limit: number = 50
+    limit: number = 50,
+    locale?: Locale
 ): Promise<WikiEntriesResponse> {
     const params = new URLSearchParams();
     if (category) params.set("category", category);
     if (search) params.set("search", search);
     params.set("page", page.toString());
     params.set("limit", limit.toString());
+    if (locale) params.set("locale", locale);
     
     const response = await fetch(`${API_BASE_URL}/api/wiki?${params.toString()}`, { cache: "no-store" });
     if (!response.ok) throw new Error("Failed to fetch wiki entries");
@@ -314,8 +362,11 @@ export async function getWikiEntries(
     return data;
 }
 
-export async function getWikiEntry(slug: string): Promise<WikiEntry> {
-    const res = await fetch(`${API_BASE_URL}/api/wiki/${slug}`, { cache: "no-store" });
+export async function getWikiEntry(slug: string, locale?: Locale): Promise<WikiEntry> {
+    const params = new URLSearchParams();
+    if (locale) params.set("locale", locale);
+
+    const res = await fetch(`${API_BASE_URL}/api/wiki/${slug}${params.toString() ? `?${params.toString()}` : ""}`, { cache: "no-store" });
     if (!res.ok) throw new Error(`Wiki entry '${slug}' not found`);
     return res.json();
 }
@@ -492,14 +543,37 @@ export interface HomepageSettings {
     warning_description: string;
     features_title: string;
     features_json: Feature[];
+    requested_locale?: Locale;
+    resolved_locale?: Locale;
+    is_fallback?: boolean;
 }
 
-export async function getHomepageSettings(): Promise<HomepageSettings> {
-    const res = await fetch(`${API_BASE_URL}/api/homepage`, {
+export async function getHomepageSettings(locale?: Locale): Promise<HomepageSettings> {
+    const params = new URLSearchParams();
+    if (locale) params.set("locale", locale);
+
+    const res = await fetch(`${API_BASE_URL}/api/homepage${params.toString() ? `?${params.toString()}` : ""}`, {
         next: { revalidate: 300 } // cache 5 minutes
     });
     if (!res.ok) throw new Error("Failed to fetch homepage settings");
     return res.json();
+}
+
+export async function translateAdminHomepage(token: string, locale?: Locale): Promise<{ message: string; translated_locales: string[] }> {
+    const params = new URLSearchParams();
+    if (locale) params.set("locale", locale);
+
+    const res = await fetch(`${API_BASE_URL}/api/admin/homepage/translate${params.toString() ? `?${params.toString()}` : ""}`, {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${token}`,
+        },
+    });
+    const payload = await res.json();
+    if (!res.ok) {
+        throw new Error(payload.detail || "Failed to translate homepage settings");
+    }
+    return payload;
 }
 // ============================================================
 // MAP LOCATIONS API (Phase 09)

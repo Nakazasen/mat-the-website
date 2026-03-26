@@ -3,6 +3,7 @@ import { BookOpen, Filter, Star } from "lucide-react";
 import Link from "next/link";
 import { getWikiEntries, WikiEntry, WIKI_CATEGORIES } from "@/lib/api";
 import WikiSettingsWrapper from "@/components/WikiSettingsWrapper";
+import { getCurrentLocale } from "@/lib/i18n/server";
 
 export const metadata = {
     title: "Cẩm Nang Mạt Thế | Bách Khoa Toàn Thư",
@@ -110,11 +111,12 @@ function Pagination({ currentPage, totalPages, cat }: { currentPage: number; tot
 }
 
 async function WikiGrid({ category, page }: { category?: string; page: number }) {
+    const locale = await getCurrentLocale();
     let entries: WikiEntry[] = [];
     let totalPages = 1;
     
     try {
-        const response = await getWikiEntries(category, undefined, page);
+        const response = await getWikiEntries(category, undefined, page, 50, locale);
         entries = response.entries;
         totalPages = response.total_pages;
     } catch {

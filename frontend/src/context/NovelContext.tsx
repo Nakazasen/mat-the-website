@@ -1,6 +1,7 @@
 "use client";
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { getNovelSettings, type NovelSettings } from "@/lib/api";
+import { useLocale } from "./LocaleContext";
 
 interface NovelContextType {
     novel: NovelSettings | null;
@@ -11,13 +12,14 @@ interface NovelContextType {
 const NovelContext = createContext<NovelContextType | undefined>(undefined);
 
 export function NovelProvider({ children }: { children: React.ReactNode }) {
+    const { locale } = useLocale();
     const [novel, setNovel] = useState<NovelSettings | null>(null);
     const [loading, setLoading] = useState(true);
 
     const fetchNovel = async () => {
         try {
             setLoading(true);
-            const data = await getNovelSettings();
+            const data = await getNovelSettings(locale);
             setNovel(data);
         } catch (error) {
             console.error("Failed to fetch novel settings:", error);
@@ -28,7 +30,7 @@ export function NovelProvider({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         fetchNovel();
-    }, []);
+    }, [locale]);
 
     return (
         <NovelContext.Provider value={{ novel, loading, refreshNovel: fetchNovel }}>

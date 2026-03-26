@@ -1,0 +1,18 @@
+[
+  {
+    "source": "Hàn Phong",
+    "translations": {
+      "en": "Han Phong",
+      "zh-CN": "韩枫",
+      "ja": "ハン・フォン"
+    }
+  },
+  {
+    "source": "Mạt Thế",
+    "translations": {
+      "en": "Apocalypse",
+      "zh-CN": "末世",
+      "ja": "終末"
+    }
+  }
+]

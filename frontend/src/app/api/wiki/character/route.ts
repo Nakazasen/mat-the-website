@@ -11,13 +11,14 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const name = searchParams.get('name');
     const chapter = searchParams.get('chapter') ?? '9999';
+    const locale = searchParams.get('locale') ?? 'vi';
 
     if (!name || name.trim().length < 2) {
         return NextResponse.json({ error: 'Invalid character name' }, { status: 400 });
     }
 
     try {
-        const params = new URLSearchParams({ name: name.trim(), chapter });
+        const params = new URLSearchParams({ name: name.trim(), chapter, locale });
         const res = await fetch(`${BACKEND_URL}/wiki/character?${params}`, {
             next: { revalidate: 300 }, // Cache 5 minutes per character
         });

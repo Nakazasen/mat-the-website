@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import dynamic from 'next/dynamic';
-import { createAdminClient } from '@/lib/supabase-admin';
-import { ArrowLeft, Save, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CheckCircle2, Languages, Save } from 'lucide-react';
 
 import RichTextEditor from '@/components/Editor';
+import { translateAdminChapter } from '@/lib/api';
+import { createAdminClient } from '@/lib/supabase-admin';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
@@ -21,65 +21,62 @@ export default function EditChapterPage() {
     const [isSideStory, setIsSideStory] = useState(false);
     const [loading, setLoading] = useState(false);
     const [initialLoading, setInitialLoading] = useState(true);
+    const [translating, setTranslating] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
     const [token, setToken] = useState<string | null>(null);
 
-
-    // Load chapter data on mount
     useEffect(() => {
         const supabase = createAdminClient();
         if (!supabase) {
-            setError('Lỗi cấu hình: Thiếu NEXT_PUBLIC_SUPABASE_URL trên Vercel.');
+            setError('Lỗi cấu hình: thiếu NEXT_PUBLIC_SUPABASE_URL.');
             setInitialLoading(false);
             return;
         }
+
         supabase.auth.getSession().then(async ({ data: { session } }) => {
-            if (!session) { router.push('/admin/login'); return; }
+            if (!session) {
+                router.push('/admin/login');
+                return;
+            }
             setToken(session.access_token);
 
             try {
-                // Fetch chapter metadata
                 const metaRes = await fetch(`${API_BASE_URL}/api/chapters/${chapterNumber}`);
                 if (!metaRes.ok) {
-                    setError(`Không tìm thấy thông tin chương ${chapterNumber} (Status: ${metaRes.status})`);
+                    setError(`Không tìm thấy thông tin chương ${chapterNumber} (status ${metaRes.status})`);
                     setInitialLoading(false);
                     return;
                 }
+
                 const meta = await metaRes.json();
                 setTitle(meta.title || `Chương ${chapterNumber}`);
                 setIsSideStory(meta.is_side_story || false);
 
-                // Fetch chapter content from Backend (Proxy to avoid CORS)
                 const contentRes = await fetch(`${API_BASE_URL}/api/admin/chapters/${chapterNumber}/content`, {
-                    headers: { 'Authorization': `Bearer ${session.access_token}` },
-                    cache: 'no-store'
+                    headers: { Authorization: `Bearer ${session.access_token}` },
+                    cache: 'no-store',
                 });
 
                 if (contentRes.ok) {
                     const text = await contentRes.text();
-                    // If it's already HTML (e.g. from Tiptap), just set it. 
-                    // If it's plain text (legacy), convert newlines to paragraph tags.
                     const isHtml = text.trim().startsWith('<');
-
                     if (isHtml) {
                         setContent(text || '<p></p>');
                     } else {
-                        const htmlContent = text.split('\n')
-                            .map(line => line.trim())
-                            .filter(line => line.length > 0)
-                            .map(line => `<p>${line}</p>`)
+                        const htmlContent = text
+                            .split('\n')
+                            .map((line) => line.trim())
+                            .filter((line) => line.length > 0)
+                            .map((line) => `<p>${line}</p>`)
                             .join('');
-
                         setContent(htmlContent || '<p></p>');
                     }
                 } else {
                     const errData = await contentRes.json().catch(() => ({}));
-                    console.error("Failed to load content from proxy:", errData);
-                    setError(`Lỗi khi tải nội dung chương: ${errData.detail || contentRes.statusText || 'Lỗi proxy'}`);
+                    setError(`Lỗi khi tải nội dung chương: ${errData.detail || contentRes.statusText}`);
                 }
             } catch (err: any) {
-                console.error("Error loading chapter:", err);
                 setError(`Lỗi hệ thống khi tải dữ liệu: ${err.message}`);
             } finally {
                 setInitialLoading(false);
@@ -87,27 +84,23 @@ export default function EditChapterPage() {
         });
     }, [chapterNumber, router]);
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleSubmit = async (event: React.FormEvent) => {
+        event.preventDefault();
         if (!token) return;
         setLoading(true);
         setError(null);
-
-        // Strip HTML if necessary for backend (though backend already accepts strings)
-        // With Tiptap, we want to save exactly what it gives us (HTML) 
-        const cleanContent = content;
 
         try {
             const res = await fetch(`${API_BASE_URL}/api/admin/chapters/${chapterNumber}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`,
+                    Authorization: `Bearer ${token}`,
                 },
                 body: JSON.stringify({
                     title: title.trim(),
-                    content: cleanContent.trim(),
-                    is_side_story: isSideStory
+                    content: content.trim(),
+                    is_side_story: isSideStory,
                 }),
             });
 
@@ -123,24 +116,48 @@ export default function EditChapterPage() {
         }
     };
 
+    const handleTranslate = async () => {
+        if (!token) return;
+        setTranslating(true);
+        try {
+            const result = await translateAdminChapter(chapterNumber, token);
+            alert(`Đã dịch chương ${chapterNumber}: ${result.translated_locales.join(', ')}`);
+        } catch (err: any) {
+            alert(`Lỗi dịch chương ${chapterNumber}: ${err.message}`);
+        } finally {
+            setTranslating(false);
+        }
+    };
+
     if (initialLoading) {
         return <div className="font-mono text-xs text-gray-500 animate-pulse">ĐANG TẢI DỮ LIỆU...</div>;
     }
 
     return (
         <div className="max-w-4xl pb-20">
+            <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
+                <div className="flex items-center gap-3">
+                    <Link href="/admin/chapters" className="text-gray-500 hover:text-gray-200 transition-colors">
+                        <ArrowLeft size={16} />
+                    </Link>
+                    <h1 className="text-lg font-mono text-gray-100 tracking-wide">SỬA CHƯƠNG {String(chapterNumber).padStart(3, '0')}</h1>
+                </div>
 
-            <div className="flex items-center gap-3 mb-6">
-                <Link href="/admin/chapters" className="text-gray-500 hover:text-gray-200 transition-colors">
-                    <ArrowLeft size={16} />
-                </Link>
-                <h1 className="text-lg font-mono text-gray-100 tracking-wide">SỬA CHƯƠNG {String(chapterNumber).padStart(3, '0')}</h1>
+                <button
+                    type="button"
+                    onClick={handleTranslate}
+                    disabled={!token || translating}
+                    className="flex items-center gap-2 px-4 py-2 rounded-md border border-purple-700/60 text-purple-300 hover:bg-purple-500/10 hover:border-purple-500 disabled:opacity-50 font-mono text-xs"
+                >
+                    <Languages size={14} />
+                    {translating ? 'ĐANG DỊCH 3 NGÔN NGỮ...' : 'DỊCH 3 NGÔN NGỮ'}
+                </button>
             </div>
 
             {success && (
                 <div className="flex items-center gap-2 text-green-400 bg-green-950/30 border border-green-800/50 rounded p-3 text-sm mb-4">
                     <CheckCircle2 size={14} />
-                    <span>Cập nhật thành công! Đang chuyển về danh sách...</span>
+                    <span>Cập nhật thành công. Đang chuyển về danh sách...</span>
                 </div>
             )}
 
@@ -158,9 +175,9 @@ export default function EditChapterPage() {
                         <input
                             type="text"
                             value={title}
-                            onChange={(e) => setTitle(e.target.value)}
+                            onChange={(event) => setTitle(event.target.value)}
                             required
-                            placeholder="Ví dụ: Đầu lâu khổng lồ ngoài cửa sổ"
+                            placeholder="Ví dụ: Đầu lâu không lộ ngoài cửa sổ"
                             className="w-full bg-[#0a0a0a] border border-gray-700 rounded-md px-4 py-2.5 text-gray-200 text-base focus:outline-none focus:border-green-500 transition-colors"
                         />
                     </div>
@@ -170,11 +187,11 @@ export default function EditChapterPage() {
                             type="checkbox"
                             id="isSideStory"
                             checked={isSideStory}
-                            onChange={(e) => setIsSideStory(e.target.checked)}
+                            onChange={(event) => setIsSideStory(event.target.checked)}
                             className="w-4 h-4 rounded bg-[#0a0a0a] border-gray-700 text-green-500 focus:ring-green-500/20 accent-green-600 cursor-pointer"
                         />
                         <label htmlFor="isSideStory" className="text-sm font-mono text-gray-300 cursor-pointer select-none">
-                            📜 Đây là Ngoại Truyện / Hồ sơ phụ (Không làm loạn số mạch truyện chính)
+                            Đây là ngoại truyện / hồ sơ phụ
                         </label>
                     </div>
 

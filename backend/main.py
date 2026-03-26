@@ -4,9 +4,12 @@ Cung c蘯･p API metadata chﾆｰﾆ｡ng. N盻冓 dung chﾆｰﾆ｡ng ﾄ�
 """
 
 import io
+import hashlib
+import json
 import os
 import re
 import unicodedata
+from datetime import datetime, timezone
 # Force re-deploy to Vercel and Render (Trigger: 2026-03-25 23:14)
 from typing import Optional, List
 from urllib.parse import quote
@@ -83,6 +86,388 @@ def slugify(text: str) -> str:
     text = re.sub(r'[\u0300-\u036f]', '', text)
     text = re.sub(r'[^\w\s-]', '', text.lower())
     return re.sub(r'[-\s]+', '-', text).strip('-')
+
+
+SUPPORTED_LOCALES = ("vi", "en", "zh-CN", "ja")
+DEFAULT_LOCALE = "vi"
+TRANSLATION_GLOSSARY_PATH = os.path.join(current_dir, "translation_glossary.json")
+TRANSLATION_MODEL_FALLBACK = "gemini-3.1-flash-lite-preview"
+
+
+def normalize_locale(value: Optional[str]) -> str:
+    if not value:
+        return DEFAULT_LOCALE
+    if value in SUPPORTED_LOCALES:
+        return value
+    lowered = value.lower()
+    if lowered.startswith("vi"):
+        return "vi"
+    if lowered.startswith("en"):
+        return "en"
+    if lowered.startswith("zh"):
+        return "zh-CN"
+    if lowered.startswith("ja"):
+        return "ja"
+    return DEFAULT_LOCALE
+
+
+def safe_select(table_name: str, select_fields: str = "*"):
+    try:
+        return supabase.table(table_name).select(select_fields)
+    except Exception:
+        return None
+
+
+def build_content_hash(text: str) -> str:
+    return hashlib.sha256((text or "").encode("utf-8")).hexdigest()
+
+
+def load_translation_glossary() -> list[dict]:
+    try:
+        with open(TRANSLATION_GLOSSARY_PATH, "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+            if isinstance(payload, list):
+                return payload
+    except Exception:
+        pass
+    return []
+
+
+def build_glossary_prompt() -> str:
+    glossary = load_translation_glossary()
+    if not glossary:
+        return "Khong co glossary bo sung."
+
+    lines = []
+    for item in glossary:
+        source = item.get("source", "").strip()
+        if not source:
+            continue
+        translations = item.get("translations", {})
+        if not isinstance(translations, dict):
+            continue
+        mapped = ", ".join(f"{k}={v}" for k, v in translations.items() if v)
+        if mapped:
+            lines.append(f"- {source}: {mapped}")
+    return "\n".join(lines) if lines else "Khong co glossary bo sung."
+
+
+def extract_r2_object_key(content_url: str) -> Optional[str]:
+    if not content_url or not R2_PUBLIC_URL:
+        return None
+    clean_url = re.sub(r'^https?://', '', content_url)
+    clean_base = re.sub(r'^https?://', '', R2_PUBLIC_URL)
+    return clean_url.replace(clean_base, "").lstrip("/")
+
+
+def fetch_r2_content(content_url: str) -> str:
+    object_key = extract_r2_object_key(content_url)
+    if object_key and r2_client:
+        response = r2_client.get_object(Bucket=R2_BUCKET, Key=object_key)
+        return response["Body"].read().decode("utf-8")
+
+    response = httpx.get(content_url, timeout=20.0)
+    response.raise_for_status()
+    return response.text
+
+
+def resolve_chapter_translation(chapter_id: int, locale: str):
+    locale = normalize_locale(locale)
+    if locale == DEFAULT_LOCALE:
+        return None
+    try:
+        result = (
+            supabase.table("chapter_translations")
+            .select("*")
+            .eq("chapter_id", chapter_id)
+            .eq("locale", locale)
+            .eq("translation_status", "published")
+            .limit(1)
+            .execute()
+        )
+        if result.data:
+            return result.data[0]
+    except Exception:
+        return None
+    return None
+
+
+def resolve_novel_translation(locale: str):
+    locale = normalize_locale(locale)
+    if locale == DEFAULT_LOCALE:
+        return None
+    try:
+        result = (
+            supabase.table("novel_settings_translations")
+            .select("*")
+            .eq("novel_settings_id", 1)
+            .eq("locale", locale)
+            .limit(1)
+            .execute()
+        )
+        if result.data:
+            return result.data[0]
+    except Exception:
+        return None
+    return None
+
+
+def resolve_homepage_translation(locale: str):
+    locale = normalize_locale(locale)
+    if locale == DEFAULT_LOCALE:
+        return None
+    try:
+        result = (
+            supabase.table("homepage_settings_translations")
+            .select("*")
+            .eq("homepage_settings_id", 1)
+            .eq("locale", locale)
+            .eq("translation_status", "published")
+            .limit(1)
+            .execute()
+        )
+        if result.data:
+            return result.data[0]
+    except Exception:
+        return None
+    return None
+
+
+def resolve_wiki_translation(entry_id: str, locale: str):
+    locale = normalize_locale(locale)
+    if locale == DEFAULT_LOCALE:
+        return None
+    try:
+        result = (
+            supabase.table("wiki_entry_translations")
+            .select("*")
+            .eq("wiki_entry_id", entry_id)
+            .eq("locale", locale)
+            .limit(1)
+            .execute()
+        )
+        if result.data:
+            return result.data[0]
+    except Exception:
+        return None
+    return None
+
+
+def apply_wiki_translation(entry: dict, locale: str) -> dict:
+    translation = resolve_wiki_translation(entry.get("id"), locale)
+    resolved_locale = DEFAULT_LOCALE
+    is_fallback = False
+    if translation:
+        if translation.get("title"):
+            entry["title"] = translation["title"]
+        if translation.get("summary"):
+            entry["summary"] = translation["summary"]
+        if translation.get("content"):
+            entry["content"] = translation["content"]
+        resolved_locale = normalize_locale(locale)
+    elif normalize_locale(locale) != DEFAULT_LOCALE:
+        is_fallback = True
+
+    entry["requested_locale"] = normalize_locale(locale)
+    entry["resolved_locale"] = resolved_locale
+    entry["is_fallback"] = is_fallback
+    return entry
+
+
+def sanitize_homepage_features(features) -> list[dict]:
+    cleaned = []
+    if not isinstance(features, list):
+        return cleaned
+
+    for item in features:
+        if not isinstance(item, dict):
+            continue
+        cleaned.append(
+            {
+                "icon": str(item.get("icon") or "").strip(),
+                "title": sanitize_plaintext(str(item.get("title") or "")),
+                "desc": sanitize_plaintext(str(item.get("desc") or "")),
+            }
+        )
+    return cleaned
+
+
+def prepare_homepage_settings_payload(payload: Optional[dict]) -> dict:
+    raw = dict(payload or {})
+    return {
+        "warning_title": sanitize_plaintext(raw.get("warning_title")) if raw.get("warning_title") is not None else None,
+        "warning_subtitle": sanitize_plaintext(raw.get("warning_subtitle")) if raw.get("warning_subtitle") is not None else None,
+        "warning_headline": sanitize_plaintext(raw.get("warning_headline")) if raw.get("warning_headline") is not None else None,
+        "warning_description": sanitize_html(raw.get("warning_description")) if raw.get("warning_description") is not None else "",
+        "features_title": sanitize_plaintext(raw.get("features_title")) if raw.get("features_title") is not None else None,
+        "features_json": sanitize_homepage_features(raw.get("features_json")),
+    }
+
+
+def apply_homepage_translation(payload: dict, locale: str) -> dict:
+    requested_locale = normalize_locale(locale)
+    resolved_locale = DEFAULT_LOCALE
+    is_fallback = False
+
+    translation = resolve_homepage_translation(requested_locale)
+    if translation:
+        for key in (
+            "warning_title",
+            "warning_subtitle",
+            "warning_headline",
+            "warning_description",
+            "features_title",
+            "features_json",
+        ):
+            if translation.get(key) is not None:
+                payload[key] = translation.get(key)
+        payload = prepare_homepage_settings_payload(payload)
+        resolved_locale = requested_locale
+    elif requested_locale != DEFAULT_LOCALE:
+        is_fallback = True
+
+    payload["requested_locale"] = requested_locale
+    payload["resolved_locale"] = resolved_locale
+    payload["is_fallback"] = is_fallback
+    return payload
+
+
+async def resolve_ai_settings_for_translation() -> tuple[str, str]:
+    try:
+        settings = supabase.table("novel_settings").select("ai_model_name, ai_api_key").eq("id", 1).single().execute()
+        if settings.data:
+            model_name = settings.data.get("ai_model_name") or TRANSLATION_MODEL_FALLBACK
+            api_key = settings.data.get("ai_api_key") or os.getenv("GEMINI_API_KEY", "")
+            return model_name, api_key
+    except Exception:
+        pass
+    return TRANSLATION_MODEL_FALLBACK, os.getenv("GEMINI_API_KEY", "")
+
+
+async def translate_text_with_ai(source_text: str, source_locale: str, target_locale: str, context_label: str) -> str:
+    model_name, api_key = await resolve_ai_settings_for_translation()
+    if not api_key:
+        raise HTTPException(status_code=503, detail="AI translation is not configured")
+
+    glossary_prompt = build_glossary_prompt()
+    prompt = f"""
+Ban la bien dich vien chuyen nghiep cho tieu thuyet sinh ton hau tan the.
+Hay dich noi dung sau tu {source_locale} sang {target_locale}.
+
+YEU CAU:
+1. Giu nguyen ten rieng theo glossary neu co.
+2. Khong duoc rut gon, khong them giai thich, khong them markdown.
+3. Giu nguyen ngat doan va thu tu noi dung.
+4. Neu gap ky hieu hoac ten ky nang, uu tien nhat quan hon viet dep.
+5. Chi tra ve ban dich sau cung.
+
+CONTEXT: {context_label}
+
+GLOSSARY:
+{glossary_prompt}
+
+SOURCE:
+{source_text}
+""".strip()
+
+    gemini_url = (
+        "https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{model_name}:generateContent?key={api_key}"
+    )
+    payload = {
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        "generationConfig": {"maxOutputTokens": 8192, "temperature": 0.3},
+    }
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        response = await client.post(gemini_url, json=payload)
+        if not response.is_success:
+            raise HTTPException(status_code=response.status_code, detail=f"Translation API error: {response.text}")
+        data = response.json()
+
+    try:
+        return data["candidates"][0]["content"]["parts"][0]["text"].strip()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Invalid translation response: {exc}")
+
+
+async def upsert_chapter_translation(chapter_row: dict, title: str, content: str, locale: str):
+    if normalize_locale(locale) == DEFAULT_LOCALE:
+        return None
+
+    translated_title = await translate_text_with_ai(title, DEFAULT_LOCALE, locale, f"chapter-title-{chapter_row['chapter_number']}")
+    translated_content = await translate_text_with_ai(content, DEFAULT_LOCALE, locale, f"chapter-content-{chapter_row['chapter_number']}")
+    payload = {
+        "chapter_id": chapter_row["id"],
+        "locale": locale,
+        "title": translated_title,
+        "content": translated_content,
+        "summary": translated_content[:280],
+        "translation_status": "published",
+        "translation_source": "ai",
+        "translated_at": datetime.now(timezone.utc).isoformat(),
+        "content_hash": build_content_hash(content),
+    }
+    try:
+        return supabase.table("chapter_translations").upsert(payload, on_conflict="chapter_id,locale").execute()
+    except Exception:
+        return None
+
+
+async def upsert_homepage_translation(settings_payload: dict, locale: str):
+    locale = normalize_locale(locale)
+    if locale == DEFAULT_LOCALE:
+        return None
+
+    base_payload = prepare_homepage_settings_payload(settings_payload)
+    translated_features = []
+    for index, feature in enumerate(base_payload.get("features_json") or []):
+        translated_features.append(
+            {
+                "icon": feature.get("icon", ""),
+                "title": await translate_text_with_ai(feature.get("title", ""), DEFAULT_LOCALE, locale, f"homepage-feature-title-{index}")
+                if feature.get("title")
+                else "",
+                "desc": await translate_text_with_ai(feature.get("desc", ""), DEFAULT_LOCALE, locale, f"homepage-feature-desc-{index}")
+                if feature.get("desc")
+                else "",
+            }
+        )
+
+    source_hash = build_content_hash(json.dumps(base_payload, ensure_ascii=False, sort_keys=True))
+    payload = {
+        "homepage_settings_id": 1,
+        "locale": locale,
+        "warning_title": await translate_text_with_ai(base_payload.get("warning_title", ""), DEFAULT_LOCALE, locale, "homepage-warning-title")
+        if base_payload.get("warning_title")
+        else "",
+        "warning_subtitle": await translate_text_with_ai(base_payload.get("warning_subtitle", ""), DEFAULT_LOCALE, locale, "homepage-warning-subtitle")
+        if base_payload.get("warning_subtitle")
+        else "",
+        "warning_headline": await translate_text_with_ai(base_payload.get("warning_headline", ""), DEFAULT_LOCALE, locale, "homepage-warning-headline")
+        if base_payload.get("warning_headline")
+        else "",
+        "warning_description": await translate_text_with_ai(base_payload.get("warning_description", ""), DEFAULT_LOCALE, locale, "homepage-warning-description")
+        if base_payload.get("warning_description")
+        else "",
+        "features_title": await translate_text_with_ai(base_payload.get("features_title", ""), DEFAULT_LOCALE, locale, "homepage-features-title")
+        if base_payload.get("features_title")
+        else "",
+        "features_json": translated_features,
+        "translation_status": "published",
+        "translation_source": "ai",
+        "translated_at": datetime.now(timezone.utc).isoformat(),
+        "content_hash": source_hash,
+    }
+
+    try:
+        return (
+            supabase.table("homepage_settings_translations")
+            .upsert(payload, on_conflict="homepage_settings_id,locale")
+            .execute()
+        )
+    except Exception:
+        return None
 
 
 # === ADMIN AUTH ===
@@ -182,6 +567,11 @@ class Chapter(BaseModel):
     word_count: Optional[int] = None
     view_count: int = 0
     is_side_story: bool = False
+    requested_locale: str = DEFAULT_LOCALE
+    resolved_locale: str = DEFAULT_LOCALE
+    is_fallback: bool = False
+    translated_title: Optional[str] = None
+    translated_content: Optional[str] = None
 
 class ChaptersResponse(BaseModel):
     chapters: list[Chapter]
@@ -208,6 +598,7 @@ async def get_chapters(
     sort: str = Query("asc", pattern="^(asc|desc)$", description="Th盻ｩ t盻ｱ s蘯ｯp x蘯ｿp: asc ho蘯ｷc desc"),
     search: Optional[str] = Query(None, description="Tﾃｬm ki蘯ｿm theo tiﾃｪu ﾄ黛ｻ・ho蘯ｷc s盻・chﾆｰﾆ｡ng"),
     is_side_story: Optional[bool] = Query(None, description="L盻皇 ngo蘯｡i truy盻㌻ (true) ho蘯ｷc m蘯｡ch chﾃｭnh (false)"),
+    locale: str = Query(DEFAULT_LOCALE, description="Requested locale"),
 ):
     """
     L蘯･y danh sﾃ｡ch chﾆｰﾆ｡ng cﾃｳ phﾃ｢n trang.
@@ -253,7 +644,18 @@ async def get_chapters(
         )
         max_chapter = max_chapter_resp.data[0]["chapter_number"] if max_chapter_resp.data else total
 
-        chapters = [Chapter(**row) for row in resp.data]
+        requested_locale = normalize_locale(locale)
+        chapters = []
+        for row in resp.data:
+            chapter_payload = dict(row)
+            translation = resolve_chapter_translation(chapter_payload["id"], requested_locale)
+            chapter_payload["requested_locale"] = requested_locale
+            chapter_payload["resolved_locale"] = requested_locale if translation else DEFAULT_LOCALE
+            chapter_payload["is_fallback"] = requested_locale != DEFAULT_LOCALE and translation is None
+            if translation:
+                chapter_payload["title"] = translation.get("title") or chapter_payload["title"]
+                chapter_payload["translated_title"] = translation.get("title")
+            chapters.append(Chapter(**chapter_payload))
         total_pages = (total + limit - 1) // limit if limit > 0 else 1
 
         return ChaptersResponse(
@@ -270,7 +672,10 @@ async def get_chapters(
 
 
 @app.get("/api/chapters/{chapter_number}", response_model=Chapter)
-async def get_chapter(chapter_number: int):
+async def get_chapter(
+    chapter_number: int,
+    locale: str = Query(DEFAULT_LOCALE, description="Requested locale"),
+):
     """
     L蘯･y thﾃｴng tin metadata c盻ｧa m盻冲 chﾆｰﾆ｡ng bao g盻杜 URL file R2 ch盻ｩa n盻冓 dung.
     Frontend s蘯ｽ dﾃｹng content_url nﾃy ﾄ黛ｻ・fetch n盻冓 dung th蘯ｳng t盻ｫ Cloudflare CDN.
@@ -289,7 +694,27 @@ async def get_chapter(chapter_number: int):
         if not resp.data:
             raise HTTPException(status_code=404, detail=f"Chﾆｰﾆ｡ng {chapter_number} khﾃｴng tﾃｬm th蘯･y")
 
-        return Chapter(**resp.data)
+        requested_locale = normalize_locale(locale)
+        chapter_payload = dict(resp.data)
+        chapter_payload["requested_locale"] = requested_locale
+        chapter_payload["resolved_locale"] = DEFAULT_LOCALE
+        chapter_payload["translated_title"] = chapter_payload["title"]
+
+        translation = resolve_chapter_translation(chapter_payload["id"], requested_locale)
+        if translation:
+            chapter_payload["translated_title"] = translation.get("title") or chapter_payload["title"]
+            chapter_payload["translated_content"] = translation.get("content")
+            chapter_payload["title"] = chapter_payload["translated_title"]
+            chapter_payload["resolved_locale"] = requested_locale
+            chapter_payload["is_fallback"] = False
+        else:
+            try:
+                chapter_payload["translated_content"] = fetch_r2_content(chapter_payload["content_url"])
+            except Exception:
+                chapter_payload["translated_content"] = None
+            chapter_payload["is_fallback"] = requested_locale != DEFAULT_LOCALE
+
+        return Chapter(**chapter_payload)
 
     except HTTPException:
         raise
@@ -348,6 +773,74 @@ async def tts_proxy(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class ChapterTtsRequest(BaseModel):
+    chapter_id: int
+    locale: str = DEFAULT_LOCALE
+    voice: Optional[str] = None
+
+
+@app.post("/api/tts/chapter", summary="Prepare chapter TTS metadata")
+async def prepare_chapter_tts(body: ChapterTtsRequest):
+    locale = normalize_locale(body.locale)
+    chapter_resp = (
+        supabase.table("chapters")
+        .select("id, chapter_number, title, content_url")
+        .eq("id", body.chapter_id)
+        .single()
+        .execute()
+    )
+    if not chapter_resp.data:
+        raise HTTPException(status_code=404, detail="Chapter not found")
+
+    chapter_row = chapter_resp.data
+    translation = resolve_chapter_translation(chapter_row["id"], locale)
+    resolved_locale = locale if translation else DEFAULT_LOCALE
+    content_text = translation.get("content") if translation else fetch_r2_content(chapter_row["content_url"])
+    content_hash = build_content_hash(content_text)
+    audio_url = f"/api/tts?lang={resolved_locale}&text={quote((content_text or '')[:200])}"
+    cached = False
+
+    try:
+        existing = (
+            supabase.table("tts_audio_cache")
+            .select("audio_url")
+            .eq("entity_type", "chapter")
+            .eq("entity_id", body.chapter_id)
+            .eq("locale", resolved_locale)
+            .eq("voice", body.voice or "default")
+            .eq("content_hash", content_hash)
+            .limit(1)
+            .execute()
+        )
+        if existing.data:
+            cached = True
+            audio_url = existing.data[0].get("audio_url") or audio_url
+        else:
+            supabase.table("tts_audio_cache").upsert(
+                {
+                    "entity_type": "chapter",
+                    "entity_id": body.chapter_id,
+                    "locale": resolved_locale,
+                    "voice": body.voice or "default",
+                    "provider": "google-translate-tts",
+                    "content_hash": content_hash,
+                    "audio_url": audio_url,
+                },
+                on_conflict="entity_type,entity_id,locale,voice,content_hash",
+            ).execute()
+    except Exception:
+        pass
+
+    return {
+        "chapter_id": body.chapter_id,
+        "requested_locale": locale,
+        "resolved_locale": resolved_locale,
+        "cached": cached,
+        "audio_url": audio_url,
+        "content_hash": content_hash,
+    }
 
 
 # ============================================================
@@ -460,6 +953,37 @@ async def admin_update_chapter(
     return {"message": "Khﾃｴng cﾃｳ gﾃｬ thay ﾄ黛ｻ品"}
 
 
+@app.post("/api/admin/chapters/{chapter_number}/translate", summary="[Admin] Translate chapter to EN/ZH-CN/JA")
+async def admin_translate_chapter(
+    chapter_number: int,
+    authorization: Optional[str] = Header(None),
+):
+    await verify_admin(authorization)
+
+    chapter_resp = (
+        supabase.table("chapters")
+        .select("*")
+        .eq("chapter_number", chapter_number)
+        .single()
+        .execute()
+    )
+    if not chapter_resp.data:
+        raise HTTPException(status_code=404, detail="Chapter not found")
+
+    chapter_row = chapter_resp.data
+    content_text = fetch_r2_content(chapter_row["content_url"])
+    translated_locales = []
+    for locale_code in ("en", "zh-CN", "ja"):
+        await upsert_chapter_translation(chapter_row, chapter_row["title"], content_text, locale_code)
+        translated_locales.append(locale_code)
+
+    return {
+        "message": "Chapter translated",
+        "chapter_number": chapter_number,
+        "translated_locales": translated_locales,
+    }
+
+
 class NovelSettings(BaseModel):
     title: str
     author: str
@@ -475,6 +999,9 @@ class NovelSettings(BaseModel):
     ai_model_name: str = "gemini-3.1-flash-lite-preview"
     ai_model_catalog: list[str] = ["gemini-3.1-flash-lite-preview"]
     has_ai_key: bool = False  # Frontend diagnostic
+    requested_locale: str = DEFAULT_LOCALE
+    resolved_locale: str = DEFAULT_LOCALE
+    is_fallback: bool = False
 
 
 class AdminNovelUpdate(BaseModel):
@@ -491,7 +1018,7 @@ class AdminNovelUpdate(BaseModel):
 
 
 @app.get("/api/novel", response_model=NovelSettings)
-async def get_novel_settings():
+async def get_novel_settings(locale: str = Query(DEFAULT_LOCALE, description="Requested locale")):
     """L蘯･y thﾃｴng tin chung c盻ｧa truy盻㌻ (Tﾃｪn, tﾃ｡c gi蘯｣, mﾃｴ t蘯｣...)"""
     try:
         # 1. Fetch current stats (Total chapters, Max chapter, and aggregated View/Like counts)
@@ -521,7 +1048,12 @@ async def get_novel_settings():
             "ai_model_catalog": ["gemini-3.1-flash-lite-preview"],
         }
 
+        requested_locale = normalize_locale(locale)
+
         if not resp.data:
+            default_settings["requested_locale"] = requested_locale
+            default_settings["resolved_locale"] = DEFAULT_LOCALE
+            default_settings["is_fallback"] = requested_locale != DEFAULT_LOCALE
             return NovelSettings(**default_settings)
         
         # Merge data
@@ -534,6 +1066,19 @@ async def get_novel_settings():
         final_data["total_likes"] = total_likes
         final_data["ai_model_name"] = resp.data.get("ai_model_name", "gemini-3.1-flash-lite-preview")
         final_data["ai_model_catalog"] = resp.data.get("ai_model_catalog") or [final_data["ai_model_name"]]
+        final_data["requested_locale"] = requested_locale
+        final_data["resolved_locale"] = DEFAULT_LOCALE
+        final_data["is_fallback"] = False
+
+        translation = resolve_novel_translation(requested_locale)
+        if translation:
+            if translation.get("title"):
+                final_data["title"] = translation["title"]
+            if translation.get("description"):
+                final_data["description"] = translation["description"]
+            final_data["resolved_locale"] = requested_locale
+        elif requested_locale != DEFAULT_LOCALE:
+            final_data["is_fallback"] = True
         
         # Security: Never return the actual API key to the frontend
         db_key = resp.data.get("ai_api_key")
@@ -558,6 +1103,9 @@ async def get_novel_settings():
             total_likes=0,
             ai_model_name="gemini-1.5-flash",
             ai_model_catalog=["gemini-1.5-flash"],
+            requested_locale=normalize_locale(locale),
+            resolved_locale=DEFAULT_LOCALE,
+            is_fallback=normalize_locale(locale) != DEFAULT_LOCALE,
         )
 
 
@@ -595,6 +1143,9 @@ class HomepageSettings(BaseModel):
     warning_description: Optional[str] = None
     features_title: Optional[str] = None
     features_json: Optional[list] = None
+    requested_locale: str = DEFAULT_LOCALE
+    resolved_locale: str = DEFAULT_LOCALE
+    is_fallback: bool = False
 
 
 class Profile(BaseModel):
@@ -822,7 +1373,102 @@ async def admin_delete_map_location(
     return {"message": "ﾄ静｣ xoﾃ｡ ﾄ訴盻ノ b蘯｣n ﾄ黛ｻ・thﾃnh cﾃｴng"}
 
 
+def build_default_homepage_settings() -> dict:
+    return {
+        "warning_title": "CẢNH BÁO KHU VỰC CẤM",
+        "warning_subtitle": "BIOSAFETY LEVEL 4 • RESTRICTED ACCESS",
+        "warning_headline": "TRẬN ĐỊA SINH TỬ",
+        "warning_description": "Năm 20XX. Virus Z-79 bùng phát từ một phòng thí nghiệm bí mật...",
+        "features_title": "ĐIỂM NỔI BẬT",
+        "features_json": [],
+    }
+
+
 @app.get("/api/homepage", response_model=HomepageSettings)
+async def get_homepage_settings_i18n(locale: str = Query(DEFAULT_LOCALE, description="Requested locale")):
+    """Lấy cấu hình nội dung hiển thị trên trang chủ theo locale."""
+    base_payload = build_default_homepage_settings()
+    try:
+        resp = supabase.table("homepage_settings").select("*").eq("id", 1).single().execute()
+        if resp.data:
+            base_payload = prepare_homepage_settings_payload(resp.data)
+        else:
+            base_payload = prepare_homepage_settings_payload(base_payload)
+    except Exception:
+        base_payload = prepare_homepage_settings_payload(base_payload)
+
+    translated_payload = apply_homepage_translation(base_payload, locale)
+    return HomepageSettings(**translated_payload)
+
+
+@app.put("/api/admin/homepage", summary="[Admin] Cập nhật cấu hình trang chủ")
+async def admin_update_homepage_i18n(
+    body: HomepageSettings,
+    authorization: Optional[str] = Header(None),
+    locale: str = Query(DEFAULT_LOCALE, description="Locale to update"),
+):
+    """Cập nhật nội dung CMS của trang chủ theo locale."""
+    await verify_admin(authorization)
+
+    target_locale = normalize_locale(locale)
+    payload = prepare_homepage_settings_payload(body.model_dump(exclude_none=True))
+    payload["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+    if target_locale == DEFAULT_LOCALE:
+        payload["id"] = 1
+        result = supabase.table("homepage_settings").upsert(payload).execute()
+        return {"message": "Cập nhật trang chủ thành công", "settings": result.data[0] if result.data else payload}
+
+    payload.update(
+        {
+            "homepage_settings_id": 1,
+            "locale": target_locale,
+            "translation_status": "published",
+            "translation_source": "human",
+            "translated_at": datetime.now(timezone.utc).isoformat(),
+            "content_hash": build_content_hash(json.dumps(payload, ensure_ascii=False, sort_keys=True)),
+        }
+    )
+    result = (
+        supabase.table("homepage_settings_translations")
+        .upsert(payload, on_conflict="homepage_settings_id,locale")
+        .execute()
+    )
+    return {"message": "Cập nhật bản dịch trang chủ thành công", "settings": result.data[0] if result.data else payload}
+
+
+@app.post("/api/admin/homepage/translate", summary="[Admin] Dịch AI cấu hình trang chủ")
+async def admin_translate_homepage_i18n(
+    authorization: Optional[str] = Header(None),
+    locale: Optional[str] = Query(None, description="Specific locale to translate"),
+):
+    """Dịch AI cho các field CMS của trang chủ từ tiếng Việt sang các locale còn lại."""
+    await verify_admin(authorization)
+
+    try:
+        resp = supabase.table("homepage_settings").select("*").eq("id", 1).single().execute()
+        base_payload = prepare_homepage_settings_payload(resp.data if resp.data else build_default_homepage_settings())
+    except Exception:
+        base_payload = prepare_homepage_settings_payload(build_default_homepage_settings())
+
+    if locale:
+        target_locales = [normalize_locale(locale)]
+    else:
+        target_locales = [item for item in SUPPORTED_LOCALES if item != DEFAULT_LOCALE]
+
+    target_locales = [item for item in target_locales if item != DEFAULT_LOCALE]
+    translated_locales = []
+    for target_locale in target_locales:
+        await upsert_homepage_translation(base_payload, target_locale)
+        translated_locales.append(target_locale)
+
+    return {
+        "message": "Đã dịch cấu hình trang chủ",
+        "translated_locales": translated_locales,
+    }
+
+
+@app.get("/api/_legacy/homepage", response_model=HomepageSettings)
 async def get_homepage_settings():
     """L蘯･y c蘯･u hﾃｬnh n盻冓 dung hi盻ハ th盻・trﾃｪn trang ch盻ｧ."""
     try:
@@ -851,7 +1497,7 @@ async def get_homepage_settings():
         )
 
 
-@app.put("/api/admin/homepage", summary="[Admin] C蘯ｭp nh蘯ｭt c蘯･u hﾃｬnh trang ch盻ｧ")
+@app.put("/api/_legacy/admin/homepage", summary="[Legacy] Cập nhật cấu hình trang chủ")
 async def admin_update_homepage(
     body: HomepageSettings,
     authorization: Optional[str] = Header(None),
@@ -1355,7 +2001,7 @@ async def get_wiki_entries(
 
 
 @app.get("/api/wiki/{slug}", summary="L蘯･y chi ti蘯ｿt Wiki entry")
-async def get_wiki_entry(slug: str):
+async def get_wiki_entry(slug: str, locale: str = Query(DEFAULT_LOCALE, description="Requested locale")):
     """L蘯･y m盻冲 wiki entry theo slug."""
     try:
         resp = (
@@ -1370,6 +2016,7 @@ async def get_wiki_entry(slug: str):
         data = dict(resp.data)
         data["summary"] = sanitize_html(data.get("summary")) if data.get("summary") is not None else None
         data["content"] = sanitize_html(data.get("content")) if data.get("content") is not None else None
+        apply_wiki_translation(data, normalize_locale(locale))
         return data
     except HTTPException:
         raise

@@ -3,10 +3,12 @@ import { ChevronRight, BookOpen, Search } from "lucide-react";
 import { getChapters, getNovelSettings, type Chapter } from "@/lib/api";
 import type { Metadata } from "next";
 import ChapterJump from "@/components/ChapterJump";
+import { getCurrentLocale } from "@/lib/i18n/server";
 
 export async function generateMetadata(): Promise<Metadata> {
     try {
-        const novel = await getNovelSettings();
+        const locale = await getCurrentLocale();
+        const novel = await getNovelSettings(locale);
         return {
             title: "Mục Lục",
             description: `Danh sách toàn bộ ${novel.total_chapters}+ chương truyện ${novel.title}. Cập nhật mới nhất.`,
@@ -29,6 +31,7 @@ interface Props {
 export default async function ChaptersPage({
     searchParams,
 }: Props) {
+    const locale = await getCurrentLocale();
     const resolvedSearchParams = await searchParams;
     const page = Math.max(1, parseInt(resolvedSearchParams.page || "1", 10));
     const search = resolvedSearchParams.search || "";
@@ -47,7 +50,7 @@ export default async function ChaptersPage({
         // Update api client call if I add search param to it, or just use fetch here
         const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
         const res = await fetch(
-            `${API_BASE_URL}/api/chapters?page=${page}&limit=${LIMIT}&search=${encodeURIComponent(search)}&is_side_story=${isSideStory}`,
+            `${API_BASE_URL}/api/chapters?page=${page}&limit=${LIMIT}&search=${encodeURIComponent(search)}&is_side_story=${isSideStory}&locale=${locale}`,
             { cache: "no-store" }
         );
         if (res.ok) data = await res.json();

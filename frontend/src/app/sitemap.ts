@@ -1,79 +1,40 @@
-import type { MetadataRoute } from 'next';
+import type { MetadataRoute } from "next";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mat-the-website.onrender.com';
-const SITE_URL = 'https://matthesinhhoa.vercel.app';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://mat-the-website.onrender.com";
+const SITE_URL = "https://matthesinhhoa.vercel.app";
+const LOCALES = ["vi", "en", "zh-CN", "ja"] as const;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-    // Static pages
-    const staticPages: MetadataRoute.Sitemap = [
-        {
-            url: SITE_URL,
-            lastModified: new Date(),
-            changeFrequency: 'daily',
-            priority: 1,
-        },
-        {
-            url: `${SITE_URL}/chapters`,
-            lastModified: new Date(),
-            changeFrequency: 'daily',
-            priority: 0.9,
-        },
-        {
-            url: `${SITE_URL}/wiki`,
-            lastModified: new Date(),
-            changeFrequency: 'weekly',
-            priority: 0.7,
-        },
-        {
-            url: `${SITE_URL}/map`,
-            lastModified: new Date(),
-            changeFrequency: 'weekly',
-            priority: 0.6,
-        },
-        {
-            url: `${SITE_URL}/huong-dan`,
-            lastModified: new Date(),
-            changeFrequency: 'monthly',
-            priority: 0.5,
-        },
-    ];
+    const staticPaths = ["/", "/chapters", "/wiki", "/map", "/huong-dan"];
 
-    // Dynamic chapter pages
+    const staticPages: MetadataRoute.Sitemap = LOCALES.flatMap((locale) =>
+        staticPaths.map((path, index) => ({
+            url: `${SITE_URL}/${locale}${path === "/" ? "" : path}`,
+            lastModified: new Date(),
+            changeFrequency: index <= 1 ? "daily" : "weekly",
+            priority: path === "/" ? 1 : 0.7,
+        })),
+    );
+
     let chapterPages: MetadataRoute.Sitemap = [];
     try {
-        const res = await fetch(`${API_BASE_URL}/api/chapters?page=1&limit=100&sort=asc`, {
-            cache: 'no-store',
+        const response = await fetch(`${API_BASE_URL}/api/chapters?page=1&limit=100&sort=asc`, {
+            cache: "no-store",
         });
-        if (res.ok) {
-            const data = await res.json();
-            chapterPages = (data.chapters || []).map((ch: any) => ({
-                url: `${SITE_URL}/chapters/${ch.chapter_number}`,
-                lastModified: new Date(ch.created_at),
-                changeFrequency: 'monthly' as const,
-                priority: 0.8,
-            }));
-
-            // Fetch remaining pages if > 100 chapters
-            const totalPages = data.total_pages || 1;
-            for (let page = 2; page <= totalPages; page++) {
-                const pageRes = await fetch(`${API_BASE_URL}/api/chapters?page=${page}&limit=100&sort=asc`, {
-                    cache: 'no-store',
-                });
-                if (pageRes.ok) {
-                    const pageData = await pageRes.json();
-                    chapterPages.push(
-                        ...(pageData.chapters || []).map((ch: any) => ({
-                            url: `${SITE_URL}/chapters/${ch.chapter_number}`,
-                            lastModified: new Date(ch.created_at),
-                            changeFrequency: 'monthly' as const,
-                            priority: 0.8,
-                        }))
-                    );
-                }
-            }
+        if (response.ok) {
+            const data = await response.json();
+            const chapters = data.chapters || [];
+            chapterPages = LOCALES.flatMap((locale) =>
+                chapters.map((chapter: any) => ({
+                    url: `${SITE_URL}/${locale}/chapters/${chapter.chapter_number}`,
+                    lastModified: new Date(chapter.created_at),
+                    changeFrequency: "monthly" as const,
+                    priority: 0.8,
+                })),
+            );
         }
     } catch {
-        // Sitemap generation should never crash
+        // keep sitemap resilient
     }
 
     return [...staticPages, ...chapterPages];

@@ -1,18 +1,47 @@
 import Image from "next/image";
 import Link from "next/link";
-import { BookOpen, ChevronRight, AlertTriangle, Skull, Zap } from "lucide-react";
-import { getLatestChapters, getNovelSettings, getHomepageSettings, formatChapterTitle, type Chapter, type NovelSettings, type HomepageSettings } from "@/lib/api";
+import { AlertTriangle, BookOpen, ChevronRight, Skull, Zap } from "lucide-react";
+
 import ContinueButton from "@/components/ContinueButton";
+import {
+    getHomepageSettings,
+    getLatestChapters,
+    getNovelSettings,
+    type Chapter,
+    type HomepageSettings,
+    type NovelSettings,
+} from "@/lib/api";
+import { LOCALE_LANG, withLocalePath } from "@/lib/i18n/config";
+import { getDictionary } from "@/lib/i18n/dictionaries";
+import { getCurrentLocale } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
-export const revalidate = 300; // ISR every 5 minutes
+export const revalidate = 300;
+
+function splitNovelTitle(title: string) {
+    const parts = title.split("-").map((item) => item.trim()).filter(Boolean);
+    if (parts.length < 2) {
+        return {
+            primary: title,
+            secondary: "",
+        };
+    }
+
+    return {
+        primary: parts[0],
+        secondary: parts.slice(1).join(" - "),
+    };
+}
 
 export default async function HomePage() {
+    const locale = await getCurrentLocale();
+    const dictionary = getDictionary(locale);
+
     let latestChapters: Chapter[] = [];
     let novel: NovelSettings = {
-        title: "Mạt Thế - Sinh Hoá Nguy Cơ",
-        author: "Hà Phong",
-        description: "Virus biến thể đã xóa sổ nền văn minh. Giữa thế giới tràn ngập zombie và những kẻ biến dị khát máu...",
+        title: "Mạt Thế - Sinh Hóa Nguy Cơ",
+        author: "Hàn Phong",
+        description: "Virus biến thể đã xóa sổ nền văn minh. Giữa thế giới tràn ngập zombie và dị biến, con người chỉ còn lại bản năng sinh tồn.",
         cover_url: "/hero-bg.png",
         status: "Đang cập nhật",
         genres: ["Mạt Thế", "Zombie"],
@@ -20,41 +49,43 @@ export default async function HomePage() {
         max_chapter: 0,
         total_views: 0,
         total_likes: 0,
-        ai_model_name: "gemini-3.1-flash-lite-preview"
+        ai_model_name: "gemini-3.1-flash-lite-preview",
     };
 
     let homeSettings: HomepageSettings = {
-        warning_title: 'CẢNH BÁO KHU VỰC CẤM',
-        warning_subtitle: 'BIOSAFETY LEVEL 4 · RESTRICTED ACCESS',
-        warning_headline: 'TRẬN ĐỊA SINH TỬ',
-        warning_description: 'Năm 20XX. Virus Z-79 bùng phát từ một phòng thí nghiệm bí mật...',
-        features_title: 'ĐIỂM NỔI BẬT',
+        warning_title: "CẢNH BÁO KHU VỰC CẤM",
+        warning_subtitle: "BIOSAFETY LEVEL 4 • RESTRICTED ACCESS",
+        warning_headline: "TRẬN ĐỊA SINH TỬ",
+        warning_description: "Năm 20XX. Virus Z-79 bùng phát từ một phòng thí nghiệm bí mật...",
+        features_title: "ĐIỂM NỔI BẬT",
         features_json: [
-            { icon: "🧟", title: "Zombie & Dị Biến", desc: "Nhiều loại zombie với khả năng đặc biệt, từ đơn giản đến cực kỳ nguy hiểm" },
-            { icon: "⚔️", title: "Chiến Thuật & Sinh Tồn", desc: "Xây dựng căn cứ, thu thập tài nguyên, chiến đấu có chiến lược" },
-            { icon: "🔬", title: "Khoa Học Viễn Tưởng", desc: "Nghiên cứu virus, nâng cấp cơ thể, vũ khí sinh học trong thế giới tàn lụi" },
-            { icon: "❤️", title: "Tình Cảm & Con Người", desc: "Tình đồng đội, tình yêu và những quyết định đau lòng giữa sự tàn bạo" }
-        ]
+            { icon: "☣", title: "Zombie & Dị Biến", desc: "Nhiều chủng zombie với cơ chế săn mồi và năng lực riêng." },
+            { icon: "⚔", title: "Chiến Thuật Sinh Tồn", desc: "Thu thập tài nguyên, nâng cấp căn cứ và đối đầu theo nhịp truyện." },
+            { icon: "🧪", title: "Khoa Học Hậu Tận Thế", desc: "Virus, cải tạo cơ thể và vũ khí sinh học vận hành xuyên suốt truyện." },
+            { icon: "❤", title: "Quan Hệ Con Người", desc: "Sinh tồn không chỉ là chiến đấu, mà còn là lựa chọn giữa tin tưởng và phản bội." },
+        ],
     };
 
     try {
         const [chaptersData, settingsData, homeData] = await Promise.all([
-            getLatestChapters(12),
-            getNovelSettings(),
-            getHomepageSettings()
+            getLatestChapters(12, locale),
+            getNovelSettings(locale),
+            getHomepageSettings(locale),
         ]);
         latestChapters = chaptersData;
         novel = settingsData;
         homeSettings = homeData;
     } catch {
-        // use defaults if API fails
+        // Fall back to local defaults when APIs are unavailable.
     }
+
+    const localizedChapterListPath = withLocalePath(locale, "/chapters");
+    const localizedFirstChapterPath = withLocalePath(locale, "/chapters/1");
+    const { primary, secondary } = splitNovelTitle(novel.title);
 
     return (
         <div className="min-h-screen bg-ash-dark">
-            {/* === HERO SECTION === */}
-            <section className="relative min-h-[90vh] flex items-end overflow-hidden">
-                {/* Background image */}
+            <section className="relative flex min-h-[90vh] items-end overflow-hidden">
                 <div className="absolute inset-0">
                     <Image
                         src={novel.cover_url || "/hero-bg.png"}
@@ -63,93 +94,86 @@ export default async function HomePage() {
                         priority
                         className="object-cover object-center"
                     />
-                    {/* Multi-layer overlay */}
                     <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-ash-950/60 to-ash-950" />
                     <div className="absolute inset-0 bg-gradient-to-r from-ash-950/80 via-transparent to-ash-950/50" />
-                    {/* Toxic green vignette bottom */}
                     <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-ash-dark to-transparent" />
                 </div>
 
-                {/* Scanline animation overlay */}
                 <div
-                    className="absolute inset-0 pointer-events-none"
+                    className="pointer-events-none absolute inset-0"
                     style={{
                         background:
                             "repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(57,255,20,0.008) 3px, rgba(57,255,20,0.008) 4px)",
                     }}
                 />
 
-                {/* Content */}
-                <div className="relative z-10 max-w-7xl mx-auto px-6 pb-20 w-full">
+                <div className="relative z-10 mx-auto w-full max-w-7xl px-6 pb-20">
                     <div className="max-w-3xl">
-                        {/* Status badge */}
-                        <div className="flex flex-wrap items-center gap-2 mb-6">
-                            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded border border-blood-red-DEFAULT/40 bg-blood-red-DEFAULT/10">
+                        <div className="mb-6 flex flex-wrap items-center gap-2">
+                            <div className="inline-flex items-center gap-2 rounded border border-blood-red-DEFAULT/40 bg-blood-red-DEFAULT/10 px-3 py-1.5">
                                 <Skull size={12} className="text-blood-red-bright" />
-                                <span className="font-mono text-xs text-blood-red-bright tracking-widest uppercase">
-                                    {novel.status} · {novel.max_chapter || '?'} chương
+                                <span className="font-mono text-xs uppercase tracking-widest text-blood-red-bright">
+                                    {novel.status} • {novel.max_chapter || "?"} {dictionary.home.chapters}
                                 </span>
                             </div>
-                            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded border border-toxic-green-DEFAULT/40 bg-toxic-green-DEFAULT/5">
-                                <span className="font-mono text-[10px] text-ash-400 tracking-widest uppercase">TÁC GIẢ:</span>
-                                <span className="font-biohazard text-sm text-toxic-green-bright tracking-widest uppercase">
+                            <div className="inline-flex items-center gap-2 rounded border border-toxic-green-DEFAULT/40 bg-toxic-green-DEFAULT/5 px-3 py-1.5">
+                                <span className="font-mono text-[10px] uppercase tracking-widest text-ash-400">
+                                    {dictionary.home.author}:
+                                </span>
+                                <span className="font-biohazard text-sm uppercase tracking-widest text-toxic-green-bright">
                                     {novel.author}
                                 </span>
                             </div>
                         </div>
 
-                        {/* Title */}
-                        <h1 className="font-biohazard text-6xl sm:text-7xl md:text-8xl lg:text-9xl leading-none mb-2 animate-flicker">
-                            <span className="text-toxic-glow block">{novel.title.split('-')[0].trim()}</span>
+                        <h1 className="mb-2 block font-biohazard text-6xl leading-none text-toxic-glow animate-flicker sm:text-7xl md:text-8xl lg:text-9xl">
+                            {primary}
                         </h1>
-                        <h2 className="font-biohazard text-2xl sm:text-3xl md:text-4xl text-ash-200 tracking-[0.15em] mb-8">
-                            {novel.title.split('-')[1]?.trim() || ""}
-                        </h2>
+                        {secondary ? (
+                            <h2 className="mb-8 font-biohazard text-2xl tracking-[0.15em] text-ash-200 sm:text-3xl md:text-4xl">
+                                {secondary}
+                            </h2>
+                        ) : null}
 
-                        {/* Divider */}
-                        <div className="flex items-center gap-4 mb-8">
-                            <div className="flex-1 h-px bg-gradient-to-r from-toxic-green-DEFAULT/50 to-transparent" />
-                            <span className="text-toxic-green-DEFAULT text-sm font-mono tracking-widest">
-                                ☣
-                            </span>
-                            <div className="w-16 h-px bg-toxic-green-DEFAULT/30" />
+                        <div className="mb-8 flex items-center gap-4">
+                            <div className="h-px flex-1 bg-gradient-to-r from-toxic-green-DEFAULT/50 to-transparent" />
+                            <span className="font-mono text-sm tracking-widest text-toxic-green-DEFAULT">BIO-SCAN</span>
+                            <div className="h-px w-16 bg-toxic-green-DEFAULT/30" />
                         </div>
 
-                        {/* Description */}
                         <div
-                            className="text-ash-100 text-base sm:text-lg leading-relaxed max-w-2xl mb-8 font-reading rich-text-home"
+                            className="rich-text-home mb-8 max-w-2xl font-reading text-base leading-relaxed text-ash-100 sm:text-lg"
                             dangerouslySetInnerHTML={{ __html: novel.description }}
                         />
 
-                        {/* CTA Buttons */}
+                        {homeSettings.is_fallback && locale !== "vi" ? (
+                            <div className="mb-6 inline-flex items-center rounded border border-toxic-green-DEFAULT/20 bg-toxic-green-DEFAULT/5 px-3 py-1 font-mono text-[11px] tracking-widest text-toxic-green-DEFAULT">
+                                {dictionary.common.fallbackVietnamese}
+                            </div>
+                        ) : null}
+
                         <div className="flex flex-wrap gap-4">
-                            <Link href="/chapters/1" className="btn-fixed-blood flex items-center gap-2 text-base py-3 px-6">
+                            <Link href={localizedFirstChapterPath} className="btn-fixed-blood flex items-center gap-2 px-6 py-3 text-base">
                                 <BookOpen size={16} />
-                                <span>ĐỌC TỪ ĐẦU</span>
+                                <span>{dictionary.home.readFirst}</span>
                             </Link>
-                            {/* Continue reading button (client-side only logic) */}
                             <ContinueButton fixedDark />
-                            <Link href="/chapters" className="btn-fixed-dark flex items-center gap-2 text-base py-3 px-6">
-                                <span>XEM MỤC LỤC</span>
+                            <Link href={localizedChapterListPath} className="btn-fixed-dark flex items-center gap-2 px-6 py-3 text-base">
+                                <span>{dictionary.home.viewContents}</span>
                                 <ChevronRight size={14} />
                             </Link>
                         </div>
 
-                        {/* Quick stats */}
-                        <div className="flex flex-wrap gap-6 mt-10">
+                        <div className="mt-10 flex flex-wrap gap-6">
                             {[
-                                { label: "Chương", value: `${novel.max_chapter || '?'}` },
-                                { label: "Tác giả", value: novel.author },
-                                { label: "Thể loại", value: novel.genres.join(" · ") },
-                                { label: "Tình trạng", value: novel.status },
+                                { label: dictionary.home.chapters, value: `${novel.max_chapter || "?"}` },
+                                { label: dictionary.home.author, value: novel.author },
+                                { label: dictionary.home.genres, value: novel.genres.join(" • ") },
+                                { label: dictionary.home.status, value: novel.status },
                             ].map(({ label, value }) => (
                                 <div key={label} className="text-center">
-                                    <div className="font-biohazard text-xl text-toxic-green-DEFAULT">
-                                        {value}
-                                    </div>
-                                    <div className="text-xs text-ash-500 font-mono tracking-widest uppercase">
-                                        {label}
-                                    </div>
+                                    <div className="font-biohazard text-xl text-toxic-green-DEFAULT">{value}</div>
+                                    <div className="font-mono text-xs uppercase tracking-widest text-ash-500">{label}</div>
                                 </div>
                             ))}
                         </div>
@@ -157,51 +181,45 @@ export default async function HomePage() {
                 </div>
             </section>
 
-            {/* === SYNOPSIS === */}
-            <section className="py-20 px-6">
-                <div className="max-w-7xl mx-auto">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-                        {/* Left: Warning card */}
-                        <div className="card-biohazard rounded-lg p-8 relative hazard-corner">
-                            <div className="flex items-start gap-3 mb-6">
-                                <AlertTriangle size={20} className="text-toxic-green-DEFAULT mt-1 shrink-0" />
+            <section className="px-6 py-20">
+                <div className="mx-auto max-w-7xl">
+                    <div className="grid grid-cols-1 items-center gap-12 lg:grid-cols-2">
+                        <div className="card-biohazard hazard-corner relative rounded-lg p-8">
+                            <div className="mb-6 flex items-start gap-3">
+                                <AlertTriangle size={20} className="mt-1 shrink-0 text-toxic-green-DEFAULT" />
                                 <div>
-                                    <div className="font-biohazard text-toxic-green-DEFAULT tracking-widest text-sm mb-1">
+                                    <div className="mb-1 font-biohazard text-sm tracking-widest text-toxic-green-DEFAULT">
                                         {homeSettings.warning_title}
                                     </div>
-                                    <div className="font-mono text-xs text-ash-500 tracking-wider">
+                                    <div className="font-mono text-xs tracking-wider text-ash-500">
                                         {homeSettings.warning_subtitle}
                                     </div>
                                 </div>
                             </div>
-                            <h2 className="font-biohazard text-4xl text-worn-white mb-6 tracking-wide leading-tight">
-                                {homeSettings.warning_headline.split(' ').slice(0, -1).join(' ')}<br />
-                                <span className="text-blood-glow">{homeSettings.warning_headline.split(' ').slice(-2).join(' ')}</span>
+                            <h2 className="mb-6 font-biohazard text-4xl leading-tight tracking-wide text-worn-white">
+                                {homeSettings.warning_headline}
                             </h2>
                             <div
-                                className="font-reading text-ash-100 text-sm leading-relaxed mb-6 whitespace-pre-line rich-text-home"
+                                className="rich-text-home mb-6 whitespace-pre-line font-reading text-sm leading-relaxed text-ash-100"
                                 dangerouslySetInnerHTML={{ __html: homeSettings.warning_description }}
                             />
                         </div>
 
-                        {/* Right: Feature list */}
                         <div className="space-y-4">
-                            <h3 className="font-biohazard text-2xl text-ash-200 tracking-widest mb-6">
+                            <h3 className="mb-6 font-biohazard text-2xl tracking-widest text-ash-200">
                                 {homeSettings.features_title}
                             </h3>
-                            {homeSettings.features_json.map((f, i) => (
+                            {homeSettings.features_json.map((feature, index) => (
                                 <div
-                                    key={i}
-                                    className="flex gap-4 p-4 rounded border border-ash-800 hover:border-toxic-green-DEFAULT/30 transition-colors bg-ash-900/50 chapter-item"
+                                    key={`${feature.title}-${index}`}
+                                    className="chapter-item flex gap-4 rounded border border-ash-800 bg-ash-900/50 p-4 transition-colors hover:border-toxic-green-DEFAULT/30"
                                 >
-                                    <span className="text-2xl shrink-0">{f.icon}</span>
+                                    <span className="shrink-0 text-2xl">{feature.icon}</span>
                                     <div>
-                                        <div className="font-biohazard text-ash-200 tracking-wider text-sm mb-1">
-                                            {f.title}
+                                        <div className="mb-1 font-biohazard text-sm tracking-wider text-ash-200">
+                                            {feature.title}
                                         </div>
-                                        <div className="text-ash-300 text-xs leading-relaxed">
-                                            {f.desc}
-                                        </div>
+                                        <div className="text-xs leading-relaxed text-ash-300">{feature.desc}</div>
                                     </div>
                                 </div>
                             ))}
@@ -210,83 +228,77 @@ export default async function HomePage() {
                 </div>
             </section>
 
-            {/* === LATEST CHAPTERS === */}
-            <section className="py-16 px-6 bg-ash-900/30">
-                <div className="max-w-7xl mx-auto">
-                    <div className="flex items-center justify-between mb-10">
+            <section className="bg-ash-900/30 px-6 py-16">
+                <div className="mx-auto max-w-7xl">
+                    <div className="mb-10 flex items-center justify-between">
                         <div>
-                            <div className="font-mono text-xs text-toxic-green-DEFAULT tracking-[0.3em] mb-2">
-                                ☣ CẬP NHẬT MỚI NHẤT
+                            <div className="mb-2 font-mono text-xs tracking-[0.3em] text-toxic-green-DEFAULT">
+                                {dictionary.home.latestUpdated}
                             </div>
-                            <h2 className="font-biohazard text-3xl text-worn-white tracking-wide">
-                                CHƯƠNG MỚI ĐÃ ĐĂNG
+                            <h2 className="font-biohazard text-3xl tracking-wide text-worn-white">
+                                {dictionary.home.latest}
                             </h2>
                         </div>
                         <Link
-                            href="/chapters"
-                            className="flex items-center gap-2 text-sm font-mono text-ash-400 hover:text-toxic-green-DEFAULT transition-colors"
+                            href={localizedChapterListPath}
+                            className="flex items-center gap-2 font-mono text-sm text-ash-400 transition-colors hover:text-toxic-green-DEFAULT"
                         >
-                            XEM TẤT CẢ
+                            {dictionary.home.seeAll}
                             <ChevronRight size={14} />
                         </Link>
                     </div>
 
                     {latestChapters.length > 0 ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                            {latestChapters.map((chapter, i) => (
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                            {latestChapters.map((chapter, index) => (
                                 <Link
                                     key={chapter.id}
-                                    href={`/chapters/${chapter.chapter_number}`}
-                                    className="card-biohazard rounded p-4 group cursor-pointer relative hazard-corner chapter-item"
-                                    style={{ animationDelay: `${i * 0.05}s` }}
+                                    href={withLocalePath(locale, `/chapters/${chapter.chapter_number}`)}
+                                    className="card-biohazard hazard-corner chapter-item group relative cursor-pointer rounded p-4"
+                                    style={{ animationDelay: `${index * 0.05}s` }}
                                 >
                                     <div className="flex items-start justify-between gap-3">
-                                        <div className="flex-1 min-w-0">
+                                        <div className="min-w-0 flex-1">
                                             <div className="chapter-badge mb-1">
-                                                CHƯƠNG {chapter.chapter_number}
+                                                {dictionary.reader.chapter} {chapter.chapter_number}
                                             </div>
-                                            <div className="font-biohazard text-ash-200 tracking-wide text-base leading-tight group-hover:text-toxic-green-DEFAULT transition-colors line-clamp-2">
+                                            <div className="line-clamp-2 text-base leading-tight tracking-wide text-ash-200 transition-colors group-hover:text-toxic-green-DEFAULT font-biohazard">
                                                 {chapter.title}
                                             </div>
                                         </div>
                                         <ChevronRight
                                             size={14}
-                                            className="text-ash-600 group-hover:text-toxic-green-DEFAULT shrink-0 mt-1 transition-colors"
+                                            className="mt-1 shrink-0 text-ash-600 transition-colors group-hover:text-toxic-green-DEFAULT"
                                         />
                                     </div>
-                                    <div className="mt-3 text-ash-600 text-[10px] font-mono">
-                                        {new Date(chapter.created_at).toLocaleDateString("vi-VN")}
+                                    <div className="mt-3 font-mono text-[10px] text-ash-600">
+                                        {new Date(chapter.created_at).toLocaleDateString(LOCALE_LANG[locale])}
                                     </div>
                                 </Link>
                             ))}
                         </div>
                     ) : (
-                        /* Skeleton / placeholder if API not available */
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                            {Array.from({ length: 12 }).map((_, i) => (
-                                <div
-                                    key={i}
-                                    className="card-biohazard rounded p-4 animate-pulse"
-                                >
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                            {Array.from({ length: 12 }).map((_, index) => (
+                                <div key={index} className="card-biohazard rounded p-4 animate-pulse">
                                     <div className="flex items-start justify-between gap-3">
                                         <div className="flex-1">
-                                            <div className="h-3 bg-ash-800 rounded w-20 mb-2" />
-                                            <div className="h-4 bg-ash-800 rounded w-full mb-1" />
-                                            <div className="h-4 bg-ash-800 rounded w-3/4" />
+                                            <div className="mb-2 h-3 w-20 rounded bg-ash-800" />
+                                            <div className="mb-1 h-4 w-full rounded bg-ash-800" />
+                                            <div className="h-4 w-3/4 rounded bg-ash-800" />
                                         </div>
                                     </div>
-                                    <div className="mt-3 h-3 bg-ash-800 rounded w-24" />
+                                    <div className="mt-3 h-3 w-24 rounded bg-ash-800" />
                                 </div>
                             ))}
                         </div>
                     )}
 
-                    {/* CTA */}
-                    <div className="text-center mt-12 flex flex-col items-center gap-4">
+                    <div className="mt-12 flex flex-col items-center gap-4 text-center">
                         <ContinueButton fixedDark />
-                        <Link href="/chapters/1" className="btn-fixed-blood inline-flex items-center gap-2 text-base py-3 px-8">
+                        <Link href={localizedFirstChapterPath} className="btn-fixed-blood inline-flex items-center gap-2 px-8 py-3 text-base">
                             <Zap size={16} />
-                            <span>BẮT ĐẦU ĐỌC NGAY</span>
+                            <span>{dictionary.home.startNow}</span>
                         </Link>
                     </div>
                 </div>

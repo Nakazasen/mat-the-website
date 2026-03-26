@@ -1,18 +1,11 @@
-import { notFound } from "next/navigation";
-import {
-    getChapter,
-    getChapterContent,
-    getChapters,
-    getNovelSettings,
-    type Chapter,
-} from "@/lib/api";
-import ReadingClient from "@/components/ReadingClient";
 import type { Metadata } from "next";
-export const dynamic = "force-dynamic";
+import { notFound } from "next/navigation";
 
-interface Props {
-    params: { id: string };
-}
+import ReadingClient from "@/components/ReadingClient";
+import { getChapter, getChapterContent, getNovelSettings, type Chapter } from "@/lib/api";
+import { getCurrentLocale } from "@/lib/i18n/server";
+
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({
     params,
@@ -20,26 +13,29 @@ export async function generateMetadata({
     params: Promise<{ id: string }>;
 }): Promise<Metadata> {
     try {
+        const locale = await getCurrentLocale();
         const resolvedParams = await params;
         const [chapter, novel] = await Promise.all([
-            getChapter(parseInt(resolvedParams.id)),
-            getNovelSettings()
+            getChapter(parseInt(resolvedParams.id, 10), locale),
+            getNovelSettings(locale),
         ]);
-        const title = `Chương ${chapter.chapter_number}: ${chapter.title} | ${novel.title}`;
-        const description = `Đọc Chương ${chapter.chapter_number} - ${chapter.title}. Truyện ${novel.title} full ${novel.total_chapters}+ chương. Zombie, dị biến sinh học, sinh tồn.`;
+
+        const displayTitle = chapter.translated_title || chapter.title;
+        const description = (chapter.translated_content || "").slice(0, 160) || `${displayTitle} | ${novel.title}`;
+
         return {
-            title,
+            title: `${displayTitle} | ${novel.title}`,
             description,
-            keywords: [`chương ${chapter.chapter_number}`, chapter.title, 'mạt thế', 'zombie', 'đọc truyện online', 'sinh hoá nguy cơ'],
+            keywords: [`chapter ${chapter.chapter_number}`, displayTitle, "mat the", "zombie"],
             openGraph: {
-                title,
+                title: `${displayTitle} | ${novel.title}`,
                 description,
-                type: 'article',
+                type: "article",
                 siteName: novel.title,
             },
         };
     } catch {
-        return { title: "Không tìm thấy chương" };
+        return { title: "Chapter not found" };
     }
 }
 
@@ -48,26 +44,27 @@ export default async function ReadingPage({
 }: {
     params: Promise<{ id: string }>;
 }) {
+    const locale = await getCurrentLocale();
     const resolvedParams = await params;
     const chapterNumber = parseInt(resolvedParams.id, 10);
-    if (isNaN(chapterNumber) || chapterNumber < 1) notFound();
+    if (Number.isNaN(chapterNumber) || chapterNumber < 1) notFound();
 
     let chapter: Chapter;
     let content: string;
     let totalChapters: number;
+
     try {
         const [chapterData, novelData] = await Promise.all([
-            getChapter(chapterNumber),
-            getNovelSettings()
+            getChapter(chapterNumber, locale),
+            getNovelSettings(locale),
         ]);
         chapter = chapterData;
-        content = await getChapterContent(chapter.content_url);
+        content = chapter.translated_content || await getChapterContent(chapter.content_url);
         totalChapters = novelData.max_chapter;
     } catch {
         notFound();
     }
 
-    // prev/next chapter IDs assume sequential chapter numbers
     const prevId = chapterNumber > 1 ? chapterNumber - 1 : null;
     const nextId = chapterNumber < totalChapters ? chapterNumber + 1 : null;
 
@@ -75,13 +72,13 @@ export default async function ReadingPage({
         <ReadingClient
             chapterId={chapter.id}
             chapterNumber={chapter.chapter_number}
-            chapterTitle={chapter.title}
+            chapterTitle={chapter.translated_title || chapter.title}
             content={content}
             prevId={prevId}
             nextId={nextId}
             totalChapters={totalChapters}
+            resolvedLocale={chapter.resolved_locale}
+            isFallback={chapter.is_fallback}
         />
     );
 }
-
-// Removed generateStaticParams to avoid build timeouts when backend is offline

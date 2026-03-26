@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+
+import { useLocale } from "@/context/LocaleContext";
 import { useNovel } from "@/context/NovelContext";
 
 interface HQStatus {
@@ -109,6 +111,9 @@ function WallLevel({ level }: { level: number }) {
 }
 
 export default function HeadquartersPage() {
+    const { dictionary } = useLocale();
+    const { novel } = useNovel();
+
     const [chapter, setChapter] = useState<number>(() => {
         if (typeof window !== "undefined") {
             const stored = Number.parseInt(localStorage.getItem("lastReadChapter") ?? "1", 10);
@@ -116,13 +121,11 @@ export default function HeadquartersPage() {
         }
         return 1;
     });
-
     const [status, setStatus] = useState<HQStatus | null>(null);
     const [history, setHistory] = useState<HQHistoryPoint[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    const { novel } = useNovel();
     const maxChapter = novel?.max_chapter || 1000;
 
     useEffect(() => {
@@ -137,7 +140,7 @@ export default function HeadquartersPage() {
                 ]);
 
                 if (!statusRes.ok) {
-                    throw new Error(`Không thể tải dữ liệu HQ (${statusRes.status})`);
+                    throw new Error(`${dictionary.headquarters.syncError} (${statusRes.status})`);
                 }
 
                 const statusData = (await statusRes.json()) as HQStatus;
@@ -145,15 +148,15 @@ export default function HeadquartersPage() {
 
                 setStatus(statusData);
                 setHistory(Array.isArray(historyData) ? historyData : []);
-            } catch (e: any) {
-                setError(e?.message ?? "Không thể kết nối dữ liệu Headquarters.");
+            } catch (eventualError: any) {
+                setError(eventualError?.message ?? dictionary.headquarters.syncError);
             } finally {
                 setIsLoading(false);
             }
         };
 
         fetchData();
-    }, [chapter]);
+    }, [chapter, dictionary.headquarters.syncError]);
 
     return (
         <div
@@ -176,7 +179,7 @@ export default function HeadquartersPage() {
             >
                 <div style={{ maxWidth: 920, margin: "0 auto", padding: "20px 20px 16px" }}>
                     <div style={{ fontSize: 10, color: "rgba(57,255,20,0.55)", letterSpacing: "0.26em" }}>
-                        HEADQUARTERS FEED
+                        {dictionary.headquarters.feed}
                     </div>
                     <h1
                         style={{
@@ -186,15 +189,15 @@ export default function HeadquartersPage() {
                             letterSpacing: "0.06em",
                         }}
                     >
-                        Sở Chỉ Huy
+                        {dictionary.headquarters.title}
                     </h1>
                     <p style={{ margin: "6px 0 0", fontSize: 13, color: "rgba(255,255,255,0.52)" }}>
-                        Bảng điều hành nhập vai theo diễn biến chương, không lộ dữ liệu tương lai.
+                        {dictionary.headquarters.subtitle}
                     </p>
 
                     <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 12 }}>
                         <span style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", fontFamily: "monospace" }}>
-                            CHƯƠNG:
+                            {dictionary.headquarters.chapter.toUpperCase()}:
                         </span>
                         <input
                             type="range"
@@ -205,7 +208,7 @@ export default function HeadquartersPage() {
                             style={{ flex: 1, maxWidth: 320, accentColor: "#39FF14", cursor: "pointer" }}
                         />
                         <span style={{ minWidth: 72, textAlign: "center", color: "#39FF14", fontFamily: "monospace" }}>
-                            CH.{chapter}
+                            {dictionary.headquarters.chapter.toUpperCase()}.{chapter}
                         </span>
                     </div>
                 </div>
@@ -214,7 +217,7 @@ export default function HeadquartersPage() {
             <div style={{ maxWidth: 920, margin: "28px auto 0", padding: "0 20px" }}>
                 {isLoading && (
                     <div style={{ textAlign: "center", padding: "56px 0", color: "rgba(57,255,20,0.6)", fontFamily: "monospace" }}>
-                        Đang đồng bộ dữ liệu HQ...
+                        {dictionary.headquarters.loading}
                     </div>
                 )}
 
@@ -236,31 +239,35 @@ export default function HeadquartersPage() {
                 {status && !isLoading && !error && (
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 18 }}>
                         <section style={{ background: "rgba(20,24,22,0.8)", border: "1px solid rgba(57,255,20,0.14)", borderRadius: 8, padding: 18 }}>
-                            <div style={{ fontSize: 10, color: "rgba(57,255,20,0.55)", letterSpacing: "0.2em", marginBottom: 12 }}>TÀI NGUYÊN</div>
-                            <StatBar label="Lương thực" value={status.food_days} max={365} color="#39FF14" unit=" ngày" />
-                            <StatBar label="Tinh hạch" value={status.crystal_count} max={100_000} color="#a855f7" />
-                            <StatBar label="Nước" value={status.water_unit} max={1_000_000} color="#38bdf8" unit="L" />
+                            <div style={{ fontSize: 10, color: "rgba(57,255,20,0.55)", letterSpacing: "0.2em", marginBottom: 12 }}>
+                                {dictionary.headquarters.resources.toUpperCase()}
+                            </div>
+                            <StatBar label={dictionary.headquarters.food} value={status.food_days} max={365} color="#39FF14" unit="d" />
+                            <StatBar label={dictionary.headquarters.crystals} value={status.crystal_count} max={100_000} color="#a855f7" />
+                            <StatBar label={dictionary.headquarters.water} value={status.water_unit} max={1_000_000} color="#38bdf8" unit="L" />
                         </section>
 
                         <section style={{ background: "rgba(20,24,22,0.8)", border: "1px solid rgba(57,255,20,0.14)", borderRadius: 8, padding: 18 }}>
                             <div style={{ fontSize: 10, color: "rgba(57,255,20,0.55)", letterSpacing: "0.2em", marginBottom: 12 }}>
-                                NHÂN LỰC ({formatNumber(status.total_population)})
+                                {dictionary.headquarters.personnel.toUpperCase()} ({formatNumber(status.total_population)})
                             </div>
-                            <StatBar label="Chiến binh" value={status.warriors} max={status.total_population || 1} color="#ef4444" />
-                            <StatBar label="Nghiên cứu" value={status.researchers} max={status.total_population || 1} color="#f59e0b" />
-                            <StatBar label="Dân thường" value={status.civilians} max={status.total_population || 1} color="#6b7280" />
+                            <StatBar label={dictionary.headquarters.warriors} value={status.warriors} max={status.total_population || 1} color="#ef4444" />
+                            <StatBar label={dictionary.headquarters.researchers} value={status.researchers} max={status.total_population || 1} color="#f59e0b" />
+                            <StatBar label={dictionary.headquarters.civilians} value={status.civilians} max={status.total_population || 1} color="#6b7280" />
                         </section>
 
                         <section style={{ background: "rgba(20,24,22,0.8)", border: "1px solid rgba(57,255,20,0.14)", borderRadius: 8, padding: 18 }}>
-                            <div style={{ fontSize: 10, color: "rgba(57,255,20,0.55)", letterSpacing: "0.2em", marginBottom: 12 }}>CƠ SỞ HẠ TẦNG</div>
+                            <div style={{ fontSize: 10, color: "rgba(57,255,20,0.55)", letterSpacing: "0.2em", marginBottom: 12 }}>
+                                {dictionary.headquarters.infrastructure.toUpperCase()}
+                            </div>
                             <div style={{ marginBottom: 16 }}>
                                 <div style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", fontFamily: "monospace", marginBottom: 6 }}>
-                                    Tường phòng thủ (Lv {status.wall_level}/5)
+                                    {dictionary.headquarters.walls} (Lv {status.wall_level}/5)
                                 </div>
                                 <WallLevel level={status.wall_level} />
                             </div>
-                            <StatBar label="Lãnh thổ" value={status.territory_km2} max={3000} color="#10b981" unit=" km2" />
-                            <StatBar label="Sĩ khí" value={status.morale} max={100} color="#f59e0b" unit="%" />
+                            <StatBar label={dictionary.headquarters.territory} value={status.territory_km2} max={3000} color="#10b981" unit="km²" />
+                            <StatBar label={dictionary.headquarters.morale} value={status.morale} max={100} color="#f59e0b" unit="%" />
                         </section>
 
                         <section
@@ -273,10 +280,10 @@ export default function HeadquartersPage() {
                             }}
                         >
                             <div style={{ fontSize: 10, color: "rgba(57,255,20,0.55)", letterSpacing: "0.2em", marginBottom: 8 }}>
-                                DẤU MỐC GẦN NHẤT: CHƯƠNG {status.chapter_id}
+                                {dictionary.headquarters.latestCheckpoint.toUpperCase()}: {dictionary.headquarters.chapter.toUpperCase()} {status.chapter_id}
                             </div>
                             <p style={{ margin: 0, fontSize: 13, lineHeight: 1.65, color: "rgba(255,255,255,0.55)" }}>
-                                Dữ liệu chỉ hiển thị theo chương bạn chọn để giữ trải nghiệm spoiler-safe.
+                                {dictionary.headquarters.spoilerSafe}
                             </p>
                             {history.length > 0 && (
                                 <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -292,7 +299,7 @@ export default function HeadquartersPage() {
                                                 padding: "4px 10px",
                                             }}
                                         >
-                                            CH.{point.chapter_id} F:{point.food_days} C:{formatNumber(point.crystal_count)} M:{point.morale}%
+                                            {dictionary.headquarters.chapter.toUpperCase()}.{point.chapter_id} F:{point.food_days} C:{formatNumber(point.crystal_count)} M:{point.morale}%
                                         </span>
                                     ))}
                                 </div>

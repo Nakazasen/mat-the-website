@@ -2,6 +2,8 @@ import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { LocaleProvider } from "@/context/LocaleContext";
+
 import { renderRichKaraoke } from "./karaoke";
 
 describe("renderRichKaraoke", () => {
@@ -28,7 +30,7 @@ describe("renderRichKaraoke", () => {
     const html = "<p><span data-character-name=\"Han Phong\" class=\"char-highlight\">Han Phong</span> tien vao can cu.</p>";
     const { nodes } = renderRichKaraoke(html, null, "dark", 12);
 
-    render(<div>{nodes}</div>);
+    render(<LocaleProvider locale="vi"><div>{nodes}</div></LocaleProvider>);
 
     fireEvent.mouseEnter(screen.getByText("Han Phong"));
 

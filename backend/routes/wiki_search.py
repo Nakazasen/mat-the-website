@@ -74,10 +74,30 @@ def query_character(supabase, search_value: str, chapter: int):
     return None
 
 
+def query_character_translation(supabase, wiki_entry_id: str, locale: str):
+    if not wiki_entry_id or locale == "vi":
+        return None
+    try:
+        result = (
+            supabase.table("wiki_entry_translations")
+            .select("*")
+            .eq("wiki_entry_id", wiki_entry_id)
+            .eq("locale", locale)
+            .limit(1)
+            .execute()
+        )
+        if result.data:
+            return result.data[0]
+    except Exception:
+        return None
+    return None
+
+
 @router.get("/character", response_model=Optional[CharacterProfile])
 async def get_character(
     name: str = Query(min_length=2, max_length=100),
     chapter: int = Query(ge=1, default=9999, description="Reader's current chapter (spoiler cap)"),
+    locale: str = Query(default="vi"),
 ):
     """
     Returns a character profile from the wiki, filtered by chapter progress.
@@ -100,13 +120,20 @@ async def get_character(
         if chapter_introduced is not None and chapter_introduced > chapter:
             return None
 
+        translation = query_character_translation(supabase, row.get("id"), locale)
+        resolved_name = row.get("name") or row.get("title") or name
+        resolved_description = row.get("description") or row.get("summary")
+        if translation:
+            resolved_name = translation.get("title") or resolved_name
+            resolved_description = translation.get("summary") or translation.get("content") or resolved_description
+
         return CharacterProfile(
-            name=row.get("name") or row.get("title") or name,
+            name=resolved_name,
             faction=row.get("faction"),
             status=row.get("status"),
             ability=row.get("ability"),
             first_appearance=row.get("first_appearance") or chapter_introduced,
-            description=row.get("description") or row.get("summary"),
+            description=resolved_description,
         )
     except Exception:
         return None

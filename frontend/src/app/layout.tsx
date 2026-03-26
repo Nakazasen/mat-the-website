@@ -1,68 +1,94 @@
 import type { Metadata } from "next";
-import "./globals.css";
-import Header from "@/components/Header";
-import Footer from "@/components/Footer";
-import { ThemeProvider } from "@/context/ThemeContext";
-import { NovelProvider } from "@/context/NovelContext";
-import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 import { Analytics } from "@vercel/analytics/react";
 
+import "./globals.css";
+
+import { LocaleProvider } from "@/context/LocaleContext";
+import { NovelProvider } from "@/context/NovelContext";
+import { ThemeProvider } from "@/context/ThemeContext";
 import { getNovelSettings } from "@/lib/api";
+import { LOCALE_LANG, SUPPORTED_LOCALES, withLocalePath } from "@/lib/i18n/config";
+import { getDictionary } from "@/lib/i18n/dictionaries";
+import { getCurrentCanonicalPath, getCurrentLocale, getUnlocalizedPath } from "@/lib/i18n/server";
+
+const SITE_URL = "https://matthesinhhoa.vercel.app";
 
 export async function generateMetadata(): Promise<Metadata> {
+    const locale = await getCurrentLocale();
+    const dictionary = getDictionary(locale);
+    const currentPath = await getCurrentCanonicalPath();
+    const unlocalizedPath = await getUnlocalizedPath();
+
     try {
-        const novel = await getNovelSettings();
+        const novel = await getNovelSettings(locale);
         return {
+            metadataBase: new URL(SITE_URL),
             title: {
-                default: `${novel.title} ☣️`,
+                default: novel.title,
                 template: `%s | ${novel.title}`,
             },
-            description: `Đọc truyện ${novel.title} full ${novel.total_chapters}+ chương. Thế giới tàn lụi, zombie, dị biến sinh học. Tác giả: ${novel.author}.`,
-            keywords: novel.genres.concat(["đọc truyện online", "mạt thế", "zombie"]),
+            description: novel.description,
+            keywords: novel.genres.concat(["mat the", "zombie", dictionary.common.chapters]),
+            alternates: {
+                canonical: currentPath,
+                languages: Object.fromEntries(
+                    SUPPORTED_LOCALES.map((item) => [LOCALE_LANG[item], withLocalePath(item, unlocalizedPath)]),
+                ),
+            },
             openGraph: {
-                title: `${novel.title} ☣️`,
-                description: `Đọc truyện ${novel.title} zombie dị biến sinh học online miễn phí`,
+                title: novel.title,
+                description: novel.description,
+                url: currentPath,
                 type: "website",
+                siteName: novel.title,
+                locale: LOCALE_LANG[locale],
             },
         };
     } catch {
         return {
+            metadataBase: new URL(SITE_URL),
             title: {
-                default: "Mạt Thế - Sinh Hoá Nguy Cơ ☣️",
-                template: "%s | Mạt Thế - Sinh Hoá Nguy Cơ",
+                default: "Mat The",
+                template: "%s | Mat The",
             },
-            description: "Đọc truyện Mạt Thế - Sinh Hoá Nguy Cơ full hàng ngàn chương. Thế giới tàn lụi, zombie, dị biến sinh học.",
+            description: "Biochemical apocalypse novel.",
+            alternates: {
+                canonical: currentPath,
+                languages: Object.fromEntries(
+                    SUPPORTED_LOCALES.map((item) => [LOCALE_LANG[item], withLocalePath(item, unlocalizedPath)]),
+                ),
+            },
         };
     }
 }
 
-export default function RootLayout({
+export default async function RootLayout({
     children,
 }: {
     children: React.ReactNode;
 }) {
+    const locale = await getCurrentLocale();
+
     return (
-        <html lang="vi" suppressHydrationWarning>
+        <html lang={locale} suppressHydrationWarning>
             <head>
                 <link rel="preconnect" href="https://fonts.googleapis.com" />
-                <link
-                    rel="preconnect"
-                    href="https://fonts.gstatic.com"
-                    crossOrigin="anonymous"
-                />
+                <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
                 <link rel="manifest" href="/manifest.json" />
                 <meta name="theme-color" content="#161616" />
                 <meta name="apple-mobile-web-app-capable" content="yes" />
                 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+                {SUPPORTED_LOCALES.map((item) => (
+                    <link key={item} rel="alternate" hrefLang={LOCALE_LANG[item]} href={`${SITE_URL}/${item}`} />
+                ))}
                 <script
                     dangerouslySetInnerHTML={{
                         __html: `
                         if ('serviceWorker' in navigator) {
                             window.addEventListener('load', function() {
-                                navigator.serviceWorker.register('/sw.js').then(
-                                    function(registration) { console.log('SW success'); },
-                                    function(err) { console.log('SW fail', err); }
-                                );
+                                navigator.serviceWorker.register('/sw.js').catch(function(err) {
+                                    console.log('SW fail', err);
+                                });
                             });
                         }
                         `,
@@ -71,9 +97,11 @@ export default function RootLayout({
             </head>
             <body className="bg-ash-dark min-h-screen antialiased" suppressHydrationWarning>
                 <ThemeProvider>
-                    <NovelProvider>
-                        {children}
-                    </NovelProvider>
+                    <LocaleProvider locale={locale}>
+                        <NovelProvider>
+                            {children}
+                        </NovelProvider>
+                    </LocaleProvider>
                 </ThemeProvider>
                 <Analytics />
             </body>

@@ -4,6 +4,7 @@ import { ArrowLeft, Tag, Calendar, BookOpen, Star } from "lucide-react";
 import { getWikiEntry, getWikiEntries, WIKI_CATEGORIES } from "@/lib/api";
 import FactionOrgChart from "@/components/FactionOrgChart";
 import WikiSettingsWrapper from "@/components/WikiSettingsWrapper";
+import { getCurrentLocale } from "@/lib/i18n/server";
 
 const CATEGORY_ICONS: Record<string, string> = {
     "Nhân vật": "👤",
@@ -27,7 +28,8 @@ export async function generateStaticParams() {
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
     const { slug } = await params;
     try {
-        const entry = await getWikiEntry(slug);
+        const locale = await getCurrentLocale();
+        const entry = await getWikiEntry(slug, locale);
         return {
             title: `${entry.title} | Cẩm Nang Mạt Thế`,
             description: entry.summary || `Thông tin về ${entry.title} trong thế giới Mạt Thế.`,
@@ -40,11 +42,12 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 export const dynamic = "force-dynamic";
 
 export default async function WikiDetailPage({ params }: { params: Promise<{ slug: string }> }) {
+    const locale = await getCurrentLocale();
     const { slug } = await params;
 
     let entry;
     try {
-        entry = await getWikiEntry(slug);
+        entry = await getWikiEntry(slug, locale);
     } catch {
         notFound();
     }

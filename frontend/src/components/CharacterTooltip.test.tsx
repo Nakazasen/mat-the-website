@@ -2,7 +2,13 @@ import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { LocaleProvider } from "@/context/LocaleContext";
+
 import CharacterTooltip from "./CharacterTooltip";
+
+function renderWithLocale(ui: React.ReactNode) {
+  return render(<LocaleProvider locale="vi">{ui}</LocaleProvider>);
+}
 
 describe("CharacterTooltip", () => {
   const originalFetch = global.fetch;
@@ -28,10 +34,10 @@ describe("CharacterTooltip", () => {
     });
     global.fetch = fetchMock as typeof fetch;
 
-    render(
+    renderWithLocale(
       <CharacterTooltip name="Han Phong" chapterProgress={10}>
         Han Phong
-      </CharacterTooltip>
+      </CharacterTooltip>,
     );
 
     fireEvent.mouseEnter(screen.getAllByText("Han Phong")[0]!);
@@ -44,6 +50,7 @@ describe("CharacterTooltip", () => {
     expect(fetchMock.mock.calls[0]?.[0]).toContain("/api/wiki/character?");
     expect(fetchMock.mock.calls[0]?.[0]).toContain("name=Han+Phong");
     expect(fetchMock.mock.calls[0]?.[0]).toContain("chapter=10");
+    expect(fetchMock.mock.calls[0]?.[0]).toContain("locale=vi");
     expect(screen.getByText("Tram Chi Huy")).toBeInTheDocument();
     expect(screen.getByText("Thong tri he thong")).toBeInTheDocument();
   });
@@ -55,10 +62,10 @@ describe("CharacterTooltip", () => {
     });
     global.fetch = fetchMock as typeof fetch;
 
-    render(
+    renderWithLocale(
       <CharacterTooltip name="Han Phong" chapterProgress={10}>
         Han Phong
-      </CharacterTooltip>
+      </CharacterTooltip>,
     );
 
     const trigger = screen.getAllByText("Han Phong")[0]!;
@@ -68,7 +75,7 @@ describe("CharacterTooltip", () => {
     fireEvent.mouseLeave(trigger);
 
     await waitFor(() => {
-      expect(screen.queryByText("TÊN: ", { selector: "div span" })).not.toBeInTheDocument();
+      expect(screen.queryByText("Tên: ", { selector: "div span" })).not.toBeInTheDocument();
     });
   });
 
@@ -79,10 +86,10 @@ describe("CharacterTooltip", () => {
     });
     global.fetch = fetchMock as typeof fetch;
 
-    render(
+    renderWithLocale(
       <CharacterTooltip name="Han Phong" chapterProgress={10}>
         Han Phong
-      </CharacterTooltip>
+      </CharacterTooltip>,
     );
 
     const trigger = screen.getAllByText("Han Phong")[0]!;
