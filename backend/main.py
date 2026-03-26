@@ -1225,10 +1225,26 @@ async def admin_update_novel(
             data["ai_api_key"] = normalized_keys[0]
 
     # Update novel settings (ID 1)
+    # Do not return raw API keys to the admin frontend.
     result = supabase.table("novel_settings").upsert({**data, "id": 1}).execute()
-    return {"message": "Cập nhật thành công", "data": result.data[0]}
-
-
+    saved_row = result.data[0] if result.data else {"id": 1, **data}
+    key_catalog = normalize_api_key_catalog(saved_row.get("ai_api_keys"), saved_row.get("ai_api_key") or "")
+    return {
+        "message": "C蘯ｭp nh蘯ｭt thﾃnh cﾃｴng",
+        "data": {
+            "id": saved_row.get("id", 1),
+            "title": saved_row.get("title"),
+            "author": saved_row.get("author"),
+            "status": saved_row.get("status"),
+            "ai_model_name": saved_row.get("ai_model_name", TRANSLATION_MODEL_FALLBACK),
+            "ai_model_catalog": normalize_model_catalog(
+                saved_row.get("ai_model_catalog"),
+                saved_row.get("ai_model_name") or TRANSLATION_MODEL_FALLBACK,
+            ),
+            "has_ai_key": bool(key_catalog),
+            "ai_api_keys_count": len(key_catalog),
+        },
+    }
 class HomepageSettings(BaseModel):
     warning_title: Optional[str] = None
     warning_subtitle: Optional[str] = None
