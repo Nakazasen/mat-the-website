@@ -474,7 +474,7 @@ export default function AdminNovelPage() {
                                                 value={aiApiKeysInputs[index] || ''}
                                                 onChange={(e) => setAiApiKeysInputs((current) => current.map((item, itemIndex) => itemIndex === index ? e.target.value : item))}
                                                 className="w-full bg-black border border-gray-800 rounded px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:border-green-500"
-                                                placeholder={`Nhap API key project ${index + 1}`}
+                                                placeholder={index < (settings.ai_api_keys_count || 0) ? `Da luu key project ${index + 1}` : `Nhap API key project ${index + 1}`}
                                             />
                                         ))}
                                     </div>

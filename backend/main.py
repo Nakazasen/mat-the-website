@@ -1046,6 +1046,7 @@ async def admin_translate_chapter(
     chapter_row = chapter_resp.data
     content_text = fetch_r2_content(chapter_row["content_url"])
     translated_locales = []
+    failed_translations = []
     for locale_code in ("en", "zh-CN", "ja"):
         await upsert_chapter_translation(chapter_row, chapter_row["title"], content_text, locale_code)
         translated_locales.append(locale_code)
@@ -1054,6 +1055,7 @@ async def admin_translate_chapter(
         "message": "Chapter translated",
         "chapter_number": chapter_number,
         "translated_locales": translated_locales,
+        "failed_translations": failed_translations,
     }
 
 
@@ -1575,8 +1577,25 @@ async def admin_translate_homepage_i18n(
     target_locales = [item for item in target_locales if item != DEFAULT_LOCALE]
     translated_locales = []
     for target_locale in target_locales:
-        await upsert_homepage_translation(base_payload, target_locale)
-        translated_locales.append(target_locale)
+        try:
+            await upsert_homepage_translation(base_payload, target_locale)
+            translated_locales.append(target_locale)
+        except HTTPException as exc:
+            failed_translations.append(
+                {
+                    "locale": target_locale,
+                    "status_code": exc.status_code,
+                    "detail": str(exc.detail),
+                }
+            )
+        except Exception as exc:
+            failed_translations.append(
+                {
+                    "locale": target_locale,
+                    "status_code": 500,
+                    "detail": str(exc),
+                }
+            )
 
     return {
         "message": "Đã dịch cấu hình trang chủ",

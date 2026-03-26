@@ -152,7 +152,27 @@ export default function AdminHomepagePage() {
 
         try {
             const result = await translateAdminHomepage(token);
+            if (Array.isArray(result.failed_translations) && result.failed_translations.length > 0) {
+                const failedLocales = result.failed_translations.map((item) => item.locale).join(", ");
+                const translatedLocales = Array.isArray(result.translated_locales) ? result.translated_locales.join(", ") : "";
+                setSuccess(
+                    translatedLocales
+                        ? `Da dich: ${translatedLocales}. Chua dich duoc: ${failedLocales}.`
+                        : `Chua dich duoc locale nao. That bai: ${failedLocales}.`
+                );
+            }
             setSuccess(`Đã dịch: ${result.translated_locales.join(", ")}`);
+            if (Array.isArray(result.failed_translations) && result.failed_translations.length > 0) {
+                const failedLocales = result.failed_translations.map((item) => item.locale).join(", ");
+                const translatedLocales = Array.isArray(result.translated_locales) ? result.translated_locales.join(", ") : "";
+                setSuccess(
+                    translatedLocales
+                        ? `Da dich: ${translatedLocales}. Chua dich duoc: ${failedLocales}.`
+                        : `Chua dich duoc locale nao. That bai: ${failedLocales}.`
+                );
+            } else if (!Array.isArray(result.failed_translations) || result.failed_translations.length === 0) {
+                setSuccess(`Da dich: ${result.translated_locales.join(", ")}`);
+            }
             if (locale !== "vi") {
                 const params = new URLSearchParams({ locale });
                 const res = await fetch(`${API_BASE_URL}/api/homepage?${params.toString()}`, { cache: "no-store" });

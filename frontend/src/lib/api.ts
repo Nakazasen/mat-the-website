@@ -6,7 +6,7 @@ import type { Locale } from '@/lib/i18n/config';
 // Then fetches content directly from Cloudflare CDN
 
 const API_BASE_URL =
-    (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, "");
+    (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
 
 export interface Chapter {
     id: number;
@@ -560,7 +560,10 @@ export async function getHomepageSettings(locale?: Locale): Promise<HomepageSett
     return res.json();
 }
 
-export async function translateAdminHomepage(token: string, locale?: Locale): Promise<{ message: string; translated_locales: string[] }> {
+export async function translateAdminHomepage(
+    token: string,
+    locale?: Locale
+): Promise<{ message: string; translated_locales: string[]; failed_translations?: Array<{ locale: string; detail?: string }> }> {
     const params = new URLSearchParams();
     if (locale) params.set("locale", locale);
 
@@ -570,7 +573,13 @@ export async function translateAdminHomepage(token: string, locale?: Locale): Pr
             Authorization: `Bearer ${token}`,
         },
     });
-    const payload = await res.json();
+    const rawText = await res.text();
+    let payload: any = {};
+    try {
+        payload = rawText ? JSON.parse(rawText) : {};
+    } catch {
+        payload = {};
+    }
     if (!res.ok) {
         throw new Error(payload.detail || "Failed to translate homepage settings");
     }
