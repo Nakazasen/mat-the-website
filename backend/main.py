@@ -1257,6 +1257,13 @@ class HomepageSettings(BaseModel):
     is_fallback: bool = False
 
 
+class HomepageAutoSaveResponse(BaseModel):
+    message: str
+    settings: dict
+    auto_translated_locales: list[str] = []
+    failed_translations: list[dict] = []
+
+
 class Profile(BaseModel):
     id: str
     email: str
@@ -1577,7 +1584,7 @@ async def admin_translate_homepage_i18n(
     }
 
 
-@app.put("/api/admin/homepage/auto-save", summary="[Admin] Luu trang chu va tu dong dich AI")
+@app.put("/api/admin/homepage/auto-save", response_model=HomepageAutoSaveResponse, summary="[Admin] Luu trang chu va tu dong dich AI")
 async def admin_auto_save_homepage_i18n(
     body: HomepageSettings,
     authorization: Optional[str] = Header(None),
@@ -1594,13 +1601,39 @@ async def admin_auto_save_homepage_i18n(
         payload["id"] = 1
         result = supabase.table("homepage_settings").upsert(payload).execute()
         translated_locales = []
+        failed_translations = []
         for auto_locale in (item for item in SUPPORTED_LOCALES if item != DEFAULT_LOCALE):
-            await upsert_homepage_translation(payload, auto_locale)
-            translated_locales.append(auto_locale)
+            try:
+                await upsert_homepage_translation(payload, auto_locale)
+                translated_locales.append(auto_locale)
+            except HTTPException as exc:
+                failed_translations.append(
+                    {
+                        "locale": auto_locale,
+                        "status_code": exc.status_code,
+                        "detail": str(exc.detail),
+                    }
+                )
+            except Exception as exc:
+                failed_translations.append(
+                    {
+                        "locale": auto_locale,
+                        "status_code": 500,
+                        "detail": str(exc),
+                    }
+                )
+
+        message = "Da luu trang chu va tu dong dich"
+        if failed_translations and translated_locales:
+            message = "Da luu trang chu va dich mot phan"
+        elif failed_translations and not translated_locales:
+            message = "Da luu trang chu, nhung auto-dich tam thoi that bai"
+
         return {
-            "message": "Da luu trang chu va tu dong dich",
+            "message": message,
             "settings": result.data[0] if result.data else payload,
             "auto_translated_locales": translated_locales,
+            "failed_translations": failed_translations,
         }
 
     payload.update(
@@ -1622,6 +1655,7 @@ async def admin_auto_save_homepage_i18n(
         "message": "Da luu ban dich trang chu",
         "settings": result.data[0] if result.data else payload,
         "auto_translated_locales": [],
+        "failed_translations": [],
     }
 
 

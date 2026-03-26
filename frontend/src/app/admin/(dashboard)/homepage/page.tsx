@@ -123,7 +123,15 @@ export default function AdminHomepagePage() {
             }
 
             setSuccess(`Đã lưu cấu hình locale ${locale}.`);
-            if (locale === "vi" && Array.isArray(payload.auto_translated_locales) && payload.auto_translated_locales.length > 0) {
+            if (locale === "vi" && Array.isArray(payload.failed_translations) && payload.failed_translations.length > 0) {
+                const failedLocales = payload.failed_translations.map((item: { locale: string }) => item.locale).join(", ");
+                const translatedLocales = Array.isArray(payload.auto_translated_locales) ? payload.auto_translated_locales.join(", ") : "";
+                setSuccess(
+                    translatedLocales
+                        ? `Da luu VI. Da dich: ${translatedLocales}. Chua dich duoc: ${failedLocales}.`
+                        : `Da luu VI, nhung auto-dich tam thoi that bai cho: ${failedLocales}.`
+                );
+            } else if (locale === "vi" && Array.isArray(payload.auto_translated_locales) && payload.auto_translated_locales.length > 0) {
                 setSuccess(`ﾄ静｣ lﾆｰu locale vi vﾃ t盻ｱ ﾄ黛ｻ盻冨 d盻議h: ${payload.auto_translated_locales.join(", ")}`);
             } else {
                 setSuccess(`ﾄ静｣ lﾆｰu c蘯･u hﾃｬnh locale ${locale}.`);
