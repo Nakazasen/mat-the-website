@@ -738,46 +738,139 @@ async def upsert_chapter_translation(chapter_row: dict, title: str, content: str
         raise
 
 
+async def translate_homepage_payload_with_ai(settings_payload: dict, target_locale: str) -> dict:
+    _active_model, model_catalog, api_keys = await resolve_ai_settings_for_translation()
+    if not api_keys:
+        raise HTTPException(status_code=503, detail="AI translation is not configured")
+
+    base_payload = prepare_homepage_settings_payload(settings_payload)
+    glossary_prompt = build_glossary_prompt()
+    source_payload = {
+        "warning_title": base_payload.get("warning_title") or "",
+        "warning_subtitle": base_payload.get("warning_subtitle") or "",
+        "warning_headline": base_payload.get("warning_headline") or "",
+        "warning_description": base_payload.get("warning_description") or "",
+        "features_title": base_payload.get("features_title") or "",
+        "features_json": [
+            {
+                "icon": feature.get("icon", ""),
+                "title": feature.get("title", ""),
+                "desc": feature.get("desc", ""),
+            }
+            for feature in (base_payload.get("features_json") or [])
+        ],
+    }
+    serialized_source = json.dumps(source_payload, ensure_ascii=False)
+
+    prompt = f"""
+Ban la bien dich vien chuyen nghiep cho website tieu thuyet sinh ton hau tan the.
+Hay dich toan bo payload homepage sau tu {DEFAULT_LOCALE} sang {target_locale}.
+
+YEU CAU:
+1. Giu nguyen ten rieng theo glossary neu co.
+2. Khong duoc rut gon, khong them giai thich, khong them markdown.
+3. warning_description duoc phep giu HTML co san, chi dich phan van ban.
+4. Giu nguyen so luong item trong features_json va giu nguyen icon.
+5. Tra ve DUY NHAT mot JSON hop le theo dung schema nguon.
+6. Khong boc JSON trong code fence.
+
+GLOSSARY:
+{glossary_prompt}
+
+SOURCE JSON:
+{serialized_source}
+""".strip()
+
+    payload = {
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        "generationConfig": {"maxOutputTokens": 8192, "temperature": 0.3},
+    }
+
+    def parse_homepage_translation_payload(raw_text: str) -> dict:
+        cleaned = (raw_text or "").strip()
+        if cleaned.startswith("```"):
+            cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r"\s*```$", "", cleaned)
+            cleaned = cleaned.strip()
+
+        parsed = json.loads(cleaned)
+        translated = prepare_homepage_settings_payload(parsed)
+        translated["features_json"] = sanitize_homepage_features(parsed.get("features_json"))
+        return translated
+
+    last_error: Optional[HTTPException] = None
+    attempts: list[dict] = []
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        for key_index, api_key in enumerate(api_keys, start=1):
+            for model_name in model_catalog:
+                await throttle_translation_request(model_name, api_key)
+                gemini_url = (
+                    "https://generativelanguage.googleapis.com/v1beta/models/"
+                    f"{model_name}:generateContent?key={api_key}"
+                )
+                response = await client.post(gemini_url, json=payload)
+                if response.is_success:
+                    data = response.json()
+                    try:
+                        raw_text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+                        return parse_homepage_translation_payload(raw_text)
+                    except Exception as exc:
+                        raise HTTPException(status_code=502, detail=f"Model {model_name}: invalid homepage translation payload: {exc}")
+
+                last_error = HTTPException(
+                    status_code=response.status_code,
+                    detail=f"Model {model_name}: Translation API error: {response.text}",
+                )
+                attempts.append(
+                    {
+                        "key_index": key_index,
+                        "model": model_name,
+                        "status_code": response.status_code,
+                        "message": response.text,
+                    }
+                )
+                if not is_translation_retryable(last_error):
+                    raise HTTPException(
+                        status_code=last_error.status_code,
+                        detail=build_translation_failure_detail(
+                            attempts,
+                            len(api_keys),
+                            len(model_catalog),
+                            str(last_error.detail),
+                        ),
+                    )
+
+    if last_error:
+        raise HTTPException(
+            status_code=last_error.status_code,
+            detail=build_translation_failure_detail(
+                attempts,
+                len(api_keys),
+                len(model_catalog),
+                str(last_error.detail),
+            ),
+        )
+    raise HTTPException(status_code=502, detail="Khong co mo hinh dich homepage kha dung")
+
+
 async def upsert_homepage_translation(settings_payload: dict, locale: str):
     locale = normalize_locale(locale)
     if locale == DEFAULT_LOCALE:
         return None
 
     base_payload = prepare_homepage_settings_payload(settings_payload)
-    translated_features = []
-    for index, feature in enumerate(base_payload.get("features_json") or []):
-        translated_features.append(
-            {
-                "icon": feature.get("icon", ""),
-                "title": await translate_text_with_ai(feature.get("title", ""), DEFAULT_LOCALE, locale, f"homepage-feature-title-{index}")
-                if feature.get("title")
-                else "",
-                "desc": await translate_text_with_ai(feature.get("desc", ""), DEFAULT_LOCALE, locale, f"homepage-feature-desc-{index}")
-                if feature.get("desc")
-                else "",
-            }
-        )
+    translated_payload = await translate_homepage_payload_with_ai(base_payload, locale)
 
     source_hash = build_content_hash(json.dumps(base_payload, ensure_ascii=False, sort_keys=True))
     payload = {
         "homepage_settings_id": 1,
         "locale": locale,
-        "warning_title": await translate_text_with_ai(base_payload.get("warning_title", ""), DEFAULT_LOCALE, locale, "homepage-warning-title")
-        if base_payload.get("warning_title")
-        else "",
-        "warning_subtitle": await translate_text_with_ai(base_payload.get("warning_subtitle", ""), DEFAULT_LOCALE, locale, "homepage-warning-subtitle")
-        if base_payload.get("warning_subtitle")
-        else "",
-        "warning_headline": await translate_text_with_ai(base_payload.get("warning_headline", ""), DEFAULT_LOCALE, locale, "homepage-warning-headline")
-        if base_payload.get("warning_headline")
-        else "",
-        "warning_description": await translate_text_with_ai(base_payload.get("warning_description", ""), DEFAULT_LOCALE, locale, "homepage-warning-description")
-        if base_payload.get("warning_description")
-        else "",
-        "features_title": await translate_text_with_ai(base_payload.get("features_title", ""), DEFAULT_LOCALE, locale, "homepage-features-title")
-        if base_payload.get("features_title")
-        else "",
-        "features_json": translated_features,
+        "warning_title": translated_payload.get("warning_title", ""),
+        "warning_subtitle": translated_payload.get("warning_subtitle", ""),
+        "warning_headline": translated_payload.get("warning_headline", ""),
+        "warning_description": translated_payload.get("warning_description", ""),
+        "features_title": translated_payload.get("features_title", ""),
+        "features_json": translated_payload.get("features_json", []),
         "translation_status": "published",
         "translation_source": "ai",
         "translated_at": datetime.now(timezone.utc).isoformat(),
