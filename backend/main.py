@@ -258,6 +258,25 @@ def is_translation_retryable(exc: HTTPException) -> bool:
     )
 
 
+def build_translation_failure_detail(
+    attempts: list[dict],
+    total_keys: int,
+    total_models: int,
+    final_detail: str,
+) -> str:
+    summary = f"Đã thử {total_keys} key, {total_models} model, tổng {len(attempts)} lượt."
+    if not attempts:
+        return f"{summary}\nLỗi cuối cùng: {final_detail}"
+
+    lines = [summary, "Các lượt lỗi:"]
+    for item in attempts:
+        lines.append(
+            f"- key #{item['key_index']} | {item['model']} | HTTP {item['status_code']} | {item['message']}"
+        )
+    lines.append(f"Lỗi cuối cùng: {final_detail}")
+    return "\n".join(lines)
+
+
 def resolve_homepage_translation(locale: str):
     locale = normalize_locale(locale)
     if locale == DEFAULT_LOCALE:
@@ -437,8 +456,9 @@ SOURCE:
     }
 
     last_error: Optional[HTTPException] = None
+    attempts: list[dict] = []
     async with httpx.AsyncClient(timeout=60.0) as client:
-        for api_key in api_keys:
+        for key_index, api_key in enumerate(api_keys, start=1):
             for model_name in model_catalog:
                 gemini_url = (
                     "https://generativelanguage.googleapis.com/v1beta/models/"
@@ -456,11 +476,35 @@ SOURCE:
                     status_code=response.status_code,
                     detail=f"Model {model_name}: Translation API error: {response.text}",
                 )
+                attempts.append(
+                    {
+                        "key_index": key_index,
+                        "model": model_name,
+                        "status_code": response.status_code,
+                        "message": response.text,
+                    }
+                )
                 if not is_translation_retryable(last_error):
-                    raise last_error
+                    raise HTTPException(
+                        status_code=last_error.status_code,
+                        detail=build_translation_failure_detail(
+                            attempts,
+                            len(api_keys),
+                            len(model_catalog),
+                            str(last_error.detail),
+                        ),
+                    )
 
     if last_error:
-        raise last_error
+        raise HTTPException(
+            status_code=last_error.status_code,
+            detail=build_translation_failure_detail(
+                attempts,
+                len(api_keys),
+                len(model_catalog),
+                str(last_error.detail),
+            ),
+        )
     raise HTTPException(status_code=502, detail="Không có mô hình dịch khả dụng")
 
 
