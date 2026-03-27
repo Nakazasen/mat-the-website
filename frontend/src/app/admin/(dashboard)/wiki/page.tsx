@@ -236,7 +236,7 @@ export default function AdminWikiPage() {
                     <div>
                         <div className="text-xs font-mono text-cyan-400 uppercase tracking-widest">Wiki Translate</div>
                         <p className="mt-1 text-xs font-mono text-gray-500">
-                            Dịch AI cho các mục wiki của trang hiện tại. Mỗi locale dùng 1 request payload JSON.
+                            Dịch AI cho các mục wiki của trang hiện tại. Backend gom tối đa 3 locale trong 1 request JSON.
                         </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-3">

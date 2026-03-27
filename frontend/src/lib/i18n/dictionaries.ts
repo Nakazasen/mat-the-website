@@ -144,7 +144,7 @@ export interface Dictionary {
     };
 }
 
-const dictionaries: Record<Locale, Dictionary> = {
+export const dictionaries: Record<Locale, Dictionary> = {
     vi: {
         common: {
             home: "Trang chủ",
