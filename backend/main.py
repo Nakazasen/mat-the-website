@@ -3780,6 +3780,10 @@ class GuidePageUpdate(BaseModel):
 
 
 @app.get("/api/guide/{slug}", summary="L蘯･y trang hﾆｰ盻嬾g d蘯ｫn public")
+async def _public_guide_route(slug: str, locale: str = Query(DEFAULT_LOCALE, description="Requested locale")):
+    return await get_public_guide(slug, locale)
+
+
 def build_guide_translation_slug(slug: str, locale: str) -> str:
     return f"{slug}__{normalize_locale(locale)}"
 
