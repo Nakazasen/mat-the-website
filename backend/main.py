@@ -13,7 +13,7 @@ import unicodedata
 from datetime import datetime, timezone
 # Force re-deploy to Vercel and Render (Trigger: 2026-03-25 23:14)
 from time import monotonic
-from typing import Optional, List
+from typing import Optional, List, Callable, TypeVar, Any
 from urllib.parse import quote
 import boto3
 from botocore.client import Config
@@ -92,18 +92,17 @@ def slugify(text: str) -> str:
 
 SUPPORTED_LOCALES = ("vi", "en", "zh-CN", "ja")
 DEFAULT_LOCALE = "vi"
+TRANSLATION_TARGET_LOCALES = ("en", "zh-CN", "ja")
+TRANSLATION_LOCALE_LABELS = {
+    "en": "English",
+    "zh-CN": "Simplified Chinese",
+    "ja": "Japanese",
+}
 TRANSLATION_GLOSSARY_PATH = os.path.join(current_dir, "translation_glossary.json")
 DEFAULT_TRANSLATION_MODELS = [
-    "gemini-3.1-flash-lite-preview",
-    "gemma-3n-1b-it",
-    "gemma-3n-e2b-it",
-    "gemma-3-4b-it",
-    "gemma-3-12b-it",
-    "gemma-3-27b-it",
-    "gemini-robotics-er-1.5-preview",
-    "gemini-3-flash-preview",
     "gemini-2.5-flash",
     "gemini-2.5-flash-lite",
+    "gemini-3-flash-preview",
 ]
 TRANSLATION_MODEL_FALLBACK = DEFAULT_TRANSLATION_MODELS[0]
 MODEL_PRIORITY = {model: index for index, model in enumerate(DEFAULT_TRANSLATION_MODELS)}
@@ -119,8 +118,11 @@ MODEL_MIN_INTERVAL_SECONDS = {
     "gemma-3n-e2b-it": 2.5,
     "gemma-3n-1b-it": 2.5,
 }
+TRANSLATION_MAX_OUTPUT_TOKENS = 65536
+TRANSLATION_MULTI_LOCALE_MAX_SOURCE_CHARS = 12000
 TRANSLATION_RATE_LIMIT_STATE: dict[str, float] = {}
 TRANSLATION_RATE_LIMIT_LOCK = asyncio.Lock()
+T = TypeVar("T")
 
 
 def normalize_locale(value: Optional[str]) -> str:
@@ -179,6 +181,125 @@ def build_glossary_prompt() -> str:
         if mapped:
             lines.append(f"- {source}: {mapped}")
     return "\n".join(lines) if lines else "Khong co glossary bo sung."
+
+
+def build_target_translation_locales(locales: Optional[List[str]] = None) -> list[str]:
+    if not locales:
+        return list(TRANSLATION_TARGET_LOCALES)
+
+    normalized: list[str] = []
+    for item in locales:
+        locale = normalize_locale(item)
+        if locale == DEFAULT_LOCALE or locale not in TRANSLATION_TARGET_LOCALES:
+            continue
+        if locale not in normalized:
+            normalized.append(locale)
+    return normalized
+
+
+def build_target_locale_prompt(locales: list[str]) -> str:
+    lines = []
+    for locale in locales:
+        locale_name = TRANSLATION_LOCALE_LABELS.get(locale, locale)
+        lines.append(f'- "{locale}": {locale_name}')
+    return "\n".join(lines)
+
+
+def build_multilocale_object_schema(target_locales: list[str], field_schemas: dict[str, dict[str, Any]]) -> dict:
+    ordered_fields = list(field_schemas.keys())
+    locale_properties = {
+        locale: {
+            "type": "object",
+            "properties": field_schemas,
+            "required": ordered_fields,
+            "additionalProperties": False,
+        }
+        for locale in target_locales
+    }
+    return {
+        "type": "object",
+        "properties": {
+            "translations": {
+                "type": "object",
+                "properties": locale_properties,
+                "required": target_locales,
+                "additionalProperties": False,
+            }
+        },
+        "required": ["translations"],
+        "additionalProperties": False,
+    }
+
+
+def extract_gemini_text_response(data: dict) -> str:
+    candidates = data.get("candidates") or []
+    if not candidates:
+        raise ValueError("Missing Gemini candidates")
+
+    parts = candidates[0].get("content", {}).get("parts") or []
+    text_parts = [str(part.get("text") or "").strip() for part in parts if part.get("text")]
+    text = "\n".join(item for item in text_parts if item).strip()
+    if not text:
+        raise ValueError("Missing Gemini text response")
+    return text
+
+
+def chunk_translation_source_text(source_text: str, max_chars: int = TRANSLATION_MULTI_LOCALE_MAX_SOURCE_CHARS) -> list[str]:
+    normalized = (source_text or "").replace("\r\n", "\n").replace("\r", "\n").strip()
+    if not normalized:
+        return [""]
+    if len(normalized) <= max_chars:
+        return [normalized]
+
+    chunks: list[str] = []
+    remaining = normalized
+    min_boundary = max(int(max_chars * 0.5), 1)
+
+    while len(remaining) > max_chars:
+        cut = remaining.rfind("\n\n", 0, max_chars + 1)
+        if cut < min_boundary:
+            cut = remaining.rfind("\n", 0, max_chars + 1)
+        if cut < min_boundary:
+            cut = remaining.rfind(" ", 0, max_chars + 1)
+        if cut < min_boundary:
+            cut = max_chars
+
+        chunk = remaining[:cut].strip()
+        if not chunk:
+            chunk = remaining[:max_chars].strip()
+            cut = len(chunk)
+
+        chunks.append(chunk)
+        remaining = remaining[cut:].strip()
+
+    if remaining:
+        chunks.append(remaining)
+    return chunks
+
+
+def parse_multilocale_translation_payload(
+    raw_text: str,
+    target_locales: list[str],
+    required_fields: list[str],
+) -> dict[str, dict[str, Any]]:
+    parsed = parse_json_like_payload(raw_text)
+    translations = parsed.get("translations") if isinstance(parsed, dict) else None
+    if not isinstance(translations, dict):
+        translations = parsed if isinstance(parsed, dict) else {}
+
+    payload: dict[str, dict[str, Any]] = {}
+    for locale in target_locales:
+        locale_payload = translations.get(locale)
+        if not isinstance(locale_payload, dict):
+            raise ValueError(f"Missing locale payload for {locale}")
+
+        parsed_locale_payload: dict[str, Any] = {}
+        for field_name in required_fields:
+            if field_name not in locale_payload:
+                raise ValueError(f"Missing field '{field_name}' for locale {locale}")
+            parsed_locale_payload[field_name] = locale_payload.get(field_name)
+        payload[locale] = parsed_locale_payload
+    return payload
 
 
 def extract_r2_object_key(content_url: str) -> Optional[str]:
@@ -361,6 +482,95 @@ def parse_json_like_payload(raw_text: str) -> dict:
     except json.JSONDecodeError:
         repaired = escape_json_string_control_chars(cleaned)
         return json.loads(repaired)
+
+
+async def generate_structured_translation_payload(
+    system_instruction: str,
+    user_prompt: str,
+    response_json_schema: dict,
+    parser: Callable[[str], T],
+    timeout_seconds: float = 120.0,
+) -> T:
+    _active_model, model_catalog, api_keys = await resolve_ai_settings_for_translation()
+    if not api_keys:
+        raise HTTPException(status_code=503, detail="AI translation is not configured")
+
+    payload = {
+        "systemInstruction": {"parts": [{"text": system_instruction}]},
+        "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],
+        "generationConfig": {
+            "maxOutputTokens": TRANSLATION_MAX_OUTPUT_TOKENS,
+            "temperature": 0.15,
+            "responseMimeType": "application/json",
+            "responseJsonSchema": response_json_schema,
+        },
+    }
+
+    last_error: Optional[HTTPException] = None
+    attempts: list[dict] = []
+    async with httpx.AsyncClient(timeout=timeout_seconds) as client:
+        for key_index, api_key in enumerate(api_keys, start=1):
+            for model_name in model_catalog:
+                await throttle_translation_request(model_name, api_key)
+                gemini_url = (
+                    "https://generativelanguage.googleapis.com/v1beta/models/"
+                    f"{model_name}:generateContent?key={api_key}"
+                )
+                response = await client.post(gemini_url, json=payload)
+                if response.is_success:
+                    data = response.json()
+                    try:
+                        raw_text = extract_gemini_text_response(data)
+                        return parser(raw_text)
+                    except Exception as exc:
+                        last_error = HTTPException(
+                            status_code=502,
+                            detail=f"Model {model_name}: invalid translation payload: {exc}",
+                        )
+                        attempts.append(
+                            {
+                                "key_index": key_index,
+                                "model": model_name,
+                                "status_code": 502,
+                                "message": f"invalid translation payload: {exc}",
+                            }
+                        )
+                        continue
+
+                last_error = HTTPException(
+                    status_code=response.status_code,
+                    detail=f"Model {model_name}: Translation API error: {response.text}",
+                )
+                attempts.append(
+                    {
+                        "key_index": key_index,
+                        "model": model_name,
+                        "status_code": response.status_code,
+                        "message": response.text,
+                    }
+                )
+                if not is_translation_retryable(last_error):
+                    raise HTTPException(
+                        status_code=last_error.status_code,
+                        detail=build_translation_failure_detail(
+                            attempts,
+                            len(api_keys),
+                            len(model_catalog),
+                            str(last_error.detail),
+                        ),
+                    )
+
+    if last_error:
+        raise HTTPException(
+            status_code=last_error.status_code,
+            detail=build_translation_failure_detail(
+                attempts,
+                len(api_keys),
+                len(model_catalog),
+                str(last_error.detail),
+            ),
+        )
+    raise HTTPException(status_code=502, detail="Khong co mo hinh dich AI kha dung")
 
 
 async def throttle_translation_request(model_name: str, api_key: str):
@@ -727,6 +937,228 @@ SOURCE CONTENT:
     raise HTTPException(status_code=502, detail="Không có mô hình dịch chương khả dụng")
 
 
+async def translate_chapter_payloads_with_ai(
+    title: str,
+    content: str,
+    source_locale: str,
+    target_locales: list[str],
+    context_label: str,
+) -> dict[str, dict[str, str]]:
+    target_locales = build_target_translation_locales(target_locales)
+    if not target_locales:
+        return {}
+
+    glossary_prompt = build_glossary_prompt()
+    locale_prompt = build_target_locale_prompt(target_locales)
+    schema = build_multilocale_object_schema(
+        target_locales,
+        {
+            "title": {"type": "string"},
+            "content": {"type": "string"},
+        },
+    )
+    system_instruction = """
+Ban la bien dich vien chuyen nghiep cho tieu thuyet sinh ton hau tan the.
+Nhiem vu cua ban la dich chinh xac, day du, tu nhien va nhat quan.
+
+QUY TAC BAT BUOC:
+1. Giu nguyen ten rieng theo glossary neu co.
+2. Khong duoc rut gon, bo y, them y, them giai thich hoac markdown.
+3. Giu nguyen thu tu noi dung, ngat doan, xung ho va ten ky nang.
+4. Chi tra ve JSON hop le dung schema duoc yeu cau.
+""".strip()
+
+    translated_payloads = {
+        locale: {"title": "", "content_parts": []}
+        for locale in target_locales
+    }
+    content_chunks = chunk_translation_source_text(content)
+
+    for chunk_index, content_chunk in enumerate(content_chunks, start=1):
+        user_prompt = f"""
+CONTEXT: {context_label}
+SOURCE LOCALE: {source_locale}
+TARGET LOCALES:
+{locale_prompt}
+
+GLOSSARY:
+{glossary_prompt}
+
+HUONG DAN CHO CHUNK NAY:
+- Day la chunk {chunk_index}/{len(content_chunks)} cua noi dung chuong.
+- Luon tra ve day du ban dich title cho moi locale.
+- Chi dich phan content chunk duoc cung cap ben duoi.
+
+SOURCE JSON:
+{json.dumps({"title": title, "content": content_chunk}, ensure_ascii=False)}
+""".strip()
+
+        chunk_payload = await generate_structured_translation_payload(
+            system_instruction=system_instruction,
+            user_prompt=user_prompt,
+            response_json_schema=schema,
+            parser=lambda raw_text: parse_multilocale_translation_payload(raw_text, target_locales, ["title", "content"]),
+        )
+
+        for locale in target_locales:
+            locale_payload = chunk_payload[locale]
+            translated_title = str(locale_payload.get("title") or "").strip()
+            translated_content = str(locale_payload.get("content") or "").strip()
+            if not translated_title or not translated_content:
+                raise ValueError(f"Missing chapter title/content for locale {locale}")
+            if not translated_payloads[locale]["title"]:
+                translated_payloads[locale]["title"] = translated_title
+            translated_payloads[locale]["content_parts"].append(translated_content)
+
+    return {
+        locale: {
+            "title": translated_payloads[locale]["title"] or title,
+            "content": "\n\n".join(
+                part for part in translated_payloads[locale]["content_parts"] if part
+            ).strip(),
+        }
+        for locale in target_locales
+    }
+
+
+async def upsert_chapter_translations(chapter_row: dict, title: str, content: str, locales: list[str]) -> dict:
+    target_locales = build_target_translation_locales(locales)
+    if not target_locales:
+        return {"translated_locales": [], "failed_translations": []}
+
+    content_hash = build_content_hash(content)
+    now_iso = datetime.now(timezone.utc).isoformat()
+    existing_resp = (
+        supabase.table("chapter_translations")
+        .select("locale, attempt_count, title, content, summary, translated_at")
+        .eq("chapter_id", chapter_row["id"])
+        .in_("locale", target_locales)
+        .execute()
+    )
+    existing_rows = {
+        row.get("locale"): row
+        for row in (existing_resp.data or [])
+        if row.get("locale")
+    }
+    attempt_counts = {
+        locale: int((existing_rows.get(locale) or {}).get("attempt_count") or 0) + 1
+        for locale in target_locales
+    }
+
+    for locale in target_locales:
+        existing_row = existing_rows.get(locale) or {}
+        supabase.table("chapter_translations").upsert(
+            {
+                "chapter_id": chapter_row["id"],
+                "locale": locale,
+                "title": existing_row.get("title") or "",
+                "content": existing_row.get("content") or "",
+                "summary": existing_row.get("summary"),
+                "translation_status": "in_progress",
+                "translation_source": "ai",
+                "translated_at": existing_row.get("translated_at"),
+                "content_hash": content_hash,
+                "last_error": None,
+                "attempt_count": attempt_counts[locale],
+                "updated_at": now_iso,
+            },
+            on_conflict="chapter_id,locale",
+        ).execute()
+
+    try:
+        translated_payloads = await translate_chapter_payloads_with_ai(
+            title=title,
+            content=content,
+            source_locale=DEFAULT_LOCALE,
+            target_locales=target_locales,
+            context_label=f"chapter-{chapter_row['chapter_number']}",
+        )
+    except HTTPException as exc:
+        failure_time = datetime.now(timezone.utc).isoformat()
+        for locale in target_locales:
+            supabase.table("chapter_translations").upsert(
+                {
+                    "chapter_id": chapter_row["id"],
+                    "locale": locale,
+                    "translation_status": "failed",
+                    "translation_source": "ai",
+                    "content_hash": content_hash,
+                    "updated_at": failure_time,
+                    "last_error": str(exc.detail),
+                    "attempt_count": attempt_counts[locale],
+                },
+                on_conflict="chapter_id,locale",
+            ).execute()
+        raise
+    except Exception as exc:
+        failure_time = datetime.now(timezone.utc).isoformat()
+        for locale in target_locales:
+            supabase.table("chapter_translations").upsert(
+                {
+                    "chapter_id": chapter_row["id"],
+                    "locale": locale,
+                    "translation_status": "failed",
+                    "translation_source": "ai",
+                    "content_hash": content_hash,
+                    "updated_at": failure_time,
+                    "last_error": str(exc),
+                    "attempt_count": attempt_counts[locale],
+                },
+                on_conflict="chapter_id,locale",
+            ).execute()
+        raise
+
+    translated_locales = []
+    failed_translations = []
+    translated_at = datetime.now(timezone.utc).isoformat()
+    for locale in target_locales:
+        locale_payload = translated_payloads.get(locale) or {}
+        translated_title = str(locale_payload.get("title") or "").strip()
+        translated_content = str(locale_payload.get("content") or "").strip()
+        if not translated_title or not translated_content:
+            detail = f"Missing translated chapter payload for locale {locale}"
+            supabase.table("chapter_translations").upsert(
+                {
+                    "chapter_id": chapter_row["id"],
+                    "locale": locale,
+                    "translation_status": "failed",
+                    "translation_source": "ai",
+                    "content_hash": content_hash,
+                    "updated_at": translated_at,
+                    "last_error": detail,
+                    "attempt_count": attempt_counts[locale],
+                },
+                on_conflict="chapter_id,locale",
+            ).execute()
+            failed_translations.append({"locale": locale, "status_code": 502, "detail": detail})
+            continue
+
+        supabase.table("chapter_translations").upsert(
+            {
+                "chapter_id": chapter_row["id"],
+                "locale": locale,
+                "title": translated_title,
+                "content": translated_content,
+                "summary": translated_content[:280],
+                "translation_status": "published",
+                "translation_source": "ai",
+                "translated_at": translated_at,
+                "content_hash": content_hash,
+                "last_error": None,
+                "attempt_count": attempt_counts[locale],
+                "updated_at": translated_at,
+            },
+            on_conflict="chapter_id,locale",
+        ).execute()
+        translated_locales.append(locale)
+
+    return {
+        "translated_locales": translated_locales,
+        "failed_translations": failed_translations,
+        "failed_translations": failed_translations,
+    }
+
+
 async def upsert_chapter_translation(chapter_row: dict, title: str, content: str, locale: str):
     if normalize_locale(locale) == DEFAULT_LOCALE:
         return None
@@ -924,6 +1356,146 @@ SOURCE JSON:
     raise HTTPException(status_code=502, detail="Khong co mo hinh dich homepage kha dung")
 
 
+async def translate_homepage_payloads_with_ai(settings_payload: dict, locales: list[str]) -> dict[str, dict]:
+    target_locales = build_target_translation_locales(locales)
+    if not target_locales:
+        return {}
+
+    base_payload = prepare_homepage_settings_payload(settings_payload)
+    glossary_prompt = build_glossary_prompt()
+    locale_prompt = build_target_locale_prompt(target_locales)
+    source_payload = {
+        "warning_title": base_payload.get("warning_title") or "",
+        "warning_subtitle": base_payload.get("warning_subtitle") or "",
+        "warning_headline": base_payload.get("warning_headline") or "",
+        "warning_description": base_payload.get("warning_description") or "",
+        "features_title": base_payload.get("features_title") or "",
+        "features_json": [
+            {
+                "icon": feature.get("icon", ""),
+                "title": feature.get("title", ""),
+                "desc": feature.get("desc", ""),
+            }
+            for feature in (base_payload.get("features_json") or [])
+        ],
+    }
+    schema = build_multilocale_object_schema(
+        target_locales,
+        {
+            "warning_title": {"type": "string"},
+            "warning_subtitle": {"type": "string"},
+            "warning_headline": {"type": "string"},
+            "warning_description": {"type": "string"},
+            "features_title": {"type": "string"},
+            "features_json": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "icon": {"type": "string"},
+                        "title": {"type": "string"},
+                        "desc": {"type": "string"},
+                    },
+                    "required": ["icon", "title", "desc"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+    )
+    system_instruction = """
+Ban la bien dich vien chuyen nghiep cho website tieu thuyet sinh ton hau tan the.
+Hay dich noi dung CMS trang chu mot cach tu nhien, nhat quan va giu dung cau truc du lieu.
+
+QUY TAC BAT BUOC:
+1. Giu nguyen ten rieng theo glossary neu co.
+2. Khong duoc rut gon, them y, them giai thich hay markdown.
+3. warning_description co the chua HTML, chi dich phan van ban va giu nguyen cau truc.
+4. Giu nguyen so luong item trong features_json va giu nguyen icon tung item.
+5. Chi tra ve JSON hop le dung schema duoc yeu cau.
+""".strip()
+    translated_payloads = await generate_structured_translation_payload(
+        system_instruction=system_instruction,
+        user_prompt=f"""
+SOURCE LOCALE: {DEFAULT_LOCALE}
+TARGET LOCALES:
+{locale_prompt}
+
+GLOSSARY:
+{glossary_prompt}
+
+SOURCE JSON:
+{json.dumps(source_payload, ensure_ascii=False)}
+""".strip(),
+        response_json_schema=schema,
+        parser=lambda raw_text: parse_multilocale_translation_payload(
+            raw_text,
+            target_locales,
+            [
+                "warning_title",
+                "warning_subtitle",
+                "warning_headline",
+                "warning_description",
+                "features_title",
+                "features_json",
+            ],
+        ),
+    )
+
+    sanitized_payloads: dict[str, dict] = {}
+    feature_count = len(source_payload["features_json"])
+    for locale in target_locales:
+        locale_payload = translated_payloads.get(locale) or {}
+        translated = prepare_homepage_settings_payload(locale_payload)
+        translated_features = sanitize_homepage_features(locale_payload.get("features_json"))
+        if len(translated_features) != feature_count:
+            raise ValueError(f"Invalid homepage features_json length for locale {locale}")
+        translated["features_json"] = translated_features
+        sanitized_payloads[locale] = translated
+    return sanitized_payloads
+
+
+async def upsert_homepage_translations(settings_payload: dict, locales: list[str]) -> dict:
+    target_locales = build_target_translation_locales(locales)
+    if not target_locales:
+        return {"translated_locales": [], "failed_translations": []}
+
+    base_payload = prepare_homepage_settings_payload(settings_payload)
+    source_hash = build_content_hash(json.dumps(base_payload, ensure_ascii=False, sort_keys=True))
+    translated_payloads = await translate_homepage_payloads_with_ai(base_payload, target_locales)
+
+    translated_locales = []
+    failed_translations = []
+    translated_at = datetime.now(timezone.utc).isoformat()
+    for locale in target_locales:
+        translated_payload = translated_payloads.get(locale)
+        if not translated_payload:
+            failed_translations.append({"locale": locale, "status_code": 502, "detail": "Missing homepage translation payload"})
+            continue
+
+        payload = {
+            "homepage_settings_id": 1,
+            "locale": locale,
+            "warning_title": translated_payload.get("warning_title", ""),
+            "warning_subtitle": translated_payload.get("warning_subtitle", ""),
+            "warning_headline": translated_payload.get("warning_headline", ""),
+            "warning_description": translated_payload.get("warning_description", ""),
+            "features_title": translated_payload.get("features_title", ""),
+            "features_json": translated_payload.get("features_json", []),
+            "translation_status": "published",
+            "translation_source": "ai",
+            "translated_at": translated_at,
+            "content_hash": source_hash,
+            "updated_at": translated_at,
+        }
+        supabase.table("homepage_settings_translations").upsert(payload, on_conflict="homepage_settings_id,locale").execute()
+        translated_locales.append(locale)
+
+    return {
+        "translated_locales": translated_locales,
+        "failed_translations": failed_translations,
+    }
+
+
 async def upsert_homepage_translation(settings_payload: dict, locale: str):
     locale = normalize_locale(locale)
     if locale == DEFAULT_LOCALE:
@@ -1073,6 +1645,103 @@ SOURCE JSON:
             ),
         )
     raise HTTPException(status_code=502, detail="Khong co mo hinh dich wiki kha dung")
+
+
+async def translate_wiki_payloads_with_ai(entry_payload: dict, locales: list[str]) -> dict[str, dict]:
+    target_locales = build_target_translation_locales(locales)
+    if not target_locales:
+        return {}
+
+    glossary_prompt = build_glossary_prompt()
+    locale_prompt = build_target_locale_prompt(target_locales)
+    source_payload = {
+        "title": entry_payload.get("title") or "",
+        "summary": entry_payload.get("summary") or "",
+        "content": entry_payload.get("content") or "",
+    }
+    schema = build_multilocale_object_schema(
+        target_locales,
+        {
+            "title": {"type": "string"},
+            "summary": {"type": "string"},
+            "content": {"type": "string"},
+        },
+    )
+    system_instruction = """
+Ban la bien dich vien chuyen nghiep cho wiki nhan vat, sinh vat va the luc trong tieu thuyet sinh ton hau tan the.
+Hay dich day du, chinh xac va giu dung cau truc HTML neu co.
+
+QUY TAC BAT BUOC:
+1. Giu nguyen ten rieng theo glossary neu co.
+2. Khong duoc rut gon, them giai thich hay markdown.
+3. Truong content co the chua HTML, chi dich phan van ban va giu nguyen cau truc.
+4. Chi tra ve JSON hop le dung schema duoc yeu cau.
+""".strip()
+    translated_payloads = await generate_structured_translation_payload(
+        system_instruction=system_instruction,
+        user_prompt=f"""
+SOURCE LOCALE: {DEFAULT_LOCALE}
+TARGET LOCALES:
+{locale_prompt}
+
+GLOSSARY:
+{glossary_prompt}
+
+SOURCE JSON:
+{json.dumps(source_payload, ensure_ascii=False)}
+""".strip(),
+        response_json_schema=schema,
+        parser=lambda raw_text: parse_multilocale_translation_payload(raw_text, target_locales, ["title", "summary", "content"]),
+    )
+
+    sanitized_payloads: dict[str, dict] = {}
+    for locale in target_locales:
+        locale_payload = translated_payloads.get(locale) or {}
+        translated_title = sanitize_plaintext(str(locale_payload.get("title") or "").strip())
+        translated_summary = sanitize_html(locale_payload.get("summary")) if locale_payload.get("summary") is not None else ""
+        translated_content = sanitize_html(locale_payload.get("content")) if locale_payload.get("content") is not None else ""
+        if not translated_title:
+            raise ValueError(f"Missing wiki title for locale {locale}")
+        sanitized_payloads[locale] = {
+            "title": translated_title,
+            "summary": translated_summary,
+            "content": translated_content,
+        }
+    return sanitized_payloads
+
+
+async def upsert_wiki_translations(entry_row: dict, locales: list[str]) -> dict:
+    target_locales = build_target_translation_locales(locales)
+    if not target_locales:
+        return {"translated_locales": [], "failed_translations": []}
+
+    translated_payloads = await translate_wiki_payloads_with_ai(entry_row, target_locales)
+    translated_at = datetime.now(timezone.utc).isoformat()
+    translated_locales = []
+    failed_translations = []
+    for locale in target_locales:
+        translated_payload = translated_payloads.get(locale)
+        if not translated_payload:
+            failed_translations.append({"locale": locale, "status_code": 502, "detail": "Missing wiki translation payload"})
+            continue
+
+        supabase.table("wiki_entry_translations").upsert(
+            {
+                "wiki_entry_id": entry_row["id"],
+                "locale": locale,
+                "title": translated_payload["title"],
+                "summary": translated_payload.get("summary"),
+                "content": translated_payload.get("content"),
+                "updated_at": translated_at,
+            },
+            on_conflict="wiki_entry_id,locale",
+        ).execute()
+        translated_locales.append(locale)
+
+    return {
+        "translated_locales": translated_locales,
+        "failed_translations": failed_translations,
+    }
 
 
 async def upsert_wiki_translation(entry_row: dict, locale: str):
@@ -1598,28 +2267,33 @@ async def admin_translate_chapter(
 
     chapter_row = chapter_resp.data
     content_text = fetch_r2_content(chapter_row["content_url"])
-    translated_locales = []
-    failed_translations = []
-    for locale_code in ("en", "zh-CN", "ja"):
-        try:
-            await upsert_chapter_translation(chapter_row, chapter_row["title"], content_text, locale_code)
-            translated_locales.append(locale_code)
-        except HTTPException as exc:
-            failed_translations.append(
-                {
-                    "locale": locale_code,
-                    "status_code": exc.status_code,
-                    "detail": str(exc.detail),
-                }
-            )
-        except Exception as exc:
-            failed_translations.append(
-                {
-                    "locale": locale_code,
-                    "status_code": 500,
-                    "detail": str(exc),
-                }
-            )
+    try:
+        translation_result = await upsert_chapter_translations(
+            chapter_row,
+            chapter_row["title"],
+            content_text,
+            list(TRANSLATION_TARGET_LOCALES),
+        )
+        translated_locales = translation_result["translated_locales"]
+        failed_translations = translation_result["failed_translations"]
+    except HTTPException as exc:
+        translated_locales = []
+        failed_translations = [
+            {
+                "locale": ",".join(TRANSLATION_TARGET_LOCALES),
+                "status_code": exc.status_code,
+                "detail": str(exc.detail),
+            }
+        ]
+    except Exception as exc:
+        translated_locales = []
+        failed_translations = [
+            {
+                "locale": ",".join(TRANSLATION_TARGET_LOCALES),
+                "status_code": 500,
+                "detail": str(exc),
+            }
+        ]
 
     return {
         "message": "Chapter translated",
@@ -1678,7 +2352,7 @@ async def admin_translate_chapters_batch(
     failed_chapters = []
 
     for chapter_row in chapter_rows:
-        needed_locales = ["en", "zh-CN", "ja"]
+        needed_locales = list(TRANSLATION_TARGET_LOCALES)
         if body.only_missing:
             existing_locales = translation_map.get(chapter_row["id"], set())
             needed_locales = [locale_code for locale_code in needed_locales if locale_code not in existing_locales]
@@ -1688,16 +2362,17 @@ async def admin_translate_chapters_batch(
 
         try:
             content_text = fetch_r2_content(chapter_row["content_url"])
-            completed_locales = []
-            chapter_locale_errors = []
-            for locale_code in needed_locales:
-                try:
-                    await upsert_chapter_translation(chapter_row, chapter_row["title"], content_text, locale_code)
-                    completed_locales.append(locale_code)
-                except HTTPException as exc:
-                    chapter_locale_errors.append(f"{locale_code}: {str(exc.detail)}")
-                except Exception as exc:
-                    chapter_locale_errors.append(f"{locale_code}: {str(exc)}")
+            translation_result = await upsert_chapter_translations(
+                chapter_row,
+                chapter_row["title"],
+                content_text,
+                needed_locales,
+            )
+            completed_locales = translation_result["translated_locales"]
+            chapter_locale_errors = [
+                f"{item['locale']}: {item.get('detail') or 'Translation failed'}"
+                for item in (translation_result.get("failed_translations") or [])
+            ]
 
             if completed_locales:
                 translated_chapters.append(
@@ -2367,28 +3042,29 @@ async def admin_translate_homepage_i18n(
     else:
         target_locales = [item for item in SUPPORTED_LOCALES if item != DEFAULT_LOCALE]
 
-    target_locales = [item for item in target_locales if item != DEFAULT_LOCALE]
-    translated_locales = []
-    for target_locale in target_locales:
-        try:
-            await upsert_homepage_translation(base_payload, target_locale)
-            translated_locales.append(target_locale)
-        except HTTPException as exc:
-            failed_translations.append(
-                {
-                    "locale": target_locale,
-                    "status_code": exc.status_code,
-                    "detail": str(exc.detail),
-                }
-            )
-        except Exception as exc:
-            failed_translations.append(
-                {
-                    "locale": target_locale,
-                    "status_code": 500,
-                    "detail": str(exc),
-                }
-            )
+    target_locales = build_target_translation_locales(target_locales)
+    try:
+        translation_result = await upsert_homepage_translations(base_payload, target_locales)
+        translated_locales = translation_result["translated_locales"]
+        failed_translations = translation_result["failed_translations"]
+    except HTTPException as exc:
+        translated_locales = []
+        failed_translations = [
+            {
+                "locale": ",".join(target_locales),
+                "status_code": exc.status_code,
+                "detail": str(exc.detail),
+            }
+        ]
+    except Exception as exc:
+        translated_locales = []
+        failed_translations = [
+            {
+                "locale": ",".join(target_locales),
+                "status_code": 500,
+                "detail": str(exc),
+            }
+        ]
 
     return {
         "message": "Đã dịch cấu hình trang chủ",
@@ -2412,28 +3088,28 @@ async def admin_auto_save_homepage_i18n(
     if target_locale == DEFAULT_LOCALE:
         payload["id"] = 1
         result = supabase.table("homepage_settings").upsert(payload).execute()
-        translated_locales = []
-        failed_translations = []
-        for auto_locale in (item for item in SUPPORTED_LOCALES if item != DEFAULT_LOCALE):
-            try:
-                await upsert_homepage_translation(payload, auto_locale)
-                translated_locales.append(auto_locale)
-            except HTTPException as exc:
-                failed_translations.append(
-                    {
-                        "locale": auto_locale,
-                        "status_code": exc.status_code,
-                        "detail": str(exc.detail),
-                    }
-                )
-            except Exception as exc:
-                failed_translations.append(
-                    {
-                        "locale": auto_locale,
-                        "status_code": 500,
-                        "detail": str(exc),
-                    }
-                )
+        try:
+            translation_result = await upsert_homepage_translations(payload, list(TRANSLATION_TARGET_LOCALES))
+            translated_locales = translation_result["translated_locales"]
+            failed_translations = translation_result["failed_translations"]
+        except HTTPException as exc:
+            translated_locales = []
+            failed_translations = [
+                {
+                    "locale": ",".join(TRANSLATION_TARGET_LOCALES),
+                    "status_code": exc.status_code,
+                    "detail": str(exc.detail),
+                }
+            ]
+        except Exception as exc:
+            translated_locales = []
+            failed_translations = [
+                {
+                    "locale": ",".join(TRANSLATION_TARGET_LOCALES),
+                    "status_code": 500,
+                    "detail": str(exc),
+                }
+            ]
 
         message = "Da luu trang chu va tu dong dich"
         if failed_translations and translated_locales:
@@ -3104,15 +3780,149 @@ class GuidePageUpdate(BaseModel):
 
 
 @app.get("/api/guide/{slug}", summary="L蘯･y trang hﾆｰ盻嬾g d蘯ｫn public")
-async def get_public_guide(slug: str):
+def build_guide_translation_slug(slug: str, locale: str) -> str:
+    return f"{slug}__{normalize_locale(locale)}"
+
+
+def resolve_guide_translation(slug: str, locale: str, scope: Optional[str] = None):
+    target_locale = normalize_locale(locale)
+    if target_locale == DEFAULT_LOCALE:
+        return None
+
+    query = supabase.table("guide_pages").select("*").eq("slug", build_guide_translation_slug(slug, target_locale))
+    if scope:
+        query = query.eq("scope", scope)
+    result = query.limit(1).execute()
+    if result.data:
+        return result.data[0]
+    return None
+
+
+def apply_guide_translation(payload: dict, slug: str, locale: str, scope: Optional[str] = None) -> dict:
+    requested_locale = normalize_locale(locale)
+    resolved_locale = DEFAULT_LOCALE
+    is_fallback = False
+
+    translation = resolve_guide_translation(slug, requested_locale, scope)
+    if translation:
+        if translation.get("title") is not None:
+            payload["title"] = translation.get("title")
+        if translation.get("content") is not None:
+            payload["content"] = translation.get("content")
+        resolved_locale = requested_locale
+    elif requested_locale != DEFAULT_LOCALE:
+        is_fallback = True
+
+    payload["slug"] = slug
+    payload["requested_locale"] = requested_locale
+    payload["resolved_locale"] = resolved_locale
+    payload["is_fallback"] = is_fallback
+    return payload
+
+
+async def translate_guide_payloads_with_ai(guide_payload: dict, locales: list[str], context_label: str) -> dict[str, dict]:
+    target_locales = build_target_translation_locales(locales)
+    if not target_locales:
+        return {}
+
+    glossary_prompt = build_glossary_prompt()
+    locale_prompt = build_target_locale_prompt(target_locales)
+    source_payload = {
+        "title": guide_payload.get("title") or "",
+        "content": guide_payload.get("content") or "",
+    }
+    schema = build_multilocale_object_schema(
+        target_locales,
+        {
+            "title": {"type": "string"},
+            "content": {"type": "string"},
+        },
+    )
+    system_instruction = """
+Ban la bien dich vien chuyen nghiep cho tai lieu huong dan va SOP cua website tieu thuyet sinh ton hau tan the.
+Hay dich day du, ro nghia va giu nguyen cau truc HTML neu co.
+
+QUY TAC BAT BUOC:
+1. Giu nguyen ten rieng theo glossary neu co.
+2. Khong duoc rut gon, them giai thich hay markdown.
+3. Truong content co the chua HTML, chi dich phan van ban va giu nguyen cau truc.
+4. Chi tra ve JSON hop le dung schema duoc yeu cau.
+""".strip()
+    translated_payloads = await generate_structured_translation_payload(
+        system_instruction=system_instruction,
+        user_prompt=f"""
+CONTEXT: {context_label}
+SOURCE LOCALE: {DEFAULT_LOCALE}
+TARGET LOCALES:
+{locale_prompt}
+
+GLOSSARY:
+{glossary_prompt}
+
+SOURCE JSON:
+{json.dumps(source_payload, ensure_ascii=False)}
+""".strip(),
+        response_json_schema=schema,
+        parser=lambda raw_text: parse_multilocale_translation_payload(raw_text, target_locales, ["title", "content"]),
+    )
+
+    sanitized_payloads: dict[str, dict] = {}
+    for locale in target_locales:
+        locale_payload = translated_payloads.get(locale) or {}
+        translated_title = sanitize_plaintext(str(locale_payload.get("title") or "").strip())
+        translated_content = sanitize_html(locale_payload.get("content")) if locale_payload.get("content") is not None else ""
+        if not translated_title:
+            raise ValueError(f"Missing guide title for locale {locale}")
+        sanitized_payloads[locale] = {
+            "title": translated_title,
+            "content": translated_content,
+        }
+    return sanitized_payloads
+
+
+async def upsert_guide_translations(slug: str, scope: str, guide_payload: dict, locales: list[str]) -> dict:
+    target_locales = build_target_translation_locales(locales)
+    if not target_locales:
+        return {"translated_locales": [], "failed_translations": []}
+
+    translated_payloads = await translate_guide_payloads_with_ai(guide_payload, target_locales, f"guide-{slug}")
+    updated_at = datetime.now(timezone.utc).isoformat()
+    translated_locales = []
+    failed_translations = []
+    for locale in target_locales:
+        translated_payload = translated_payloads.get(locale)
+        if not translated_payload:
+            failed_translations.append({"locale": locale, "status_code": 502, "detail": "Missing guide translation payload"})
+            continue
+
+        supabase.table("guide_pages").upsert(
+            {
+                "slug": build_guide_translation_slug(slug, locale),
+                "scope": scope,
+                "title": translated_payload["title"],
+                "content": translated_payload.get("content", ""),
+                "updated_at": updated_at,
+            },
+            on_conflict="slug",
+        ).execute()
+        translated_locales.append(locale)
+
+    return {
+        "translated_locales": translated_locales,
+        "failed_translations": failed_translations,
+    }
+
+
+async def get_public_guide(slug: str, locale: str = Query(DEFAULT_LOCALE, description="Requested locale")):
     """L蘯･y n盻冓 dung trang hﾆｰ盻嬾g d蘯ｫn cﾃｳ scope = 'public'."""
     try:
         result = supabase.table("guide_pages").select("*").eq("slug", slug).eq("scope", "public").execute()
         if not result.data:
-            return {"slug": slug, "title": "", "content": "", "scope": "public"}
+            return apply_guide_translation({"slug": slug, "title": "", "content": "", "scope": "public"}, slug, locale, "public")
         data = dict(result.data[0])
+        data["slug"] = slug
         data["content"] = sanitize_html(data.get("content")) or ""
-        return data
+        return apply_guide_translation(data, slug, locale, "public")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -3173,6 +3983,55 @@ async def update_guide(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/admin/guide/{slug}/translate", summary="[Admin] Translate guide page to EN/ZH-CN/JA")
+async def admin_translate_guide(
+    slug: str,
+    authorization: Optional[str] = Header(None),
+    locale: Optional[str] = Query(None, description="Specific locale to translate"),
+):
+    await verify_admin(authorization)
+
+    scope = "internal" if slug == "admin-sop" else "public"
+    result = supabase.table("guide_pages").select("*").eq("slug", slug).limit(1).execute()
+    base_row = dict(result.data[0]) if result.data else {"slug": slug, "scope": scope, "title": "", "content": ""}
+    base_payload = {
+        "title": sanitize_plaintext(str(base_row.get("title") or "").strip()),
+        "content": sanitize_html(base_row.get("content")) if base_row.get("content") is not None else "",
+    }
+
+    target_locales = [normalize_locale(locale)] if locale else list(TRANSLATION_TARGET_LOCALES)
+    target_locales = build_target_translation_locales(target_locales)
+    try:
+        translation_result = await upsert_guide_translations(slug, scope, base_payload, target_locales)
+        translated_locales = translation_result["translated_locales"]
+        failed_translations = translation_result["failed_translations"]
+    except HTTPException as exc:
+        translated_locales = []
+        failed_translations = [
+            {
+                "locale": ",".join(target_locales),
+                "status_code": exc.status_code,
+                "detail": str(exc.detail),
+            }
+        ]
+    except Exception as exc:
+        translated_locales = []
+        failed_translations = [
+            {
+                "locale": ",".join(target_locales),
+                "status_code": 500,
+                "detail": str(exc),
+            }
+        ]
+
+    return {
+        "message": "Guide translated",
+        "slug": slug,
+        "translated_locales": translated_locales,
+        "failed_translations": failed_translations,
+    }
+
+
 @app.post("/api/admin/wiki/{entry_id}/translate", summary="[Admin] Translate wiki entry to EN/ZH-CN/JA")
 async def admin_translate_wiki_entry(
     entry_id: str,
@@ -3194,28 +4053,28 @@ async def admin_translate_wiki_entry(
     entry_row["summary"] = sanitize_html(entry_row.get("summary")) if entry_row.get("summary") is not None else None
     entry_row["content"] = sanitize_html(entry_row.get("content")) if entry_row.get("content") is not None else None
 
-    translated_locales = []
-    failed_translations = []
-    for locale_code in ["en", "zh-CN", "ja"]:
-        try:
-            await upsert_wiki_translation(entry_row, locale_code)
-            translated_locales.append(locale_code)
-        except HTTPException as exc:
-            failed_translations.append(
-                {
-                    "locale": locale_code,
-                    "status_code": exc.status_code,
-                    "detail": str(exc.detail),
-                }
-            )
-        except Exception as exc:
-            failed_translations.append(
-                {
-                    "locale": locale_code,
-                    "status_code": 500,
-                    "detail": str(exc),
-                }
-            )
+    try:
+        translation_result = await upsert_wiki_translations(entry_row, list(TRANSLATION_TARGET_LOCALES))
+        translated_locales = translation_result["translated_locales"]
+        failed_translations = translation_result["failed_translations"]
+    except HTTPException as exc:
+        translated_locales = []
+        failed_translations = [
+            {
+                "locale": ",".join(TRANSLATION_TARGET_LOCALES),
+                "status_code": exc.status_code,
+                "detail": str(exc.detail),
+            }
+        ]
+    except Exception as exc:
+        translated_locales = []
+        failed_translations = [
+            {
+                "locale": ",".join(TRANSLATION_TARGET_LOCALES),
+                "status_code": 500,
+                "detail": str(exc),
+            }
+        ]
 
     return {
         "message": "Wiki translated",
@@ -3270,7 +4129,7 @@ async def admin_translate_wiki_batch(
     failed_entries = []
 
     for entry_row in entry_rows:
-        needed_locales = ["en", "zh-CN", "ja"]
+        needed_locales = list(TRANSLATION_TARGET_LOCALES)
         if body.only_missing:
             existing_locales = translation_map.get(entry_row["id"], set())
             needed_locales = [locale_code for locale_code in needed_locales if locale_code not in existing_locales]
@@ -3278,19 +4137,15 @@ async def admin_translate_wiki_batch(
                 skipped_entries.append({"entry_id": entry_row["id"], "title": entry_row["title"]})
                 continue
 
-        completed_locales = []
-        entry_locale_errors = []
         sanitized_entry = dict(entry_row)
         sanitized_entry["summary"] = sanitize_html(sanitized_entry.get("summary")) if sanitized_entry.get("summary") is not None else None
         sanitized_entry["content"] = sanitize_html(sanitized_entry.get("content")) if sanitized_entry.get("content") is not None else None
-        for locale_code in needed_locales:
-            try:
-                await upsert_wiki_translation(sanitized_entry, locale_code)
-                completed_locales.append(locale_code)
-            except HTTPException as exc:
-                entry_locale_errors.append(f"{locale_code}: {str(exc.detail)}")
-            except Exception as exc:
-                entry_locale_errors.append(f"{locale_code}: {str(exc)}")
+        translation_result = await upsert_wiki_translations(sanitized_entry, needed_locales)
+        completed_locales = translation_result["translated_locales"]
+        entry_locale_errors = [
+            f"{item['locale']}: {item.get('detail') or 'Translation failed'}"
+            for item in (translation_result.get("failed_translations") or [])
+        ]
 
         if completed_locales:
             translated_entries.append(

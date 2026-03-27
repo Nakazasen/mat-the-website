@@ -791,10 +791,15 @@ export interface GuidePage {
     content: string;
     scope: string;
     updated_at?: string;
+    requested_locale?: Locale;
+    resolved_locale?: Locale;
+    is_fallback?: boolean;
 }
 
-export async function getPublicGuide(slug: string): Promise<GuidePage> {
-    const res = await fetch(`${API_BASE_URL}/api/guide/${slug}`, { cache: "no-store" });
+export async function getPublicGuide(slug: string, locale?: Locale): Promise<GuidePage> {
+    const params = new URLSearchParams();
+    if (locale) params.set("locale", locale);
+    const res = await fetch(`${API_BASE_URL}/api/guide/${slug}${params.toString() ? `?${params.toString()}` : ""}`, { cache: "no-store" });
     if (!res.ok) throw new Error("Failed to fetch guide");
     return res.json();
 }
@@ -815,4 +820,20 @@ export async function updateGuide(slug: string, data: { title?: string; content?
     });
     if (!res.ok) throw new Error("Failed to update guide");
     return res.json();
+}
+
+export async function translateAdminGuide(
+    slug: string,
+    token: string,
+    locale?: Locale
+): Promise<{ message: string; slug: string; translated_locales: string[]; failed_translations?: Array<{ locale: string; detail?: string }> }> {
+    const params = new URLSearchParams();
+    if (locale) params.set("locale", locale);
+    const res = await fetch(`${API_BASE_URL}/api/admin/guide/${slug}/translate${params.toString() ? `?${params.toString()}` : ""}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    const payload = await res.json();
+    if (!res.ok) throw new Error(payload.detail || "Failed to translate guide");
+    return payload;
 }

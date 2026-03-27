@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { CharacterStatus, DangerLevel } from "@/hooks/useChapterMeta";
+import { useLocale } from "@/context/LocaleContext";
 
 interface SystemHUDProps {
   chapterNumber: number;
@@ -19,13 +20,6 @@ const HEARTBEAT_PATHS = {
   danger: "M0,15 L6,15 L10,2 L14,28 L18,2 L22,28 L26,15 L28,15",
 };
 
-const STATUS_META: Record<CharacterStatus, { label: string; color: string }> = {
-  NORMAL: { label: "NORMAL", color: "#39FF14" },
-  INJURED: { label: "INJURED", color: "#f59e0b" },
-  MUTATED: { label: "MUTATED", color: "#a855f7" },
-  CRITICAL: { label: "CRITICAL", color: "#ef4444" },
-};
-
 export default function SystemHUD({
   chapterNumber,
   totalChapters,
@@ -36,10 +30,20 @@ export default function SystemHUD({
   characterStatus,
   keywords,
 }: SystemHUDProps) {
+  const { dictionary } = useLocale();
+  const hud = dictionary.hud;
+
   const [tick, setTick] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+
+  const STATUS_META: Record<CharacterStatus, { label: string; color: string }> = {
+    NORMAL: { label: hud.st_normal, color: "#39FF14" },
+    INJURED: { label: hud.st_injured, color: "#f59e0b" },
+    MUTATED: { label: hud.st_mutated, color: "#a855f7" },
+    CRITICAL: { label: hud.st_critical, color: "#ef4444" },
+  };
 
   useEffect(() => {
     const updateViewport = () => {
@@ -89,7 +93,7 @@ export default function SystemHUD({
     >
       <button
         onClick={() => setIsMinimized((prev) => !prev)}
-        title={isMinimized ? "Mo HUD" : "Thu gon HUD"}
+        title={isMinimized ? hud.expand : hud.minimize}
         style={{
           background: "rgba(10,10,10,0.85)",
           border: "1px solid rgba(57,255,20,0.3)",
@@ -106,7 +110,7 @@ export default function SystemHUD({
           flexShrink: 0,
         }}
       >
-        {isMinimized ? "MO HUD" : "HUD THU"}
+        {isMinimized ? hud.expand : hud.minimize}
       </button>
 
       <div
@@ -152,13 +156,13 @@ export default function SystemHUD({
             justifyContent: "space-between",
           }}
         >
-          <span>THE SYSTEM</span>
+          <span>{hud.title}</span>
           <span style={{ color: "rgba(57,255,20,0.4)" }}>v2.1</span>
         </div>
 
         <div>
           <div style={{ fontSize: "8px", color: "rgba(255,255,255,0.4)", letterSpacing: "0.15em", marginBottom: "4px" }}>
-            DANGER LEVEL
+            {hud.dangerLevel}
           </div>
           <div style={{ display: "flex", gap: "3px", marginBottom: "3px" }}>
             {[0, 1, 2, 3].map((level) => (
@@ -185,7 +189,7 @@ export default function SystemHUD({
 
         <div>
           <div style={{ fontSize: "8px", color: "rgba(255,255,255,0.4)", letterSpacing: "0.15em", marginBottom: "4px" }}>
-            BIO-MONITOR
+            {hud.bioMonitor}
           </div>
           <svg width="100%" height="30" viewBox="0 0 28 30" style={{ overflow: "visible" }}>
             <line x1="0" y1="15" x2="28" y2="15" stroke="rgba(57,255,20,0.08)" strokeWidth="0.5" />
@@ -215,7 +219,7 @@ export default function SystemHUD({
 
         <div>
           <div style={{ fontSize: "8px", color: "rgba(255,255,255,0.4)", letterSpacing: "0.15em", marginBottom: "4px" }}>
-            MC STATUS
+            {hud.mcStatus}
           </div>
           <div
             style={{
@@ -246,7 +250,7 @@ export default function SystemHUD({
 
         <div>
           <div style={{ fontSize: "8px", color: "rgba(255,255,255,0.4)", letterSpacing: "0.15em", marginBottom: "4px" }}>
-            QUICK SCAN
+            {hud.quickScan}
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
             {(keywords.length > 0 ? keywords.slice(0, 3) : ["STABLE"]).map((keyword) => (
@@ -262,7 +266,7 @@ export default function SystemHUD({
                   background: "rgba(255,255,255,0.02)",
                 }}
               >
-                {keyword}
+                {keyword === "STABLE" ? (hud.st_normal) : keyword}
               </span>
             ))}
           </div>
@@ -279,7 +283,7 @@ export default function SystemHUD({
               justifyContent: "space-between",
             }}
           >
-            <span>CHUONG</span>
+            <span>{hud.chapter}</span>
             <span style={{ color: "rgba(57,255,20,0.7)" }}>
               {chapterNumber}/{totalChapters}
             </span>
@@ -308,7 +312,7 @@ export default function SystemHUD({
               justifyContent: "space-between",
             }}
           >
-            <span>READ PROGRESS</span>
+            <span>{hud.readProgress}</span>
             <span style={{ color: "rgba(57,255,20,0.7)" }}>{Math.round(readingProgress)}%</span>
           </div>
           <div style={{ height: "3px", background: "rgba(255,255,255,0.08)", borderRadius: "2px", overflow: "hidden" }}>
@@ -334,7 +338,7 @@ export default function SystemHUD({
             textAlign: "center",
           }}
         >
-          SYS-UPLINK
+          {hud.sysUplink}
         </div>
       </div>
     </div>

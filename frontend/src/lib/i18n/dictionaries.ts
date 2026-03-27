@@ -126,6 +126,22 @@ export interface Dictionary {
         latestCheckpoint: string;
         spoilerSafe: string;
     };
+    hud: {
+        title: string;
+        dangerLevel: string;
+        bioMonitor: string;
+        mcStatus: string;
+        quickScan: string;
+        chapter: string;
+        readProgress: string;
+        sysUplink: string;
+        minimize: string;
+        expand: string;
+        st_normal: string;
+        st_injured: string;
+        st_mutated: string;
+        st_critical: string;
+    };
 }
 
 const dictionaries: Record<Locale, Dictionary> = {
@@ -269,6 +285,22 @@ const dictionaries: Record<Locale, Dictionary> = {
             latestCheckpoint: "Dấu mốc gần nhất",
             spoilerSafe: "Dữ liệu chỉ hiển thị theo chương bạn chọn để giữ trải nghiệm spoiler-safe.",
         },
+        hud: {
+            title: "HỆ THỐNG",
+            dangerLevel: "MỨC ĐỘ NGUY HIỂM",
+            bioMonitor: "CHỈ SỐ SINH TỒN",
+            mcStatus: "TRẠNG THÁI NHÂN VẬT",
+            quickScan: "QUÉT NHANH",
+            chapter: "CHƯƠNG",
+            readProgress: "TIẾN ĐỘ ĐỌC",
+            sysUplink: "SYS-UPLINK",
+            minimize: "THU GỌN",
+            expand: "MỞ RỘNG",
+            st_normal: "BÌNH THƯỜNG",
+            st_injured: "BỊ THƯƠNG",
+            st_mutated: "BIẾN DỊ",
+            st_critical: "NGUY KỊCH",
+        },
     },
     en: {
         common: {
@@ -409,6 +441,22 @@ const dictionaries: Record<Locale, Dictionary> = {
             morale: "Morale",
             latestCheckpoint: "Latest checkpoint",
             spoilerSafe: "Data is capped to your selected chapter to remain spoiler-safe.",
+        },
+        hud: {
+            title: "THE SYSTEM",
+            dangerLevel: "DANGER LEVEL",
+            bioMonitor: "BIO-MONITOR",
+            mcStatus: "MC STATUS",
+            quickScan: "QUICK SCAN",
+            chapter: "CHAPTER",
+            readProgress: "READ PROGRESS",
+            sysUplink: "SYS-UPLINK",
+            minimize: "MINIMIZE",
+            expand: "EXPAND",
+            st_normal: "NORMAL",
+            st_injured: "INJURED",
+            st_mutated: "MUTATED",
+            st_critical: "CRITICAL",
         },
     },
     "zh-CN": {
@@ -551,6 +599,22 @@ const dictionaries: Record<Locale, Dictionary> = {
             latestCheckpoint: "最近检查点",
             spoilerSafe: "数据会限制在你选择的章节范围内，保持无剧透体验。",
         },
+        hud: {
+            title: "系统",
+            dangerLevel: "危险等级",
+            bioMonitor: "生命体征",
+            mcStatus: "主角状态",
+            quickScan: "快速扫描",
+            chapter: "章节",
+            readProgress: "阅读进度",
+            sysUplink: "系统上行",
+            minimize: "折叠",
+            expand: "展开",
+            st_normal: "正常",
+            st_injured: "受伤",
+            st_mutated: "变异",
+            st_critical: "危急",
+        },
     },
     ja: {
         common: {
@@ -691,6 +755,22 @@ const dictionaries: Record<Locale, Dictionary> = {
             morale: "士気",
             latestCheckpoint: "最新チェックポイント",
             spoilerSafe: "選択した話数までのデータだけを表示し、ネタバレを防ぎます。",
+        },
+        hud: {
+            title: "システム",
+            dangerLevel: "危険度",
+            bioMonitor: "バイオモニター",
+            mcStatus: "ステータス",
+            quickScan: "クイックスキャン",
+            chapter: "話",
+            readProgress: "読書進捗",
+            sysUplink: "システム同期",
+            minimize: "最小化",
+            expand: "最大化",
+            st_normal: "正常",
+            st_injured: "負傷",
+            st_mutated: "変異",
+            st_critical: "危篤",
         },
     },
 };

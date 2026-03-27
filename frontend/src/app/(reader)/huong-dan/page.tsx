@@ -4,17 +4,20 @@ import { useEffect, useState } from "react";
 import { BookOpen, HelpCircle, Map, Heart, MessageSquare, Search } from "lucide-react";
 import { getPublicGuide } from "@/lib/api";
 import { sanitizeHtmlClient } from "@/lib/sanitize-html";
+import { useLocale } from "@/context/LocaleContext";
 
 export default function HuongDanPage() {
+    const { locale } = useLocale();
     const [guide, setGuide] = useState<{ title: string; content: string } | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        getPublicGuide("reader-guide")
+        setLoading(true);
+        getPublicGuide("reader-guide", locale)
             .then(setGuide)
             .catch(console.error)
             .finally(() => setLoading(false));
-    }, []);
+    }, [locale]);
 
     const hasCustomContent = guide?.content && guide.content.trim().length > 10;
 
