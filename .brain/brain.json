@@ -2,10 +2,10 @@
   "meta": {
     "schema_version": "1.1.0",
     "awf_version": "4.0.2",
-    "last_updated": "2026-03-26T01:05:00+07:00"
+    "last_updated": "2026-03-27T02:05:00+07:00"
   },
   "project": {
-    "name": "Mạt Thế - Sinh Hoá Nguy Cơ",
+    "name": "Mat The - Sinh Hoa Nguy Co",
     "type": "Novel Reading Website",
     "url": "https://matthesinhhoa.vercel.app",
     "repo": "https://github.com/Nakazasen/mat-the-website",
@@ -13,169 +13,75 @@
   },
   "tech_stack": {
     "frontend": {
-      "framework": "Next.js 14 (App Router)",
+      "framework": "Next.js 15 (App Router)",
       "language": "TypeScript",
       "styling": "Tailwind CSS + CSS Variables",
-      "icons": "lucide-react",
-      "deployment": "Vercel",
-      "pwa": "Supported (Custom Manifest + Basic Service Worker)",
-      "maps": "react-leaflet + Leaflet",
-      "performance": "browser-image-compression for frontend-side optimization"
+      "deployment": "Vercel"
     },
     "backend": {
       "framework": "FastAPI (Python)",
-      "deployment": "Render.com (free tier)",
-      "url": "process.env.NEXT_PUBLIC_API_URL (set trên Vercel dashboard)",
-      "note": "Backend ngủ sau 15 phút idle. Cần warmup khi truy cập lần đầu"
+      "deployment": "Render.com",
+      "url": "https://mat-the-website.onrender.com",
+      "note": "Oracle production debugging requires checking the live Render commit rollout rather than assuming GitHub push is already active."
     },
     "database": {
       "provider": "Supabase (PostgreSQL)",
-      "tables": [
-        "chapters",
+      "critical_tables": [
         "novel_settings",
-        "comments",
+        "oracle_cache",
+        "oracle_rate_limits",
         "wiki_entries",
-        "homepage_settings",
         "profiles",
-        "map_locations",
-        "faction_members"
+        "chapters"
       ]
     },
-    "storage": "Cloudflare R2 (lưu file nội dung chương .txt, bách khoa, bản đồ, public CDN)"
+    "storage": "Cloudflare R2"
   },
-  "api_endpoints": [
-    {
-      "path": "GET /api/chapters",
-      "explained": "Lấy danh sách tất cả chương (id, chapter_number, title, word_count, is_side_story)"
-    },
-    {
-      "path": "GET /api/chapters/{chapter_number}",
-      "explained": "Lấy metadata chương theo số chương"
-    },
-    {
-      "path": "POST /api/chapters/{chapter_number}/view",
-      "explained": "Analytics: Tăng view_count cho chương"
-    },
-    {
-      "path": "GET /api/admin/analytics/top-chapters",
-      "explained": "Analytics: Lấy danh sách chương đọc nhiều nhất (yêu cầu Admin)"
-    },
-    {
-      "path": "GET /api/chapters/{chapter_number}/comments",
-      "explained": "Lấy danh sách bình luận của một chương"
-    },
-    {
-      "path": "POST /api/chapters/{chapter_number}/comments",
-      "explained": "Đăng bình luận mới cho chương (ẩn danh hoặc có tên)"
-    },
-    {
-      "path": "/api/chapters/{chapter_number}/like",
-      "method": "POST",
-      "explained": "Thả tim cho chương"
-    },
-    {
-      "path": "/api/wiki",
-      "method": "GET/POST",
-      "explained": "Quản lý danh sách bách khoa. GET hỗ trợ tham số page/limit để phân trang."
-    },
-    {
-      "path": "/api/wiki/{slug}",
-      "method": "GET",
-      "explained": "Chi tiết bách khoa. Tắt cache để admin cập nhật ảnh hiển thị ngay."
-    },
-    {
-      "path": "GET /api/wiki/{slug}/hierarchy",
-      "explained": "Lấy sơ đồ tổ chức của một thế lực."
-    },
-    {
-      "path": "POST /api/admin/wiki/{faction_id}/members",
-      "explained": "Thêm thành viên vào sơ đồ tổ chức (Admin)."
-    },
-    {
-      "path": "GET /api/novel",
-      "explained": "Lấy thông tin chung của truyện (Tiêu đề, Tác giả, Mô tả...)"
-    },
-    {
-      "path": "GET /api/tts",
-      "explained": "TTS Proxy - nhận text (≤200 ký tự), gọi Google Translate TTS server-side, trả về audio/mpeg"
-    },
-    {
-      "path": "GET /api/homepage",
-      "explained": "Lấy cấu hình nội dung trang chủ (Warning, Features)"
-    },
-    {
-      "path": "GET /api/admin/users",
-      "explained": "Quản lý nhân sự (SuperAdmin only)"
-    },
-    {
-      "path": "GET /api/map-locations",
-      "explained": "Lấy danh sách điểm ghim trên bản đồ chiến sự"
-    }
-  ],
-  "features": [
-    {
-      "name": "Faction Hierarchy",
-      "status": "complete",
-      "description": "Hệ thống sơ đồ tổ chức cho thế lực (Thế lực → Nhân vật). Hỗ trợ vô hạn cấp, hiển thị theo Tiers hoặc Tree."
-    },
-    {
-      "name": "Frontend Image Compression",
-      "status": "complete",
-      "description": "Sử dụng browser-image-compression để nén ảnh bìa/wiki xuống <1.5MB trước khi upload, cải thiện tốc độ 5-10x cho file lớn."
-    },
-    {
-      "name": "Wiki Optimization",
-      "status": "complete",
-      "description": "Tối ưu hiển thị ảnh bách khoa (tỉ lệ 21:9/16:9) và tắt cache detail để cập nhật tức thì."
-    },
-    {
-      "name": "Interactive War Map",
-      "status": "complete",
-      "description": "Bản đồ vệ tinh mạt thế full-screen. Admin ghim tọa độ Safe/Danger kèm ảnh và mô tả."
-    },
-    {
-      "name": "Rich Text Editor (Tiptap)",
-      "status": "complete",
-      "description": "Soạn thảo văn bản chuyên nghiệp. Đã tích hợp 'Clean Text' và tối ưu UX khi upload ảnh (loading state, disabled save button)."
-    },
-    {
-      "name": "Wiki Pagination",
-      "status": "complete",
-      "description": "Phân trang cho danh sách bách khoa để xử lý lượng lớn dữ liệu (>50 entries). Đồng bộ giữa Reader và Admin."
-    },
-    {
-      "name": "Wiki Reader Settings",
-      "status": "complete",
-      "description": "Tích hợp bảng cài đặt giao diện (Theme, Font) vào trang bách khoa tương tự như khi đọc chương truyện."
-    }
-  ],
+  "current_focus": {
+    "area": "Multilingual translation pipeline, admin translation ops, and payload efficiency",
+    "summary": "Implemented 4-locale architecture across reader/homepage/admin flows, AI key x model rotation, batch translation for chapters and wiki, translation status tracking, and reduced translation request count by bundling chapter/homepage/wiki payloads into one request per locale. Latest work also hardens JSON payload parsing and makes batch network errors clearer in admin.",
+    "latest_commits": [
+      "ff89505b4a27f889c70f7d8a0bb94057f5bd4d3d",
+      "015d89811a273d405127c237e8e8b2bb3d5c2ece",
+      "d4ce717b93ddb57cfa56a09b77ff676269dc4e94",
+      "0f939fd7fd99fb6ec67bd879fb42d45c8f5f3d07"
+    ]
+  },
   "knowledge_items": {
     "gotchas": [
       {
-        "title": "Org Chart Auto-Tiering",
-        "detail": "Khi sơ đồ không có parent_id (quan hệ cha-con), hệ thống sẽ tự động nhóm theo rank_level để tránh bị dàn hàng ngang trên một hàng duy nhất."
+        "title": "Do not paste git diff into Supabase SQL Editor",
+        "detail": "Supabase accepts raw SQL only. Patch text starting with diff --git will fail with syntax error 42601."
       },
       {
-        "title": "Unique Filenames on R2",
-        "detail": "Để tránh lỗi ghi đè khi upload ảnh cùng tên, backend sử dụng UUID để đặt tên file. Admin không cần lo lắng về việc trùng tên anh_bia.png."
+        "title": "HTTP 200 does not guarantee usable Oracle output",
+        "detail": "Gemini can return successful but semantically broken/truncated text; backend must validate answer quality."
       },
       {
-        "title": "React Error #137 (Void Elements)",
-        "detail": "Thẻ <br>, <hr>, <img> là void elements. KHÔNG được truyền children vào, nếu không ứng dụng sẽ crash."
+        "title": "Oracle cache can preserve bad answers",
+        "detail": "Stale rows in oracle_cache can poison UX even after model and deployment issues are fixed."
       },
       {
-        "title": "Hydration Mismatch on Theme",
-        "detail": "Cần dùng isMounted hook hoặc suppressHydrationWarning khi truy cập localStorage để tránh lỗi hydration NextJS."
+        "title": "Floating reader controls need adaptive placement",
+        "detail": "Fixed-corner placement is fragile on mobile; draggable triggers and minimized diagnostics reduce control overlap."
       },
       {
-        "title": "Supabase Python order() parameters",
-        "detail": "Trong Supabase Python SDK, tham số sắp xếp nulls là 'nullsfirst' hoặc 'nullslast' (không có dấu gạch dưới). Nhầm lẫn sang 'nulls_first' sẽ gây crash 500."
+        "title": "Translation success can fail on JSON parsing even with HTTP 200",
+        "detail": "Gemini may return JSON wrapped in fences, include control characters, or produce malformed strings. Translation pipelines now need payload cleaning and parse-retry across models."
+      },
+      {
+        "title": "Batch translation progress is durable only at published-row boundaries",
+        "detail": "When only_missing=true, reruns skip locales already published. Failed/incomplete locales are retried, so network interruptions usually cost time rather than losing completed work."
+      },
+      {
+        "title": "Wiki translations were read-only before 2026-03-27",
+        "detail": "The repo already had wiki_entry_translations lookup, but no AI generation pipeline or admin controls until this session."
       }
     ]
   },
   "git": {
     "github_user": "Nakazasen",
-    "git_email": "buiducvinhct1102@gmail.com",
-    "last_commit": "fix: correct sorting parameter typo in backend API (nulls_first -> nullsfirst)"
+    "default_branch": "main",
+    "latest_pushed_commit": "0f939fd7fd99fb6ec67bd879fb42d45c8f5f3d07"
   }
 }

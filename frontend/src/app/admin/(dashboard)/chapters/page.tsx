@@ -510,18 +510,19 @@ export default function AdminChaptersPage() {
                                 <tr className="border-b border-gray-800 bg-[#111111]">
                                     <th className="px-4 py-3 text-left font-mono text-xs text-gray-600 tracking-widest">#</th>
                                     <th className="px-4 py-3 text-left font-mono text-xs text-gray-600 tracking-widest">TIÊU ĐỀ</th>
-                                    <th className="px-4 py-3 text-right font-mono text-xs text-gray-600 tracking-widest">TỪ</th>
+                                    <th className="px-4 py-3 text-right font-mono text-xs text-gray-600 tracking-widest hidden md:table-cell">TỪ</th>
                                     <th className="px-4 py-3 text-right font-mono text-xs text-gray-600 tracking-widest">HÀNH ĐỘNG</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody className="flex flex-col md:table-row-group">
                                 {filteredChapters.length > 0 ? (
                                     filteredChapters.map((chapter) => (
-                                        <tr key={chapter.id} className="border-b border-gray-800/50 hover:bg-gray-800/20 transition-colors">
-                                            <td className="px-4 py-3 font-mono text-xs text-green-400 whitespace-nowrap font-bold">
+                                        <tr key={chapter.id} className="flex flex-col md:table-row border-b border-gray-800/50 hover:bg-gray-800/20 transition-colors p-4 md:p-0">
+                                            <td className="md:table-cell py-1 md:px-4 md:py-3 font-mono text-xs text-green-400 whitespace-nowrap font-bold">
+                                                <span className="md:hidden text-gray-600 mr-2">CHƯƠNG</span>
                                                 {String(chapter.chapter_number).padStart(3, '0')}
                                             </td>
-                                            <td className="px-4 py-3 text-gray-200">
+                                            <td className="md:table-cell py-2 md:px-4 md:py-3 text-gray-200">
                                                 <div className="max-w-xs md:max-w-md truncate font-medium">{chapter.title}</div>
                                                 {translationStatusMap[chapter.chapter_number] && (
                                                     <div className="mt-2 space-y-1">
@@ -536,7 +537,7 @@ export default function AdminChaptersPage() {
                                                         {translationStatusMap[chapter.chapter_number].attempt_count > 0 && (
                                                             <div className="text-[11px] text-amber-300/90">
                                                                 Đã thử {translationStatusMap[chapter.chapter_number].attempt_count} lần
-                                                            </div>
+                                                              </div>
                                                         )}
                                                         {translationStatusMap[chapter.chapter_number].last_error && (
                                                             <div className="text-[11px] text-red-300/90 line-clamp-2">
@@ -549,8 +550,8 @@ export default function AdminChaptersPage() {
                                             <td className="px-4 py-3 text-right font-mono text-xs text-gray-600 hidden md:table-cell">
                                                 {chapter.word_count?.toLocaleString() || '—'}
                                             </td>
-                                            <td className="px-4 py-3 text-right">
-                                                <div className="flex items-center justify-end gap-2 flex-wrap">
+                                            <td className="md:table-cell py-3 md:px-4 md:py-3 text-right">
+                                                <div className="flex items-center justify-start md:justify-end gap-2 flex-wrap">
                                                     <button
                                                         onClick={() => handleTranslate(chapter.chapter_number)}
                                                         disabled={!token || translatingId === chapter.chapter_number}
@@ -559,27 +560,29 @@ export default function AdminChaptersPage() {
                                                         <Languages size={10} />
                                                         {translatingId === chapter.chapter_number ? 'ĐANG DỊCH...' : 'DỊCH 3 NGÔN NGỮ'}
                                                     </button>
-                                                    <Link
-                                                        href={`/admin/chapters/${chapter.chapter_number}/edit`}
-                                                        className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-700 hover:border-blue-500 text-gray-400 hover:text-blue-400 rounded text-xs font-mono transition-all hover:bg-blue-500/10"
-                                                    >
-                                                        <Pencil size={10} />
-                                                        Sửa
-                                                    </Link>
-                                                    <button
-                                                        onClick={() => handleDelete(chapter.chapter_number)}
-                                                        disabled={deletingId === chapter.chapter_number}
-                                                        className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-700 hover:border-red-600 text-gray-500 hover:text-red-400 disabled:opacity-50 rounded text-xs font-mono transition-all hover:bg-red-500/10"
-                                                    >
-                                                        <Trash2 size={10} />
-                                                        {deletingId === chapter.chapter_number ? '...' : 'Xóa'}
-                                                    </button>
+                                                    <div className="flex gap-2 w-full sm:w-auto">
+                                                        <Link
+                                                            href={`/admin/chapters/${chapter.chapter_number}/edit`}
+                                                            className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 border border-gray-700 hover:border-blue-500 text-gray-400 hover:text-blue-400 rounded text-xs font-mono transition-all hover:bg-blue-500/10"
+                                                        >
+                                                            <Pencil size={10} />
+                                                            Sửa
+                                                        </Link>
+                                                        <button
+                                                            onClick={() => handleDelete(chapter.chapter_number)}
+                                                            disabled={deletingId === chapter.chapter_number}
+                                                            className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 border border-gray-700 hover:border-red-600 text-gray-500 hover:text-red-400 disabled:opacity-50 rounded text-xs font-mono transition-all hover:bg-red-500/10"
+                                                        >
+                                                            <Trash2 size={10} />
+                                                            {deletingId === chapter.chapter_number ? '...' : 'Xóa'}
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             </td>
                                         </tr>
                                     ))
                                 ) : (
-                                    <tr>
+                                    <tr className="flex flex-col md:table-row">
                                         <td colSpan={4} className="px-4 py-10 text-center text-gray-600 font-mono text-xs">
                                             {searchQuery ? `Không tìm thấy chương nào khớp với "${searchQuery}"` : 'Không có dữ liệu chương'}
                                         </td>
