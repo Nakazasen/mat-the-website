@@ -162,5 +162,23 @@ All notable changes to this project will be documented in this file.
 - **API Client:** Updated `getWikiEntries` in `lib/api.ts` to support paginated response types.
 - **Character Picker:** Updated `FactionHierarchyEditor` to fetch up to 1000 characters to ensure full list availability for hierarchy building.
 
-*Last updated: 2026-03-16 01:25:00*
+---
+## [2026-03-28] - Part 12: Admin UX & HUD Localization
+### Added
+- **SystemHUD Localization:** 🌐
+  - Hỗ trợ đa ngôn ngữ (VI, EN, ZH, JA) cho toàn bộ nhãn trong HUD.
+  - Tích hợp hook `useLocale` và hệ thống từ điển `dictionaries.ts`.
+  - Tự động cập nhật trạng thái (Normal, Injured, Mutated, Critical) theo ngôn ngữ.
+- **Admin Chapters Responsive:** 📱
+  - Refactor giao diện quản lý chương sang dạng card-view trên mobile.
+  - Đảm bảo các nút "Dịch", "Sửa", "Xóa" luôn hiển thị và dễ thao tác trên màn hình nhỏ.
+
+### Fixed
+- **I18n Dictionaries:** Export `dictionaries` object trong `dictionaries.ts` để hỗ trợ các script validation bên ngoài.
+- **Hydration Mismatch:** Xử lý dynamic labels để tránh lỗi đồng bộ khi trình duyệt tự động dịch trang.
+
+### Changed
+- **Deployment Policy:** Thiết lập quy trình tự động push GitHub và rebuild Vercel/Render sau mỗi thay đổi quan trọng.
+
+*Last updated: 2026-03-28 06:45:00*
 

@@ -2,14 +2,17 @@
   "meta": {
     "schema_version": "1.1.0",
     "awf_version": "4.0.2",
-    "last_updated": "2026-03-27T02:05:00+07:00"
+    "last_updated": "2026-03-28T06:45:00+07:00"
   },
   "project": {
     "name": "Mat The - Sinh Hoa Nguy Co",
     "type": "Novel Reading Website",
     "url": "https://matthesinhhoa.vercel.app",
     "repo": "https://github.com/Nakazasen/mat-the-website",
-    "status": "active"
+    "status": "active",
+    "rules": [
+      "Luôn push code mới nhất lên GitHub và rebuild Vercel/Render sau bất cứ thay đổi nào."
+    ]
   },
   "tech_stack": {
     "frontend": {
@@ -38,12 +41,9 @@
     "storage": "Cloudflare R2"
   },
   "current_focus": {
-    "area": "Multilingual translation pipeline, admin translation ops, and payload efficiency",
-    "summary": "Implemented 4-locale architecture across reader/homepage/admin flows, AI key x model rotation, batch translation for chapters and wiki, translation status tracking, and reduced translation request count by bundling chapter/homepage/wiki payloads into one request per locale. Latest work also hardens JSON payload parsing and makes batch network errors clearer in admin.",
+    "area": "HUD Localization & Admin UX Responsiveness",
+    "summary": "Implemented 4-locale support for SystemHUD, refactored Admin Chapters table for mobile card-view, and fixed dictionary exports for better tool compatibility. Latest work ensures the system remains premium and accessible across all languages and devices.",
     "latest_commits": [
-      "ff89505b4a27f889c70f7d8a0bb94057f5bd4d3d",
-      "015d89811a273d405127c237e8e8b2bb3d5c2ece",
-      "d4ce717b93ddb57cfa56a09b77ff676269dc4e94",
       "0f939fd7fd99fb6ec67bd879fb42d45c8f5f3d07"
     ]
   },
@@ -76,6 +76,10 @@
       {
         "title": "Wiki translations were read-only before 2026-03-27",
         "detail": "The repo already had wiki_entry_translations lookup, but no AI generation pipeline or admin controls until this session."
+      },
+      {
+        "title": "Browser Auto-translate can break Next.js Hydration",
+        "detail": "Browser-level translation (e.g. Chrome Google Translate) can modify the DOM before Next.js hydration, causing UI crashes. Use translate=\"no\" on critical test or UI components if needed, or ensure dynamic labels handle mismatch gracefully."
       }
     ]
   },
