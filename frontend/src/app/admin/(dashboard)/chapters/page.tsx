@@ -37,6 +37,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mat-the-website
 const SAFE_BATCH_LIMIT = 2;
 const FULL_BATCH_MAX_RETRIES = 3;
 const FULL_BATCH_RETRY_DELAY_MS = 2500;
+const FULL_BATCH_CHECKPOINT_KEY = 'admin-chapters-full-batch-checkpoint-v1';
 
 interface Chapter {
     id: number;
@@ -62,6 +63,18 @@ interface ChapterTranslationStatus {
 type ActionNotice = {
     tone: 'success' | 'error';
     message: string;
+};
+
+type FullBatchCheckpoint = {
+    active: boolean;
+    total: number;
+    blockSize: number;
+    nextStart: number;
+    translated: number;
+    skipped: number;
+    failed: number;
+    failureDetails: Array<{ chapter_number: number; detail?: string }>;
+    updatedAt: string;
 };
 
 function formatTranslationFailures(failures: TranslationFailure[] | undefined): string {
@@ -122,6 +135,46 @@ function sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function readFullBatchCheckpoint(): FullBatchCheckpoint | null {
+    if (typeof window === 'undefined') return null;
+    try {
+        const raw = window.localStorage.getItem(FULL_BATCH_CHECKPOINT_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw) as Partial<FullBatchCheckpoint>;
+        if (
+            !parsed
+            || typeof parsed.total !== 'number'
+            || typeof parsed.blockSize !== 'number'
+            || typeof parsed.nextStart !== 'number'
+        ) {
+            return null;
+        }
+        return {
+            active: parsed.active !== false,
+            total: Math.max(0, parsed.total || 0),
+            blockSize: Math.max(1, parsed.blockSize || 1),
+            nextStart: Math.max(1, parsed.nextStart || 1),
+            translated: Math.max(0, parsed.translated || 0),
+            skipped: Math.max(0, parsed.skipped || 0),
+            failed: Math.max(0, parsed.failed || 0),
+            failureDetails: Array.isArray(parsed.failureDetails) ? parsed.failureDetails : [],
+            updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : '',
+        };
+    } catch {
+        return null;
+    }
+}
+
+function writeFullBatchCheckpoint(payload: FullBatchCheckpoint): void {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(FULL_BATCH_CHECKPOINT_KEY, JSON.stringify(payload));
+}
+
+function clearFullBatchCheckpointStorage(): void {
+    if (typeof window === 'undefined') return;
+    window.localStorage.removeItem(FULL_BATCH_CHECKPOINT_KEY);
+}
+
 export default function AdminChaptersPage() {
     const router = useRouter();
     const [chapters, setChapters] = useState<Chapter[]>([]);
@@ -148,6 +201,7 @@ export default function AdminChaptersPage() {
     const [batchBlockSize, setBatchBlockSize] = useState('2');
     const [fullBatchRunning, setFullBatchRunning] = useState(false);
     const [fullBatchProgress, setFullBatchProgress] = useState<{ completed: number; total: number; translated: number; skipped: number; failed: number } | null>(null);
+    const [fullBatchCheckpoint, setFullBatchCheckpoint] = useState<FullBatchCheckpoint | null>(null);
     const [translationStatusMap, setTranslationStatusMap] = useState<Record<number, ChapterTranslationStatus>>({});
     const [actionNotice, setActionNotice] = useState<ActionNotice | null>(null);
 
@@ -214,6 +268,25 @@ export default function AdminChaptersPage() {
     useEffect(() => {
         fetchChapters(1);
     }, [fetchChapters]);
+
+    useEffect(() => {
+        const checkpoint = readFullBatchCheckpoint();
+        if (!checkpoint || !checkpoint.active) return;
+
+        setFullBatchCheckpoint(checkpoint);
+        setBatchBlockSize(String(checkpoint.blockSize));
+        setFullBatchProgress({
+            completed: Math.max(0, checkpoint.nextStart - 1),
+            total: checkpoint.total,
+            translated: checkpoint.translated,
+            skipped: checkpoint.skipped,
+            failed: checkpoint.failed,
+        });
+        setBatchFailureDetails(checkpoint.failureDetails || []);
+        setBatchResult(
+            `Đã khôi phục checkpoint tới chương ${Math.max(0, checkpoint.nextStart - 1)}/${checkpoint.total}. Bấm tiếp tục để chạy phần còn thiếu.`
+        );
+    }, []);
 
     const refreshTranslationStatuses = useCallback(async (targetChapters?: number[]) => {
         if (!token) return;
@@ -376,32 +449,76 @@ export default function AdminChaptersPage() {
         }
     };
 
+    const handleClearFullBatchCheckpoint = () => {
+        setFullBatchCheckpoint(null);
+        setFullBatchProgress(null);
+        setBatchFailureDetails([]);
+        setBatchResult(null);
+        clearFullBatchCheckpointStorage();
+    };
+
     const handleTranslateAllMissing = async () => {
         if (!token) return;
 
-        const total = Math.max(totalChapters, 0);
-        const blockSize = Math.min(SAFE_BATCH_LIMIT, Math.max(1, parseInt(batchBlockSize || '2', 10) || 2));
+        const checkpoint = fullBatchCheckpoint?.active ? fullBatchCheckpoint : null;
+        const total = Math.max(totalChapters, checkpoint?.total || 0);
+        const blockSize = Math.min(
+            SAFE_BATCH_LIMIT,
+            Math.max(1, checkpoint?.blockSize || parseInt(batchBlockSize || '2', 10) || 2),
+        );
         if (total === 0) {
             setError('Không có chương nào để dịch.');
             return;
         }
 
+        const initialStart = Math.min(Math.max(1, checkpoint?.nextStart || 1), Math.max(total, 1));
+
         setFullBatchRunning(true);
         setBatchRunning(false);
         setError(null);
         setActionNotice(null);
-        setBatchResult(null);
-        setBatchFailureDetails([]);
-        setFullBatchProgress({ completed: 0, total, translated: 0, skipped: 0, failed: 0 });
+        setBatchResult(
+            checkpoint
+                ? `Tiếp tục từ checkpoint chương ${Math.max(0, initialStart - 1)}/${total}...`
+                : 'Bắt đầu chạy toàn bộ chương còn thiếu...',
+        );
 
-        let translated = 0;
-        let skipped = 0;
-        let failed = 0;
-        let completed = 0;
-        const aggregatedFailures: Array<{ chapter_number: number; detail?: string }> = [];
+        let translated = checkpoint?.translated || 0;
+        let skipped = checkpoint?.skipped || 0;
+        let failed = checkpoint?.failed || 0;
+        let completed = Math.max(0, initialStart - 1);
+        const aggregatedFailures: Array<{ chapter_number: number; detail?: string }> = checkpoint?.failureDetails
+            ? [...checkpoint.failureDetails]
+            : [];
+
+        setBatchFailureDetails([...aggregatedFailures]);
+        setFullBatchProgress({ completed, total, translated, skipped, failed });
+
+        const persistCheckpoint = (nextStart: number, isActive: boolean) => {
+            const payload: FullBatchCheckpoint = {
+                active: isActive,
+                total,
+                blockSize,
+                nextStart,
+                translated,
+                skipped,
+                failed,
+                failureDetails: aggregatedFailures.slice(-200),
+                updatedAt: new Date().toISOString(),
+            };
+            if (isActive) {
+                writeFullBatchCheckpoint(payload);
+                setFullBatchCheckpoint(payload);
+            } else {
+                clearFullBatchCheckpointStorage();
+                setFullBatchCheckpoint(null);
+            }
+        };
+
+        persistCheckpoint(initialStart, initialStart <= total);
 
         try {
-            for (let start = 1; start <= total; start += blockSize) {
+            for (let start = initialStart; start <= total; start += blockSize) {
                 const end = Math.min(start + blockSize - 1, total);
                 let result: Awaited<ReturnType<typeof translateAdminChaptersBatch>> | null = null;
                 let lastBlockError: any = null;
@@ -449,6 +566,7 @@ export default function AdminChaptersPage() {
                     `Đã chạy tới chương ${end}/${total}. Dịch mới: ${translated}, bỏ qua: ${skipped}, lỗi: ${failed}.`
                 );
                 setBatchFailureDetails([...aggregatedFailures]);
+                persistCheckpoint(Math.min(end + 1, total), end < total);
                 if (start + blockSize <= total) {
                     await sleep(600);
                 }
@@ -576,8 +694,14 @@ export default function AdminChaptersPage() {
                         <p className="mt-1 text-xs text-gray-500">
                             Tự động chạy từ chương 1 đến chương {totalChapters}, chia block nhỏ để hạn chế timeout và dễ theo dõi tiến độ.
                         </p>
+                        {fullBatchCheckpoint?.active && (
+                            <p className="mt-2 text-xs text-cyan-200/90">
+                                Có checkpoint tới chương {Math.max(0, fullBatchCheckpoint.nextStart - 1)}/{fullBatchCheckpoint.total}.
+                                Tải lại trang vẫn có thể tiếp tục từ đây.
+                            </p>
+                        )}
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-[140px_auto] gap-3 w-full lg:w-auto">
+                    <div className="grid grid-cols-1 sm:grid-cols-[140px_auto_auto] gap-3 w-full lg:w-auto">
                         <input
                             type="number"
                             min={1}
@@ -600,6 +724,24 @@ export default function AdminChaptersPage() {
                 {batchResult && (
                     <div className="mt-3 rounded border border-green-900/50 bg-green-950/30 px-3 py-2 text-sm text-green-300">
                         {batchResult}
+                    </div>
+                )}
+                {fullBatchCheckpoint?.active && !fullBatchRunning && (
+                    <div className="mt-3 flex flex-col gap-2 rounded border border-cyan-900/40 bg-cyan-950/10 px-3 py-3 text-sm text-cyan-100 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <div className="font-mono text-xs uppercase tracking-widest text-cyan-300">Checkpoint khả dụng</div>
+                            <div className="mt-1 text-xs text-cyan-100/80">
+                                Hệ thống đang giữ tiến độ tới chương {Math.max(0, fullBatchCheckpoint.nextStart - 1)}/{fullBatchCheckpoint.total}.
+                                Bấm nút dịch lại để tiếp tục, hoặc xóa checkpoint để bắt đầu từ đầu.
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={handleClearFullBatchCheckpoint}
+                            className="inline-flex items-center justify-center rounded border border-gray-700 px-3 py-2 text-xs font-mono text-gray-300 hover:bg-gray-800/80"
+                        >
+                            XÓA CHECKPOINT
+                        </button>
                     </div>
                 )}
                 {fullBatchProgress && (
