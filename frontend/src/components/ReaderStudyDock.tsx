@@ -31,6 +31,7 @@ const DESKTOP_PANEL_STORAGE_KEY = "reader-study-dock-position-v1";
 const DESKTOP_DEFAULT_POSITION = { top: 132, left: 16 };
 const DESKTOP_PANEL_WIDTH = 392;
 const DESKTOP_PANEL_MARGIN = 16;
+const MOBILE_PANEL_EVENT = "reader-learning-mobile-panel";
 
 function StudyLinks({ onNavigate }: { onNavigate?: () => void }) {
     const { localizePath } = useLocale();
@@ -178,6 +179,7 @@ export default function ReaderStudyDock() {
     const [isDesktop, setIsDesktop] = useState(false);
     const [dragging, setDragging] = useState(false);
     const [desktopPosition, setDesktopPosition] = useState(DESKTOP_DEFAULT_POSITION);
+    const [mobileReaderPanelActive, setMobileReaderPanelActive] = useState(false);
 
     useEffect(() => {
         let mounted = true;
@@ -218,6 +220,19 @@ export default function ReaderStudyDock() {
         updateViewport();
         window.addEventListener("resize", updateViewport);
         return () => window.removeEventListener("resize", updateViewport);
+    }, []);
+
+    useEffect(() => {
+        const handleMobilePanelEvent = (event: Event) => {
+            const detail = (event as CustomEvent<{ active?: boolean; kind?: string }>).detail;
+            setMobileReaderPanelActive(Boolean(detail?.active));
+            if (detail?.active) {
+                setMobileOpen(false);
+            }
+        };
+
+        window.addEventListener(MOBILE_PANEL_EVENT, handleMobilePanelEvent as EventListener);
+        return () => window.removeEventListener(MOBILE_PANEL_EVENT, handleMobilePanelEvent as EventListener);
     }, []);
 
     const mobileBottom = useMemo(() => (audioActive ? 174 : 88), [audioActive]);
@@ -347,7 +362,8 @@ export default function ReaderStudyDock() {
                 </div>
             </div>
 
-            <div className="fixed left-4 z-[58] md:hidden" style={{ bottom: `${mobileBottom}px` }}>
+            {!mobileReaderPanelActive && (
+                <div className="fixed left-4 z-[58] md:hidden" style={{ bottom: `${mobileBottom}px` }}>
                 <button
                     type="button"
                     onClick={() => setMobileOpen(true)}
@@ -356,7 +372,8 @@ export default function ReaderStudyDock() {
                     <GraduationCap size={16} />
                     Learning
                 </button>
-            </div>
+                </div>
+            )}
 
             {mobileOpen && (
                 <div className="fixed inset-0 z-[70] md:hidden">

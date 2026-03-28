@@ -56,3 +56,19 @@ def test_build_rule_based_lookup_uses_kana_fallback_for_reading_only():
     assert payload is not None
     assert payload["reading"] == "しかし"
     assert payload["meaning_vi"] == "nhưng; tuy nhiên"
+
+
+def test_build_rule_based_lookup_lemmatizes_english_plural():
+    payload = build_rule_based_lookup("en", "contracts")
+
+    assert payload is not None
+    assert payload["normalized_term"] == "contract"
+    assert payload["meaning_vi"] == "hợp đồng"
+
+
+def test_build_rule_based_lookup_segments_known_chinese_phrase():
+    payload = build_rule_based_lookup("zh-CN", "公司工资")
+
+    assert payload is not None
+    assert payload["pos"] == "phrase"
+    assert payload["reading"] == "gōng sī gōng zī"

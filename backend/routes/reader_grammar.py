@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 from datetime import datetime, timedelta, timezone
 from typing import Any, Literal, Optional
@@ -8,6 +9,7 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/api/reader", tags=["reader_grammar"])
+logger = logging.getLogger(__name__)
 
 LookupSource = Literal["cache", "rule_based", "ai", "placeholder"]
 GrammarHintCategory = Literal[
@@ -87,6 +89,23 @@ def _normalize_sentence(text: Optional[str], max_length: int = 1200) -> Optional
     if not normalized:
         return None
     return normalized[:max_length]
+
+
+def _preview_text(text: Optional[str], max_length: int = 96) -> str:
+    normalized = _normalize_sentence(text, max_length=max_length) or ""
+    if len(normalized) <= max_length:
+        return normalized
+    return f"{normalized[:max_length]}..."
+
+
+def _log_grammar_event(level: str, event: str, **context: Any) -> None:
+    log_method = getattr(logger, level, logger.info)
+    safe_context = {
+        key: value
+        for key, value in context.items()
+        if value is not None and value != ""
+    }
+    log_method("reader_grammar %s %s", event, safe_context)
 
 
 def _grammar_cache_key(sentence_text: str) -> str:
@@ -261,13 +280,89 @@ def _build_zh_rule_based_hints(sentence_text: str) -> list[ReaderGrammarHint]:
     return hints
 
 
+def _build_en_deep_hints(sentence_text: str) -> list[ReaderGrammarHint]:
+    lowered = sentence_text.lower()
+    hints: list[ReaderGrammarHint] = []
+    rules: list[tuple[str, str, str, GrammarHintCategory]] = [
+        (r"\bused to\b", "used to", "Mẫu này diễn tả thói quen hoặc trạng thái từng tồn tại trong quá khứ nhưng nay đã đổi.", "grammar"),
+        (r"\bbe about to\b", "be about to", "Mẫu này diễn tả việc gì đó sắp xảy ra ngay sau thời điểm nói.", "grammar"),
+        (r"\bnot only\b.+\bbut also\b", "not only ... but also ...", "Cấu trúc này dùng để nhấn mạnh hai ý song song, trong đó ý sau thường được làm nổi bật thêm.", "structure"),
+        (r"\bas soon as\b", "as soon as", "Mẫu nối hai hành động gần như xảy ra liên tiếp, ngay sau khi việc trước vừa hoàn thành.", "structure"),
+        (r"\bhave to\b", "have to", "Diễn tả sự bắt buộc hoặc nghĩa vụ, thường do hoàn cảnh hoặc yêu cầu bên ngoài.", "grammar"),
+        (r"\bend up\b", "end up", "Phrasal verb này diễn tả kết cục cuối cùng, thường có sắc thái ngoài dự tính ban đầu.", "phrasal_verb"),
+        (r"\brun into\b", "run into", "Phrasal verb này có thể là tình cờ gặp ai đó hoặc vướng phải tình huống bất ngờ.", "phrasal_verb"),
+        (r"\bdeal with\b", "deal with", "Cụm này chỉ việc xử lý, đối mặt hoặc giải quyết một người hay tình huống.", "collocation"),
+    ]
+    for pattern, title, explanation, category in rules:
+        match = re.search(pattern, lowered)
+        if match:
+            _append_hint(
+                hints,
+                title=title,
+                explanation_vi=explanation,
+                example_fragment=match.group(0),
+                category=category,
+            )
+    return hints
+
+
+def _build_ja_deep_hints(sentence_text: str) -> list[ReaderGrammarHint]:
+    hints: list[ReaderGrammarHint] = []
+    rules: list[tuple[str, str, str, GrammarHintCategory]] = [
+        (r"\u3066\u304f\u308c\u308b", "〜てくれる", "Mẫu này cho thấy ai đó làm điều gì đó vì người nói hoặc theo hướng có lợi cho người nói.", "tone"),
+        (r"\u3066\u3042\u3052\u308b", "〜てあげる", "Mẫu này thể hiện người nói hoặc chủ thể làm giúp, làm cho ai đó với sắc thái hỗ trợ hoặc ban ơn.", "tone"),
+        (r"\u3066\u3082\u3044\u3044", "〜てもいい", "Mẫu này diễn tả sự cho phép hoặc việc gì đó là chấp nhận được.", "grammar"),
+        (r"\u306a\u3051\u308c\u3070\u306a\u3089\u306a\u3044", "〜なければならない", "Mẫu này nhấn mạnh nghĩa vụ hoặc điều bắt buộc phải làm.", "grammar"),
+        (r"\u3068\u601d\u3046", "〜と思う", "Mẫu này dùng để nêu suy nghĩ, nhận định hoặc cảm giác của người nói.", "tone"),
+        (r"\u3066\u304f\u308b", "〜てくる", "Mẫu này hay diễn tả sự thay đổi tiến lại gần hiện tại hoặc hành động mang kết quả trở về phía người nói.", "aspect"),
+        (r"\u3066\u3044\u304f", "〜ていく", "Mẫu này hay diễn tả sự tiếp diễn hoặc thay đổi kéo dài về phía tương lai.", "aspect"),
+        (r"\u3089\u308c\u308b", "〜られる", "Dạng này có thể là bị động hoặc khả năng; cần đọc theo ngữ cảnh nhưng luôn là điểm ngữ pháp quan trọng.", "conjugation"),
+        (r"\u3055\u305b\u308b", "〜させる", "Dạng sai khiến, cho thấy ai đó làm cho hoặc bắt người khác thực hiện hành động.", "conjugation"),
+    ]
+    for pattern, title, explanation, category in rules:
+        match = re.search(pattern, sentence_text)
+        if match:
+            _append_hint(
+                hints,
+                title=title,
+                explanation_vi=explanation,
+                example_fragment=match.group(0),
+                category=category,
+            )
+    return hints
+
+
+def _build_zh_deep_hints(sentence_text: str) -> list[ReaderGrammarHint]:
+    hints: list[ReaderGrammarHint] = []
+    rules: list[tuple[str, str, str, GrammarHintCategory]] = [
+        (r"\u4e00\u8fb9.+\u4e00\u8fb9", "一边…一边…", "Cấu trúc này diễn tả hai hành động diễn ra song song cùng lúc.", "structure"),
+        (r"\u867d\u7136.+\u4f46\u662f", "虽然…但是…", "Mẫu này tạo quan hệ nhượng bộ: dù có điều A, kết quả hoặc nhận định B vẫn xảy ra.", "structure"),
+        (r"\u4e3a\u4e86", "为了", "Cấu trúc này nêu mục đích hoặc lý do hướng đến một kết quả nhất định.", "grammar"),
+        (r"\u5148.+\u518d", "先…再…", "Mẫu này thể hiện trình tự hành động: làm việc trước rồi mới đến việc sau.", "structure"),
+        (r"\u8d77\u6765", "起来", "Bổ ngữ hướng hoặc kết quả này thường diễn tả hành động bắt đầu hoặc trạng thái hiện lên rõ hơn.", "aspect"),
+        (r"\u4e0b\u53bb", "下去", "Bổ ngữ này thường diễn tả hành động tiếp tục kéo dài theo hướng duy trì.", "aspect"),
+        (r"\u51fa\u6765", "出来", "Bổ ngữ này hay nhấn mạnh kết quả hiện rõ, tách ra hoặc được nhận ra.", "aspect"),
+    ]
+    for pattern, title, explanation, category in rules:
+        match = re.search(pattern, sentence_text)
+        if match:
+            _append_hint(
+                hints,
+                title=title,
+                explanation_vi=explanation,
+                example_fragment=match.group(0),
+                category=category,
+            )
+    return hints
+
+
 def _build_rule_based_hints(locale: str, sentence_text: str) -> list[ReaderGrammarHint]:
     if locale == "en":
-        return _build_en_rule_based_hints(sentence_text)
+        return [*_build_en_rule_based_hints(sentence_text), *_build_en_deep_hints(sentence_text)][:3]
     if locale == "ja":
-        return _build_ja_rule_based_hints(sentence_text)
+        return [*_build_ja_rule_based_hints(sentence_text), *_build_ja_deep_hints(sentence_text)][:3]
     if locale == "zh-CN":
-        return _build_zh_rule_based_hints(sentence_text)
+        return [*_build_zh_rule_based_hints(sentence_text), *_build_zh_deep_hints(sentence_text)][:3]
     return []
 
 
@@ -475,6 +570,7 @@ async def grammar_hints(body: ReaderGrammarHintsRequest):
     sentence_text = _normalize_sentence(body.sentence_text)
 
     if not sentence_text:
+        _log_grammar_event("warning", "grammar_empty_sentence", locale=locale, chapter_id=body.chapter_id)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="sentence_text không được để trống.")
 
     if locale == "vi":
@@ -482,6 +578,13 @@ async def grammar_hints(body: ReaderGrammarHintsRequest):
 
     cached = _get_cached_payload(locale, sentence_text)
     if cached:
+        _log_grammar_event(
+            "info",
+            "grammar_cache_hit",
+            locale=locale,
+            chapter_id=body.chapter_id,
+            sentence=_preview_text(sentence_text),
+        )
         return cached
 
     hints = _build_rule_based_hints(locale, sentence_text)
@@ -500,8 +603,26 @@ async def grammar_hints(body: ReaderGrammarHintsRequest):
                 )
             if ai_payload.hints:
                 source = "ai"
-        except Exception:
+        except Exception as exc:
+            _log_grammar_event(
+                "warning",
+                "grammar_ai_failed",
+                locale=locale,
+                chapter_id=body.chapter_id,
+                sentence=_preview_text(sentence_text),
+                detail=str(exc),
+            )
             source = "rule_based"
+
+    _log_grammar_event(
+        "info",
+        "grammar_response_ready",
+        locale=locale,
+        chapter_id=body.chapter_id,
+        sentence=_preview_text(sentence_text),
+        source=source,
+        hint_count=len(hints),
+    )
 
     response = ReaderGrammarHintsResponse(
         sentence_text=sentence_text,

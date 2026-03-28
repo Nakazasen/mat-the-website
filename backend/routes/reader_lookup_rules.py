@@ -472,7 +472,45 @@ def _normalize_english_term(term: str) -> str:
     lowered = term.lower().replace("’", "'")
     lowered = re.sub(r"[^\w\s'-]", " ", lowered)
     lowered = re.sub(r"\s+", " ", lowered).strip()
-    return EN_ALIAS_RULES.get(lowered, lowered)
+    alias = EN_ALIAS_RULES.get(lowered)
+    if alias:
+        return alias
+
+    def lemmatize_word(word: str) -> str:
+        if len(word) <= 3:
+            return word
+        if word.endswith("ies") and len(word) > 4:
+            return f"{word[:-3]}y"
+        if word.endswith("ing") and len(word) > 5:
+            base = word[:-3]
+            if f"{base}e" in EN_EXACT_RULES:
+                return f"{base}e"
+            if base in EN_EXACT_RULES:
+                return base
+            return word
+        if word.endswith("ed") and len(word) > 4:
+            base = word[:-2]
+            if f"{base}e" in EN_EXACT_RULES:
+                return f"{base}e"
+            if base in EN_EXACT_RULES:
+                return base
+            return word
+        if word.endswith("es") and len(word) > 4:
+            singular = word[:-2]
+            if singular in EN_EXACT_RULES:
+                return singular
+        if word.endswith("s") and len(word) > 3:
+            singular = word[:-1]
+            if singular in EN_EXACT_RULES:
+                return singular
+        return word
+
+    words = lowered.split()
+    if not words:
+        return lowered
+
+    lemmatized = " ".join([*words[:-1], lemmatize_word(words[-1])])
+    return EN_ALIAS_RULES.get(lemmatized, lemmatized)
 
 
 def _is_kana_only(term: str) -> bool:
@@ -490,6 +528,37 @@ def _strip_japanese_suffix(term: str) -> str:
             if candidate in JA_EXACT_RULES or candidate in JA_KANA_RULES:
                 return candidate
     return normalized
+
+
+def _normalize_japanese_dictionary_form(term: str) -> str:
+    candidates = [term]
+    transformations = (
+        (r"(.+)\u3057\u3066\u3044\u308b$", r"\1\u3059\u308b"),
+        (r"(.+)\u3057\u3066\u3044\u305f$", r"\1\u3059\u308b"),
+        (r"(.+)\u3057\u307e\u3059$", r"\1\u3059\u308b"),
+        (r"(.+)\u3057\u307e\u3057\u305f$", r"\1\u3059\u308b"),
+        (r"(.+)\u3057\u305f$", r"\1\u3059\u308b"),
+        (r"(.+)\u3057\u3066$", r"\1\u3059\u308b"),
+        (r"(.+)\u3063\u3066\u3044\u308b$", r"\1\u3046"),
+        (r"(.+)\u3063\u305f$", r"\1\u3046"),
+        (r"(.+)\u3093\u3067\u3044\u308b$", r"\1\u3080"),
+        (r"(.+)\u3093\u3060$", r"\1\u3080"),
+        (r"(.+)\u3044\u3066\u3044\u308b$", r"\1\u304f"),
+        (r"(.+)\u3044\u305f$", r"\1\u304f"),
+        (r"(.+)\u304e\u3066\u3044\u308b$", r"\1\u3050"),
+        (r"(.+)\u3044\u3067\u3044\u308b$", r"\1\u3050"),
+        (r"(.+)\u3044\u3060$", r"\1\u3050"),
+        (r"(.+)\u3079\u3066\u3044\u308b$", r"\1\u3079\u308b"),
+        (r"(.+)\u3079\u305f$", r"\1\u3079\u308b"),
+    )
+    for pattern, replacement in transformations:
+        if re.search(pattern, term):
+            candidates.append(re.sub(pattern, replacement, term))
+
+    for candidate in candidates:
+        if candidate in JA_EXACT_RULES or candidate in JA_KANA_RULES:
+            return candidate
+    return term
 
 
 def _strip_chinese_suffix(term: str) -> str:
@@ -533,7 +602,7 @@ def _build_kana_fallback(term: str) -> Optional[RuleBasedLookup]:
 
 
 def _build_japanese_rule(term: str) -> Optional[RuleBasedLookup]:
-    normalized = _strip_japanese_suffix(term)
+    normalized = _normalize_japanese_dictionary_form(_strip_japanese_suffix(term))
     for table in (JA_EXACT_RULES, JA_KANA_RULES):
         rule = table.get(normalized)
         if rule:
@@ -569,6 +638,53 @@ def _build_chinese_character_fallback(term: str, normalized: str) -> Optional[Ru
     )
 
 
+def _build_chinese_phrase_fallback(term: str, normalized: str) -> Optional[RuleBasedLookup]:
+    if len(normalized) < 2:
+        return None
+
+    cursor = 0
+    segments: list[dict[str, str | None]] = []
+    while cursor < len(normalized):
+        matched: str | None = None
+        for end in range(len(normalized), cursor, -1):
+            candidate = normalized[cursor:end]
+            if candidate in ZH_EXACT_RULES:
+                matched = candidate
+                break
+
+        if matched:
+            segments.append({"term": matched, **ZH_EXACT_RULES[matched]})
+            cursor += len(matched)
+            continue
+
+        char = normalized[cursor]
+        reading = ZH_CHAR_PINYIN.get(char)
+        if not reading:
+            return None
+        segments.append({
+            "term": char,
+            "reading": reading,
+            "meaning_vi": None,
+            "pos": "hanzi",
+            "notes": None,
+        })
+        cursor += 1
+
+    if len(segments) <= 1:
+        return None
+
+    meaning_segments = [str(item["meaning_vi"]) for item in segments if item.get("meaning_vi")]
+    return _build_rule(
+        term=term,
+        normalized_term=normalized,
+        locale="zh-CN",
+        reading=" ".join(str(item["reading"]) for item in segments if item.get("reading")),
+        meaning_vi=" + ".join(meaning_segments) if meaning_segments else None,
+        pos="phrase",
+        notes="Đã tách cụm theo các từ lõi quen thuộc rồi ghép cách đọc để giảm gọi AI.",
+    )
+
+
 def _build_chinese_rule(term: str) -> Optional[RuleBasedLookup]:
     normalized = _strip_chinese_suffix(term)
     rule = ZH_EXACT_RULES.get(normalized)
@@ -582,6 +698,9 @@ def _build_chinese_rule(term: str) -> Optional[RuleBasedLookup]:
             pos=rule.get("pos"),
             notes=rule.get("notes"),
         )
+    phrase_fallback = _build_chinese_phrase_fallback(term, normalized)
+    if phrase_fallback:
+        return phrase_fallback
     return _build_chinese_character_fallback(term, normalized)
 
 

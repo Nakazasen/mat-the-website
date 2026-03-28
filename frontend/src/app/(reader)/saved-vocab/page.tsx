@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { BookMarked, ChevronLeft, Loader2, RefreshCcw, Sparkles } from "lucide-react";
+import { BookMarked, ChevronLeft, Loader2, RefreshCcw, Search, Sparkles } from "lucide-react";
 
 import { useLocale } from "@/context/LocaleContext";
 import {
@@ -30,6 +30,7 @@ const REVIEW_BUTTONS: Array<{ grade: number; label: string; hint: string }> = [
 ];
 
 type ReviewMap = Record<string, ReaderReviewResponse>;
+type SortKey = "newest" | "oldest" | "due" | "term";
 
 function formatReviewSummary(review?: ReaderReviewResponse | null): string | null {
     if (!review) return null;
@@ -39,12 +40,21 @@ function formatReviewSummary(review?: ReaderReviewResponse | null): string | nul
     return `Đã ôn ${review.review_count} lần. Lần tới: ${nextReview}.`;
 }
 
+function isDueForReview(item: ReaderSavedVocabItem): boolean {
+    if (item.due_for_review) return true;
+    if (!item.next_review_at) return false;
+    return new Date(item.next_review_at).getTime() <= Date.now();
+}
+
 export default function SavedVocabPage() {
     const { localizePath, locale } = useLocale();
     const [items, setItems] = useState<ReaderSavedVocabItem[]>([]);
     const [stats, setStats] = useState<ReaderLearningStatsResponse | null>(null);
     const [reviewMap, setReviewMap] = useState<ReviewMap>({});
     const [filterLocale, setFilterLocale] = useState<"" | Locale>(locale === "vi" ? "" : locale);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [sortKey, setSortKey] = useState<SortKey>("due");
+    const [dueOnly, setDueOnly] = useState(false);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -88,6 +98,22 @@ export default function SavedVocabPage() {
                 grade,
             });
             setReviewMap((prev) => ({ ...prev, [savedVocabId]: payload }));
+            setItems((prev) =>
+                prev.map((item) =>
+                    item.id === savedVocabId
+                        ? {
+                              ...item,
+                              review_count: payload.review_count,
+                              next_review_at: payload.next_review_at ?? null,
+                              interval_days: payload.interval_days,
+                              ease: payload.ease,
+                              due_for_review:
+                                  !!payload.next_review_at &&
+                                  new Date(payload.next_review_at).getTime() <= Date.now(),
+                          }
+                        : item,
+                ),
+            );
             setReviewMessage("Đã cập nhật lịch ôn cho từ vừa chọn.");
             const statsPayload = await getReaderLearningStats();
             setStats(statsPayload);
@@ -98,7 +124,47 @@ export default function SavedVocabPage() {
         }
     }, []);
 
-    const latestItems = useMemo(() => items.slice(0, 100), [items]);
+    const visibleItems = useMemo(() => {
+        const query = searchQuery.trim().toLowerCase();
+        const filtered = items.filter((item) => {
+            if (dueOnly && !isDueForReview(item)) {
+                return false;
+            }
+
+            if (!query) return true;
+            const haystack = [
+                item.term,
+                item.reading || "",
+                item.meaning_vi || "",
+                item.notes || "",
+                item.context_sentence || "",
+            ]
+                .join(" ")
+                .toLowerCase();
+            return haystack.includes(query);
+        });
+
+        filtered.sort((left, right) => {
+            if (sortKey === "oldest") {
+                return new Date(left.created_at).getTime() - new Date(right.created_at).getTime();
+            }
+            if (sortKey === "term") {
+                return left.term.localeCompare(right.term, "vi");
+            }
+            if (sortKey === "due") {
+                const leftDue = isDueForReview(left);
+                const rightDue = isDueForReview(right);
+                if (leftDue !== rightDue) return leftDue ? -1 : 1;
+
+                const leftNext = left.next_review_at ? new Date(left.next_review_at).getTime() : Number.MAX_SAFE_INTEGER;
+                const rightNext = right.next_review_at ? new Date(right.next_review_at).getTime() : Number.MAX_SAFE_INTEGER;
+                if (leftNext !== rightNext) return leftNext - rightNext;
+            }
+            return new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
+        });
+
+        return filtered;
+    }, [dueOnly, items, searchQuery, sortKey]);
 
     return (
         <div className="min-h-screen bg-black text-white">
@@ -125,7 +191,18 @@ export default function SavedVocabPage() {
                             </p>
                         </div>
 
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                        <div className="flex flex-col gap-3 lg:min-w-[420px]">
+                            <label className="flex items-center gap-2 rounded-xl border border-ash-800 bg-black/20 px-3 py-2 text-sm text-ash-400">
+                                <Search size={16} className="text-cyan-300" />
+                                <input
+                                    value={searchQuery}
+                                    onChange={(event) => setSearchQuery(event.target.value)}
+                                    placeholder="Tìm theo từ, nghĩa, ghi chú, ngữ cảnh..."
+                                    className="w-full bg-transparent text-sm text-white outline-none placeholder:text-ash-500"
+                                />
+                            </label>
+
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
                             <label className="flex flex-col gap-2 text-sm text-ash-400">
                                 <span>Ngôn ngữ</span>
                                 <select
@@ -141,6 +218,30 @@ export default function SavedVocabPage() {
                                 </select>
                             </label>
 
+                            <label className="flex flex-col gap-2 text-sm text-ash-400">
+                                <span>Sắp xếp</span>
+                                <select
+                                    value={sortKey}
+                                    onChange={(event) => setSortKey(event.target.value as SortKey)}
+                                    className="rounded-xl border border-ash-700 bg-black px-3 py-2 text-white outline-none"
+                                >
+                                    <option value="due">Đến hạn ôn trước</option>
+                                    <option value="newest">Mới nhất</option>
+                                    <option value="oldest">Cũ nhất</option>
+                                    <option value="term">Theo tên từ</option>
+                                </select>
+                            </label>
+
+                            <label className="inline-flex items-center gap-2 rounded-xl border border-ash-800 bg-black/20 px-3 py-2 text-sm text-ash-300">
+                                <input
+                                    type="checkbox"
+                                    checked={dueOnly}
+                                    onChange={(event) => setDueOnly(event.target.checked)}
+                                    className="h-4 w-4 rounded border-ash-600 bg-transparent"
+                                />
+                                Chỉ hiện mục đến hạn ôn
+                            </label>
+
                             <button
                                 type="button"
                                 onClick={() => void loadPage(true)}
@@ -150,6 +251,7 @@ export default function SavedVocabPage() {
                                 {refreshing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCcw size={16} />}
                                 Làm mới
                             </button>
+                        </div>
                         </div>
                     </div>
 
@@ -188,15 +290,15 @@ export default function SavedVocabPage() {
                             </div>
                         )}
 
-                        {!loading && !error && latestItems.length === 0 && (
+                        {!loading && !error && visibleItems.length === 0 && (
                             <div className="rounded-2xl border border-dashed border-ash-700 bg-black/20 px-4 py-8 text-center text-sm text-ash-500">
                                 Chưa có từ nào được lưu cho bộ lọc hiện tại.
                             </div>
                         )}
 
-                        {!loading && !error && latestItems.length > 0 && (
+                        {!loading && !error && visibleItems.length > 0 && (
                             <div className="space-y-4">
-                                {latestItems.map((item) => {
+                                {visibleItems.map((item) => {
                                     const review = reviewMap[item.id];
                                     return (
                                         <div key={item.id} className="rounded-2xl border border-ash-800 bg-black/25 px-4 py-4">
@@ -217,6 +319,28 @@ export default function SavedVocabPage() {
 
                                             <div className="mt-3 text-sm leading-6 text-ash-200">
                                                 {item.meaning_vi || "Chưa có nghĩa tiếng Việt được lưu cho mục này."}
+                                            </div>
+
+                                            <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                                                {isDueForReview(item) ? (
+                                                    <span className="rounded-full border border-toxic-green-DEFAULT/30 bg-toxic-green-DEFAULT/10 px-2 py-1 text-toxic-green-DEFAULT">
+                                                        Đến hạn ôn
+                                                    </span>
+                                                ) : (
+                                                    <span className="rounded-full border border-ash-700 px-2 py-1 text-ash-400">
+                                                        Chưa đến hạn ôn
+                                                    </span>
+                                                )}
+                                                {item.next_review_at && (
+                                                    <span className="rounded-full border border-cyan-900/30 px-2 py-1 text-cyan-200">
+                                                        Ôn lại: {new Date(item.next_review_at).toLocaleString("vi-VN")}
+                                                    </span>
+                                                )}
+                                                {!!item.review_count && (
+                                                    <span className="rounded-full border border-ash-700 px-2 py-1 text-ash-400">
+                                                        Đã ôn {item.review_count} lần
+                                                    </span>
+                                                )}
                                             </div>
 
                                             {item.notes && (

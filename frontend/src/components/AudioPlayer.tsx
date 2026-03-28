@@ -26,6 +26,7 @@ const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'https://mat-the-website.onr
 const AUDIO_FLOATING_STORAGE_KEY = 'reader-audio-floating-position-v1';
 const AUDIO_FLOATING_WIDTH = 360;
 const AUDIO_FLOATING_MARGIN = 16;
+const MOBILE_PANEL_EVENT = 'reader-learning-mobile-panel';
 
 function shouldIgnoreAudioHotkeys(target: EventTarget | null): boolean {
     if (!(target instanceof HTMLElement)) return false;
@@ -77,6 +78,7 @@ export default function AudioPlayer({
     const [isDesktop, setIsDesktop] = useState(false);
     const [floatingDragging, setFloatingDragging] = useState(false);
     const [floatingPosition, setFloatingPosition] = useState<{ top: number; left: number } | null>(null);
+    const [mobileLearningPanelActive, setMobileLearningPanelActive] = useState(false);
 
     useEffect(() => {
         speedRef.current = speed;
@@ -99,6 +101,16 @@ export default function AudioPlayer({
         updateViewport();
         window.addEventListener('resize', updateViewport);
         return () => window.removeEventListener('resize', updateViewport);
+    }, []);
+
+    useEffect(() => {
+        const handleMobilePanelEvent = (event: Event) => {
+            const detail = (event as CustomEvent<{ active?: boolean }>).detail;
+            setMobileLearningPanelActive(Boolean(detail?.active));
+        };
+
+        window.addEventListener(MOBILE_PANEL_EVENT, handleMobilePanelEvent as EventListener);
+        return () => window.removeEventListener(MOBILE_PANEL_EVENT, handleMobilePanelEvent as EventListener);
     }, []);
 
     const getFloatingMinTop = useCallback(() => {
@@ -502,7 +514,7 @@ export default function AudioPlayer({
                 </div>
             </div>
 
-            {playState !== 'stopped' && (
+            {playState !== 'stopped' && !(mobileLearningPanelActive && !isDesktop) && (
                 <div
                     ref={floatingPanelRef}
                     className="fixed bottom-24 left-4 right-4 z-[62] md:right-auto md:w-[360px]"

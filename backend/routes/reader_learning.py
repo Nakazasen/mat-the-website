@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Literal, Optional
 from urllib.parse import quote
@@ -9,6 +10,7 @@ from fastapi import APIRouter, Header, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/api/reader", tags=["reader_learning"])
+logger = logging.getLogger(__name__)
 
 LookupSource = Literal["cache", "rule_based", "ai", "placeholder"]
 
@@ -65,6 +67,11 @@ class ReaderSavedVocabItem(BaseModel):
     source: str
     created_at: str
     updated_at: str
+    review_count: int = 0
+    next_review_at: Optional[str] = None
+    interval_days: Optional[int] = None
+    ease: Optional[float] = None
+    due_for_review: bool = False
 
 
 class ReaderSavedVocabListResponse(BaseModel):
@@ -228,6 +235,23 @@ def _context_hash(context_sentence: Optional[str]) -> str:
 def _sentence_cache_key(sentence_text: str) -> str:
     build_content_hash = _get_build_content_hash()
     return f"sentence::{build_content_hash(sentence_text)}"
+
+
+def _preview_text(text: Optional[str], max_length: int = 96) -> str:
+    normalized = _normalize_sentence(text, max_length=max_length) or ""
+    if len(normalized) <= max_length:
+        return normalized
+    return f"{normalized[:max_length]}..."
+
+
+def _log_reader_event(level: str, event: str, **context: Any) -> None:
+    log_method = getattr(logger, level, logger.info)
+    safe_context = {
+        key: value
+        for key, value in context.items()
+        if value is not None and value != ""
+    }
+    log_method("reader_learning %s %s", event, safe_context)
 
 
 def _build_external_links(locale: str, term: str) -> list[ReaderExternalLink]:
@@ -428,6 +452,7 @@ async def _sentence_insight_with_ai(locale: str, sentence_text: str) -> ReaderSe
 
 
 def _raise_schema_error(exc: Exception) -> None:
+    _log_reader_event("error", "schema_unavailable", detail=str(exc))
     raise HTTPException(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         detail=(
@@ -441,6 +466,7 @@ def _raise_schema_error(exc: Exception) -> None:
 def _verify_reader_user(authorization: Optional[str]) -> dict[str, Optional[str]]:
     token = _extract_bearer_token(authorization)
     if not token:
+        _log_reader_event("warning", "auth_missing_token")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Thiếu token xác thực người dùng.",
@@ -450,12 +476,14 @@ def _verify_reader_user(authorization: Optional[str]) -> dict[str, Optional[str]
     try:
         user_resp = supabase.auth.get_user(token)
     except Exception as exc:
+        _log_reader_event("warning", "auth_invalid_token", detail=str(exc))
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Không xác thực được token người dùng: {exc}",
         )
 
     if not user_resp or not user_resp.user:
+        _log_reader_event("warning", "auth_unknown_user")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token người dùng không hợp lệ hoặc đã hết hạn.",
@@ -588,6 +616,7 @@ async def lookup_reader_term(body: ReaderLookupRequest):
     context_sentence = _normalize_sentence(body.context_sentence)
 
     if not term:
+        _log_reader_event("warning", "lookup_empty_term", locale=locale)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="term không được để trống.")
 
     if locale == "vi":
@@ -602,6 +631,14 @@ async def lookup_reader_term(body: ReaderLookupRequest):
         cache_normalized_term = normalized_term
 
     if rule_based_payload and rule_based_payload.get("meaning_vi"):
+        _log_reader_event(
+            "info",
+            "lookup_rule_based_hit",
+            locale=locale,
+            term=_preview_text(term),
+            normalized_term=cache_normalized_term,
+            chapter_id=body.chapter_id,
+        )
         response = ReaderLookupResponse(
             term=term,
             normalized_term=cache_normalized_term,
@@ -630,11 +667,40 @@ async def lookup_reader_term(body: ReaderLookupRequest):
         if locale in {"ja", "zh-CN"} and not cached.reading:
             cached = None
         else:
+            _log_reader_event(
+                "info",
+                "lookup_cache_hit",
+                locale=locale,
+                term=_preview_text(term),
+                normalized_term=cache_normalized_term,
+                chapter_id=body.chapter_id,
+            )
             if not cached.external_links:
                 cached.external_links = _build_external_links(locale, term)
             return cached
 
-    response = await _lookup_with_ai(locale, term, context_sentence)
+    try:
+        response = await _lookup_with_ai(locale, term, context_sentence)
+    except Exception as exc:
+        _log_reader_event(
+            "error",
+            "lookup_ai_failed",
+            locale=locale,
+            term=_preview_text(term),
+            normalized_term=cache_normalized_term,
+            chapter_id=body.chapter_id,
+            detail=str(exc),
+        )
+        raise
+
+    _log_reader_event(
+        "info",
+        "lookup_ai_success",
+        locale=locale,
+        term=_preview_text(term),
+        normalized_term=cache_normalized_term,
+        chapter_id=body.chapter_id,
+    )
     if rule_based_payload:
         if not response.reading and rule_based_payload.get("reading"):
             response.reading = rule_based_payload.get("reading")
@@ -661,6 +727,7 @@ async def sentence_insight(body: ReaderSentenceInsightRequest):
     sentence_text = _normalize_sentence(body.sentence_text)
 
     if not sentence_text:
+        _log_reader_event("warning", "sentence_insight_empty", locale=locale, chapter_id=body.chapter_id)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="sentence_text không được để trống.")
 
     if locale == "vi":
@@ -668,9 +735,34 @@ async def sentence_insight(body: ReaderSentenceInsightRequest):
 
     cached = _get_cached_sentence_insight(locale, sentence_text)
     if cached:
+        _log_reader_event(
+            "info",
+            "sentence_insight_cache_hit",
+            locale=locale,
+            chapter_id=body.chapter_id,
+            sentence=_preview_text(sentence_text),
+        )
         return cached
 
-    response = await _sentence_insight_with_ai(locale, sentence_text)
+    try:
+        response = await _sentence_insight_with_ai(locale, sentence_text)
+    except Exception as exc:
+        _log_reader_event(
+            "error",
+            "sentence_insight_ai_failed",
+            locale=locale,
+            chapter_id=body.chapter_id,
+            sentence=_preview_text(sentence_text),
+            detail=str(exc),
+        )
+        raise
+    _log_reader_event(
+        "info",
+        "sentence_insight_ai_success",
+        locale=locale,
+        chapter_id=body.chapter_id,
+        sentence=_preview_text(sentence_text),
+    )
     _cache_payload(
         locale=locale,
         normalized_term=_sentence_cache_key(sentence_text),
@@ -705,10 +797,21 @@ async def save_reader_vocab(body: ReaderSaveVocabRequest, authorization: Optiona
     try:
         result = supabase.table("reader_saved_vocab").insert(payload).execute()
     except Exception as exc:
+        _log_reader_event(
+            "error",
+            "save_vocab_failed",
+            user_id=user["id"],
+            locale=locale,
+            term=_preview_text(body.term),
+            chapter_id=body.chapter_id,
+            detail=str(exc),
+        )
         _raise_schema_error(exc)
 
     if not result.data:
+        _log_reader_event("error", "save_vocab_empty_result", user_id=user["id"], locale=locale, term=_preview_text(body.term))
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Không lưu được từ vựng.")
+    _log_reader_event("info", "save_vocab_success", user_id=user["id"], locale=locale, term=_preview_text(body.term), chapter_id=body.chapter_id)
     return ReaderSavedVocabItem(**result.data[0])
 
 
@@ -739,7 +842,43 @@ async def get_saved_reader_vocab(
     except Exception as exc:
         _raise_schema_error(exc)
 
-    items = [ReaderSavedVocabItem(**row) for row in (result.data or [])]
+    rows = result.data or []
+    review_map: dict[str, dict[str, Any]] = {}
+    vocab_ids = [row.get("id") for row in rows if row.get("id")]
+    if vocab_ids:
+        try:
+            review_result = (
+                supabase.table("reader_vocab_reviews")
+                .select("saved_vocab_id,ease,interval_days,next_review_at,review_count")
+                .in_("saved_vocab_id", vocab_ids)
+                .execute()
+            )
+            review_map = {
+                row.get("saved_vocab_id"): row
+                for row in (review_result.data or [])
+                if row.get("saved_vocab_id")
+            }
+        except Exception as exc:
+            _log_reader_event("warning", "saved_vocab_review_join_failed", detail=str(exc), user_id=user["id"])
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    items: list[ReaderSavedVocabItem] = []
+    for row in rows:
+        review = review_map.get(row.get("id"))
+        merged_row = dict(row)
+        if review:
+            next_review_at = review.get("next_review_at")
+            merged_row.update(
+                {
+                    "review_count": int(review.get("review_count") or 0),
+                    "next_review_at": next_review_at,
+                    "interval_days": int(review.get("interval_days") or 0),
+                    "ease": float(review.get("ease") or 0),
+                    "due_for_review": bool(next_review_at and str(next_review_at) <= now_iso),
+                }
+            )
+        items.append(ReaderSavedVocabItem(**merged_row))
+
     return ReaderSavedVocabListResponse(items=items, total=result.count or 0, page=page, limit=limit)
 
 
@@ -762,10 +901,21 @@ async def save_reader_sentence(
     try:
         result = supabase.table("reader_saved_sentences").insert(payload).execute()
     except Exception as exc:
+        _log_reader_event(
+            "error",
+            "save_sentence_failed",
+            user_id=user["id"],
+            locale=payload["locale"],
+            chapter_id=body.chapter_id,
+            sentence=_preview_text(body.sentence_text),
+            detail=str(exc),
+        )
         _raise_schema_error(exc)
 
     if not result.data:
+        _log_reader_event("error", "save_sentence_empty_result", user_id=user["id"], locale=payload["locale"], chapter_id=body.chapter_id)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Không lưu được câu mẫu.")
+    _log_reader_event("info", "save_sentence_success", user_id=user["id"], locale=payload["locale"], chapter_id=body.chapter_id)
     return ReaderSavedSentenceItem(**result.data[0])
 
 
@@ -865,9 +1015,25 @@ async def review_reader_vocab(
     try:
         result = supabase.table("reader_vocab_reviews").upsert(payload, on_conflict="saved_vocab_id").execute()
     except Exception as exc:
+        _log_reader_event(
+            "error",
+            "review_vocab_failed",
+            user_id=user["id"],
+            saved_vocab_id=body.saved_vocab_id,
+            grade=body.grade,
+            detail=str(exc),
+        )
         _raise_schema_error(exc)
 
     row = (result.data or [payload])[0]
+    _log_reader_event(
+        "info",
+        "review_vocab_success",
+        user_id=user["id"],
+        saved_vocab_id=body.saved_vocab_id,
+        grade=body.grade,
+        review_count=int(row.get("review_count", payload["review_count"])),
+    )
     return ReaderReviewResponse(
         saved_vocab_id=body.saved_vocab_id,
         ease=float(row.get("ease", payload["ease"])),
@@ -882,6 +1048,7 @@ async def create_reader_sentence_tts(body: ReaderSentenceTtsRequest, request: Re
     locale = _normalize_locale(body.locale)
     sentence_text = _normalize_sentence(body.sentence_text, max_length=200)
     if not sentence_text:
+        _log_reader_event("warning", "sentence_tts_empty", locale=locale, chapter_id=body.chapter_id)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="sentence_text không được để trống.")
 
     build_content_hash = _get_build_content_hash()
@@ -923,9 +1090,24 @@ async def create_reader_sentence_tts(body: ReaderSentenceTtsRequest, request: Re
                 },
                 on_conflict="entity_type,entity_id,locale,voice,content_hash",
             ).execute()
-    except Exception:
-        pass
+    except Exception as exc:
+        _log_reader_event(
+            "warning",
+            "sentence_tts_cache_write_failed",
+            locale=locale,
+            chapter_id=body.chapter_id,
+            sentence=_preview_text(sentence_text),
+            detail=str(exc),
+        )
 
+    _log_reader_event(
+        "info",
+        "sentence_tts_ready",
+        locale=locale,
+        chapter_id=body.chapter_id,
+        sentence=_preview_text(sentence_text),
+        cached=cached,
+    )
     return ReaderSentenceTtsResponse(
         status="ready",
         detail="Âm thanh câu đã sẵn sàng.",

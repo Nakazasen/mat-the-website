@@ -104,6 +104,11 @@ export interface ReaderSavedVocabItem {
     source: string;
     created_at: string;
     updated_at: string;
+    review_count?: number;
+    next_review_at?: string | null;
+    interval_days?: number;
+    ease?: number;
+    due_for_review?: boolean;
 }
 
 export interface ReaderSavedVocabListResponse {

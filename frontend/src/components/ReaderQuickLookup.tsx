@@ -36,6 +36,8 @@ interface ReaderQuickLookupProps {
     sourceLocale: Locale;
 }
 
+const MOBILE_PANEL_EVENT = 'reader-learning-mobile-panel';
+
 function getLookupSourceLabel(source?: string | null): string {
     if (source === 'cache') return 'Cache';
     if (source === 'rule_based') return 'Rule-based';
@@ -104,6 +106,7 @@ export default function ReaderQuickLookup({
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const panelRef = useRef<HTMLDivElement | null>(null);
     const toolbarRef = useRef<HTMLDivElement | null>(null);
+    const suppressMobilePanelBroadcastRef = useRef(false);
 
     const [selectedText, setSelectedText] = useState('');
     const [selectedSentence, setSelectedSentence] = useState('');
@@ -524,6 +527,36 @@ export default function ReaderQuickLookup({
             window.removeEventListener('reader-audio-state', handleAudioState as EventListener);
         };
     }, []);
+
+    useEffect(() => {
+        if (isDesktop) return undefined;
+
+        const handleMobilePanelEvent = (event: Event) => {
+            const detail = (event as CustomEvent<{ active?: boolean; kind?: string }>).detail;
+            if (!detail?.active || detail.kind === 'lookup') return;
+            suppressMobilePanelBroadcastRef.current = true;
+            hideToolbar();
+            setPanelOpen(false);
+        };
+
+        window.addEventListener(MOBILE_PANEL_EVENT, handleMobilePanelEvent as EventListener);
+        return () => window.removeEventListener(MOBILE_PANEL_EVENT, handleMobilePanelEvent as EventListener);
+    }, [hideToolbar, isDesktop]);
+
+    useEffect(() => {
+        if (isDesktop) return;
+        if (!panelOpen && suppressMobilePanelBroadcastRef.current) {
+            suppressMobilePanelBroadcastRef.current = false;
+            return;
+        }
+
+        window.dispatchEvent(new CustomEvent(MOBILE_PANEL_EVENT, {
+            detail: {
+                active: panelOpen,
+                kind: 'lookup',
+            },
+        }));
+    }, [isDesktop, panelOpen]);
 
     useEffect(() => {
         try {

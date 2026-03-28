@@ -22,6 +22,8 @@ interface ReaderSentenceModeProps {
     sourceLocale: Locale;
 }
 
+const MOBILE_PANEL_EVENT = 'reader-learning-mobile-panel';
+
 interface CachedSentenceAnalysis {
     insight: ReaderSentenceInsightResponse | null;
     grammar: ReaderGrammarHintsResponse | null;
@@ -63,6 +65,7 @@ export default function ReaderSentenceMode({
 }: ReaderSentenceModeProps) {
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const cacheRef = useRef<Map<string, CachedSentenceAnalysis>>(new Map());
+    const suppressMobilePanelBroadcastRef = useRef(false);
 
     const [sentenceText, setSentenceText] = useState('');
     const [toolbarPosition, setToolbarPosition] = useState<{ top: number; left: number } | null>(null);
@@ -318,6 +321,37 @@ export default function ReaderSentenceMode({
             window.removeEventListener('reader-audio-state', handleAudioState as EventListener);
         };
     }, []);
+
+    useEffect(() => {
+        if (isDesktop) return undefined;
+
+        const handleMobilePanelEvent = (event: Event) => {
+            const detail = (event as CustomEvent<{ active?: boolean; kind?: string }>).detail;
+            if (!detail?.active || detail.kind === 'sentence') return;
+            suppressMobilePanelBroadcastRef.current = true;
+            setToolbarPosition(null);
+            setPanelOpen(false);
+            stopAudio();
+        };
+
+        window.addEventListener(MOBILE_PANEL_EVENT, handleMobilePanelEvent as EventListener);
+        return () => window.removeEventListener(MOBILE_PANEL_EVENT, handleMobilePanelEvent as EventListener);
+    }, [isDesktop, stopAudio]);
+
+    useEffect(() => {
+        if (isDesktop) return;
+        if (!panelOpen && suppressMobilePanelBroadcastRef.current) {
+            suppressMobilePanelBroadcastRef.current = false;
+            return;
+        }
+
+        window.dispatchEvent(new CustomEvent(MOBILE_PANEL_EVENT, {
+            detail: {
+                active: panelOpen,
+                kind: 'sentence',
+            },
+        }));
+    }, [isDesktop, panelOpen]);
 
     return (
         <>

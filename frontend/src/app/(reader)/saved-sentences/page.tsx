@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, Loader2, Quote, RefreshCcw } from "lucide-react";
+import { ChevronLeft, Loader2, Quote, RefreshCcw, Search } from "lucide-react";
 
 import { useLocale } from "@/context/LocaleContext";
 import {
@@ -20,11 +20,15 @@ const LOCALE_OPTIONS: Array<{ value: "" | Locale; label: string }> = [
     { value: "zh-CN", label: "中文" },
 ];
 
+type SentenceSortKey = "newest" | "oldest" | "text";
+
 export default function SavedSentencesPage() {
     const { localizePath, locale } = useLocale();
     const [items, setItems] = useState<ReaderSavedSentenceItem[]>([]);
     const [stats, setStats] = useState<ReaderLearningStatsResponse | null>(null);
     const [filterLocale, setFilterLocale] = useState<"" | Locale>(locale === "vi" ? "" : locale);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [sortKey, setSortKey] = useState<SentenceSortKey>("newest");
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -55,6 +59,28 @@ export default function SavedSentencesPage() {
         void loadPage(false);
     }, [loadPage]);
 
+    const visibleItems = useMemo(() => {
+        const query = searchQuery.trim().toLowerCase();
+        const filtered = items.filter((item) => {
+            if (!query) return true;
+            return [item.sentence_text, item.meaning_vi || "", item.note || ""]
+                .join(" ")
+                .toLowerCase()
+                .includes(query);
+        });
+
+        filtered.sort((left, right) => {
+            if (sortKey === "oldest") {
+                return new Date(left.created_at).getTime() - new Date(right.created_at).getTime();
+            }
+            if (sortKey === "text") {
+                return left.sentence_text.localeCompare(right.sentence_text, "vi");
+            }
+            return new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
+        });
+        return filtered;
+    }, [items, searchQuery, sortKey]);
+
     return (
         <div className="min-h-screen bg-black text-white">
             <div className="mx-auto max-w-5xl px-4 py-10">
@@ -80,7 +106,18 @@ export default function SavedSentencesPage() {
                             </p>
                         </div>
 
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                        <div className="flex flex-col gap-3 lg:min-w-[420px]">
+                            <label className="flex items-center gap-2 rounded-xl border border-ash-800 bg-black/20 px-3 py-2 text-sm text-ash-400">
+                                <Search size={16} className="text-cyan-300" />
+                                <input
+                                    value={searchQuery}
+                                    onChange={(event) => setSearchQuery(event.target.value)}
+                                    placeholder="Tìm theo câu, nghĩa hoặc ghi chú..."
+                                    className="w-full bg-transparent text-sm text-white outline-none placeholder:text-ash-500"
+                                />
+                            </label>
+
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
                             <label className="flex flex-col gap-2 text-sm text-ash-400">
                                 <span>Ngôn ngữ</span>
                                 <select
@@ -96,6 +133,19 @@ export default function SavedSentencesPage() {
                                 </select>
                             </label>
 
+                            <label className="flex flex-col gap-2 text-sm text-ash-400">
+                                <span>Sắp xếp</span>
+                                <select
+                                    value={sortKey}
+                                    onChange={(event) => setSortKey(event.target.value as SentenceSortKey)}
+                                    className="rounded-xl border border-ash-700 bg-black px-3 py-2 text-white outline-none"
+                                >
+                                    <option value="newest">Mới nhất</option>
+                                    <option value="oldest">Cũ nhất</option>
+                                    <option value="text">Theo nội dung câu</option>
+                                </select>
+                            </label>
+
                             <button
                                 type="button"
                                 onClick={() => void loadPage(true)}
@@ -105,6 +155,7 @@ export default function SavedSentencesPage() {
                                 {refreshing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCcw size={16} />}
                                 Làm mới
                             </button>
+                        </div>
                         </div>
                     </div>
 
@@ -137,15 +188,15 @@ export default function SavedSentencesPage() {
                             </div>
                         )}
 
-                        {!loading && !error && items.length === 0 && (
+                        {!loading && !error && visibleItems.length === 0 && (
                             <div className="rounded-2xl border border-dashed border-ash-700 bg-black/20 px-4 py-8 text-center text-sm text-ash-500">
                                 Chưa có câu nào được lưu cho bộ lọc hiện tại.
                             </div>
                         )}
 
-                        {!loading && !error && items.length > 0 && (
+                        {!loading && !error && visibleItems.length > 0 && (
                             <div className="space-y-4">
-                                {items.map((item) => (
+                                {visibleItems.map((item) => (
                                     <div key={item.id} className="rounded-2xl border border-ash-800 bg-black/25 px-4 py-4">
                                         <div className="flex flex-wrap items-start justify-between gap-3">
                                             <div className="text-xs font-mono uppercase tracking-[0.2em] text-cyan-300">
