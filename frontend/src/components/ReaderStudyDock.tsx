@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BookMarked, GraduationCap, Languages, Loader2, Quote, RefreshCcw, X } from "lucide-react";
+import { BookMarked, GraduationCap, Languages, Loader2, Quote, RefreshCcw, Sparkles, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { useLocale } from "@/context/LocaleContext";
@@ -36,6 +36,22 @@ function StudyLinks({ onNavigate }: { onNavigate?: () => void }) {
                 <RefreshCcw size={14} />
                 Ôn tập nhanh
             </Link>
+        </div>
+    );
+}
+
+function LookupTips() {
+    return (
+        <div className="border-b border-cyan-900/20 px-4 py-3">
+            <div className="flex items-center gap-2 text-cyan-300">
+                <Sparkles size={14} />
+                <span className="text-[11px] font-mono uppercase tracking-[0.24em]">Cách tra nhanh</span>
+            </div>
+            <div className="mt-3 space-y-2 text-xs leading-5 text-gray-300">
+                <div>1. Bôi đen từ hoặc cụm ngắn rồi bấm <span className="font-medium text-cyan-200">Tra nhanh</span>.</div>
+                <div>2. Click đúp vào một từ ngắn để mở tra từ ngay.</div>
+                <div>3. Sau khi đã chọn chữ, nhấn <span className="font-mono text-cyan-200">Alt+L</span>.</div>
+            </div>
         </div>
     );
 }
@@ -147,6 +163,7 @@ export default function ReaderStudyDock() {
                         <StudyStats loading={loading} error={error} stats={stats} />
                     </div>
 
+                    <LookupTips />
                     <StudyLinks />
                 </div>
             </div>
@@ -196,6 +213,7 @@ export default function ReaderStudyDock() {
                             <div className="border-b border-cyan-900/20 px-4 py-4">
                                 <StudyStats loading={loading} error={error} stats={stats} />
                             </div>
+                            <LookupTips />
                             <StudyLinks onNavigate={() => setMobileOpen(false)} />
                         </div>
                     </div>

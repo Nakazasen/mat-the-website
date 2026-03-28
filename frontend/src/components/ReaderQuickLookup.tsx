@@ -122,6 +122,7 @@ export default function ReaderQuickLookup({
     const [audioPlaying, setAudioPlaying] = useState(false);
     const [audioActive, setAudioActive] = useState(false);
     const [isDesktop, setIsDesktop] = useState(false);
+    const [showGuide, setShowGuide] = useState(false);
 
     const externalDictionaryUrl = useMemo(() => {
         if (lookupResult?.external_links?.[0]?.url) return lookupResult.external_links[0].url;
@@ -466,9 +467,56 @@ export default function ReaderQuickLookup({
         };
     }, []);
 
+    useEffect(() => {
+        try {
+            const seen = window.localStorage.getItem('reader-lookup-guide-v1');
+            if (!seen) {
+                setShowGuide(true);
+            }
+        } catch {
+            setShowGuide(true);
+        }
+    }, []);
+
+    const dismissGuide = useCallback(() => {
+        setShowGuide(false);
+        try {
+            window.localStorage.setItem('reader-lookup-guide-v1', 'seen');
+        } catch {
+            // ignore localStorage failures
+        }
+    }, []);
+
     return (
         <>
             <audio ref={audioRef} preload="none" className="hidden" />
+
+            {showGuide && !panelOpen && (
+                <div className="fixed right-4 top-20 z-[63] max-w-[320px] md:right-6">
+                    <div className="rounded-2xl border border-cyan-900/40 bg-[#081019]/95 p-4 shadow-[0_18px_60px_rgba(0,0,0,0.45)] backdrop-blur">
+                        <div className="flex items-start gap-3">
+                            <div className="min-w-0 flex-1">
+                                <div className="text-[11px] font-mono uppercase tracking-[0.24em] text-cyan-300">
+                                    Tra từ nhanh
+                                </div>
+                                <div className="mt-2 space-y-2 text-xs leading-5 text-gray-300">
+                                    <div>Bôi đen từ hoặc cụm ngắn rồi bấm <span className="font-medium text-cyan-200">Tra nhanh</span>.</div>
+                                    <div>Click đúp vào một từ ngắn để tra ngay.</div>
+                                    <div>Hoặc nhấn <span className="font-mono text-cyan-200">Alt+L</span> sau khi đã chọn chữ.</div>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={dismissGuide}
+                                className="rounded-full border border-gray-800 p-2 text-gray-400 hover:border-cyan-500/40 hover:text-cyan-200"
+                                aria-label="Đóng hướng dẫn tra từ"
+                            >
+                                <X size={14} />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {toolbarPosition && selectedText && (
                 <div
