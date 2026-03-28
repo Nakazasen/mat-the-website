@@ -216,6 +216,7 @@ export default function AdminChaptersPage() {
     const [forceQualityRefine, setForceQualityRefine] = useState(false);
     const [translationStatusMap, setTranslationStatusMap] = useState<Record<number, ChapterTranslationStatus>>({});
     const [actionNotice, setActionNotice] = useState<ActionNotice | null>(null);
+    const [failureLogNotice, setFailureLogNotice] = useState<string | null>(null);
 
     useEffect(() => {
         if (!error || error !== 'Failed to fetch') return;
@@ -256,6 +257,13 @@ export default function AdminChaptersPage() {
         const freshToken = await getFreshAdminAccessToken();
         setToken(freshToken);
         return freshToken;
+    }, []);
+
+    const handleClearFailureLogs = useCallback(() => {
+        setBatchFailureDetails([]);
+        setQualityBatchFailureDetails([]);
+        setFailureLogNotice('Da xoa log loi.');
+        window.setTimeout(() => setFailureLogNotice(null), 2000);
     }, []);
 
     const fetchChapters = useCallback(async (page: number) => {
@@ -990,8 +998,15 @@ export default function AdminChaptersPage() {
                 )}
                 {batchFailureDetails.length > 0 && (
                     <div className="mt-3 rounded border border-red-900/50 bg-red-950/20 px-3 py-3 text-sm text-red-200">
-                        <div className="font-mono text-xs uppercase tracking-widest text-red-300">
-                            Chi tiết lỗi
+                        <div className="flex flex-wrap items-center justify-between gap-2 font-mono text-xs uppercase tracking-widest text-red-300">
+                            <span>Chi tiết lỗi</span>
+                            <button
+                                type="button"
+                                onClick={handleClearFailureLogs}
+                                className="inline-flex items-center justify-center rounded border border-red-900/60 px-2.5 py-1 text-[11px] font-mono text-red-100 hover:bg-red-900/40"
+                            >
+                                XOA LOG LOI
+                            </button>
                         </div>
                         <div className="mt-2 space-y-2">
                             {batchFailureDetails.slice(0, 12).map((item) => (
@@ -1012,8 +1027,15 @@ export default function AdminChaptersPage() {
                 )}
                 {qualityBatchFailureDetails.length > 0 && (
                     <div className="mt-3 rounded border border-red-900/50 bg-red-950/20 px-3 py-3 text-sm text-red-200">
-                        <div className="font-mono text-xs uppercase tracking-widest text-red-300">
-                            Chi tiết lỗi nâng chất lượng
+                        <div className="flex flex-wrap items-center justify-between gap-2 font-mono text-xs uppercase tracking-widest text-red-300">
+                            <span>Chi tiết lỗi nâng chất lượng</span>
+                            <button
+                                type="button"
+                                onClick={handleClearFailureLogs}
+                                className="inline-flex items-center justify-center rounded border border-red-900/60 px-2.5 py-1 text-[11px] font-mono text-red-100 hover:bg-red-900/40"
+                            >
+                                XOA LOG LOI
+                            </button>
                         </div>
                         <div className="mt-2 space-y-2">
                             {qualityBatchFailureDetails.slice(0, 12).map((item) => (
@@ -1030,6 +1052,11 @@ export default function AdminChaptersPage() {
                                 </div>
                             )}
                         </div>
+                    </div>
+                )}
+                {failureLogNotice && (
+                    <div className="mt-3 rounded border border-emerald-900/40 bg-emerald-950/20 px-3 py-2 text-xs text-emerald-200">
+                        {failureLogNotice}
                     </div>
                 )}
             </div>
