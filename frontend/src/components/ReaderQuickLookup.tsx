@@ -95,6 +95,8 @@ export default function ReaderQuickLookup({
 }: ReaderQuickLookupProps) {
     const { dictionary } = useLocale();
     const audioRef = useRef<HTMLAudioElement | null>(null);
+    const panelRef = useRef<HTMLDivElement | null>(null);
+    const toolbarRef = useRef<HTMLDivElement | null>(null);
 
     const [selectedText, setSelectedText] = useState('');
     const [selectedSentence, setSelectedSentence] = useState('');
@@ -130,6 +132,11 @@ export default function ReaderQuickLookup({
         setToolbarPosition(null);
     }, []);
 
+    const clearBrowserSelection = useCallback(() => {
+        const selection = window.getSelection();
+        selection?.removeAllRanges();
+    }, []);
+
     const stopSentenceAudio = useCallback(() => {
         if (!audioRef.current) return;
         audioRef.current.pause();
@@ -145,6 +152,16 @@ export default function ReaderQuickLookup({
         setAudioError(null);
         stopSentenceAudio();
     }, [stopSentenceAudio]);
+
+    const closeLookupPanel = useCallback(() => {
+        hideToolbar();
+        setPanelOpen(false);
+        setSelectedText('');
+        setSelectedSentence('');
+        setLastLookupKey('');
+        resetLookupState();
+        clearBrowserSelection();
+    }, [clearBrowserSelection, hideToolbar, resetLookupState]);
 
     const readCurrentSelection = useCallback(() => {
         const container = containerRef.current;
@@ -204,10 +221,12 @@ export default function ReaderQuickLookup({
         const lookupKey = `${sourceLocale}:${query}:${selectedSentence}`;
         if (lookupKey === lastLookupKey && (lookupResult || lookupError)) {
             setPanelOpen(true);
+            hideToolbar();
             return;
         }
 
         setPanelOpen(true);
+        hideToolbar();
         setLookupLoading(true);
         setLookupError(null);
         setLookupResult(null);
@@ -377,9 +396,7 @@ export default function ReaderQuickLookup({
 
         const handleKeyDown = (event: KeyboardEvent) => {
             if (event.key === 'Escape') {
-                hideToolbar();
-                setPanelOpen(false);
-                stopSentenceAudio();
+                closeLookupPanel();
                 return;
             }
 
@@ -389,8 +406,19 @@ export default function ReaderQuickLookup({
             }
         };
 
+        const handlePointerDown = (event: MouseEvent | TouchEvent) => {
+            if (!panelOpen) return;
+            const target = event.target as Node | null;
+            if (!target) return;
+            if (panelRef.current?.contains(target)) return;
+            if (toolbarRef.current?.contains(target)) return;
+            closeLookupPanel();
+        };
+
         document.addEventListener('mouseup', handlePointerUp);
         document.addEventListener('touchend', handlePointerUp);
+        document.addEventListener('mousedown', handlePointerDown);
+        document.addEventListener('touchstart', handlePointerDown, { passive: true });
         document.addEventListener('keyup', handleKeyUp);
         window.addEventListener('scroll', handleScroll, { passive: true });
         window.addEventListener('keydown', handleKeyDown);
@@ -398,11 +426,13 @@ export default function ReaderQuickLookup({
         return () => {
             document.removeEventListener('mouseup', handlePointerUp);
             document.removeEventListener('touchend', handlePointerUp);
+            document.removeEventListener('mousedown', handlePointerDown);
+            document.removeEventListener('touchstart', handlePointerDown);
             document.removeEventListener('keyup', handleKeyUp);
             window.removeEventListener('scroll', handleScroll);
             window.removeEventListener('keydown', handleKeyDown);
         };
-    }, [hideToolbar, panelOpen, readCurrentSelection, runLookup, stopSentenceAudio]);
+    }, [closeLookupPanel, hideToolbar, panelOpen, readCurrentSelection, runLookup]);
 
     useEffect(() => {
         const handleAudioState = (event: Event) => {
@@ -427,6 +457,7 @@ export default function ReaderQuickLookup({
 
             {toolbarPosition && selectedText && (
                 <div
+                    ref={toolbarRef}
                     className="fixed z-[65] -translate-x-1/2"
                     style={{ top: `${toolbarPosition.top}px`, left: `${toolbarPosition.left}px` }}
                 >
@@ -443,6 +474,7 @@ export default function ReaderQuickLookup({
 
             {panelOpen && (
                 <div
+                    ref={panelRef}
                     className="fixed inset-x-4 z-[64] md:left-6 md:right-auto md:w-[400px]"
                     style={{ top: `${panelTop}px`, bottom: `${panelBottom}px` }}
                 >
@@ -459,11 +491,11 @@ export default function ReaderQuickLookup({
                             </div>
                             <button
                                 type="button"
-                                onClick={() => setPanelOpen((prev) => !prev)}
+                                onClick={closeLookupPanel}
                                 className="rounded-full border border-gray-800 p-2 text-gray-400 hover:border-cyan-500/40 hover:text-cyan-200"
-                                title={panelOpen ? dictionary.lookup.close : dictionary.lookup.action}
+                                title={dictionary.lookup.close}
                             >
-                                {panelOpen ? <X size={14} /> : <Search size={14} />}
+                                <X size={14} />
                             </button>
                         </div>
 
