@@ -21,13 +21,14 @@ import {
     useState,
     type KeyboardEvent as ReactKeyboardEvent,
     type MouseEvent as ReactMouseEvent,
+    type PointerEvent as ReactPointerEvent,
 } from "react";
 
 import { useLocale } from "@/context/LocaleContext";
 import { getReaderLearningStats, type ReaderLearningStatsResponse } from "@/lib/reader-learning";
 
 const DESKTOP_PANEL_STORAGE_KEY = "reader-study-dock-position-v1";
-const DESKTOP_DEFAULT_POSITION = { top: 96, left: 16 };
+const DESKTOP_DEFAULT_POSITION = { top: 132, left: 16 };
 const DESKTOP_PANEL_WIDTH = 392;
 const DESKTOP_PANEL_MARGIN = 16;
 
@@ -168,6 +169,7 @@ function StudyStats({
 
 export default function ReaderStudyDock() {
     const desktopPanelRef = useRef<HTMLDivElement | null>(null);
+    const draggingPointerIdRef = useRef<number | null>(null);
     const [stats, setStats] = useState<ReaderLearningStatsResponse | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -220,16 +222,27 @@ export default function ReaderStudyDock() {
 
     const mobileBottom = useMemo(() => (audioActive ? 174 : 88), [audioActive]);
 
+    const getDesktopMinTop = useCallback(() => {
+        if (typeof window === "undefined") return DESKTOP_DEFAULT_POSITION.top;
+        const header = document.querySelector("header");
+        if (!(header instanceof HTMLElement)) {
+            return DESKTOP_DEFAULT_POSITION.top;
+        }
+        const headerBottom = header.getBoundingClientRect().bottom;
+        return Math.max(DESKTOP_DEFAULT_POSITION.top, Math.ceil(headerBottom + 12));
+    }, []);
+
     const clampDesktopPosition = useCallback((position: { top: number; left: number }) => {
         if (typeof window === "undefined") return position;
         const panelHeight = desktopPanelRef.current?.offsetHeight ?? 620;
         const maxLeft = Math.max(DESKTOP_PANEL_MARGIN, window.innerWidth - DESKTOP_PANEL_WIDTH - DESKTOP_PANEL_MARGIN);
-        const maxTop = Math.max(72, window.innerHeight - panelHeight - DESKTOP_PANEL_MARGIN);
+        const minTop = getDesktopMinTop();
+        const maxTop = Math.max(minTop, window.innerHeight - panelHeight - DESKTOP_PANEL_MARGIN);
         return {
             left: Math.min(Math.max(DESKTOP_PANEL_MARGIN, position.left), maxLeft),
-            top: Math.min(Math.max(72, position.top), maxTop),
+            top: Math.min(Math.max(minTop, position.top), maxTop),
         };
-    }, []);
+    }, [getDesktopMinTop]);
 
     useEffect(() => {
         if (!isDesktop) return;
@@ -258,16 +271,21 @@ export default function ReaderStudyDock() {
         }
     }, []);
 
-    const handleDesktopDragStart = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
+    const handleDesktopDragStart = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
         if (!isDesktop) return;
         event.preventDefault();
+        draggingPointerIdRef.current = event.pointerId;
+        event.currentTarget.setPointerCapture(event.pointerId);
         const startX = event.clientX;
         const startY = event.clientY;
         const origin = desktopPosition;
 
         setDragging(true);
 
-        const handleMove = (moveEvent: MouseEvent) => {
+        const handleMove = (moveEvent: PointerEvent) => {
+            if (draggingPointerIdRef.current !== null && moveEvent.pointerId !== draggingPointerIdRef.current) {
+                return;
+            }
             const next = clampDesktopPosition({
                 left: origin.left + (moveEvent.clientX - startX),
                 top: origin.top + (moveEvent.clientY - startY),
@@ -277,13 +295,14 @@ export default function ReaderStudyDock() {
 
         const handleUp = () => {
             setDragging(false);
-            window.removeEventListener("mousemove", handleMove);
-            window.removeEventListener("mouseup", handleUp);
+            draggingPointerIdRef.current = null;
+            window.removeEventListener("pointermove", handleMove);
+            window.removeEventListener("pointerup", handleUp);
         };
 
-        window.addEventListener("mousemove", handleMove);
-        window.addEventListener("mouseup", handleUp);
-    }, [clampDesktopPosition, desktopPosition, isDesktop, persistDesktopPosition]);
+        window.addEventListener("pointermove", handleMove);
+        window.addEventListener("pointerup", handleUp);
+    }, [clampDesktopPosition, desktopPosition, isDesktop]);
 
     useEffect(() => {
         if (!isDesktop) return;
@@ -299,8 +318,8 @@ export default function ReaderStudyDock() {
             >
                 <div className="overflow-hidden rounded-2xl border border-cyan-900/30 bg-[#071018]/90 shadow-[0_18px_50px_rgba(0,0,0,0.38)] backdrop-blur">
                     <div
-                        className={`border-b border-cyan-900/30 px-4 py-3 ${dragging ? "cursor-grabbing" : "cursor-grab"}`}
-                        onMouseDown={handleDesktopDragStart}
+                        className={`border-b border-cyan-900/30 px-4 py-3 select-none touch-none ${dragging ? "cursor-grabbing" : "cursor-grab"}`}
+                        onPointerDown={handleDesktopDragStart}
                     >
                         <div className="flex items-center justify-between gap-3">
                             <div className="flex items-center gap-2 text-cyan-300">
