@@ -1,11 +1,35 @@
 "use client";
 
 import Link from "next/link";
-import { BookMarked, GraduationCap, Languages, Loader2, Quote, RefreshCcw, Search, Sparkles, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
+import {
+    BookMarked,
+    GraduationCap,
+    GripHorizontal,
+    Languages,
+    Loader2,
+    Quote,
+    RefreshCcw,
+    Search,
+    Sparkles,
+    X,
+} from "lucide-react";
+import {
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+    type KeyboardEvent as ReactKeyboardEvent,
+    type MouseEvent as ReactMouseEvent,
+} from "react";
 
 import { useLocale } from "@/context/LocaleContext";
 import { getReaderLearningStats, type ReaderLearningStatsResponse } from "@/lib/reader-learning";
+
+const DESKTOP_PANEL_STORAGE_KEY = "reader-study-dock-position-v1";
+const DESKTOP_DEFAULT_POSITION = { top: 96, left: 16 };
+const DESKTOP_PANEL_WIDTH = 392;
+const DESKTOP_PANEL_MARGIN = 16;
 
 function StudyLinks({ onNavigate }: { onNavigate?: () => void }) {
     const { localizePath } = useLocale();
@@ -48,9 +72,13 @@ function LookupTips() {
                 <span className="text-[11px] font-mono uppercase tracking-[0.24em]">Cách tra nhanh</span>
             </div>
             <div className="mt-3 space-y-2 text-xs leading-5 text-gray-300">
-                <div>1. Bôi đen từ hoặc cụm ngắn rồi bấm <span className="font-medium text-cyan-200">Tra nhanh</span>.</div>
+                <div>
+                    1. Bôi đen từ hoặc cụm ngắn rồi bấm <span className="font-medium text-cyan-200">Tra nhanh</span>.
+                </div>
                 <div>2. Click đúp vào một từ ngắn để mở tra từ ngay.</div>
-                <div>3. Sau khi đã chọn chữ, nhấn <span className="font-mono text-cyan-200">Alt+L</span>.</div>
+                <div>
+                    3. Sau khi đã chọn chữ, nhấn <span className="font-mono text-cyan-200">Alt+L</span>.
+                </div>
             </div>
         </div>
     );
@@ -139,11 +167,15 @@ function StudyStats({
 }
 
 export default function ReaderStudyDock() {
+    const desktopPanelRef = useRef<HTMLDivElement | null>(null);
     const [stats, setStats] = useState<ReaderLearningStatsResponse | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [mobileOpen, setMobileOpen] = useState(false);
     const [audioActive, setAudioActive] = useState(false);
+    const [isDesktop, setIsDesktop] = useState(false);
+    const [dragging, setDragging] = useState(false);
+    const [desktopPosition, setDesktopPosition] = useState(DESKTOP_DEFAULT_POSITION);
 
     useEffect(() => {
         let mounted = true;
@@ -179,19 +211,108 @@ export default function ReaderStudyDock() {
         return () => window.removeEventListener("reader-audio-state", handleAudioState as EventListener);
     }, []);
 
-    const desktopBottom = useMemo(() => (audioActive ? 226 : 96), [audioActive]);
+    useEffect(() => {
+        const updateViewport = () => setIsDesktop(window.innerWidth >= 768);
+        updateViewport();
+        window.addEventListener("resize", updateViewport);
+        return () => window.removeEventListener("resize", updateViewport);
+    }, []);
+
     const mobileBottom = useMemo(() => (audioActive ? 174 : 88), [audioActive]);
+
+    const clampDesktopPosition = useCallback((position: { top: number; left: number }) => {
+        if (typeof window === "undefined") return position;
+        const panelHeight = desktopPanelRef.current?.offsetHeight ?? 620;
+        const maxLeft = Math.max(DESKTOP_PANEL_MARGIN, window.innerWidth - DESKTOP_PANEL_WIDTH - DESKTOP_PANEL_MARGIN);
+        const maxTop = Math.max(72, window.innerHeight - panelHeight - DESKTOP_PANEL_MARGIN);
+        return {
+            left: Math.min(Math.max(DESKTOP_PANEL_MARGIN, position.left), maxLeft),
+            top: Math.min(Math.max(72, position.top), maxTop),
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!isDesktop) return;
+        try {
+            const raw = window.localStorage.getItem(DESKTOP_PANEL_STORAGE_KEY);
+            if (!raw) return;
+            const parsed = JSON.parse(raw) as { top?: number; left?: number };
+            if (typeof parsed.top === "number" && typeof parsed.left === "number") {
+                setDesktopPosition(clampDesktopPosition({ top: parsed.top, left: parsed.left }));
+            }
+        } catch {
+            // ignore storage errors
+        }
+    }, [clampDesktopPosition, isDesktop]);
+
+    useEffect(() => {
+        if (!isDesktop) return;
+        setDesktopPosition((prev) => clampDesktopPosition(prev));
+    }, [clampDesktopPosition, isDesktop]);
+
+    const persistDesktopPosition = useCallback((position: { top: number; left: number }) => {
+        try {
+            window.localStorage.setItem(DESKTOP_PANEL_STORAGE_KEY, JSON.stringify(position));
+        } catch {
+            // ignore storage errors
+        }
+    }, []);
+
+    const handleDesktopDragStart = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
+        if (!isDesktop) return;
+        event.preventDefault();
+        const startX = event.clientX;
+        const startY = event.clientY;
+        const origin = desktopPosition;
+
+        setDragging(true);
+
+        const handleMove = (moveEvent: MouseEvent) => {
+            const next = clampDesktopPosition({
+                left: origin.left + (moveEvent.clientX - startX),
+                top: origin.top + (moveEvent.clientY - startY),
+            });
+            setDesktopPosition(next);
+        };
+
+        const handleUp = () => {
+            setDragging(false);
+            window.removeEventListener("mousemove", handleMove);
+            window.removeEventListener("mouseup", handleUp);
+        };
+
+        window.addEventListener("mousemove", handleMove);
+        window.addEventListener("mouseup", handleUp);
+    }, [clampDesktopPosition, desktopPosition, isDesktop, persistDesktopPosition]);
+
+    useEffect(() => {
+        if (!isDesktop) return;
+        persistDesktopPosition(desktopPosition);
+    }, [desktopPosition, isDesktop, persistDesktopPosition]);
 
     return (
         <>
-            <div className="fixed left-4 z-[58] hidden md:block" style={{ bottom: `${desktopBottom}px` }}>
+            <div
+                ref={desktopPanelRef}
+                className="fixed z-[58] hidden md:block"
+                style={{ top: `${desktopPosition.top}px`, left: `${desktopPosition.left}px`, width: `${DESKTOP_PANEL_WIDTH}px` }}
+            >
                 <div className="overflow-hidden rounded-2xl border border-cyan-900/30 bg-[#071018]/90 shadow-[0_18px_50px_rgba(0,0,0,0.38)] backdrop-blur">
-                    <div className="border-b border-cyan-900/30 px-4 py-3">
-                        <div className="flex items-center gap-2 text-cyan-300">
-                            <Languages size={14} />
-                            <span className="text-[11px] font-mono uppercase tracking-[0.28em]">Learning</span>
+                    <div
+                        className={`border-b border-cyan-900/30 px-4 py-3 ${dragging ? "cursor-grabbing" : "cursor-grab"}`}
+                        onMouseDown={handleDesktopDragStart}
+                    >
+                        <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2 text-cyan-300">
+                                <Languages size={14} />
+                                <span className="text-[11px] font-mono uppercase tracking-[0.28em]">Learning</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.2em] text-ash-500">
+                                <GripHorizontal size={14} />
+                                Kéo để di chuyển
+                            </div>
                         </div>
-                        <p className="mt-2 max-w-[240px] text-xs leading-5 text-gray-400">
+                        <p className="mt-2 max-w-[260px] text-xs leading-5 text-gray-400">
                             Tra từ, lưu câu và ôn lại ngay trong lúc đọc. Khu này sẽ là nền cho grammar hints
                             và SRS ở bước sau.
                         </p>
