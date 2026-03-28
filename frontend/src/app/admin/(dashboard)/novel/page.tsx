@@ -232,7 +232,7 @@ export default function AdminNovelPage() {
             const response = await getAdminOracleHealth(token);
             setOracleHealth(response);
         } catch (err: any) {
-            setOracleAdminMessage(err?.message || 'Khong the kiem tra Oracle health.');
+            setOracleAdminMessage(err?.message || 'Không thể kiểm tra Oracle health.');
         } finally {
             setOracleHealthLoading(false);
         }
@@ -246,7 +246,7 @@ export default function AdminNovelPage() {
             const response = await resetAdminOracleRateLimit(token);
             setOracleAdminMessage(`${response.detail} Deleted rows: ${response.deleted_rows}.`);
         } catch (err: any) {
-            setOracleAdminMessage(err?.message || 'Khong the reset Oracle rate limit.');
+            setOracleAdminMessage(err?.message || 'Không thể reset Oracle rate limit.');
         } finally {
             setOracleResetLoading(false);
         }
@@ -474,12 +474,12 @@ export default function AdminNovelPage() {
                                                 value={aiApiKeysInputs[index] || ''}
                                                 onChange={(e) => setAiApiKeysInputs((current) => current.map((item, itemIndex) => itemIndex === index ? e.target.value : item))}
                                                 className="w-full bg-black border border-gray-800 rounded px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:border-green-500"
-                                                placeholder={index < (settings.ai_api_keys_count || 0) ? `Da luu key project ${index + 1}` : `Nhap API key project ${index + 1}`}
+                                                placeholder={index < (settings.ai_api_keys_count || 0) ? `Đã lưu key project ${index + 1}` : `Nhập API key project ${index + 1}`}
                                             />
                                         ))}
                                     </div>
                                     <p className="text-xs text-gray-500">
-                                        Dang luu tren server: {settings.ai_api_keys_count || 0} key. Backend se xoay tung to hop <span className="font-mono text-gray-300">key x model</span> theo thu tu uu tien.
+                                        Đang lưu trên server: {settings.ai_api_keys_count || 0} key. Backend sẽ xoay từng tổ hợp <span className="font-mono text-gray-300">key x model</span> theo thứ tự ưu tiên.
                                     </p>
                                 </div>
                                 <div className="hidden">
@@ -505,7 +505,7 @@ export default function AdminNovelPage() {
                                     Danh sách này được lưu server-side. Backend sẽ tự thử model tiếp theo trong catalog nếu model hiện tại bị rate-limit hoặc hết quota/RPD.
                                 </p>
                                 <p className="text-xs text-gray-500">
-                                    Rotation backend dang chay theo thu tu catalog va thu tung to hop key x model cho den khi co model tra loi thanh cong.
+                                    Rotation backend đang chạy theo thứ tự catalog và thử từng tổ hợp key x model cho đến khi có model trả lời thành công.
                                 </p>
                                 <div className="flex flex-wrap gap-2">
                                     {modelCatalog.map((model, index) => {

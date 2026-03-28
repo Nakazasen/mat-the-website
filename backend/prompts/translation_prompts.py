@@ -10,40 +10,6 @@ def _dump_json(payload: Any) -> str:
     return json.dumps(payload, ensure_ascii=False)
 
 
-def build_chapter_translation_prompt(
-    *,
-    title: str,
-    content: str,
-    source_locale: str,
-    target_locale: str,
-    context_label: str,
-    glossary_prompt: str,
-) -> str:
-    return f"""
-Bạn là biên dịch viên chuyên nghiệp cho tiểu thuyết sinh tồn hậu tận thế.
-Hãy dịch `title` và `content` từ {source_locale} sang {target_locale}.
-
-Yêu cầu:
-1. Giữ nguyên tên riêng theo glossary nếu có.
-2. Không được rút gọn, không thêm giải thích, không thêm markdown.
-3. Giữ nguyên ngắt đoạn và thứ tự nội dung.
-4. Trả về DUY NHẤT một JSON hợp lệ theo schema:
-{{"title":"...","content":"..."}}
-5. Không bọc JSON trong code fence.
-
-CONTEXT: {context_label}
-
-GLOSSARY:
-{glossary_prompt}
-
-SOURCE TITLE:
-{title}
-
-SOURCE CONTENT:
-{content}
-""".strip()
-
-
 def build_chapter_multilocale_system_instruction() -> str:
     return """
 Bạn là biên dịch viên chuyên nghiệp cho tiểu thuyết sinh tồn hậu tận thế.

@@ -63,7 +63,6 @@ try:
     from prompts.translation_prompts import (
         build_chapter_multilocale_system_instruction,
         build_chapter_multilocale_user_prompt,
-        build_chapter_translation_prompt,
         build_guide_multilocale_system_instruction,
         build_guide_multilocale_user_prompt,
         build_homepage_multilocale_system_instruction,
@@ -90,7 +89,6 @@ except (ImportError, ModuleNotFoundError):
     from backend.prompts.translation_prompts import (
         build_chapter_multilocale_system_instruction,
         build_chapter_multilocale_user_prompt,
-        build_chapter_translation_prompt,
         build_guide_multilocale_system_instruction,
         build_guide_multilocale_user_prompt,
         build_homepage_multilocale_system_instruction,
@@ -238,7 +236,7 @@ def load_translation_glossary() -> list[dict]:
 def build_glossary_prompt() -> str:
     glossary = load_translation_glossary()
     if not glossary:
-        return "Khong co glossary bo sung."
+        return "Không có glossary bổ sung."
 
     lines = []
     for item in glossary:
@@ -251,7 +249,7 @@ def build_glossary_prompt() -> str:
         mapped = ", ".join(f"{k}={v}" for k, v in translations.items() if v)
         if mapped:
             lines.append(f"- {source}: {mapped}")
-    return "\n".join(lines) if lines else "Khong co glossary bo sung."
+    return "\n".join(lines) if lines else "Không có glossary bổ sung."
 
 def build_target_translation_locales(locales: Optional[List[str]] = None) -> list[str]:
     if not locales:
@@ -628,7 +626,7 @@ async def generate_structured_translation_payload(
                 str(last_error.detail),
             ),
         )
-    raise HTTPException(status_code=502, detail="Khong co mo hinh dich AI kha dung")
+    raise HTTPException(status_code=502, detail="Không có mô hình dịch AI khả dụng")
 
 async def throttle_translation_request(model_name: str, api_key: str):
     bucket = get_key_model_bucket(model_name, api_key)
@@ -789,15 +787,15 @@ async def translate_text_with_ai(source_text: str, source_locale: str, target_lo
 
     glossary_prompt = build_glossary_prompt()
     prompt = f"""
-Ban la bien dich vien chuyen nghiep cho tieu thuyet sinh ton hau tan the.
-Hay dich noi dung sau tu {source_locale} sang {target_locale}.
+Bạn là biên dịch viên chuyên nghiệp cho tiểu thuyết sinh tồn hậu tận thế.
+Hãy dịch nội dung sau từ {source_locale} sang {target_locale}.
 
-YEU CAU:
-1. Giu nguyen ten rieng theo glossary neu co.
-2. Khong duoc rut gon, khong them giai thich, khong them markdown.
-3. Giu nguyen ngat doan va thu tu noi dung.
-4. Neu gap ky hieu hoac ten ky nang, uu tien nhat quan hon viet dep.
-5. Chi tra ve ban dich sau cung.
+YÊU CẦU:
+1. Giữ nguyên tên riêng theo glossary nếu có.
+2. Không được rút gọn, không thêm giải thích, không thêm markdown.
+3. Giữ nguyên ngắt đoạn và thứ tự nội dung.
+4. Nếu gặp ký hiệu hoặc tên kỹ năng, ưu tiên nhất quán hơn viết đẹp.
+5. Chỉ trả về bản dịch sau cùng.
 
 CONTEXT: {context_label}
 
@@ -1096,81 +1094,6 @@ async def upsert_chapter_translations(chapter_row: dict, title: str, content: st
         "failed_translations": failed_translations,
     }
 
-async def upsert_chapter_translation(chapter_row: dict, title: str, content: str, locale: str):
-    if normalize_locale(locale) == DEFAULT_LOCALE:
-        return None
-
-    content_hash = build_content_hash(content)
-    now_iso = datetime.now(timezone.utc).isoformat()
-
-    existing_resp = (
-        supabase.table("chapter_translations")
-        .select("attempt_count, title, content, summary, translated_at")
-        .eq("chapter_id", chapter_row["id"])
-        .eq("locale", locale)
-        .limit(1)
-        .execute()
-    )
-    existing_row = existing_resp.data[0] if existing_resp.data else {}
-
-    status_payload = {
-        "chapter_id": chapter_row["id"],
-        "locale": locale,
-        "title": existing_row.get("title") or "",
-        "content": existing_row.get("content") or "",
-        "summary": existing_row.get("summary"),
-        "translation_status": "in_progress",
-        "translation_source": "ai",
-        "translated_at": existing_row.get("translated_at"),
-        "content_hash": content_hash,
-        "last_error": None,
-        "attempt_count": int(existing_row.get("attempt_count") or 0) + 1,
-        "updated_at": now_iso,
-    }
-    supabase.table("chapter_translations").upsert(status_payload, on_conflict="chapter_id,locale").execute()
-
-    try:
-        translated_payload = await translate_chapter_payload_with_ai(
-            title,
-            content,
-            DEFAULT_LOCALE,
-            locale,
-            f"chapter-{chapter_row['chapter_number']}",
-        )
-        translated_title = translated_payload["title"]
-        translated_content = translated_payload["content"]
-        payload = {
-            "chapter_id": chapter_row["id"],
-            "locale": locale,
-            "title": translated_title,
-            "content": translated_content,
-            "summary": translated_content[:280],
-            "translation_status": "published",
-            "translation_source": "ai",
-            "translated_at": now_iso,
-            "content_hash": content_hash,
-            "last_error": None,
-            "attempt_count": int(status_payload["attempt_count"]),
-            "updated_at": now_iso,
-        }
-        return supabase.table("chapter_translations").upsert(payload, on_conflict="chapter_id,locale").execute()
-    except HTTPException as exc:
-        failure_payload = {
-            **status_payload,
-            "translation_status": "failed",
-            "last_error": str(exc.detail),
-        }
-        supabase.table("chapter_translations").upsert(failure_payload, on_conflict="chapter_id,locale").execute()
-        raise
-    except Exception as exc:
-        failure_payload = {
-            **status_payload,
-            "translation_status": "failed",
-            "last_error": str(exc),
-        }
-        supabase.table("chapter_translations").upsert(failure_payload, on_conflict="chapter_id,locale").execute()
-        raise
-
 async def translate_homepage_payload_with_ai(settings_payload: dict, target_locale: str) -> dict:
     _active_model, model_catalog, api_keys = await resolve_ai_settings_for_translation()
     if not api_keys:
@@ -1275,7 +1198,7 @@ async def translate_homepage_payload_with_ai(settings_payload: dict, target_loca
                 str(last_error.detail),
             ),
         )
-    raise HTTPException(status_code=502, detail="Khong co mo hinh dich homepage kha dung")
+    raise HTTPException(status_code=502, detail="Không có mô hình dịch homepage khả dụng")
 
 async def translate_homepage_payloads_with_ai(settings_payload: dict, locales: list[str]) -> dict[str, dict]:
     target_locales = build_target_translation_locales(locales)
@@ -1533,7 +1456,7 @@ async def translate_wiki_payload_with_ai(entry_payload: dict, target_locale: str
                 str(last_error.detail),
             ),
         )
-    raise HTTPException(status_code=502, detail="Khong co mo hinh dich wiki kha dung")
+    raise HTTPException(status_code=502, detail="Không có mô hình dịch wiki khả dụng")
 
 async def translate_wiki_payloads_with_ai(entry_payload: dict, locales: list[str]) -> dict[str, dict]:
     target_locales = build_target_translation_locales(locales)
@@ -1642,7 +1565,7 @@ async def verify_admin(authorization: Optional[str]) -> dict:
 
     """
 
-    Xác th盻ｱc token Admin từ Header Authorization (Bearer <token>).
+    Xác thực token Admin từ Header Authorization (Bearer <token>).
 
     """
 
@@ -1654,7 +1577,7 @@ async def verify_admin(authorization: Optional[str]) -> dict:
 
             status_code=status.HTTP_401_UNAUTHORIZED, 
 
-            detail="Thiếu token xác th盻ｱc. Hãy ﾄ惰ハg nhập lại."
+            detail="Thiếu token xác thực. Hãy đăng nhập lại."
 
         )
 
@@ -1670,7 +1593,7 @@ async def verify_admin(authorization: Optional[str]) -> dict:
 
                 status_code=status.HTTP_401_UNAUTHORIZED, 
 
-                detail="Token không h盻｣p l盻・ho蘯ｷc ﾄ妥｣ hết hạn."
+                detail="Token không hợp lệ hoặc đã hết hạn."
 
             )
 
@@ -1682,7 +1605,7 @@ async def verify_admin(authorization: Optional[str]) -> dict:
 
         
 
-        user_role = "editor" # M蘯ｷc ﾄ黛ｻ杵h
+        user_role = "editor" # Mặc định
 
         if profile_resp.data:
 
@@ -1712,7 +1635,7 @@ async def verify_admin(authorization: Optional[str]) -> dict:
 
             status_code=status.HTTP_401_UNAUTHORIZED, 
 
-            detail="Token không h盻｣p l盻・ho蘯ｷc ﾄ妥｣ hết hạn."
+            detail="Token không hợp lệ hoặc đã hết hạn."
 
         )
 
@@ -1722,7 +1645,7 @@ app = FastAPI(
 
     title="Mạt Thế API",
 
-    description="API backend cho website đọc truy盻㌻ Mạt Thế - Sinh Hoá Nguy Cﾆ｡",
+    description="API backend cho website đọc truyện Mạt Thế - Sinh Hoá Nguy Cơ",
 
     version="1.0.0",
 
@@ -1842,29 +1765,29 @@ async def health_check():
 
 async def get_chapters(
 
-    page: int = Query(1, ge=1, description="S盻・trang"),
+    page: int = Query(1, ge=1, description="Số trang"),
 
-    limit: int = Query(50, ge=1, le=100, description="S盻・chương m盻擁 trang"),
+    limit: int = Query(50, ge=1, le=100, description="Số chương mỗi trang"),
 
-    sort: str = Query("asc", pattern="^(asc|desc)$", description="Th盻ｩ t盻ｱ s蘯ｯp xếp: asc ho蘯ｷc desc"),
+    sort: str = Query("asc", pattern="^(asc|desc)$", description="Thứ tự sắp xếp: asc hoặc desc"),
 
-    search: Optional[str] = Query(None, description="Tìm kiếm theo tiêu đểho蘯ｷc s盻・chương"),
+    search: Optional[str] = Query(None, description="Tìm kiếm theo tiêu đề hoặc số chương"),
 
-    is_side_story: Optional[bool] = Query(None, description="L盻皇 ngoại truy盻㌻ (true) ho蘯ｷc mạch chﾃｭnh (false)"),
+    is_side_story: Optional[bool] = Query(None, description="Lọc ngoại truyện (true) hoặc mạch chính (false)"),
 
     locale: str = Query(DEFAULT_LOCALE, description="Requested locale"),
 ):
     """
 
-    Lấy danh sách chương có phận trang.
+    Lấy danh sách chương có phân trang.
 
     
 
-    - **page**: Trang hi盻㌻ tại (b蘯ｯt ﾄ黛ｺｧu từ 1)
+    - **page**: Trang hiện tại (bắt đầu từ 1)
 
-    - **limit**: S盻・chương m盻擁 trang (t盻訴 ﾄ疎 100)
+    - **limit**: Số chương mỗi trang (tối đa 100)
 
-    - **sort**: S蘯ｯp xếp theo th盻ｩ t盻ｱ chương (asc/desc)
+    - **sort**: Sắp xếp theo thứ tự chương (asc/desc)
 
     """
 
@@ -1972,13 +1895,13 @@ async def get_chapter(
 ):
     """
 
-    Lấy thông tin metadata của m盻冲 chương bao g盻杜 URL file R2 ch盻ｩa nội dung.
+    Lấy thông tin metadata của một chương bao gồm URL file R2 chứa nội dung.
 
-    Frontend s蘯ｽ dùng content_url này đểfetch nội dung th蘯ｳng từ Cloudflare CDN.
+    Frontend sẽ dùng content_url này để fetch nội dung thẳng từ Cloudflare CDN.
 
     
 
-    - **chapter_number**: S盻・chương th盻ｱc tế trong truy盻㌻
+    - **chapter_number**: Số chương thực tế trong truyện
 
     """
 
@@ -2000,7 +1923,7 @@ async def get_chapter(
 
         if not resp.data:
 
-            raise HTTPException(status_code=404, detail=f"Chﾆｰﾆ｡ng {chapter_number} không tìm thấy")
+            raise HTTPException(status_code=404, detail=f"Chương {chapter_number} không tìm thấy")
 
         requested_locale = normalize_locale(locale)
         chapter_payload = dict(resp.data)
@@ -2037,19 +1960,19 @@ async def get_chapter(
 @app.get("/api/tts", summary="Google Translate TTS Proxy")
 
 async def tts_proxy(
-    text: str = Query(..., max_length=200, description="Vﾄハ bản cần đọc (t盻訴 ﾄ疎 200 kﾃｽ t盻ｱ)"),
+    text: str = Query(..., max_length=200, description="Văn bản cần đọc (tối đa 200 ký tự)"),
 
-    lang: str = Query("vi", description="Ngôn ng盻ｯ (vi, en, ...)"),
+    lang: str = Query("vi", description="Ngôn ngữ (vi, en, ...)"),
 
-    speed: float = Query(1.0, ge=0.5, le=2.0, description="T盻祖 đểđọc"),
+    speed: float = Query(1.0, ge=0.5, le=2.0, description="Tốc độ đọc"),
 
 ):
 
     """
 
-    Proxy Google Translate TTS đểtránh b盻・ch蘯ｷn khi g盻絞 tr盻ｱc tiếp từ browser.
+    Proxy Google Translate TTS để tránh bị chặn khi gọi trực tiếp từ browser.
 
-    Trả v盻・audio MP3 stream.
+    Trả về audio MP3 stream.
 
     """
 
@@ -2093,7 +2016,7 @@ async def tts_proxy(
 
                 status_code=502,
 
-                detail=f"Google TTS trả v盻・{resp.status_code}"
+                detail=f"Google TTS trả về {resp.status_code}"
 
             )
 
@@ -2224,13 +2147,13 @@ async def admin_create_chapter(
 
 ):
 
-    """Thêm chương mới: Upload nội dung lên R2, lﾆｰu metadata vào Supabase."""
+    """Thêm chương mới: Upload nội dung lên R2, lưu metadata vào Supabase."""
 
     user = await verify_admin(authorization)
 
     if not r2_client:
 
-        raise HTTPException(status_code=500, detail="R2 chﾆｰa được cấu hình trên server")
+        raise HTTPException(status_code=500, detail="R2 chưa được cấu hình trên server")
 
     # Check chapter number uniqueness
 
@@ -2238,7 +2161,7 @@ async def admin_create_chapter(
 
     if existing.data:
 
-        raise HTTPException(status_code=409, detail=f"Chﾆｰﾆ｡ng {body.chapter_number} ﾄ妥｣ t盻渡 tại")
+        raise HTTPException(status_code=409, detail=f"Chương {body.chapter_number} đã tồn tại")
 
     sanitized_content = sanitize_html(body.content) or ""
 
@@ -2284,7 +2207,7 @@ async def admin_create_chapter(
 
     return {"message": "Thêm chương thành công", "chapter": result.data[0]}
 
-@app.put("/api/admin/chapters/{chapter_number}", summary="[Admin] S盻ｭa chương")
+@app.put("/api/admin/chapters/{chapter_number}", summary="[Admin] Sửa chương")
 
 async def admin_update_chapter(
 
@@ -2296,7 +2219,7 @@ async def admin_update_chapter(
 
 ):
 
-    """S盻ｭa tiêu đểvà/ho蘯ｷc nội dung chương."""
+    """Sửa tiêu đề và/hoặc nội dung chương."""
 
     await verify_admin(authorization)
 
@@ -2306,7 +2229,7 @@ async def admin_update_chapter(
 
     if not existing.data:
 
-        raise HTTPException(status_code=404, detail=f"Chﾆｰﾆ｡ng {chapter_number} không tìm thấy")
+        raise HTTPException(status_code=404, detail=f"Chương {chapter_number} không tìm thấy")
 
     chapter = existing.data
 
@@ -2318,7 +2241,7 @@ async def admin_update_chapter(
 
         if not r2_client:
 
-            raise HTTPException(status_code=500, detail="R2 chﾆｰa được cấu hình trên server")
+            raise HTTPException(status_code=500, detail="R2 chưa được cấu hình trên server")
 
         sanitized_content = sanitize_html(body.content) or ""
 
@@ -2356,7 +2279,7 @@ async def admin_update_chapter(
 
         return {"message": "Cập nhật thành công", "chapter": result.data[0]}
 
-    return {"message": "Không có gì thay ﾄ黛ｻ品"}
+    return {"message": "Không có gì thay đổi"}
 
 @app.post("/api/admin/chapters/{chapter_number}/translate", summary="[Admin] Translate chapter to EN/ZH-CN/JA")
 async def admin_translate_chapter(
@@ -2683,7 +2606,7 @@ class AdminNovelUpdate(BaseModel):
 @app.get("/api/novel", response_model=NovelSettings)
 
 async def get_novel_settings(locale: str = Query(DEFAULT_LOCALE, description="Requested locale")):
-    """Lấy thông tin chung của truy盻㌻ (Tên, tác giả, mô tả...)"""
+    """Lấy thông tin chung của truyện (Tên, tác giả, mô tả...)"""
 
     try:
 
@@ -2711,17 +2634,17 @@ async def get_novel_settings(locale: str = Query(DEFAULT_LOCALE, description="Re
 
         default_settings = {
 
-            "title": "Mạt Thế - Sinh Hoá Nguy Cﾆ｡",
+            "title": "Mạt Thế - Sinh Hoá Nguy Cơ",
 
-            "author": "Hàn Nhﾆｰ盻｣c Tuyết",
+            "author": "Hàn Nhược Tuyết",
 
-            "description": "Truy盻㌻ lấy b盻訴 cảnh tận thế ﾄ黛ｻ冲 nhiên ph盻ｧ xu盻創g, thﾃ｢y ma lan tràn, quái vật d盻・biến n盻品 lên kh蘯ｯp nﾆ｡i, loài ngﾆｰ盻拱 b盻・ﾄ黛ｺｩy vào m盻冲 trò chﾆ｡i tàn kh盻祖 kinh hoàng nhﾆｰng cﾅｩng ẩn ch盻ｩa cﾆ｡ h盻冓 l盻嬾 lao...",
+            "description": "Truyện lấy bối cảnh tận thế đột nhiên phủ xuống, thây ma lan tràn, quái vật dị biến nổi lên khắp nơi, loài người bị đẩy vào một trò chơi tàn khốc kinh hoàng nhưng cũng ẩn chứa cơ hội lớn lao...",
 
             "cover_url": "https://pub-28de8065099f4ffea76bd6dc28a9bcf3.r2.dev/matthe-hero.jpg",
 
-            "status": "ﾄ紳ng cập nhật",
+            "status": "Đang cập nhật",
 
-            "genres": ["Mạt Thế", "Sinh T盻渡", "H盻・Th盻創g", "D盻・Nﾄハg"],
+            "genres": ["Mạt Thế", "Sinh Tồn", "Hệ Thống", "Dị Năng"],
 
             "donate_qr_url": "",
 
@@ -2793,19 +2716,19 @@ async def get_novel_settings(locale: str = Query(DEFAULT_LOCALE, description="Re
 
         print(f"DEBUG: get_novel_settings error: {str(e)}")
 
-        # Fallback d盻ｯ li盻㎡ m蘯ｷc ﾄ黛ｻ杵h nếu l盻擁 DB (tránh sập trang chủ)
+        # Fallback dữ liệu mặc định nếu lỗi DB (tránh sập trang chủ)
 
         return NovelSettings(
 
-            title="Mạt Thế - Sinh Hoá Nguy Cﾆ｡",
+            title="Mạt Thế - Sinh Hoá Nguy Cơ",
 
-            author="Hàn Nhﾆｰ盻｣c Tuyết",
+            author="Hàn Nhược Tuyết",
 
-            description="L盻擁 tải d盻ｯ li盻㎡. Hãy th盻ｭ lại sau.",
+            description="Lỗi tải dữ liệu. Hãy thử lại sau.",
 
             cover_url="/hero-bg.png",
 
-            status="ﾄ紳ng cập nhật",
+            status="Đang cập nhật",
 
             genres=["Mạt Thế"],
 
@@ -3000,7 +2923,7 @@ async def admin_invite_user(
 
         if not auth_resp or not auth_resp.user:
 
-            raise Exception("Supabase không trả v盻・thông tin user mới.")
+            raise Exception("Supabase không trả về thông tin user mới.")
 
         # 2. Update role trong bảng profiles
 
@@ -3018,11 +2941,11 @@ async def admin_invite_user(
 
         if "User not allowed" in error_msg:
 
-            detail = "L盻擁: Backend chﾆｰa được cấp quyền Admin (Service Role Key). Hãy ki盻ノ tra SUPABASE_KEY."
+            detail = "Lỗi: Backend chưa được cấp quyền Admin (Service Role Key). Hãy kiểm tra SUPABASE_KEY."
 
         else:
 
-            detail = f"L盻擁 tạo tài khoản: {error_msg}"
+            detail = f"Lỗi tạo tài khoản: {error_msg}"
 
         raise HTTPException(status_code=500, detail=detail)
 
@@ -3032,11 +2955,11 @@ class ProfileUpdate(BaseModel):
 
     role: Optional[str] = None
 
-@app.get("/api/user/role", summary="Lấy quyền (Role) của ngﾆｰ盻拱 dùng hi盻㌻ tại")
+@app.get("/api/user/role", summary="Lấy quyền (Role) của người dùng hiện tại")
 
 async def get_current_user_role(authorization: Optional[str] = Header(None)):
 
-    """Kiểm tra quyền của ngﾆｰ盻拱 dùng (editor hay superadmin)."""
+    """Kiểm tra quyền của người dùng (editor hay superadmin)."""
 
     user = await verify_admin(authorization)
 
@@ -3060,7 +2983,7 @@ async def admin_update_user(
 
     if user["role"] != "superadmin":
 
-        raise HTTPException(status_code=403, detail="Chỉ SuperAdmin mới có quyền ch盻穎h s盻ｭa nhân sự")
+        raise HTTPException(status_code=403, detail="Chỉ SuperAdmin mới có quyền chỉnh sửa nhân sự")
 
     try:
 
@@ -3100,7 +3023,7 @@ async def admin_update_user(
 
             if len(body.password) < 6:
 
-                raise HTTPException(status_code=400, detail="Mật khẩu phải có t盻訴 thi盻ブ 6 kﾃｽ t盻ｱ")
+                raise HTTPException(status_code=400, detail="Mật khẩu phải có tối thiểu 6 ký tự")
 
             auth_updates["password"] = body.password
 
@@ -3116,7 +3039,7 @@ async def admin_update_user(
 
     except Exception as e:
 
-        raise HTTPException(status_code=500, detail=f"L盻擁 cập nhật: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Lỗi cập nhật: {str(e)}")
 
 @app.delete("/api/admin/users/{user_id}", summary="[Admin] Xoá nhân sự")
 
@@ -3144,7 +3067,7 @@ async def admin_delete_user(
 
     try:
 
-        # Xoá trong Auth (bảng profiles s蘯ｽ t盻ｱ ﾄ黛ｻ冢g xoá do CASCADE)
+        # Xoá trong Auth (bảng profiles sẽ tự động xoá do CASCADE)
 
         supabase.auth.admin.delete_user(user_id)
 
@@ -3391,13 +3314,13 @@ async def admin_translate_homepage_i18n(
         "translated_locales": translated_locales,
     }
 
-@app.put("/api/admin/homepage/auto-save", response_model=HomepageAutoSaveResponse, summary="[Admin] Luu trang chu va tu dong dich AI")
+@app.put("/api/admin/homepage/auto-save", response_model=HomepageAutoSaveResponse, summary="[Admin] Lưu trang chủ và tự động dịch AI")
 async def admin_auto_save_homepage_i18n(
     body: HomepageSettings,
     authorization: Optional[str] = Header(None),
     locale: str = Query(DEFAULT_LOCALE, description="Locale to update"),
 ):
-    """Luu CMS trang chu. Neu locale la vi thi tu dong dich sang en, zh-CN va ja."""
+    """Lưu CMS trang chủ. Nếu locale là vi thì tự động dịch sang en, zh-CN và ja."""
     await verify_admin(authorization)
 
     target_locale = normalize_locale(locale)
@@ -3430,11 +3353,11 @@ async def admin_auto_save_homepage_i18n(
                 }
             ]
 
-        message = "Da luu trang chu va tu dong dich"
+        message = "Đã lưu trang chủ và tự động dịch"
         if failed_translations and translated_locales:
-            message = "Da luu trang chu va dich mot phan"
+            message = "Đã lưu trang chủ và dịch một phần"
         elif failed_translations and not translated_locales:
-            message = "Da luu trang chu, nhung auto-dich tam thoi that bai"
+            message = "Đã lưu trang chủ, nhưng auto-dịch tạm thời thất bại"
 
         return {
             "message": message,
@@ -3459,7 +3382,7 @@ async def admin_auto_save_homepage_i18n(
         .execute()
     )
     return {
-        "message": "Da luu ban dich trang chu",
+        "message": "Đã lưu bản dịch trang chủ",
         "settings": result.data[0] if result.data else payload,
         "auto_translated_locales": [],
         "failed_translations": [],
@@ -3467,7 +3390,7 @@ async def admin_auto_save_homepage_i18n(
 
 @app.get("/api/_legacy/homepage", response_model=HomepageSettings)
 async def get_homepage_settings():
-    """Lấy cấu hình nội dung hi盻ハ th盻・trên trang chủ."""
+    """Lấy cấu hình nội dung hiển thị trên trang chủ."""
 
     try:
 
@@ -3477,15 +3400,15 @@ async def get_homepage_settings():
 
             return HomepageSettings(
 
-                warning_title="C蘯｢NH Bﾃ＾ KHU V盻ｰC C蘯､M",
+                warning_title="CẢNH BÁO KHU VỰC CẤM",
 
-                warning_subtitle="BIOSAFETY LEVEL 4 ﾂｷ RESTRICTED ACCESS",
+                warning_subtitle="BIOSAFETY LEVEL 4 · RESTRICTED ACCESS",
 
-                warning_headline="TR蘯ｬN ﾄ雪ｻ晦 SINH T盻ｬ",
+                warning_headline="TRẬN ĐỊA SINH TỬ",
 
-                warning_description="Nﾄノ 20XX. Virus Z-79 bùng phát từ m盻冲 phòng thﾃｭ nghi盻㍊ bﾃｭ mật...",
+                warning_description="Năm 20XX. Virus Z-79 bùng phát từ một phòng thí nghiệm bí mật...",
 
-                features_title="ﾄ蝕盻・ NỔI BẬT",
+                features_title="ĐIỂM NỔI BẬT",
 
                 features_json=[]
 
@@ -3503,15 +3426,15 @@ async def get_homepage_settings():
 
         return HomepageSettings(
 
-            warning_title="C蘯｢NH Bﾃ＾ KHU V盻ｰC C蘯､M",
+            warning_title="CẢNH BÁO KHU VỰC CẤM",
 
-            warning_subtitle="BIOSAFETY LEVEL 4 ﾂｷ RESTRICTED ACCESS",
+            warning_subtitle="BIOSAFETY LEVEL 4 · RESTRICTED ACCESS",
 
-            warning_headline="TR蘯ｬN ﾄ雪ｻ晦 SINH T盻ｬ",
+            warning_headline="TRẬN ĐỊA SINH TỬ",
 
-            warning_description="Nﾄノ 20XX. Virus Z-79 bùng phát từ m盻冲 phòng thﾃｭ nghi盻㍊ bﾃｭ mật...",
+            warning_description="Năm 20XX. Virus Z-79 bùng phát từ một phòng thí nghiệm bí mật...",
 
-            features_title="ﾄ蝕盻・ NỔI BẬT",
+            features_title="ĐIỂM NỔI BẬT",
 
             features_json=[]
 
@@ -3525,7 +3448,7 @@ async def admin_update_homepage(
 
 ):
 
-    """Cập nhật các ﾄ双ạn text và cấu hình trên trang chủ."""
+    """Cập nhật các đoạn text và cấu hình trên trang chủ."""
 
     await verify_admin(authorization)
 
@@ -3555,7 +3478,7 @@ async def admin_get_chapter_content(
 
 ):
 
-    """Lấy nội dung text thô của chương từ R2 (Proxy qua Backend đểtránh CORS)."""
+    """Lấy nội dung text thô của chương từ R2 (Proxy qua Backend để tránh CORS)."""
 
     await verify_admin(authorization)
 
@@ -3589,7 +3512,7 @@ async def admin_get_chapter_content(
 
         if not R2_ENDPOINT: missing.append("R2_ENDPOINT_URL")
 
-        detail = f"R2 chﾆｰa được cấu hình. Thiếu biến: {', '.join(missing)}"
+        detail = f"R2 chưa được cấu hình. Thiếu biến: {', '.join(missing)}"
 
         raise HTTPException(status_code=500, detail=detail)
 
@@ -3631,7 +3554,7 @@ async def admin_delete_chapter(
 
 ):
 
-    """Xóa chương: Xóa file trên R2 và xﾃｳa metadata trong Supabase."""
+    """Xóa chương: Xóa file trên R2 và xoá metadata trong Supabase."""
 
     await verify_admin(authorization)
 
@@ -3641,7 +3564,7 @@ async def admin_delete_chapter(
 
     if not existing.data:
 
-        raise HTTPException(status_code=404, detail=f"Chﾆｰﾆ｡ng {chapter_number} không tìm thấy")
+        raise HTTPException(status_code=404, detail=f"Chương {chapter_number} không tìm thấy")
 
     chapter = existing.data
 
@@ -3663,11 +3586,11 @@ async def admin_delete_chapter(
 
     supabase.table("chapters").delete().eq("chapter_number", chapter_number).execute()
 
-    return {"message": f"Đã xﾃｳa chương {chapter_number}"}
+    return {"message": f"Đã xóa chương {chapter_number}"}
 
 # === ANALYTICS ROUTES ===
 
-@app.get("/api/admin/analytics/top-chapters", summary="[Admin] Top chương đọc nhi盻「 nhất")
+@app.get("/api/admin/analytics/top-chapters", summary="[Admin] Top chương đọc nhiều nhất")
 
 async def admin_get_top_chapters(
 
@@ -3823,7 +3746,7 @@ async def admin_get_comments(
 
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.put("/api/admin/comments/{comment_id}", summary="[Admin] S盻ｭa bình luận")
+@app.put("/api/admin/comments/{comment_id}", summary="[Admin] Sửa bình luận")
 
 async def admin_update_comment(
 
@@ -3835,7 +3758,7 @@ async def admin_update_comment(
 
 ):
 
-    """S盻ｭa nội dung bình luận của ﾄ黛ｻ冂 giả."""
+    """Sửa nội dung bình luận của độc giả."""
 
     await verify_admin(authorization)
 
@@ -3867,7 +3790,7 @@ async def admin_delete_comment(
 
 ):
 
-    """Xóa m盻冲 bình luận khỏi hệ thống."""
+    """Xóa một bình luận khỏi hệ thống."""
 
     await verify_admin(authorization)
 
@@ -3875,7 +3798,7 @@ async def admin_delete_comment(
 
         supabase.table("comments").delete().eq("id", comment_id).execute()
 
-        return {"status": "success", "message": "Đã xﾃｳa bình luận"}
+        return {"status": "success", "message": "Đã xóa bình luận"}
 
     except Exception as e:
 
@@ -3897,7 +3820,7 @@ async def upload_image(
 
 ):
 
-    """Upload ảnh ph盻･c v盻･ cho Editor/Wiki. Yêu c蘯ｧu quyền Admin."""
+    """Upload ảnh phục vụ cho Editor/Wiki. Yêu cầu quyền Admin."""
 
     await verify_admin(authorization)
 
@@ -3905,7 +3828,7 @@ async def upload_image(
 
     if not r2_client:
 
-        raise HTTPException(status_code=500, detail="Cấu hình Cloudflare R2 chﾆｰa hoàn ch盻穎h")
+        raise HTTPException(status_code=500, detail="Cấu hình Cloudflare R2 chưa hoàn chỉnh")
 
         
 
@@ -3923,7 +3846,7 @@ async def upload_image(
 
         if file.content_type not in valid_types:
 
-            raise HTTPException(status_code=400, detail="Chỉh盻・tr盻｣ file ảnh (JPG, PNG, GIF, WEBP)")
+            raise HTTPException(status_code=400, detail="Chỉ hỗ trợ file ảnh (JPG, PNG, GIF, WEBP)")
 
             
 
@@ -3969,7 +3892,7 @@ async def upload_image(
 
         # Return URL
 
-        # ﾄ雪ｺ｣m bảo R2_PUBLIC_URL không kết thﾃｺc bằng /
+        # Đảm bảo R2_PUBLIC_URL không kết thúc bằng /
 
         base_url = R2_PUBLIC_URL.rstrip('/')
 
@@ -3989,7 +3912,7 @@ async def upload_image(
 
 # ============================================================
 
-# FACTION HIERARCHY (Cﾃ｢y T盻・Ch盻ｩc Thế L盻ｱc)
+# FACTION HIERARCHY (Cây Tổ Chức Thế Lực)
 
 # ============================================================
 
@@ -4035,11 +3958,11 @@ class FactionMemberOut(BaseModel):
 
     character_image: Optional[str] = None
 
-@app.get("/api/wiki/{slug}/hierarchy", summary="Lấy cﾃ｢y tỷch盻ｩc của thế l盻ｱc (public)")
+@app.get("/api/wiki/{slug}/hierarchy", summary="Lấy cây tổ chức của thế lực (public)")
 
 async def get_faction_hierarchy(slug: str):
 
-    """Lấy toàn b盻・cﾃ｢y phﾃ｢n cấp của 1 thế l盻ｱc theo slug."""
+    """Lấy toàn bộ cây phân cấp của 1 thế lực theo slug."""
 
     try:
 
@@ -4061,11 +3984,11 @@ async def get_faction_hierarchy(slug: str):
 
         if not faction_resp.data:
 
-            raise HTTPException(status_code=404, detail="Không tìm thấy thế l盻ｱc")
+            raise HTTPException(status_code=404, detail="Không tìm thấy thế lực")
 
-        if faction_resp.data.get("category") != "Thế l盻ｱc":
+        if faction_resp.data.get("category") != "Thế lực":
 
-            raise HTTPException(status_code=400, detail="Entry này không phải Thế l盻ｱc")
+            raise HTTPException(status_code=400, detail="Entry này không phải Thế lực")
 
         faction_id = faction_resp.data["id"]
 
@@ -4151,7 +4074,7 @@ async def get_faction_hierarchy(slug: str):
 
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/admin/wiki/{faction_id}/members", summary="[Admin] Thêm thành viên vào cﾃ｢y thế l盻ｱc")
+@app.post("/api/admin/wiki/{faction_id}/members", summary="[Admin] Thêm thành viên vào cây thế lực")
 
 async def admin_add_faction_member(
 
@@ -4163,7 +4086,7 @@ async def admin_add_faction_member(
 
 ):
 
-    """Thêm m盻冲 node mới vào cﾃ｢y tỷch盻ｩc. Yêu c蘯ｧu quyền Admin."""
+    """Thêm một node mới vào cây tổ chức. Yêu cầu quyền Admin."""
 
     await verify_admin(authorization)
 
@@ -4177,7 +4100,7 @@ async def admin_add_faction_member(
 
         if not result.data:
 
-            raise HTTPException(status_code=500, detail="Không th盻・thêm thành viên")
+            raise HTTPException(status_code=500, detail="Không thể thêm thành viên")
 
         return result.data[0]
 
@@ -4189,7 +4112,7 @@ async def admin_add_faction_member(
 
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.put("/api/admin/wiki/members/{member_id}", summary="[Admin] S盻ｭa thành viên trong cﾃ｢y thế l盻ｱc")
+@app.put("/api/admin/wiki/members/{member_id}", summary="[Admin] Sửa thành viên trong cây thế lực")
 
 async def admin_update_faction_member(
 
@@ -4201,7 +4124,7 @@ async def admin_update_faction_member(
 
 ):
 
-    """Cập nhật thông tin node trong cﾃ｢y tỷch盻ｩc."""
+    """Cập nhật thông tin node trong cây tổ chức."""
 
     await verify_admin(authorization)
 
@@ -4225,7 +4148,7 @@ async def admin_update_faction_member(
 
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.delete("/api/admin/wiki/members/{member_id}", summary="[Admin] Xóa thành viên khỏi cﾃ｢y thế l盻ｱc")
+@app.delete("/api/admin/wiki/members/{member_id}", summary="[Admin] Xóa thành viên khỏi cây thế lực")
 
 async def admin_delete_faction_member(
 
@@ -4235,7 +4158,7 @@ async def admin_delete_faction_member(
 
 ):
 
-    """Xóa node khỏi cﾃ｢y. Children s蘯ｽ được detach (parent_id = null)."""
+    """Xóa node khỏi cây. Children sẽ được detach (parent_id = null)."""
 
     await verify_admin(authorization)
 
@@ -4257,11 +4180,11 @@ async def admin_delete_faction_member(
 
 # ============================================================
 
-# WIKI - Bﾃ，H KHOA TOﾃN THﾆｯ
+# WIKI - BÁCH KHOA TOÀN THƯ
 
 # ============================================================
 
-VALID_WIKI_CATEGORIES = ["Nhﾃ｢n vật", "Sinh vật", "Thế l盻ｱc", "Vật phẩm", "ﾄ雪ｻ蟻 điểm"]
+VALID_WIKI_CATEGORIES = ["Nhân vật", "Sinh vật", "Thế lực", "Vật phẩm", "Địa điểm"]
 
 class WikiEntryOut(BaseModel):
 
@@ -4315,17 +4238,17 @@ class AdminWikiBatchTranslateRequest(BaseModel):
 
 async def get_wiki_entries(
 
-    category: Optional[str] = Query(None, description="L盻皇 theo category"),
+    category: Optional[str] = Query(None, description="Lọc theo category"),
 
-    search: Optional[str] = Query(None, description="Tim kiem theo tieu de"),
+    search: Optional[str] = Query(None, description="Tìm kiếm theo tiêu đề"),
 
-    page: int = Query(1, ge=1, description="S盻・trang"),
+    page: int = Query(1, ge=1, description="Số trang"),
 
-    limit: int = Query(50, ge=1, le=200, description="S盻・lﾆｰ盻｣ng m盻擁 trang"),
+    limit: int = Query(50, ge=1, le=200, description="Số lượng mỗi trang"),
 
 ):
 
-    """Lấy danh sách tất cả wiki entries, có th盻・l盻皇 theo category ho蘯ｷc tìm kiếm."""
+    """Lấy danh sách tất cả wiki entries, có thể lọc theo category hoặc tìm kiếm."""
 
     try:
 
@@ -4396,7 +4319,7 @@ async def get_wiki_entries(
 @app.get("/api/wiki/{slug}", summary="Lấy chi tiết Wiki entry")
 
 async def get_wiki_entry(slug: str, locale: str = Query(DEFAULT_LOCALE, description="Requested locale")):
-    """Lấy m盻冲 wiki entry theo slug."""
+    """Lấy một wiki entry theo slug."""
 
     try:
 
@@ -4431,7 +4354,7 @@ async def get_wiki_entry(slug: str, locale: str = Query(DEFAULT_LOCALE, descript
 
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/wiki", summary="Tạo Wiki entry mới (Admin)")
+@app.post("/api/wiki", summary="T?o Wiki entry m?i (Admin)")
 
 async def create_wiki_entry(
 
@@ -4441,7 +4364,7 @@ async def create_wiki_entry(
 
 ):
 
-    """Tạo wiki entry mới. Yêu c蘯ｧu quyền Admin."""
+    """Tạo wiki entry mới. Yêu cầu quyền Admin."""
 
     await verify_admin(authorization)
 
@@ -4449,7 +4372,7 @@ async def create_wiki_entry(
 
         if body.category not in VALID_WIKI_CATEGORIES:
 
-            raise HTTPException(status_code=400, detail=f"Category không h盻｣p l盻・ Ch盻肱 trong: {VALID_WIKI_CATEGORIES}")
+            raise HTTPException(status_code=400, detail=f"Category không hợp lệ. Chọn trong: {VALID_WIKI_CATEGORIES}")
 
         data = body.model_dump(exclude_none=True)
 
@@ -4469,7 +4392,7 @@ async def create_wiki_entry(
 
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.put("/api/wiki/{entry_id}", summary="S盻ｭa Wiki entry (Admin)")
+@app.put("/api/wiki/{entry_id}", summary="Sửa Wiki entry (Admin)")
 
 async def update_wiki_entry(
 
@@ -4481,7 +4404,7 @@ async def update_wiki_entry(
 
 ):
 
-    """Cập nhật wiki entry theo id. Yêu c蘯ｧu quyền Admin."""
+    """Cập nhật wiki entry theo id. Yêu cầu quyền Admin."""
 
     await verify_admin(authorization)
 
@@ -4501,7 +4424,7 @@ async def update_wiki_entry(
 
         if not result.data:
 
-            raise HTTPException(status_code=404, detail="Entry không t盻渡 tại")
+            raise HTTPException(status_code=404, detail="Entry không tồn tại")
 
         return result.data[0]
 
@@ -4513,7 +4436,7 @@ async def update_wiki_entry(
 
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.delete("/api/wiki/{entry_id}", summary="Xóa Wiki entry (Admin)")
+@app.delete("/api/wiki/{entry_id}", summary="X?a Wiki entry (Admin)")
 
 async def delete_wiki_entry(
 
@@ -4523,7 +4446,7 @@ async def delete_wiki_entry(
 
 ):
 
-    """Xóa wiki entry theo id. Yêu c蘯ｧu quyền Admin."""
+    """Xóa wiki entry theo id. Yêu cầu quyền Admin."""
 
     await verify_admin(authorization)
 
@@ -4539,7 +4462,7 @@ async def delete_wiki_entry(
 
 # ============================================================
 
-#   GUIDE PAGES (Hướng dẫn s盻ｭ d盻･ng & SOP nội b盻・
+#   GUIDE PAGES (Hướng dẫn sử dụng & SOP nội bộ)
 
 # ============================================================
 
@@ -4549,7 +4472,7 @@ class GuidePageUpdate(BaseModel):
 
     content: Optional[str] = None
 
-@app.get("/api/guide/{slug}", summary="Lấy trang hﾆｰ盻嬾g dẩnn public")
+@app.get("/api/guide/{slug}", summary="Lấy trang hướng dẫn public")
 
 async def _public_guide_route(slug: str, locale: str = Query(DEFAULT_LOCALE, description="Requested locale")):
     return await get_public_guide(slug, locale)
@@ -4669,7 +4592,7 @@ async def upsert_guide_translations(slug: str, scope: str, guide_payload: dict, 
     }
 
 async def get_public_guide(slug: str, locale: str = Query(DEFAULT_LOCALE, description="Requested locale")):
-    """Lấy nội dung trang hﾆｰ盻嬾g dẩnn có scope = 'public'."""
+    """Lấy nội dung trang hướng dẫn có scope = 'public'."""
 
     try:
         result = supabase.table("guide_pages").select("*").eq("slug", slug).eq("scope", "public").execute()
@@ -4683,7 +4606,7 @@ async def get_public_guide(slug: str, locale: str = Query(DEFAULT_LOCALE, descri
 
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/admin/guide/{slug}", summary="Lấy trang hﾆｰ盻嬾g dẩnn (Admin)")
+@app.get("/api/admin/guide/{slug}", summary="Lấy trang hướng dẫn (Admin)")
 
 async def get_admin_guide(
 
@@ -4693,7 +4616,7 @@ async def get_admin_guide(
 
 ):
 
-    """Lấy nội dung bất k盻ｳ trang nào (k盻・cả internal). Yêu c蘯ｧu Admin."""
+    """Lấy nội dung bất kỳ trang nào (kể cả internal). Yêu cầu Admin."""
 
     await verify_admin(authorization)
 
@@ -4715,7 +4638,7 @@ async def get_admin_guide(
 
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.put("/api/admin/guide/{slug}", summary="Cập nhật trang hﾆｰ盻嬾g dẩnn (Admin)")
+@app.put("/api/admin/guide/{slug}", summary="Cập nhật trang hướng dẫn (Admin)")
 
 async def update_guide(
     slug: str,
@@ -4726,7 +4649,7 @@ async def update_guide(
 
 ):
 
-    """Cập nhật ho蘯ｷc tạo mới trang hﾆｰ盻嬾g dẩnn. Yêu c蘯ｧu Admin."""
+    """Cập nhật hoặc tạo mới trang hướng dẫn. Yêu cầu Admin."""
 
     await verify_admin(authorization)
 

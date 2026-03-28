@@ -128,13 +128,13 @@ export default function AdminHomepagePage() {
                 const translatedLocales = Array.isArray(payload.auto_translated_locales) ? payload.auto_translated_locales.join(", ") : "";
                 setSuccess(
                     translatedLocales
-                        ? `Da luu VI. Da dich: ${translatedLocales}. Chua dich duoc: ${failedLocales}.`
-                        : `Da luu VI, nhung auto-dich tam thoi that bai cho: ${failedLocales}.`
+                        ? `Đã lưu VI. Đã dịch: ${translatedLocales}. Chưa dịch được: ${failedLocales}.`
+                        : `Đã lưu VI, nhưng auto-dịch tạm thời thất bại cho: ${failedLocales}.`
                 );
             } else if (locale === "vi" && Array.isArray(payload.auto_translated_locales) && payload.auto_translated_locales.length > 0) {
-                setSuccess(`ﾄ静｣ lﾆｰu locale vi vﾃ t盻ｱ ﾄ黛ｻ盻冨 d盻議h: ${payload.auto_translated_locales.join(", ")}`);
+                setSuccess(`Đã lưu locale vi và tự động dịch: ${payload.auto_translated_locales.join(", ")}`);
             } else {
-                setSuccess(`ﾄ静｣ lﾆｰu c蘯･u hﾃｬnh locale ${locale}.`);
+                setSuccess(`Đã lưu cấu hình locale ${locale}.`);
             }
         } catch (eventualError: any) {
             setError(eventualError?.message || "Lưu cấu hình thất bại.");
@@ -157,8 +157,8 @@ export default function AdminHomepagePage() {
                 const translatedLocales = Array.isArray(result.translated_locales) ? result.translated_locales.join(", ") : "";
                 setSuccess(
                     translatedLocales
-                        ? `Da dich: ${translatedLocales}. Chua dich duoc: ${failedLocales}.`
-                        : `Chua dich duoc locale nao. That bai: ${failedLocales}.`
+                        ? `Đã dịch: ${translatedLocales}. Chưa dịch được: ${failedLocales}.`
+                        : `Chưa dịch được locale nào. Thất bại: ${failedLocales}.`
                 );
             }
             setSuccess(`Đã dịch: ${result.translated_locales.join(", ")}`);
@@ -167,11 +167,11 @@ export default function AdminHomepagePage() {
                 const translatedLocales = Array.isArray(result.translated_locales) ? result.translated_locales.join(", ") : "";
                 setSuccess(
                     translatedLocales
-                        ? `Da dich: ${translatedLocales}. Chua dich duoc: ${failedLocales}.`
-                        : `Chua dich duoc locale nao. That bai: ${failedLocales}.`
+                        ? `Đã dịch: ${translatedLocales}. Chưa dịch được: ${failedLocales}.`
+                        : `Chưa dịch được locale nào. Thất bại: ${failedLocales}.`
                 );
             } else if (!Array.isArray(result.failed_translations) || result.failed_translations.length === 0) {
-                setSuccess(`Da dich: ${result.translated_locales.join(", ")}`);
+                setSuccess(`Đã dịch: ${result.translated_locales.join(", ")}`);
             }
             if (locale !== "vi") {
                 const params = new URLSearchParams({ locale });
