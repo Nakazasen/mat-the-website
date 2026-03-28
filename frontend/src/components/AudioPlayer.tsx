@@ -27,6 +27,7 @@ const AUDIO_FLOATING_STORAGE_KEY = 'reader-audio-floating-position-v1';
 const AUDIO_FLOATING_WIDTH = 360;
 const AUDIO_FLOATING_MARGIN = 16;
 const MOBILE_PANEL_EVENT = 'reader-learning-mobile-panel';
+const AUDIO_LAYOUT_EVENT = 'reader-audio-layout';
 
 function shouldIgnoreAudioHotkeys(target: EventTarget | null): boolean {
     if (!(target instanceof HTMLElement)) return false;
@@ -193,6 +194,31 @@ export default function AudioPlayer({
             }));
         };
     }, [playState]);
+
+    useEffect(() => {
+        const emitLayout = () => {
+            const isMobileActive = !isDesktop && playState !== 'stopped' && !mobileLearningPanelActive;
+            const height = isMobileActive ? (floatingPanelRef.current?.offsetHeight ?? 0) : 0;
+            window.dispatchEvent(new CustomEvent(AUDIO_LAYOUT_EVENT, {
+                detail: {
+                    active: isMobileActive,
+                    height,
+                },
+            }));
+        };
+
+        emitLayout();
+        window.addEventListener('resize', emitLayout);
+        return () => {
+            window.removeEventListener('resize', emitLayout);
+            window.dispatchEvent(new CustomEvent(AUDIO_LAYOUT_EVENT, {
+                detail: {
+                    active: false,
+                    height: 0,
+                },
+            }));
+        };
+    }, [isDesktop, mobileLearningPanelActive, playState]);
 
     const stop = useCallback(() => {
         stoppedRef.current = true;

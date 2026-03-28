@@ -37,6 +37,7 @@ interface ReaderQuickLookupProps {
 }
 
 const MOBILE_PANEL_EVENT = 'reader-learning-mobile-panel';
+const AUDIO_LAYOUT_EVENT = 'reader-audio-layout';
 
 function getLookupSourceLabel(source?: string | null): string {
     if (source === 'cache') return 'Cache';
@@ -124,6 +125,7 @@ export default function ReaderQuickLookup({
     const [audioError, setAudioError] = useState<string | null>(null);
     const [audioPlaying, setAudioPlaying] = useState(false);
     const [audioActive, setAudioActive] = useState(false);
+    const [audioPanelHeight, setAudioPanelHeight] = useState(0);
     const [isDesktop, setIsDesktop] = useState(false);
     const [showGuide, setShowGuide] = useState(false);
 
@@ -133,9 +135,9 @@ export default function ReaderQuickLookup({
     }, [lookupResult, selectedText, sourceLocale]);
 
     const panelBottom = useMemo(() => {
-        if (audioActive) return isDesktop ? 226 : 196;
+        if (audioActive) return isDesktop ? 226 : Math.max(196, audioPanelHeight + 28);
         return isDesktop ? 96 : 88;
-    }, [audioActive, isDesktop]);
+    }, [audioActive, audioPanelHeight, isDesktop]);
 
     const panelTop = useMemo(() => (isDesktop ? 92 : 80), [isDesktop]);
 
@@ -517,14 +519,21 @@ export default function ReaderQuickLookup({
             setAudioActive(Boolean(detail?.active));
         };
 
+        const handleAudioLayout = (event: Event) => {
+            const detail = (event as CustomEvent<{ active?: boolean; height?: number }>).detail;
+            setAudioPanelHeight(detail?.active ? Math.max(0, detail?.height || 0) : 0);
+        };
+
         const updateViewport = () => setIsDesktop(window.innerWidth >= 768);
 
         updateViewport();
         window.addEventListener('resize', updateViewport);
         window.addEventListener('reader-audio-state', handleAudioState as EventListener);
+        window.addEventListener(AUDIO_LAYOUT_EVENT, handleAudioLayout as EventListener);
         return () => {
             window.removeEventListener('resize', updateViewport);
             window.removeEventListener('reader-audio-state', handleAudioState as EventListener);
+            window.removeEventListener(AUDIO_LAYOUT_EVENT, handleAudioLayout as EventListener);
         };
     }, []);
 

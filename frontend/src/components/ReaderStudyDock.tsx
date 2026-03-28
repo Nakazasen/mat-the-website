@@ -32,6 +32,7 @@ const DESKTOP_DEFAULT_POSITION = { top: 132, left: 16 };
 const DESKTOP_PANEL_WIDTH = 392;
 const DESKTOP_PANEL_MARGIN = 16;
 const MOBILE_PANEL_EVENT = "reader-learning-mobile-panel";
+const AUDIO_LAYOUT_EVENT = "reader-audio-layout";
 
 function StudyLinks({ onNavigate }: { onNavigate?: () => void }) {
     const { localizePath } = useLocale();
@@ -176,6 +177,7 @@ export default function ReaderStudyDock() {
     const [error, setError] = useState<string | null>(null);
     const [mobileOpen, setMobileOpen] = useState(false);
     const [audioActive, setAudioActive] = useState(false);
+    const [audioPanelHeight, setAudioPanelHeight] = useState(0);
     const [isDesktop, setIsDesktop] = useState(false);
     const [dragging, setDragging] = useState(false);
     const [desktopPosition, setDesktopPosition] = useState(DESKTOP_DEFAULT_POSITION);
@@ -211,8 +213,17 @@ export default function ReaderStudyDock() {
             setAudioActive(Boolean(detail?.active));
         };
 
+        const handleAudioLayout = (event: Event) => {
+            const detail = (event as CustomEvent<{ active?: boolean; height?: number }>).detail;
+            setAudioPanelHeight(detail?.active ? Math.max(0, detail?.height || 0) : 0);
+        };
+
         window.addEventListener("reader-audio-state", handleAudioState as EventListener);
-        return () => window.removeEventListener("reader-audio-state", handleAudioState as EventListener);
+        window.addEventListener(AUDIO_LAYOUT_EVENT, handleAudioLayout as EventListener);
+        return () => {
+            window.removeEventListener("reader-audio-state", handleAudioState as EventListener);
+            window.removeEventListener(AUDIO_LAYOUT_EVENT, handleAudioLayout as EventListener);
+        };
     }, []);
 
     useEffect(() => {
@@ -235,7 +246,10 @@ export default function ReaderStudyDock() {
         return () => window.removeEventListener(MOBILE_PANEL_EVENT, handleMobilePanelEvent as EventListener);
     }, []);
 
-    const mobileBottom = useMemo(() => (audioActive ? 174 : 88), [audioActive]);
+    const mobileBottom = useMemo(() => {
+        if (!audioActive) return 88;
+        return Math.max(88, audioPanelHeight + 116);
+    }, [audioActive, audioPanelHeight]);
 
     const getDesktopMinTop = useCallback(() => {
         if (typeof window === "undefined") return DESKTOP_DEFAULT_POSITION.top;
