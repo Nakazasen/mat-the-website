@@ -166,6 +166,7 @@ class ReaderSourceReferenceResponse(BaseModel):
     translated_excerpt: Optional[str] = None
     source_excerpt: str
     paragraph_index: Optional[int] = None
+    match_mode: Literal["sentence", "paragraph"] = "paragraph"
     source: LookupSource
 
 
@@ -321,6 +322,28 @@ def _find_best_matching_block(translated_blocks: list[str], selected_text: str, 
             best_index = index
 
     return best_index, best_score
+
+
+def _split_sentences(text: Optional[str]) -> list[str]:
+    plain_text = _strip_html_to_text(text)
+    if not plain_text:
+        return []
+    parts = re.split(r"(?<=[.!?。！？…])[\s\"'”’）】]*", plain_text)
+    sentences = [part.strip() for part in parts if part and part.strip()]
+    return sentences if sentences else [plain_text.strip()]
+
+
+def _should_match_sentence(selected_text: str, context_sentence: Optional[str]) -> bool:
+    normalized_selected = _normalize_match_text(selected_text)
+    normalized_context = _normalize_match_text(context_sentence)
+    if not normalized_selected or not normalized_context:
+        return False
+    if normalized_selected == normalized_context:
+        return True
+    length_gap = abs(len(normalized_selected) - len(normalized_context))
+    if length_gap > max(12, len(normalized_context) // 5):
+        return False
+    return _overlap_score(normalized_selected, normalized_context) >= 0.92
 
 
 def _context_hash(context_sentence: Optional[str]) -> str:
@@ -887,6 +910,7 @@ async def source_reference(body: ReaderSourceReferenceRequest):
             translated_excerpt=context_sentence or selected_text,
             source_excerpt=context_sentence or selected_text,
             paragraph_index=None,
+            match_mode="sentence" if _should_match_sentence(selected_text, context_sentence) else "paragraph",
             source="rule_based",
         )
 
@@ -945,6 +969,20 @@ async def source_reference(body: ReaderSourceReferenceRequest):
     source_index = min(best_index, max(len(source_blocks) - 1, 0))
     translated_excerpt = translated_blocks[best_index].strip()
     source_excerpt = source_blocks[source_index].strip()
+    match_mode: Literal["sentence", "paragraph"] = "paragraph"
+
+    if _should_match_sentence(selected_text, context_sentence):
+        translated_sentences = _split_sentences(translated_excerpt)
+        source_sentences = _split_sentences(source_excerpt)
+        sentence_index, sentence_score = _find_best_matching_block(
+            translated_sentences,
+            selected_text,
+            context_sentence,
+        )
+        if sentence_index is not None and sentence_score >= 0.35:
+            match_mode = "sentence"
+            translated_excerpt = translated_sentences[sentence_index].strip()
+            source_excerpt = source_sentences[min(sentence_index, max(len(source_sentences) - 1, 0))].strip()
 
     _log_reader_event(
         "info",
@@ -953,6 +991,7 @@ async def source_reference(body: ReaderSourceReferenceRequest):
         chapter_id=body.chapter_id,
         paragraph_index=source_index,
         score=round(best_score, 3),
+        match_mode=match_mode,
     )
     return ReaderSourceReferenceResponse(
         locale=locale,
@@ -960,6 +999,7 @@ async def source_reference(body: ReaderSourceReferenceRequest):
         translated_excerpt=translated_excerpt,
         source_excerpt=source_excerpt,
         paragraph_index=source_index,
+        match_mode=match_mode,
         source="rule_based",
     )
 

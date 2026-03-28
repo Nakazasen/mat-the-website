@@ -107,6 +107,10 @@ function shouldPrioritizeSourceReference(locale: Locale, text: string): boolean 
     return normalized.length >= 24 || wordCount >= 5;
 }
 
+function getSourceReferenceModeLabel(mode?: 'sentence' | 'paragraph'): string {
+    return mode === 'sentence' ? 'Đang đối chiếu theo câu' : 'Đang đối chiếu theo đoạn';
+}
+
 export default function ReaderQuickLookup({
     chapterId,
     chapterProgress,
@@ -815,8 +819,13 @@ export default function ReaderQuickLookup({
 
                                 {sourceReference && (
                                     <div className="rounded-xl border border-emerald-900/40 bg-emerald-950/15 px-3 py-3 text-sm text-emerald-50">
-                                        <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-emerald-300">
-                                            Đối chiếu bản gốc tiếng Việt
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                            <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-emerald-300">
+                                                Đối chiếu bản gốc tiếng Việt
+                                            </div>
+                                            <div className="rounded-full border border-emerald-700/40 px-2 py-1 text-[10px] font-mono uppercase tracking-[0.16em] text-emerald-200">
+                                                {getSourceReferenceModeLabel(sourceReference.match_mode)}
+                                            </div>
                                         </div>
                                         <div className="mt-3 grid gap-3 md:grid-cols-2">
                                             {sourceReference.translated_excerpt && (

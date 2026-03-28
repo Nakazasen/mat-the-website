@@ -60,6 +60,7 @@ export interface ReaderSourceReferenceResponse {
     translated_excerpt?: string | null;
     source_excerpt: string;
     paragraph_index?: number | null;
+    match_mode: "sentence" | "paragraph";
     source: ReaderLookupSource;
 }
 
