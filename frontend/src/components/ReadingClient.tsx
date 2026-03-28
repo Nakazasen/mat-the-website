@@ -280,20 +280,18 @@ export default function ReadingClient({
 
                 const safeHistory = history.map(String);
                 const currentId = String(chapterId);
-                let isNewRead = false;
-
                 if (!safeHistory.includes(currentId)) {
                     safeHistory.push(currentId);
                     localStorage.setItem("readingHistory", JSON.stringify(safeHistory));
-                    isNewRead = true;
                 }
 
                 fetch("/api/user/read-progress", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        chaptersReadCount: safeHistory.length,
-                        newExpAmount: isNewRead ? 10 : 0,
+                        chapterId,
+                        locale,
+                        newExpAmount: 10,
                     }),
                 }).catch(() => {});
             } catch {
@@ -302,7 +300,7 @@ export default function ReadingClient({
         }, 5000);
 
         return () => clearTimeout(timer);
-    }, [chapterId, chapterNumber, chapterTitle]);
+    }, [chapterId, chapterNumber, chapterTitle, locale]);
 
     return (
         <div suppressHydrationWarning className={`min-h-screen bg-reader-bg text-reader-text transition-colors duration-300 ${fontFamily === "serif" ? "font-serif" : "font-sans"}`}>
@@ -493,7 +491,7 @@ export default function ReadingClient({
                 <div className="flex justify-center py-8 border-t border-reader-border mt-8">
                     <div className="flex flex-col items-center gap-3">
                         <p className="text-xs font-mono text-reader-muted">{dictionary.reader.leaveALike}</p>
-                        <LikeButton chapterNumber={chapterNumber} />
+                        <LikeButton chapterId={chapterId} chapterNumber={chapterNumber} />
                     </div>
                 </div>
 

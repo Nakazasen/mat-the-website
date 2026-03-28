@@ -42,7 +42,8 @@ function ProfileContent() {
                 setStats(prev => ({
                     ...prev,
                     chaptersRead: profileData.chapters_read || 0,
-                    exp: profileData.exp || 0
+                    exp: profileData.exp || 0,
+                    likesGiven: profileData.likes_given || 0,
                 }));
             }).catch(err => {
                 console.error("Profile fetch error:", err);
@@ -56,7 +57,7 @@ function ProfileContent() {
                 if (Array.isArray(data)) setBookmarks(data);
             }).catch(() => { });
 
-            // Load likes given (still from localStorage for now as it's not and DB profile natively yet)
+            // Keep local fallback while older likes migrate to DB-based tracking.
             try {
                 let likesGiven = 0;
                 for (let i = 0; i < localStorage.length; i++) {
@@ -66,7 +67,7 @@ function ProfileContent() {
                         if (val === "true") likesGiven++;
                     }
                 }
-                setStats(prev => ({ ...prev, likesGiven }));
+                setStats(prev => ({ ...prev, likesGiven: Math.max(prev.likesGiven, likesGiven) }));
             } catch { }
         });
     }, [router]);

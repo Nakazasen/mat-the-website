@@ -5,22 +5,46 @@ import { Heart } from "lucide-react";
 import { likeChapter } from "@/lib/api";
 
 interface LikeButtonProps {
+    chapterId: number;
     chapterNumber: number;
 }
 
 const STORAGE_KEY = (n: number) => `liked_chapter_${n}`;
 
-export default function LikeButton({ chapterNumber }: LikeButtonProps) {
+export default function LikeButton({ chapterId, chapterNumber }: LikeButtonProps) {
     const [liked, setLiked] = useState(false);
     const [count, setCount] = useState<number | null>(null);
     const [animating, setAnimating] = useState(false);
     const [showTip, setShowTip] = useState(false);
 
     useEffect(() => {
-        // Check if already liked from a previous visit
-        const alreadyLiked = localStorage.getItem(STORAGE_KEY(chapterNumber)) === "true";
-        setLiked(alreadyLiked);
-    }, [chapterNumber]);
+        let active = true;
+
+        const loadLikeState = async () => {
+            const localLiked = localStorage.getItem(STORAGE_KEY(chapterNumber)) === "true";
+            if (active) {
+                setLiked(localLiked);
+            }
+
+            try {
+                const response = await fetch(`/api/user/chapter-engagement?chapter_id=${chapterId}`);
+                if (!response.ok) return;
+                const payload = await response.json();
+                if (!active) return;
+                if (payload?.has_liked) {
+                    setLiked(true);
+                    localStorage.setItem(STORAGE_KEY(chapterNumber), "true");
+                }
+            } catch {
+                // Keep local fallback for guests or temporary API issues.
+            }
+        };
+
+        loadLikeState();
+        return () => {
+            active = false;
+        };
+    }, [chapterId, chapterNumber]);
 
     async function handleLike() {
         if (liked) {
@@ -36,8 +60,30 @@ export default function LikeButton({ chapterNumber }: LikeButtonProps) {
         setTimeout(() => setAnimating(false), 600);
 
         try {
-            const data = await likeChapter(chapterNumber);
-            setCount(data.likes_count);
+            const response = await fetch("/api/user/chapter-engagement", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    action: "like",
+                    chapter_id: chapterId,
+                    chapter_number: chapterNumber,
+                }),
+            });
+
+            if (response.status === 401) {
+                const data = await likeChapter(chapterNumber);
+                setCount(data.likes_count);
+                return;
+            }
+
+            if (!response.ok) {
+                throw new Error("Không ghi nhận được lượt tim.");
+            }
+
+            const payload = await response.json();
+            if (typeof payload.likes_count === "number") {
+                setCount(payload.likes_count);
+            }
         } catch {
             // silently fail - localStorage already persists the like visually
         }
