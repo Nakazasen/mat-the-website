@@ -43,7 +43,8 @@ def normalize_name(name: str) -> str:
     import unicodedata
 
     nfkd = unicodedata.normalize("NFKD", name.lower().strip())
-    return re.sub(r"[^\w\s]", "", "".join(c for c in nfkd if not unicodedata.combining(c))).strip()
+    base = re.sub(r"[^\w\s]", "", "".join(c for c in nfkd if not unicodedata.combining(c))).strip()
+    return re.sub(r"\s+", " ", base).strip()
 
 
 def _compact_name(value: str) -> str:
@@ -74,6 +75,94 @@ def _alias_match_score(search_value: str, alias_value: str) -> float:
             return 0.8
 
     return SequenceMatcher(None, query_compact[:120], alias_compact[:120]).ratio() * 0.75
+
+
+def _build_search_candidates(search_value: str) -> list[str]:
+    raw = (search_value or "").strip()
+    normalized = normalize_name(raw)
+    compact = _compact_name(normalized)
+    candidates: list[str] = []
+    for value in (raw, normalized, compact):
+        if value and value not in candidates:
+            candidates.append(value)
+    return candidates
+
+
+def _select_best_manual_alias_row(alias_rows: list[dict], search_value: str, locale: str) -> tuple[Optional[dict], float]:
+    best_row: Optional[dict] = None
+    best_score = 0.0
+    normalized_locale = (locale or "").strip()
+    for row in alias_rows:
+        alias_text = str(row.get("alias") or "").strip()
+        alias_locale = str(row.get("locale") or "any").strip()
+        if not alias_text:
+            continue
+        locale_bonus = 0.0
+        if alias_locale == normalized_locale:
+            locale_bonus = 0.08
+        elif alias_locale in ("any", "*"):
+            locale_bonus = 0.04
+        score = _alias_match_score(search_value, alias_text) + locale_bonus
+        if score > best_score:
+            best_score = score
+            best_row = row
+    return best_row, best_score
+
+
+def query_character_manual_alias_map(supabase, search_value: str, chapter: int, locale: str):
+    candidates = _build_search_candidates(search_value)
+    if not candidates:
+        return None, None
+
+    try:
+        alias_rows = (
+            supabase.table("wiki_character_aliases")
+            .select("wiki_entry_id, alias, locale")
+            .limit(3000)
+            .execute()
+        )
+    except Exception:
+        return None, None
+
+    rows = list(alias_rows.data or [])
+    if not rows:
+        return None, None
+
+    best_row = None
+    best_score = 0.0
+    for candidate in candidates:
+        row, score = _select_best_manual_alias_row(rows, candidate, locale)
+        if row and score > best_score:
+            best_row = row
+            best_score = score
+
+    if not best_row or best_score < 0.78:
+        return None, None
+
+    wiki_entry_id = best_row.get("wiki_entry_id")
+    if not wiki_entry_id:
+        return None, None
+
+    try:
+        entry_result = (
+            supabase.table("wiki_entries")
+            .select("*")
+            .eq("id", wiki_entry_id)
+            .limit(1)
+            .execute()
+        )
+        if not entry_result.data:
+            return None, None
+        entry = entry_result.data[0]
+    except Exception:
+        return None, None
+
+    chapter_introduced = entry.get("chapter_introduced")
+    if chapter_introduced is not None and chapter_introduced > chapter:
+        return None, None
+
+    translation = query_character_translation(supabase, entry.get("id"), locale)
+    return entry, translation
 
 
 def query_character_alias_match_fuzzy(supabase, search_value: str, chapter: int, locale: str):
@@ -345,6 +434,8 @@ async def get_character(
                 row = query_character_alias_match(supabase, normalized_query, chapter)
             if not row:
                 row = query_character(supabase, normalized_query, chapter)
+        if not row:
+            row, translation = query_character_manual_alias_map(supabase, name.strip(), chapter, locale)
         if not row:
             row, translation = query_character_alias_match_fuzzy(supabase, name.strip(), chapter, locale)
         if not row:

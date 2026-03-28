@@ -20,3 +20,21 @@ def test_alias_match_score_handles_diacritics():
 def test_alias_match_score_handles_compact_name():
     score = wiki_search._alias_match_score("HanPhong", "Han Phong")
     assert score >= 0.85
+
+
+def test_build_search_candidates_deduplicates_normalized_forms():
+    candidates = wiki_search._build_search_candidates("  Bạch   Tường  Vi ")
+    assert "Bạch   Tường  Vi" in candidates
+    assert "bach tuong vi" in candidates
+    assert "bachtuongvi" in candidates
+
+
+def test_select_best_manual_alias_row_prioritizes_locale_bonus():
+    rows = [
+        {"wiki_entry_id": "1", "alias": "Han Phong", "locale": "any"},
+        {"wiki_entry_id": "2", "alias": "Han Phong", "locale": "en"},
+    ]
+    row, score = wiki_search._select_best_manual_alias_row(rows, "HanPhong", "en")
+    assert row is not None
+    assert row["wiki_entry_id"] == "2"
+    assert score > 0
