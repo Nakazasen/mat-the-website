@@ -7,6 +7,7 @@ import {
     ExternalLink,
     Loader2,
     Quote,
+    Repeat,
     Search,
     Square,
     Volume2,
@@ -111,6 +112,35 @@ function getSourceReferenceModeLabel(mode?: 'sentence' | 'paragraph'): string {
     return mode === 'sentence' ? 'Đang đối chiếu theo câu' : 'Đang đối chiếu theo đoạn';
 }
 
+function buildDiffHighlightSegments(leftText?: string | null, rightText?: string | null) {
+    const left = leftText || '';
+    const right = rightText || '';
+
+    let prefix = 0;
+    while (prefix < left.length && prefix < right.length && left[prefix] === right[prefix]) {
+        prefix += 1;
+    }
+
+    let leftSuffix = left.length - 1;
+    let rightSuffix = right.length - 1;
+    while (leftSuffix >= prefix && rightSuffix >= prefix && left[leftSuffix] === right[rightSuffix]) {
+        leftSuffix -= 1;
+        rightSuffix -= 1;
+    }
+
+    const makeSegments = (value: string, suffixIndex: number) => ({
+        before: value.slice(0, prefix),
+        changed: value.slice(prefix, suffixIndex + 1),
+        after: value.slice(suffixIndex + 1),
+    });
+
+    return {
+        left: makeSegments(left, leftSuffix),
+        right: makeSegments(right, rightSuffix),
+        hasDiff: prefix < left.length || prefix < right.length,
+    };
+}
+
 export default function ReaderQuickLookup({
     chapterId,
     chapterProgress,
@@ -145,6 +175,7 @@ export default function ReaderQuickLookup({
     const [sourceReferenceLoading, setSourceReferenceLoading] = useState(false);
     const [sourceReferenceError, setSourceReferenceError] = useState<string | null>(null);
     const [sourceReference, setSourceReference] = useState<ReaderSourceReferenceResponse | null>(null);
+    const [sourceReferenceSwapOrder, setSourceReferenceSwapOrder] = useState(false);
 
     const externalDictionaryUrl = useMemo(() => {
         if (lookupResult?.external_links?.[0]?.url) return lookupResult.external_links[0].url;
@@ -160,6 +191,10 @@ export default function ReaderQuickLookup({
     const preferSourceReference = useMemo(
         () => shouldPrioritizeSourceReference(sourceLocale, selectedText),
         [selectedText, sourceLocale],
+    );
+    const sourceReferenceDiff = useMemo(
+        () => buildDiffHighlightSegments(sourceReference?.translated_excerpt, sourceReference?.source_excerpt),
+        [sourceReference],
     );
 
     const hideToolbar = useCallback(() => {
@@ -445,6 +480,25 @@ export default function ReaderQuickLookup({
         setAudioError(null);
         void handleLoadSourceReference();
     }, [chapterId, handleLoadSourceReference, hideToolbar, selectedText, sourceLocale]);
+
+    const renderDiffText = useCallback(
+        (value: { before: string; changed: string; after: string }, tone: 'cyan' | 'emerald') => (
+            <div className="mt-2 whitespace-pre-wrap text-xs leading-6">
+                <span>{value.before}</span>
+                {value.changed && (
+                    <mark
+                        className={tone === 'cyan'
+                            ? 'rounded bg-cyan-500/15 px-0.5 text-cyan-100'
+                            : 'rounded bg-emerald-500/15 px-0.5 text-emerald-50'}
+                    >
+                        {value.changed}
+                    </mark>
+                )}
+                <span>{value.after}</span>
+            </div>
+        ),
+        [],
+    );
 
     useEffect(() => {
         const audio = audioRef.current;
@@ -820,32 +874,79 @@ export default function ReaderQuickLookup({
                                 {sourceReference && (
                                     <div className="rounded-xl border border-emerald-900/40 bg-emerald-950/15 px-3 py-3 text-sm text-emerald-50">
                                         <div className="flex flex-wrap items-center justify-between gap-2">
-                                            <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-emerald-300">
-                                                Đối chiếu bản gốc tiếng Việt
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-emerald-300">
+                                                    Đối chiếu bản gốc tiếng Việt
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSourceReferenceSwapOrder((prev) => !prev)}
+                                                    className="inline-flex items-center gap-1 rounded-full border border-emerald-700/40 px-2 py-1 text-[10px] font-mono uppercase tracking-[0.16em] text-emerald-200 hover:bg-emerald-500/10"
+                                                >
+                                                    <Repeat size={10} />
+                                                    Đảo vị trí
+                                                </button>
                                             </div>
                                             <div className="rounded-full border border-emerald-700/40 px-2 py-1 text-[10px] font-mono uppercase tracking-[0.16em] text-emerald-200">
                                                 {getSourceReferenceModeLabel(sourceReference.match_mode)}
                                             </div>
                                         </div>
                                         <div className="mt-3 grid gap-3 md:grid-cols-2">
-                                            {sourceReference.translated_excerpt && (
-                                                <div className="rounded-lg border border-ash-800 bg-black/20 px-3 py-3">
-                                                    <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-300">
-                                                        Bản dịch hiện tại
+                                            {(sourceReferenceSwapOrder ? [
+                                                {
+                                                    key: 'source',
+                                                    title: 'Bản gốc VI',
+                                                    tone: 'emerald' as const,
+                                                    content: sourceReference.source_excerpt,
+                                                    segments: sourceReferenceDiff.right,
+                                                },
+                                                {
+                                                    key: 'translation',
+                                                    title: 'Bản dịch hiện tại',
+                                                    tone: 'cyan' as const,
+                                                    content: sourceReference.translated_excerpt,
+                                                    segments: sourceReferenceDiff.left,
+                                                },
+                                            ] : [
+                                                {
+                                                    key: 'translation',
+                                                    title: 'Bản dịch hiện tại',
+                                                    tone: 'cyan' as const,
+                                                    content: sourceReference.translated_excerpt,
+                                                    segments: sourceReferenceDiff.left,
+                                                },
+                                                {
+                                                    key: 'source',
+                                                    title: 'Bản gốc VI',
+                                                    tone: 'emerald' as const,
+                                                    content: sourceReference.source_excerpt,
+                                                    segments: sourceReferenceDiff.right,
+                                                },
+                                            ]).map((card) => card.content ? (
+                                                <div
+                                                    key={card.key}
+                                                    className={`rounded-lg border px-3 py-3 ${
+                                                        card.tone === 'cyan'
+                                                            ? 'border-ash-800 bg-black/20'
+                                                            : 'border-emerald-900/30 bg-black/20'
+                                                    }`}
+                                                >
+                                                    <div className={`text-[10px] font-mono uppercase tracking-[0.18em] ${
+                                                        card.tone === 'cyan' ? 'text-cyan-300' : 'text-emerald-300'
+                                                    }`}>
+                                                        {card.title}
                                                     </div>
-                                                    <div className="mt-2 whitespace-pre-wrap text-xs leading-6 text-ash-300">
-                                                        {sourceReference.translated_excerpt}
-                                                    </div>
+                                                    {sourceReferenceDiff.hasDiff
+                                                        ? renderDiffText(card.segments, card.tone)
+                                                        : (
+                                                            <div className={`mt-2 whitespace-pre-wrap text-xs leading-6 ${
+                                                                card.tone === 'cyan' ? 'text-ash-300' : 'text-emerald-50'
+                                                            }`}>
+                                                                {card.content}
+                                                            </div>
+                                                        )}
                                                 </div>
-                                            )}
-                                            <div className="rounded-lg border border-emerald-900/30 bg-black/20 px-3 py-3">
-                                                <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-emerald-300">
-                                                    Bản gốc VI
-                                                </div>
-                                                <div className="mt-2 whitespace-pre-wrap text-xs leading-6 text-emerald-50">
-                                                    {sourceReference.source_excerpt}
-                                                </div>
-                                            </div>
+                                            ) : null)}
                                         </div>
                                         {typeof sourceReference.paragraph_index === 'number' && (
                                             <div className="mt-3 text-[10px] font-mono uppercase tracking-[0.2em] text-emerald-400">
