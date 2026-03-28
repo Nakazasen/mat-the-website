@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { Heart } from "lucide-react";
-import { likeChapter } from "@/lib/api";
 
 interface LikeButtonProps {
     chapterId: number;
@@ -70,12 +69,6 @@ export default function LikeButton({ chapterId, chapterNumber }: LikeButtonProps
                 }),
             });
 
-            if (response.status === 401) {
-                const data = await likeChapter(chapterNumber);
-                setCount(data.likes_count);
-                return;
-            }
-
             if (!response.ok) {
                 throw new Error("Không ghi nhận được lượt tim.");
             }
@@ -85,7 +78,9 @@ export default function LikeButton({ chapterId, chapterNumber }: LikeButtonProps
                 setCount(payload.likes_count);
             }
         } catch {
-            // silently fail - localStorage already persists the like visually
+            // Keep UI consistent with DB when write fails.
+            setLiked(false);
+            localStorage.removeItem(STORAGE_KEY(chapterNumber));
         }
     }
 

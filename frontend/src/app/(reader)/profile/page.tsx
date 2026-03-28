@@ -57,18 +57,7 @@ function ProfileContent() {
                 if (Array.isArray(data)) setBookmarks(data);
             }).catch(() => { });
 
-            // Keep local fallback while older likes migrate to DB-based tracking.
-            try {
-                let likesGiven = 0;
-                for (let i = 0; i < localStorage.length; i++) {
-                    const key = localStorage.key(i);
-                    if (key && key.startsWith("liked_chapter_")) {
-                        const val = localStorage.getItem(key);
-                        if (val === "true") likesGiven++;
-                    }
-                }
-                setStats(prev => ({ ...prev, likesGiven: Math.max(prev.likesGiven, likesGiven) }));
-            } catch { }
+            // Use DB as single source of truth for likes/reads/exp to avoid drift.
         });
     }, [router]);
 
