@@ -2,6 +2,30 @@ import React, { ReactNode } from 'react';
 import CharacterTooltip from '@/components/CharacterTooltip';
 import { splitIntoChunks, stripHtml } from './tts-utils';
 
+function getActiveChunkStyle(theme: string): React.CSSProperties {
+    if (theme === 'light') {
+        return {
+            backgroundColor: 'rgba(22, 163, 74, 0.18)',
+            color: '#102312',
+            boxShadow: '0 0 0 1px rgba(22,163,74,0.35), 0 0 14px rgba(22,163,74,0.18)',
+        };
+    }
+
+    if (theme === 'sepia') {
+        return {
+            backgroundColor: 'rgba(123, 63, 0, 0.18)',
+            color: '#433422',
+            boxShadow: '0 0 0 1px rgba(123,63,0,0.28), 0 0 14px rgba(123,63,0,0.12)',
+        };
+    }
+
+    return {
+        backgroundColor: 'rgba(57, 255, 20, 0.16)',
+        color: 'var(--reader-text)',
+        boxShadow: '0 0 0 1px rgba(57,255,20,0.35), 0 0 18px rgba(57,255,20,0.16)',
+    };
+}
+
 /**
  * Syncs visual highlighting with flat TTS chunks while preserving HTML structure.
  */
@@ -44,10 +68,10 @@ export function renderRichKaraoke(
                         key={`${path}-${idx}-${textOffset}`}
                         ref={(el) => onRef && onRef(idx, el)}
                         className={`transition-all duration-300 rounded-sm ${activeChunkIndex === idx
-                            ? "bg-toxic-green-DEFAULT text-black ring-2 ring-toxic-green-DEFAULT/80 shadow-[0_0_20px_rgba(57,255,20,0.6)] font-bold scale-[1.02] inline-block px-1"
+                            ? "font-bold scale-[1.02] inline-block px-1"
                             : ""
                             }`}
-                        style={activeChunkIndex === idx ? undefined : { color: "var(--reader-text)" }}
+                        style={activeChunkIndex === idx ? getActiveChunkStyle(theme) : { color: "var(--reader-text)" }}
                     >
                         {slice}
                     </span>
