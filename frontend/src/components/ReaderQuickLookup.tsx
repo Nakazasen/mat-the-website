@@ -441,7 +441,7 @@ export default function ReaderQuickLookup({
                 </div>
             )}
 
-            {(panelOpen || selectedText) && (
+            {panelOpen && (
                 <div
                     className="fixed inset-x-4 z-[64] md:left-6 md:right-auto md:w-[400px]"
                     style={{ top: `${panelTop}px`, bottom: `${panelBottom}px` }}

@@ -189,6 +189,14 @@ def _get_parse_json_like_payload():
     return parse_json_like_payload
 
 
+def _get_build_rule_based_lookup():
+    try:
+        from routes.reader_lookup_rules import build_rule_based_lookup
+    except ImportError:
+        from backend.routes.reader_lookup_rules import build_rule_based_lookup
+    return build_rule_based_lookup
+
+
 def _extract_bearer_token(authorization: Optional[str]) -> Optional[str]:
     if not authorization:
         return None
@@ -587,6 +595,32 @@ async def lookup_reader_term(body: ReaderLookupRequest):
 
     normalized_term = _normalize_term(term)
     context_hash = _context_hash(context_sentence)
+    build_rule_based_lookup = _get_build_rule_based_lookup()
+    rule_based_payload = build_rule_based_lookup(locale, term, context_sentence)
+
+    if rule_based_payload and rule_based_payload.get("meaning_vi"):
+        response = ReaderLookupResponse(
+            term=term,
+            normalized_term=rule_based_payload.get("normalized_term") or normalized_term,
+            locale=locale,
+            reading=rule_based_payload.get("reading"),
+            meaning_vi=rule_based_payload.get("meaning_vi"),
+            pos=rule_based_payload.get("pos"),
+            notes=rule_based_payload.get("notes"),
+            source="rule_based",
+            external_links=_build_external_links(locale, term),
+        )
+        _cache_payload(
+            locale=locale,
+            normalized_term=normalized_term,
+            context_hash=context_hash,
+            payload={
+                **response.dict(),
+                "external_links": [item.dict() for item in response.external_links],
+            },
+            source=response.source,
+        )
+        return response
 
     cached = _get_cached_lookup(locale, normalized_term, context_hash)
     if cached:
@@ -598,6 +632,13 @@ async def lookup_reader_term(body: ReaderLookupRequest):
             return cached
 
     response = await _lookup_with_ai(locale, term, context_sentence)
+    if rule_based_payload:
+        if not response.reading and rule_based_payload.get("reading"):
+            response.reading = rule_based_payload.get("reading")
+        if not response.pos and rule_based_payload.get("pos"):
+            response.pos = rule_based_payload.get("pos")
+        if not response.notes and rule_based_payload.get("notes"):
+            response.notes = rule_based_payload.get("notes")
     _cache_payload(
         locale=locale,
         normalized_term=normalized_term,
