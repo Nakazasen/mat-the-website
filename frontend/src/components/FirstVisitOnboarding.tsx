@@ -1,7 +1,7 @@
 "use client";
 
 import { Globe2, Languages, Sparkles, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 import { usePathname } from "next/navigation";
 
 import { useLocale } from "@/context/LocaleContext";
@@ -91,6 +91,8 @@ export default function FirstVisitOnboarding() {
     const pathname = usePathname();
     const { locale, setLocale } = useLocale();
     const [open, setOpen] = useState(false);
+    const [sheetDragY, setSheetDragY] = useState(0);
+    const touchStartYRef = useRef<number | null>(null);
 
     useEffect(() => {
         if (!pathname || pathname.startsWith("/admin")) return;
@@ -115,16 +117,52 @@ export default function FirstVisitOnboarding() {
         }
     };
 
+    const handleSheetTouchStart = (event: TouchEvent<HTMLDivElement>) => {
+        if (typeof window !== "undefined" && window.innerWidth >= 640) return;
+        touchStartYRef.current = event.touches[0]?.clientY ?? null;
+        setSheetDragY(0);
+    };
+
+    const handleSheetTouchMove = (event: TouchEvent<HTMLDivElement>) => {
+        if (touchStartYRef.current === null) return;
+        const currentY = event.touches[0]?.clientY ?? touchStartYRef.current;
+        const delta = Math.max(0, currentY - touchStartYRef.current);
+        setSheetDragY(Math.min(delta, 220));
+    };
+
+    const handleSheetTouchEnd = () => {
+        if (touchStartYRef.current === null) return;
+        const shouldClose = sheetDragY > 96;
+        touchStartYRef.current = null;
+        setSheetDragY(0);
+        if (shouldClose) {
+            close();
+        }
+    };
+
     if (!open || !pathname || pathname.startsWith("/admin")) {
         return null;
     }
 
     return (
         <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center sm:p-4">
-            <div className="flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[28px] border border-b-0 border-toxic-green-DEFAULT/20 bg-ash-950/95 shadow-[0_25px_80px_rgba(0,0,0,0.55)] sm:max-h-[calc(100dvh-2rem)] sm:rounded-3xl sm:border-b">
-                <div className="mx-auto mt-3 h-1.5 w-14 rounded-full bg-ash-700/80 sm:hidden" />
+            <div
+                className={`flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[28px] border border-b-0 border-toxic-green-DEFAULT/20 bg-ash-950/95 shadow-[0_25px_80px_rgba(0,0,0,0.55)] sm:max-h-[calc(100dvh-2rem)] sm:rounded-3xl sm:border-b ${touchStartYRef.current !== null ? "" : "transition-transform duration-200 ease-out"}`}
+                style={{ transform: sheetDragY > 0 ? `translateY(${sheetDragY}px)` : undefined }}
+            >
+                <div
+                    className="mx-auto mt-3 h-1.5 w-14 rounded-full bg-ash-700/80 sm:hidden"
+                    onTouchStart={handleSheetTouchStart}
+                    onTouchMove={handleSheetTouchMove}
+                    onTouchEnd={handleSheetTouchEnd}
+                />
 
-                <div className="flex items-start justify-between border-b border-ash-800/80 px-5 py-5 sm:px-7">
+                <div
+                    className="flex items-start justify-between border-b border-ash-800/80 px-5 py-5 sm:px-7"
+                    onTouchStart={handleSheetTouchStart}
+                    onTouchMove={handleSheetTouchMove}
+                    onTouchEnd={handleSheetTouchEnd}
+                >
                     <div className="min-w-0">
                         <div className="flex items-center gap-2 text-toxic-green-DEFAULT">
                             <Globe2 size={16} />
