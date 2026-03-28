@@ -4,6 +4,7 @@ import html
 import hashlib
 import logging
 import re
+from difflib import SequenceMatcher
 from datetime import datetime, timedelta, timezone
 from typing import Any, Literal, Optional
 from urllib.parse import quote
@@ -301,7 +302,10 @@ def _overlap_score(query: str, candidate: str) -> float:
         return 0.0
     hits = sum(1 for token in query_tokens if token in candidate)
     if hits == 0:
-        return 0.0
+        # Fallback for no-space languages (ja/zh) and long merged selections where
+        # token containment is too strict. Keep bounded score so exact substring still wins.
+        fuzzy = SequenceMatcher(None, query[:800], candidate[:2400]).ratio()
+        return fuzzy * 0.8
     return hits / len(query_tokens)
 
 
