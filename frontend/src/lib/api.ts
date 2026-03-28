@@ -158,6 +158,7 @@ export interface NovelSettings {
     total_views: number;
     total_likes: number;
     ai_model_name?: string;
+    ai_quality_model_name?: string;
     ai_model_catalog?: string[];
     ai_api_keys_count?: number;
     has_ai_key?: boolean;
@@ -208,12 +209,14 @@ export interface AdminOracleResetResponse {
 
 export interface AdminNovelSettingsUpdateResponse {
     message: string;
+    schema_warning?: string | null;
     data: {
         id: number;
         title?: string;
         author?: string;
         status?: string;
         ai_model_name?: string;
+        ai_quality_model_name?: string;
         ai_model_catalog?: string[];
         has_ai_key?: boolean;
         ai_api_keys_count?: number;
@@ -320,6 +323,23 @@ export async function translateAdminChapter(chapterNumber: number, token: string
         const errorMessage =
             buildAdminAuthErrorMessage(res, (payload as { detail?: string })?.detail) ||
             buildFailureDetails(payload.failed_translations, "Failed to translate chapter");
+        throw new Error(errorMessage);
+    }
+    return payload;
+}
+
+export async function improveAdminChapterTranslation(chapterNumber: number, token: string): Promise<AdminChapterTranslateResult> {
+    const res = await fetch(`${API_BASE_URL}/api/admin/chapters/${chapterNumber}/improve-quality`, {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${token}`,
+        },
+    });
+    const payload = await readJsonSafely<AdminChapterTranslateResult>(res) as AdminChapterTranslateResult;
+    if (!res.ok) {
+        const errorMessage =
+            buildAdminAuthErrorMessage(res, (payload as { detail?: string })?.detail) ||
+            buildFailureDetails(payload.failed_translations, "Failed to improve chapter translation");
         throw new Error(errorMessage);
     }
     return payload;

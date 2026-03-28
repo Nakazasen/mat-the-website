@@ -19,18 +19,18 @@ import {
 import { Save, AlertTriangle, CheckCircle2, Loader2, BookOpen, User, FileText, Image as ImageIcon, Tag, Upload, ShieldAlert, Bot, FlaskConical, Plus, Play, Wand2, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import RichTextEditor from '@/components/Editor';
 
-const DEFAULT_AI_MODEL = 'gemini-3-flash-preview';
+const DEFAULT_BULK_AI_MODEL = 'gemini-2.5-flash-lite';
+const DEFAULT_QUALITY_AI_MODEL = 'gemini-2.5-flash';
 const DEFAULT_AI_MODELS = [
+    'gemini-2.5-flash-lite',
     'gemini-3.1-flash-lite-preview',
     'gemma-3n-1b-it',
     'gemma-3n-e2b-it',
     'gemma-3-4b-it',
     'gemma-3-12b-it',
     'gemma-3-27b-it',
-    'gemini-robotics-er-1.5-preview',
     'gemini-3-flash-preview',
     'gemini-2.5-flash',
-    'gemini-2.5-flash-lite',
 ];
 type ApiKeyRow = {
     id: string;
@@ -68,7 +68,8 @@ export default function AdminNovelPage() {
         max_chapter: 0,
         total_views: 0,
         total_likes: 0,
-        ai_model_name: DEFAULT_AI_MODEL,
+        ai_model_name: DEFAULT_BULK_AI_MODEL,
+        ai_quality_model_name: DEFAULT_QUALITY_AI_MODEL,
         has_ai_key: false,
     });
     const [genreInput, setGenreInput] = useState('');
@@ -78,7 +79,8 @@ export default function AdminNovelPage() {
     const [success, setSuccess] = useState(false);
     const [token, setToken] = useState<string | null>(null);
     const [userRole, setUserRole] = useState<string>('editor');
-    const [aiModelName, setAiModelName] = useState(DEFAULT_AI_MODEL);
+    const [aiModelName, setAiModelName] = useState(DEFAULT_BULK_AI_MODEL);
+    const [aiQualityModelName, setAiQualityModelName] = useState(DEFAULT_QUALITY_AI_MODEL);
     const [aiApiKeyRows, setAiApiKeyRows] = useState<ApiKeyRow[]>(buildApiKeyRows(0));
     const [customModelInput, setCustomModelInput] = useState('');
     const [modelCatalog, setModelCatalog] = useState<string[]>(DEFAULT_AI_MODELS);
@@ -134,7 +136,8 @@ export default function AdminNovelPage() {
 
                 const data = await getNovelSettings();
                 setSettings(data);
-                setAiModelName(data.ai_model_name || DEFAULT_AI_MODEL);
+                setAiModelName(data.ai_model_name || DEFAULT_BULK_AI_MODEL);
+                setAiQualityModelName(data.ai_quality_model_name || DEFAULT_QUALITY_AI_MODEL);
                 setModelCatalog(Array.from(new Set([...(data.ai_model_catalog || []), ...DEFAULT_AI_MODELS])));
                 setPlaygroundChapter(Math.max(data.max_chapter || 1, 1));
                 setAiApiKeyRows(buildApiKeyRows(data.ai_api_keys_count || 0));
@@ -183,7 +186,8 @@ export default function AdminNovelPage() {
             };
 
             if (userRole === 'superadmin') {
-                payload.ai_model_name = aiModelName.trim() || DEFAULT_AI_MODEL;
+                payload.ai_model_name = aiModelName.trim() || DEFAULT_BULK_AI_MODEL;
+                payload.ai_quality_model_name = aiQualityModelName.trim() || DEFAULT_QUALITY_AI_MODEL;
                 payload.ai_model_catalog = Array.from(new Set(modelCatalog.map((model) => model.trim()).filter(Boolean)));
                 const newKeys = aiApiKeyRows
                     .filter((row) => row.kind === 'new')
@@ -222,8 +226,12 @@ export default function AdminNovelPage() {
                 has_ai_key: response.data.has_ai_key ?? prev.has_ai_key,
                 ai_api_keys_count: nextKeyCount,
                 ai_model_name: response.data.ai_model_name || prev.ai_model_name,
+                ai_quality_model_name: response.data.ai_quality_model_name || prev.ai_quality_model_name,
                 ai_model_catalog: response.data.ai_model_catalog || prev.ai_model_catalog,
             }));
+            if (response.schema_warning) {
+                setAiKeyWarning(response.schema_warning);
+            }
             if (nextKeyCount < expectedKeyCount) {
                 setAiKeyWarning('Một số API key mới bị trùng với key đã lưu trên server nên không được thêm lại.');
             }
@@ -258,8 +266,12 @@ export default function AdminNovelPage() {
     const removeModelFromCatalog = (model: string) => {
         setModelCatalog((current) => current.filter((item) => item !== model));
         if (aiModelName === model) {
-            const fallbackModel = modelCatalog.find((item) => item !== model) || DEFAULT_AI_MODEL;
+            const fallbackModel = modelCatalog.find((item) => item !== model) || DEFAULT_BULK_AI_MODEL;
             setAiModelName(fallbackModel);
+        }
+        if (aiQualityModelName === model) {
+            const fallbackQualityModel = modelCatalog.find((item) => item !== model) || DEFAULT_QUALITY_AI_MODEL;
+            setAiQualityModelName(fallbackQualityModel);
         }
     };
 
@@ -571,7 +583,7 @@ export default function AdminNovelPage() {
                     <p className="text-xs font-mono tracking-widest text-gray-400">AI COMMAND</p>
                     {userRole === 'superadmin' ? (
                         <div className="space-y-4">
-                            <div className="grid grid-cols-1 gap-4">
+                            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
                                 <div className="space-y-2">
                                     <label className="text-[11px] font-mono text-gray-500 uppercase tracking-widest">Tên Model</label>
                                     <input
@@ -579,8 +591,26 @@ export default function AdminNovelPage() {
                                         value={aiModelName}
                                         onChange={(e) => setAiModelName(e.target.value)}
                                         className="w-full bg-black border border-gray-800 rounded px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:border-green-500"
-                                        placeholder={DEFAULT_AI_MODEL}
+                                        placeholder={DEFAULT_BULK_AI_MODEL}
                                     />
+                                    <p className="text-xs text-gray-500">
+                                        Ưu tiên khi dịch hàng loạt để phủ dữ liệu nhanh.
+                                    </p>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[11px] font-mono text-gray-500 uppercase tracking-widest">Model nâng chất lượng</label>
+                                    <input
+                                        type="text"
+                                        value={aiQualityModelName}
+                                        onChange={(e) => setAiQualityModelName(e.target.value)}
+                                        className="w-full bg-black border border-gray-800 rounded px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:border-cyan-500"
+                                        placeholder={DEFAULT_QUALITY_AI_MODEL}
+                                    />
+                                    <p className="text-xs text-gray-500">
+                                        Ưu tiên khi cải thiện lại bản dịch đã có.
+                                    </p>
+                                </div>
+                                <div className="space-y-2 xl:col-span-2">
                                     <div className="mt-2 space-y-2">
                                         {aiApiKeyRows.map((row, index) => (
                                             <div key={row.id} className="flex items-center gap-2">

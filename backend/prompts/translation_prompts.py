@@ -207,3 +207,51 @@ GLOSSARY:
 SOURCE JSON:
 {_dump_json(source_payload)}
 """.strip()
+
+
+def build_chapter_refine_system_instruction() -> str:
+    return """
+You are a senior literary translation editor for serialized web novels.
+Your job is to improve an existing chapter translation using the Vietnamese source text as ground truth.
+
+Rules:
+1. Preserve meaning, plot facts, names, skills, and glossary terms.
+2. Improve fluency, naturalness, and readability for the target locale.
+3. Do not add new information, summaries, markdown, or explanations.
+4. Keep paragraph order and scene progression intact.
+5. Return valid JSON only, matching the requested schema exactly.
+""".strip()
+
+
+def build_chapter_refine_user_prompt(
+    *,
+    source_title: str,
+    source_content_chunk: str,
+    current_title: str,
+    current_content_chunk: str,
+    source_locale: str,
+    target_locale: str,
+    glossary_prompt: str,
+    context_label: str,
+    chunk_index: int,
+    chunk_count: int,
+) -> str:
+    return f"""
+CONTEXT: {context_label}
+SOURCE LOCALE: {source_locale}
+TARGET LOCALE: {target_locale}
+CHUNK: {chunk_index}/{chunk_count}
+
+TASK:
+Improve the existing translation chunk. Use the source text as the authority and the current translation as editable draft text.
+Preserve names and glossary consistency. Keep the same paragraph order.
+
+GLOSSARY:
+{glossary_prompt}
+
+SOURCE JSON:
+{_dump_json({"title": source_title, "content": source_content_chunk})}
+
+CURRENT TRANSLATION JSON:
+{_dump_json({"title": current_title, "content": current_content_chunk})}
+""".strip()

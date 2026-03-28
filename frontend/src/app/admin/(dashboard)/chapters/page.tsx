@@ -20,11 +20,13 @@ import {
     Search,
     Trash2,
     Hash,
+    Wand2,
 } from 'lucide-react';
 
 import { createAdminClient } from '@/lib/supabase-admin';
 import {
     getAdminChapterTranslationStatuses,
+    improveAdminChapterTranslation,
     translateAdminChapter,
     translateAdminChaptersBatch,
     type AdminChapterTranslateResult,
@@ -107,6 +109,7 @@ export default function AdminChaptersPage() {
     const [loading, setLoading] = useState(true);
     const [deletingId, setDeletingId] = useState<number | null>(null);
     const [translatingId, setTranslatingId] = useState<number | null>(null);
+    const [improvingId, setImprovingId] = useState<number | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [token, setToken] = useState<string | null>(null);
 
@@ -277,6 +280,41 @@ export default function AdminChaptersPage() {
             await refreshTranslationStatuses([chapterNumber]);
         } finally {
             setTranslatingId(null);
+        }
+    };
+
+    const handleImproveQuality = async (chapterNumber: number) => {
+        if (!token) return;
+        setImprovingId(chapterNumber);
+        setActionNotice(null);
+        try {
+            const freshToken = await resolveAdminToken();
+            const result = await improveAdminChapterTranslation(chapterNumber, freshToken);
+            const translatedLocales = Array.isArray(result.translated_locales) ? result.translated_locales : [];
+            const failedLocales = Array.isArray(result.failed_translations) ? result.failed_translations : [];
+
+            if (failedLocales.length === 0) {
+                setActionNotice({
+                    tone: 'success',
+                    message: `Đã cải thiện chất lượng chương ${chapterNumber}: ${translatedLocales.join(', ') || 'không có locale nào được cập nhật'}.`,
+                });
+            } else {
+                setActionNotice({
+                    tone: translatedLocales.length > 0 ? 'success' : 'error',
+                    message: translatedLocales.length > 0
+                        ? `Chương ${chapterNumber} đã cải thiện ${translatedLocales.join(', ')}, nhưng vẫn còn lỗi: ${formatTranslationFailures(failedLocales)}`
+                        : `Không thể cải thiện chất lượng chương ${chapterNumber}. ${formatTranslationFailures(failedLocales)}`,
+                });
+            }
+            await refreshTranslationStatuses([chapterNumber]);
+        } catch (err: any) {
+            setActionNotice({
+                tone: 'error',
+                message: `Lỗi cải thiện chất lượng chương ${chapterNumber}: ${err?.message || 'Không nhận được thông báo lỗi từ backend.'}`,
+            });
+            await refreshTranslationStatuses([chapterNumber]);
+        } finally {
+            setImprovingId(null);
         }
     };
 
@@ -637,11 +675,20 @@ export default function AdminChaptersPage() {
                                                 <div className="flex items-center justify-start md:justify-end gap-2 flex-wrap">
                                                     <button
                                                         onClick={() => handleTranslate(chapter.chapter_number)}
-                                                        disabled={!token || translatingId === chapter.chapter_number}
+                                                        disabled={!token || translatingId === chapter.chapter_number || improvingId === chapter.chapter_number}
                                                         className="flex items-center gap-1.5 px-3 py-1.5 border border-purple-700/60 hover:border-purple-500 text-purple-300 hover:text-purple-200 disabled:opacity-50 rounded text-xs font-mono transition-all hover:bg-purple-500/10"
                                                     >
                                                         <Languages size={10} />
                                                         {translatingId === chapter.chapter_number ? 'ĐANG DỊCH...' : 'DỊCH 3 NGÔN NGỮ'}
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleImproveQuality(chapter.chapter_number)}
+                                                        disabled={!token || improvingId === chapter.chapter_number || translatingId === chapter.chapter_number || (translationStatusMap[chapter.chapter_number]?.published_count || 0) === 0}
+                                                        className="flex items-center gap-1.5 px-3 py-1.5 border border-cyan-700/60 hover:border-cyan-500 text-cyan-300 hover:text-cyan-200 disabled:opacity-50 rounded text-xs font-mono transition-all hover:bg-cyan-500/10"
+                                                        title={(translationStatusMap[chapter.chapter_number]?.published_count || 0) === 0 ? 'Cần có ít nhất một bản dịch đã xuất bản để cải thiện chất lượng' : 'Cải thiện lại chất lượng bản dịch hiện có'}
+                                                    >
+                                                        <Wand2 size={10} />
+                                                        {improvingId === chapter.chapter_number ? 'ĐANG REFINE...' : 'NÂNG CHẤT LƯỢNG'}
                                                     </button>
                                                     <div className="flex gap-2 w-full sm:w-auto">
                                                         <Link

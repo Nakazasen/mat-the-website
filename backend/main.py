@@ -63,6 +63,8 @@ try:
     from prompts.translation_prompts import (
         build_chapter_multilocale_system_instruction,
         build_chapter_multilocale_user_prompt,
+        build_chapter_refine_system_instruction,
+        build_chapter_refine_user_prompt,
         build_guide_multilocale_system_instruction,
         build_guide_multilocale_user_prompt,
         build_homepage_multilocale_system_instruction,
@@ -91,6 +93,8 @@ except (ImportError, ModuleNotFoundError):
     from backend.prompts.translation_prompts import (
         build_chapter_multilocale_system_instruction,
         build_chapter_multilocale_user_prompt,
+        build_chapter_refine_system_instruction,
+        build_chapter_refine_user_prompt,
         build_guide_multilocale_system_instruction,
         build_guide_multilocale_user_prompt,
         build_homepage_multilocale_system_instruction,
@@ -178,11 +182,19 @@ TRANSLATION_LOCALE_LABELS = {
 }
 TRANSLATION_GLOSSARY_PATH = os.path.join(current_dir, "translation_glossary.json")
 DEFAULT_TRANSLATION_MODELS = [
-    "gemini-2.5-flash",
     "gemini-2.5-flash-lite",
+    "gemini-3.1-flash-lite-preview",
+    "gemma-3n-1b-it",
+    "gemma-3n-e2b-it",
+    "gemma-3-4b-it",
+    "gemma-3-12b-it",
+    "gemma-3-27b-it",
     "gemini-3-flash-preview",
+    "gemini-2.5-flash",
 ]
-TRANSLATION_MODEL_FALLBACK = DEFAULT_TRANSLATION_MODELS[0]
+BULK_TRANSLATION_MODEL_FALLBACK = "gemini-2.5-flash-lite"
+QUALITY_TRANSLATION_MODEL_FALLBACK = "gemini-2.5-flash"
+TRANSLATION_MODEL_FALLBACK = BULK_TRANSLATION_MODEL_FALLBACK
 MODEL_PRIORITY = {model: index for index, model in enumerate(DEFAULT_TRANSLATION_MODELS)}
 MODEL_MIN_INTERVAL_SECONDS = {
     "gemini-3-flash-preview": 12.5,
@@ -344,6 +356,46 @@ def chunk_translation_source_text(source_text: str, max_chars: int = TRANSLATION
         chunks.append(remaining)
     return chunks
 
+def split_text_into_chunk_count(source_text: str, chunk_count: int) -> list[str]:
+    normalized = (source_text or "").replace("\r\n", "\n").replace("\r", "\n").strip()
+    if chunk_count <= 1:
+        return [normalized]
+    if not normalized:
+        return [""] * chunk_count
+
+    paragraphs = [item.strip() for item in normalized.split("\n\n") if item.strip()]
+    if not paragraphs:
+        paragraphs = [normalized]
+
+    chunk_count = max(1, chunk_count)
+    total_chars = sum(len(paragraph) for paragraph in paragraphs)
+    target_chars = max(int(total_chars / chunk_count), 1)
+    groups: list[list[str]] = []
+    current_group: list[str] = []
+    current_length = 0
+    remaining_paragraphs = len(paragraphs)
+    remaining_chunks = chunk_count
+
+    for paragraph in paragraphs:
+        current_group.append(paragraph)
+        current_length += len(paragraph)
+        remaining_paragraphs -= 1
+        if remaining_chunks <= 1:
+            continue
+        if current_length >= target_chars and remaining_paragraphs >= (remaining_chunks - 1):
+            groups.append(current_group)
+            current_group = []
+            current_length = 0
+            remaining_chunks -= 1
+
+    if current_group:
+        groups.append(current_group)
+
+    while len(groups) < chunk_count:
+        groups.append([])
+
+    return ["\n\n".join(group).strip() for group in groups[:chunk_count]]
+
 def parse_multilocale_translation_payload(
     raw_text: str,
     target_locales: list[str],
@@ -435,8 +487,15 @@ def normalize_model_catalog(raw_catalog, fallback_model: str) -> list[str]:
         catalog = DEFAULT_TRANSLATION_MODELS.copy()
     else:
         catalog.extend(DEFAULT_TRANSLATION_MODELS)
-    deduped = list(dict.fromkeys(catalog))
-    return sorted(deduped, key=lambda item: MODEL_PRIORITY.get(item, len(DEFAULT_TRANSLATION_MODELS) + 100))
+    return list(dict.fromkeys(catalog))
+
+def prioritize_model_catalog(catalog: list[str], preferred_model: str) -> list[str]:
+    normalized = [item for item in catalog if item]
+    if preferred_model and preferred_model in normalized:
+        normalized = [preferred_model, *[item for item in normalized if item != preferred_model]]
+    elif preferred_model:
+        normalized = [preferred_model, *normalized]
+    return list(dict.fromkeys(normalized))
 
 def normalize_api_key_catalog(raw_keys, fallback_key: str) -> list[str]:
     keys = []
@@ -550,8 +609,9 @@ async def generate_structured_translation_payload(
     response_json_schema: dict,
     parser: Callable[[str], T],
     timeout_seconds: float = 300.0,
+    translation_mode: str = "bulk",
 ) -> T:
-    _active_model, model_catalog, api_keys = await resolve_ai_settings_for_translation()
+    _active_model, model_catalog, api_keys = await resolve_ai_settings_for_translation(translation_mode)
     if not api_keys:
         raise HTTPException(status_code=503, detail="AI translation is not configured")
 
@@ -758,29 +818,33 @@ def apply_homepage_translation(payload: dict, locale: str) -> dict:
     payload["is_fallback"] = is_fallback
     return payload
 
-async def resolve_ai_settings_for_translation() -> tuple[str, list[str], list[str]]:
+async def resolve_ai_settings_for_translation(translation_mode: str = "bulk") -> tuple[str, list[str], list[str]]:
     try:
         settings = (
             supabase.table("novel_settings")
-            .select("ai_model_name, ai_model_catalog, ai_api_key, ai_api_keys")
+            .select("*")
             .eq("id", 1)
             .single()
             .execute()
         )
         if settings.data:
-            model_name = settings.data.get("ai_model_name") or TRANSLATION_MODEL_FALLBACK
+            bulk_model_name = settings.data.get("ai_model_name") or BULK_TRANSLATION_MODEL_FALLBACK
+            quality_model_name = settings.data.get("ai_quality_model_name") or QUALITY_TRANSLATION_MODEL_FALLBACK
+            model_name = quality_model_name if translation_mode == "quality" else bulk_model_name
             api_key = settings.data.get("ai_api_key") or os.getenv("GEMINI_API_KEY", "")
+            model_catalog = normalize_model_catalog(settings.data.get("ai_model_catalog"), model_name)
             return (
                 model_name,
-                normalize_model_catalog(settings.data.get("ai_model_catalog"), model_name),
+                prioritize_model_catalog(model_catalog, model_name),
                 normalize_api_key_catalog(settings.data.get("ai_api_keys"), api_key),
             )
     except Exception:
         pass
     fallback_key = os.getenv("GEMINI_API_KEY", "")
+    fallback_model = QUALITY_TRANSLATION_MODEL_FALLBACK if translation_mode == "quality" else BULK_TRANSLATION_MODEL_FALLBACK
     return (
-        TRANSLATION_MODEL_FALLBACK,
-        DEFAULT_TRANSLATION_MODELS.copy(),
+        fallback_model,
+        prioritize_model_catalog(DEFAULT_TRANSLATION_MODELS.copy(), fallback_model),
         normalize_api_key_catalog([], fallback_key),
     )
 
@@ -962,6 +1026,76 @@ async def translate_chapter_payloads_with_ai(
         for locale in target_locales
     }
 
+async def refine_chapter_translation_with_ai(
+    source_title: str,
+    source_content: str,
+    source_locale: str,
+    target_locale: str,
+    current_title: str,
+    current_content: str,
+    context_label: str,
+) -> dict[str, str]:
+    glossary_prompt = build_glossary_prompt()
+    schema = {
+        "type": "object",
+        "properties": {
+            "title": {"type": "string"},
+            "content": {"type": "string"},
+        },
+        "required": ["title", "content"],
+        "additionalProperties": False,
+    }
+    system_instruction = build_chapter_refine_system_instruction()
+    source_chunks = chunk_translation_source_text(source_content)
+    current_chunks = split_text_into_chunk_count(current_content, len(source_chunks))
+
+    def parse_refined_payload(raw_text: str) -> dict[str, str]:
+        parsed = parse_json_like_payload(raw_text)
+        title_value = str(parsed.get("title") or "").strip()
+        content_value = str(parsed.get("content") or "").strip()
+        if not title_value or not content_value:
+            raise ValueError("Missing refined title/content")
+        return {
+            "title": title_value,
+            "content": content_value,
+        }
+
+    refined_title = ""
+    refined_content_parts: list[str] = []
+    for chunk_index, source_chunk in enumerate(source_chunks, start=1):
+        current_chunk = current_chunks[chunk_index - 1] if chunk_index - 1 < len(current_chunks) else ""
+        chunk_payload = await generate_structured_translation_payload(
+            system_instruction=system_instruction,
+            user_prompt=build_chapter_refine_user_prompt(
+                source_title=source_title,
+                source_content_chunk=source_chunk,
+                current_title=current_title,
+                current_content_chunk=current_chunk,
+                source_locale=source_locale,
+                target_locale=target_locale,
+                glossary_prompt=glossary_prompt,
+                context_label=context_label,
+                chunk_index=chunk_index,
+                chunk_count=len(source_chunks),
+            ),
+            response_json_schema=schema,
+            parser=parse_refined_payload,
+            translation_mode="quality",
+        )
+        if not refined_title:
+            refined_title = chunk_payload["title"]
+        refined_content_parts.append(chunk_payload["content"])
+
+    if not refined_title or not refined_content_parts:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Missing refined chapter payload for locale {normalize_locale(target_locale)}",
+        )
+    return {
+        "title": refined_title.strip(),
+        "content": "\n\n".join(part for part in refined_content_parts if part).strip(),
+    }
+
 async def upsert_chapter_translations(chapter_row: dict, title: str, content: str, locales: list[str]) -> dict:
     target_locales = build_target_translation_locales(locales)
     if not target_locales:
@@ -1103,6 +1237,149 @@ async def upsert_chapter_translations(chapter_row: dict, title: str, content: st
             on_conflict="chapter_id,locale",
         ).execute()
         translated_locales.append(locale)
+
+    return {
+        "translated_locales": translated_locales,
+        "failed_translations": failed_translations,
+    }
+
+async def improve_chapter_translations(chapter_row: dict, title: str, content: str, locales: list[str]) -> dict:
+    target_locales = build_target_translation_locales(locales)
+    if not target_locales:
+        return {"translated_locales": [], "failed_translations": []}
+
+    existing_resp = (
+        supabase.table("chapter_translations")
+        .select("locale, attempt_count, title, content, summary, translated_at")
+        .eq("chapter_id", chapter_row["id"])
+        .in_("locale", target_locales)
+        .execute()
+    )
+    existing_rows = {
+        row.get("locale"): row
+        for row in (existing_resp.data or [])
+        if row.get("locale")
+    }
+    translated_at = datetime.now(timezone.utc).isoformat()
+    content_hash = build_content_hash(content)
+    translated_locales: list[str] = []
+    failed_translations: list[dict] = []
+
+    for locale in target_locales:
+        existing_row = existing_rows.get(locale) or {}
+        current_title = str(existing_row.get("title") or "").strip()
+        current_content = str(existing_row.get("content") or "").strip()
+        attempt_count = int(existing_row.get("attempt_count") or 0) + 1
+
+        if not current_title or not current_content:
+            failed_translations.append(
+                {
+                    "locale": locale,
+                    "status_code": 409,
+                    "detail": "No existing translation found to improve",
+                }
+            )
+            continue
+
+        supabase.table("chapter_translations").upsert(
+            {
+                "chapter_id": chapter_row["id"],
+                "locale": locale,
+                "title": current_title,
+                "content": current_content,
+                "summary": existing_row.get("summary"),
+                "translation_status": "in_progress",
+                "translation_source": "ai_refine",
+                "translated_at": existing_row.get("translated_at"),
+                "content_hash": content_hash,
+                "last_error": None,
+                "attempt_count": attempt_count,
+                "updated_at": translated_at,
+            },
+            on_conflict="chapter_id,locale",
+        ).execute()
+
+        try:
+            improved_payload = await refine_chapter_translation_with_ai(
+                source_title=title,
+                source_content=content,
+                source_locale=DEFAULT_LOCALE,
+                target_locale=locale,
+                current_title=current_title,
+                current_content=current_content,
+                context_label=f"chapter-quality-{chapter_row['chapter_number']}-{locale}",
+            )
+            improved_title = str(improved_payload.get("title") or "").strip()
+            improved_content = str(improved_payload.get("content") or "").strip()
+            if not improved_title or not improved_content:
+                raise ValueError(f"Missing refined chapter payload for locale {locale}")
+
+            supabase.table("chapter_translations").upsert(
+                {
+                    "chapter_id": chapter_row["id"],
+                    "locale": locale,
+                    "title": improved_title,
+                    "content": improved_content,
+                    "summary": improved_content[:280],
+                    "translation_status": "published",
+                    "translation_source": "ai_refine",
+                    "translated_at": translated_at,
+                    "content_hash": content_hash,
+                    "last_error": None,
+                    "attempt_count": attempt_count,
+                    "updated_at": translated_at,
+                },
+                on_conflict="chapter_id,locale",
+            ).execute()
+            translated_locales.append(locale)
+        except HTTPException as exc:
+            supabase.table("chapter_translations").upsert(
+                {
+                    "chapter_id": chapter_row["id"],
+                    "locale": locale,
+                    "title": current_title,
+                    "content": current_content,
+                    "summary": existing_row.get("summary"),
+                    "translation_status": "failed",
+                    "translation_source": "ai_refine",
+                    "content_hash": content_hash,
+                    "updated_at": translated_at,
+                    "last_error": str(exc.detail),
+                    "attempt_count": attempt_count,
+                },
+                on_conflict="chapter_id,locale",
+            ).execute()
+            failed_translations.append(
+                {
+                    "locale": locale,
+                    "status_code": exc.status_code,
+                    "detail": str(exc.detail),
+                }
+            )
+        except Exception as exc:
+            supabase.table("chapter_translations").upsert(
+                {
+                    "chapter_id": chapter_row["id"],
+                    "locale": locale,
+                    "title": current_title,
+                    "content": current_content,
+                    "summary": existing_row.get("summary"),
+                    "translation_status": "failed",
+                    "translation_source": "ai_refine",
+                    "content_hash": content_hash,
+                    "updated_at": translated_at,
+                    "last_error": str(exc),
+                    "attempt_count": attempt_count,
+                },
+                on_conflict="chapter_id,locale",
+            ).execute()
+            failed_translations.append(
+                {
+                    "locale": locale,
+                    "status_code": 500,
+                    "detail": str(exc),
+                }
+            )
 
     return {
         "translated_locales": translated_locales,
@@ -2435,6 +2712,60 @@ async def admin_translate_chapter(
         "failed_translations": failed_translations,
     }
 
+@app.post("/api/admin/chapters/{chapter_number}/improve-quality", summary="[Admin] Improve chapter translation quality")
+async def admin_improve_chapter_translation_quality(
+    chapter_number: int,
+    authorization: Optional[str] = Header(None),
+):
+    await verify_admin(authorization)
+
+    chapter_resp = (
+        supabase.table("chapters")
+        .select("*")
+        .eq("chapter_number", chapter_number)
+        .single()
+        .execute()
+    )
+    if not chapter_resp.data:
+        raise HTTPException(status_code=404, detail="Chapter not found")
+
+    chapter_row = chapter_resp.data
+    content_text = fetch_r2_content(chapter_row["content_url"])
+    try:
+        improvement_result = await improve_chapter_translations(
+            chapter_row,
+            chapter_row["title"],
+            content_text,
+            list(TRANSLATION_TARGET_LOCALES),
+        )
+        translated_locales = improvement_result["translated_locales"]
+        failed_translations = improvement_result["failed_translations"]
+    except HTTPException as exc:
+        translated_locales = []
+        failed_translations = [
+            {
+                "locale": ",".join(TRANSLATION_TARGET_LOCALES),
+                "status_code": exc.status_code,
+                "detail": str(exc.detail),
+            }
+        ]
+    except Exception as exc:
+        translated_locales = []
+        failed_translations = [
+            {
+                "locale": ",".join(TRANSLATION_TARGET_LOCALES),
+                "status_code": 500,
+                "detail": str(exc),
+            }
+        ]
+
+    return {
+        "message": "Chapter translation quality improved",
+        "chapter_number": chapter_number,
+        "translated_locales": translated_locales,
+        "failed_translations": failed_translations,
+    }
+
 class AdminBatchTranslateRequest(BaseModel):
     start_chapter: int = 1
     end_chapter: int
@@ -2676,7 +3007,8 @@ class NovelSettings(BaseModel):
 
     total_views: int = 0
     total_likes: int = 0
-    ai_model_name: str = TRANSLATION_MODEL_FALLBACK
+    ai_model_name: str = BULK_TRANSLATION_MODEL_FALLBACK
+    ai_quality_model_name: str = QUALITY_TRANSLATION_MODEL_FALLBACK
     ai_model_catalog: list[str] = DEFAULT_TRANSLATION_MODELS.copy()
     ai_api_keys_count: int = 0
     has_ai_key: bool = False  # Frontend diagnostic
@@ -2699,6 +3031,7 @@ class AdminNovelUpdate(BaseModel):
 
     donate_qr_url: Optional[str] = None
     ai_model_name: Optional[str] = None
+    ai_quality_model_name: Optional[str] = None
     ai_model_catalog: Optional[list[str]] = None
     ai_api_key: Optional[str] = None
     ai_api_keys: Optional[list[str]] = None
@@ -2756,6 +3089,8 @@ async def get_novel_settings(locale: str = Query(DEFAULT_LOCALE, description="Re
 
             "total_views": total_views,
             "total_likes": total_likes,
+            "ai_model_name": BULK_TRANSLATION_MODEL_FALLBACK,
+            "ai_quality_model_name": QUALITY_TRANSLATION_MODEL_FALLBACK,
             "ai_model_catalog": DEFAULT_TRANSLATION_MODELS.copy(),
             "ai_api_keys_count": 0,
         }
@@ -2783,7 +3118,8 @@ async def get_novel_settings(locale: str = Query(DEFAULT_LOCALE, description="Re
 
         final_data["total_views"] = total_views
         final_data["total_likes"] = total_likes
-        final_data["ai_model_name"] = resp.data.get("ai_model_name", TRANSLATION_MODEL_FALLBACK)
+        final_data["ai_model_name"] = resp.data.get("ai_model_name", BULK_TRANSLATION_MODEL_FALLBACK)
+        final_data["ai_quality_model_name"] = resp.data.get("ai_quality_model_name", QUALITY_TRANSLATION_MODEL_FALLBACK)
         final_data["ai_model_catalog"] = normalize_model_catalog(resp.data.get("ai_model_catalog"), final_data["ai_model_name"])
         key_catalog = normalize_api_key_catalog(resp.data.get("ai_api_keys"), resp.data.get("ai_api_key") or "")
         final_data["ai_api_keys_count"] = len(key_catalog)
@@ -2840,7 +3176,8 @@ async def get_novel_settings(locale: str = Query(DEFAULT_LOCALE, description="Re
 
             total_views=0,
             total_likes=0,
-            ai_model_name=TRANSLATION_MODEL_FALLBACK,
+            ai_model_name=BULK_TRANSLATION_MODEL_FALLBACK,
+            ai_quality_model_name=QUALITY_TRANSLATION_MODEL_FALLBACK,
             ai_model_catalog=DEFAULT_TRANSLATION_MODELS.copy(),
             ai_api_keys_count=0,
             requested_locale=normalize_locale(locale),
@@ -2878,6 +3215,7 @@ async def admin_update_novel(
 
     ai_fields = {
         "ai_model_name",
+        "ai_quality_model_name",
         "ai_model_catalog",
         "ai_api_key",
         "ai_api_keys",
@@ -2893,7 +3231,7 @@ async def admin_update_novel(
     if "ai_model_catalog" in data:
         data["ai_model_catalog"] = normalize_model_catalog(
             data.get("ai_model_catalog"),
-            data.get("ai_model_name") or TRANSLATION_MODEL_FALLBACK,
+            data.get("ai_model_name") or BULK_TRANSLATION_MODEL_FALLBACK,
         )
 
     if "ai_api_keys" in data:
@@ -2936,20 +3274,32 @@ async def admin_update_novel(
 
     # Update novel settings (ID 1)
     # Do not return raw API keys to the admin frontend.
-    result = supabase.table("novel_settings").upsert({**data, "id": 1}).execute()
+    schema_warning = None
+    try:
+        result = supabase.table("novel_settings").upsert({**data, "id": 1}).execute()
+    except Exception as exc:
+        if "ai_quality_model_name" in data and "ai_quality_model_name" in str(exc):
+            fallback_data = dict(data)
+            fallback_data.pop("ai_quality_model_name", None)
+            result = supabase.table("novel_settings").upsert({**fallback_data, "id": 1}).execute()
+            schema_warning = "Database schema is missing ai_quality_model_name. Run scripts/supabase_ai_quality_model.sql to persist the quality model."
+        else:
+            raise
     saved_row = result.data[0] if result.data else {"id": 1, **data}
     key_catalog = normalize_api_key_catalog(saved_row.get("ai_api_keys"), saved_row.get("ai_api_key") or "")
     return {
         "message": "Cập nhật thành công",
+        "schema_warning": schema_warning,
         "data": {
             "id": saved_row.get("id", 1),
             "title": saved_row.get("title"),
             "author": saved_row.get("author"),
             "status": saved_row.get("status"),
-            "ai_model_name": saved_row.get("ai_model_name", TRANSLATION_MODEL_FALLBACK),
+            "ai_model_name": saved_row.get("ai_model_name", BULK_TRANSLATION_MODEL_FALLBACK),
+            "ai_quality_model_name": saved_row.get("ai_quality_model_name", QUALITY_TRANSLATION_MODEL_FALLBACK),
             "ai_model_catalog": normalize_model_catalog(
                 saved_row.get("ai_model_catalog"),
-                saved_row.get("ai_model_name") or TRANSLATION_MODEL_FALLBACK,
+                saved_row.get("ai_model_name") or BULK_TRANSLATION_MODEL_FALLBACK,
             ),
             "has_ai_key": bool(key_catalog),
             "ai_api_keys_count": len(key_catalog),
