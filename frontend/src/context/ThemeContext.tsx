@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
-type Theme = 'dark' | 'light' | 'sepia';
+type Theme = 'dark' | 'light' | 'sepia' | 'hazard';
 type FontFamily = 'sans' | 'serif';
 
 interface ThemeContextType {
@@ -12,6 +12,8 @@ interface ThemeContextType {
     setFontSize: (size: number) => void;
     fontFamily: FontFamily;
     setFontFamily: (font: FontFamily) => void;
+    isAnimated: boolean;
+    setIsAnimated: (isAnimated: boolean) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -20,12 +22,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const [theme, setThemeState] = useState<Theme>('dark');
     const [fontSize, setFontSizeState] = useState(18);
     const [fontFamily, setFontFamilyState] = useState<FontFamily>('sans');
+    const [isAnimated, setIsAnimatedState] = useState(true);
     const [mounted, setMounted] = useState(false);
 
     // Initialize state from localStorage on mount
     useEffect(() => {
         const savedTheme = localStorage.getItem('reader-theme') as Theme;
-        if (savedTheme && ['dark', 'light', 'sepia'].includes(savedTheme)) {
+        if (savedTheme && ['dark', 'light', 'sepia', 'hazard'].includes(savedTheme)) {
             setThemeState(savedTheme);
         }
 
@@ -37,6 +40,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         const savedFontFamily = localStorage.getItem('reader-font-family') as FontFamily;
         if (savedFontFamily && ['sans', 'serif'].includes(savedFontFamily)) {
             setFontFamilyState(savedFontFamily);
+        }
+
+        const savedIsAnimated = localStorage.getItem('reader-is-animated');
+        if (savedIsAnimated !== null) {
+            setIsAnimatedState(savedIsAnimated === 'true');
         }
 
         setMounted(true);
@@ -57,17 +65,20 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem('reader-theme', theme);
         localStorage.setItem('reader-font-size', fontSize.toString());
         localStorage.setItem('reader-font-family', fontFamily);
-    }, [theme, fontSize, fontFamily, mounted]);
+        localStorage.setItem('reader-is-animated', isAnimated.toString());
+    }, [theme, fontSize, fontFamily, isAnimated, mounted]);
 
     const setTheme = (newTheme: Theme) => setThemeState(newTheme);
     const setFontSize = (size: number) => setFontSizeState(size);
     const setFontFamily = (font: FontFamily) => setFontFamilyState(font);
+    const setIsAnimated = (anim: boolean) => setIsAnimatedState(anim);
 
     return (
         <ThemeContext.Provider value={{
             theme, setTheme,
             fontSize, setFontSize,
-            fontFamily, setFontFamily
+            fontFamily, setFontFamily,
+            isAnimated, setIsAnimated
         }}>
             {children}
         </ThemeContext.Provider>

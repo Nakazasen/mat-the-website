@@ -1338,6 +1338,87 @@ async def upsert_homepage_translations(settings_payload: dict, locales: list[str
         "failed_translations": failed_translations,
     }
 
+async def translate_novel_payloads_with_ai(novel_payload: dict, locales: list[str]) -> dict[str, dict]:
+    target_locales = build_target_translation_locales(locales)
+    if not target_locales:
+        return {}
+
+    glossary_prompt = build_glossary_prompt()
+    locale_prompt = build_target_locale_prompt(target_locales)
+    source_payload = {
+        "title": novel_payload.get("title") or "",
+        "description": novel_payload.get("description") or "",
+    }
+    schema = build_multilocale_object_schema(
+        target_locales,
+        {
+            "title": {"type": "string"},
+            "description": {"type": "string"},
+        },
+    )
+    system_instruction = "Bạn là chuyên gia dịch thuật văn học. Hãy dịch tiêu đề truyện và mô tả truyện sang các ngôn ngữ yêu cầu. Giữ nguyên phong cách hậu tận thế, kinh dị sinh hóa."
+    translated_payloads = await generate_structured_translation_payload(
+        system_instruction=system_instruction,
+        user_prompt=build_novel_multilocale_user_prompt(
+            source_payload=source_payload,
+            locale_prompt=locale_prompt,
+            glossary_prompt=glossary_prompt,
+        ),
+        response_json_schema=schema,
+        parser=lambda raw_text: parse_multilocale_translation_payload(
+            raw_text,
+            target_locales,
+            ["title", "description"],
+        ),
+    )
+    return translated_payloads
+
+async def upsert_novel_translations(novel_payload: dict, locales: list[str]) -> dict:
+    target_locales = build_target_translation_locales(locales)
+    if not target_locales:
+        return {"translated_locales": [], "failed_translations": []}
+
+    translated_payloads = await translate_novel_payloads_with_ai(novel_payload, target_locales)
+    translated_at = datetime.now(timezone.utc).isoformat()
+    translated_locales = []
+    failed_translations = []
+
+    for locale in target_locales:
+        translated_payload = translated_payloads.get(locale)
+        if not translated_payload:
+            failed_translations.append({"locale": locale, "status_code": 502, "detail": "Missing novel translation payload"})
+            continue
+
+        payload = {
+            "novel_settings_id": 1,
+            "locale": locale,
+            "title": translated_payload.get("title"),
+            "description": translated_payload.get("description"),
+            "seo_title": translated_payload.get("seo_title") or translated_payload.get("title"),
+            "seo_description": translated_payload.get("seo_description") or translated_payload.get("description"),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        supabase.table("novel_settings_translations").upsert(payload, on_conflict="novel_settings_id,locale").execute()
+        translated_locales.append(locale)
+
+    return {
+        "translated_locales": translated_locales,
+        "failed_translations": failed_translations,
+    }
+
+def build_novel_multilocale_user_prompt(source_payload: dict, locale_prompt: str, glossary_prompt: str) -> str:
+    return f"""
+Translate the following novel metadata from Vietnamese to multiple locales.
+{locale_prompt}
+{glossary_prompt}
+
+Source Metadata:
+Title: {source_payload['title']}
+Description: {source_payload['description']}
+
+Return the result strictly as a JSON object where keys are the locale codes.
+"""
+
 async def upsert_homepage_translation(settings_payload: dict, locale: str):
     locale = normalize_locale(locale)
     if locale == DEFAULT_LOCALE:
@@ -2873,6 +2954,30 @@ async def admin_update_novel(
             "has_ai_key": bool(key_catalog),
             "ai_api_keys_count": len(key_catalog),
         },
+    }
+
+@app.post("/api/admin/novel/translate", summary="[Admin] Dịch AI thông tin truyện")
+async def admin_translate_novel_i18n(
+    authorization: Optional[str] = Header(None),
+    locale: Optional[str] = Query(None, description="Specific locale to translate"),
+):
+    """Dịch AI cho Tên truyện, Tác giả, Mô tả từ tiếng Việt sang các locale còn lại."""
+    await verify_admin(authorization)
+
+    resp = supabase.table("novel_settings").select("*").eq("id", 1).single().execute()
+    if not resp.data:
+        raise HTTPException(status_code=404, detail="Novel settings not found")
+
+    if locale:
+        target_locales = [normalize_locale(locale)]
+    else:
+        target_locales = [item for item in SUPPORTED_LOCALES if item != DEFAULT_LOCALE]
+
+    result = await upsert_novel_translations(resp.data, target_locales)
+    return {
+        "message": "Đã dịch thông tin truyện",
+        "translated_locales": result["translated_locales"],
+        "failed_translations": result["failed_translations"],
     }
 class HomepageSettings(BaseModel):
     warning_title: Optional[str] = None
