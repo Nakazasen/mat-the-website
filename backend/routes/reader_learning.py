@@ -168,6 +168,7 @@ class ReaderSourceReferenceResponse(BaseModel):
     source_excerpt: str
     paragraph_index: Optional[int] = None
     match_mode: Literal["sentence", "paragraph"] = "paragraph"
+    confidence: Literal["high", "medium", "low"] = "low"
     source: LookupSource
 
 
@@ -388,6 +389,25 @@ def _cap_excerpt(text: Optional[str], max_sentences: int, max_chars: int) -> str
     if len(excerpt) <= max_chars:
         return excerpt
     return excerpt[:max_chars].rstrip()
+
+
+def _build_source_reference_confidence(
+    match_mode: Literal["sentence", "paragraph"],
+    block_score: float,
+    sentence_score: float,
+) -> Literal["high", "medium", "low"]:
+    if match_mode == "sentence":
+        if sentence_score >= 0.72 and block_score >= 0.4:
+            return "high"
+        if sentence_score >= 0.45 or block_score >= 0.5:
+            return "medium"
+        return "low"
+
+    if block_score >= 1.02:
+        return "high"
+    if block_score >= 0.45:
+        return "medium"
+    return "low"
 
 
 def _selected_sentence_window_size(selected_text: str) -> int:
@@ -974,13 +994,15 @@ async def source_reference(body: ReaderSourceReferenceRequest):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="selected_text không được để trống.")
 
     if locale == "vi":
+        vi_mode: Literal["sentence", "paragraph"] = "sentence" if _should_match_sentence(selected_text, context_sentence) else "paragraph"
         return ReaderSourceReferenceResponse(
             locale=locale,
             selected_text=selected_text,
             translated_excerpt=context_sentence or selected_text,
             source_excerpt=context_sentence or selected_text,
             paragraph_index=None,
-            match_mode="sentence" if _should_match_sentence(selected_text, context_sentence) else "paragraph",
+            match_mode=vi_mode,
+            confidence="high" if vi_mode == "sentence" else "medium",
             source="rule_based",
         )
 
@@ -1044,6 +1066,7 @@ async def source_reference(body: ReaderSourceReferenceRequest):
     translated_excerpt = selected_text.strip()
     source_excerpt = source_blocks[source_index].strip()
     match_mode: Literal["sentence", "paragraph"] = "paragraph"
+    sentence_score = 0.0
 
     translated_block_excerpt = translated_blocks[best_index].strip()
     translated_sentences = _split_sentences(translated_block_excerpt)
@@ -1073,6 +1096,7 @@ async def source_reference(body: ReaderSourceReferenceRequest):
         max_sentences=1 if match_mode == "sentence" else 3,
         max_chars=320 if match_mode == "sentence" else 620,
     )
+    confidence = _build_source_reference_confidence(match_mode, best_score, sentence_score)
 
     _log_reader_event(
         "info",
@@ -1082,6 +1106,7 @@ async def source_reference(body: ReaderSourceReferenceRequest):
         paragraph_index=source_index,
         score=round(best_score, 3),
         match_mode=match_mode,
+        confidence=confidence,
     )
     return ReaderSourceReferenceResponse(
         locale=locale,
@@ -1090,6 +1115,7 @@ async def source_reference(body: ReaderSourceReferenceRequest):
         source_excerpt=source_excerpt,
         paragraph_index=source_index,
         match_mode=match_mode,
+        confidence=confidence,
         source="rule_based",
     )
 

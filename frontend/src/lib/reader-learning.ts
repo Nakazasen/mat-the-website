@@ -61,6 +61,7 @@ export interface ReaderSourceReferenceResponse {
     source_excerpt: string;
     paragraph_index?: number | null;
     match_mode: "sentence" | "paragraph";
+    confidence: "high" | "medium" | "low";
     source: ReaderLookupSource;
 }
 

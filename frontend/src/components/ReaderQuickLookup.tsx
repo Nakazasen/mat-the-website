@@ -115,6 +115,22 @@ function getSourceReferenceModeLabel(mode?: 'sentence' | 'paragraph'): string {
     return mode === 'sentence' ? 'Đang đối chiếu theo câu' : 'Đang đối chiếu theo đoạn';
 }
 
+function getSourceReferenceConfidenceLabel(confidence?: 'high' | 'medium' | 'low'): string {
+    if (confidence === 'high') return 'HIGH';
+    if (confidence === 'medium') return 'MEDIUM';
+    return 'LOW';
+}
+
+function getSourceReferenceConfidenceClass(confidence?: 'high' | 'medium' | 'low'): string {
+    if (confidence === 'high') {
+        return 'border-emerald-500/50 bg-emerald-500/10 text-emerald-200';
+    }
+    if (confidence === 'medium') {
+        return 'border-amber-500/50 bg-amber-500/10 text-amber-200';
+    }
+    return 'border-red-500/50 bg-red-500/10 text-red-200';
+}
+
 function buildDiffHighlightSegments(leftText?: string | null, rightText?: string | null) {
     const left = leftText || '';
     const right = rightText || '';
@@ -965,6 +981,11 @@ export default function ReaderQuickLookup({
                                             </div>
                                             <div className="rounded-full border border-emerald-700/40 px-2 py-1 text-[10px] font-mono uppercase tracking-[0.16em] text-emerald-200">
                                                 {getSourceReferenceModeLabel(sourceReference.match_mode)}
+                                            </div>
+                                            <div
+                                                className={`rounded-full border px-2 py-1 text-[10px] font-mono uppercase tracking-[0.16em] ${getSourceReferenceConfidenceClass(sourceReference.confidence)}`}
+                                            >
+                                                Confidence {getSourceReferenceConfidenceLabel(sourceReference.confidence)}
                                             </div>
                                         </div>
                                         <div className={`mt-3 grid gap-3 ${isDesktop && panelExpanded ? 'md:grid-cols-2' : 'grid-cols-1'}`}>

@@ -55,3 +55,12 @@ def test_map_source_block_index_by_relative_position_handles_count_mismatch():
 
     assert mapped_first == 0
     assert mapped_last == 1
+
+
+def test_build_source_reference_confidence_levels():
+    assert reader_learning._build_source_reference_confidence("sentence", 0.6, 0.8) == "high"
+    assert reader_learning._build_source_reference_confidence("sentence", 0.35, 0.5) == "medium"
+    assert reader_learning._build_source_reference_confidence("sentence", 0.2, 0.2) == "low"
+    assert reader_learning._build_source_reference_confidence("paragraph", 1.1, 0.0) == "high"
+    assert reader_learning._build_source_reference_confidence("paragraph", 0.6, 0.0) == "medium"
+    assert reader_learning._build_source_reference_confidence("paragraph", 0.2, 0.0) == "low"
