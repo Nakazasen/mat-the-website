@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase-admin';
 import { getFreshAdminAccessToken } from '@/lib/admin-session';
@@ -92,6 +92,25 @@ export default function AdminNovelPage() {
     const [oracleHealthLoading, setOracleHealthLoading] = useState(false);
     const [oracleResetLoading, setOracleResetLoading] = useState(false);
     const [oracleAdminMessage, setOracleAdminMessage] = useState<string | null>(null);
+    const [aiKeyWarning, setAiKeyWarning] = useState<string | null>(null);
+
+    const duplicateNewApiKeys = useMemo(() => {
+        const seen = new Set<string>();
+        const duplicates = new Set<string>();
+
+        for (const row of aiApiKeyRows) {
+            if (row.kind !== 'new') continue;
+            const normalized = row.value.trim();
+            if (!normalized) continue;
+            if (seen.has(normalized)) {
+                duplicates.add(normalized);
+                continue;
+            }
+            seen.add(normalized);
+        }
+
+        return Array.from(duplicates);
+    }, [aiApiKeyRows]);
 
     useEffect(() => {
         const loadData = async () => {
@@ -136,6 +155,13 @@ export default function AdminNovelPage() {
         setSaving(true);
         setError(null);
         setSuccess(false);
+        setAiKeyWarning(null);
+
+        if (duplicateNewApiKeys.length > 0) {
+            setSaving(false);
+            setError('Có API key mới bị trùng lặp trong danh sách nhập. Hãy bỏ các dòng trùng trước khi lưu.');
+            return;
+        }
 
         try {
             const freshToken = await getFreshAdminAccessToken();
@@ -182,6 +208,13 @@ export default function AdminNovelPage() {
 
             const response = await updateNovelSettings(payload, freshToken);
             const nextKeyCount = response.data.ai_api_keys_count ?? settings.ai_api_keys_count ?? 0;
+            const newKeysCount = aiApiKeyRows
+                .filter((row) => row.kind === 'new')
+                .map((row) => row.value.trim())
+                .filter(Boolean)
+                .length;
+            const removedExistingCount = (payload.remove_ai_key_indexes || []).length;
+            const expectedKeyCount = Math.max(0, (settings.ai_api_keys_count || 0) - removedExistingCount) + newKeysCount;
             setSuccess(true);
             setAiApiKeyRows(buildApiKeyRows(nextKeyCount));
             setSettings((prev) => ({
@@ -191,6 +224,9 @@ export default function AdminNovelPage() {
                 ai_model_name: response.data.ai_model_name || prev.ai_model_name,
                 ai_model_catalog: response.data.ai_model_catalog || prev.ai_model_catalog,
             }));
+            if (nextKeyCount < expectedKeyCount) {
+                setAiKeyWarning('Một số API key mới bị trùng với key đã lưu trên server nên không được thêm lại.');
+            }
             setTimeout(() => setSuccess(false), 3000);
         } catch (err: any) {
             setError(err?.message || 'Lỗi không xác định khi lưu cấu hình.');
@@ -360,6 +396,13 @@ export default function AdminNovelPage() {
                 <div className="flex items-center gap-2 text-red-400 bg-red-950/30 border border-red-900/50 rounded p-4 text-sm mb-6">
                     <AlertTriangle size={16} />
                     <span>{error}</span>
+                </div>
+            )}
+
+            {aiKeyWarning && (
+                <div className="flex items-center gap-2 text-amber-300 bg-amber-950/30 border border-amber-800/50 rounded p-4 text-sm mb-6">
+                    <AlertTriangle size={16} />
+                    <span>{aiKeyWarning}</span>
                 </div>
             )}
 
@@ -572,6 +615,11 @@ export default function AdminNovelPage() {
                                         <Plus size={14} />
                                         THÊM DÒNG KEY
                                     </button>
+                                    {duplicateNewApiKeys.length > 0 && (
+                                        <div className="rounded border border-amber-900/40 bg-amber-950/20 px-3 py-2 text-xs text-amber-200">
+                                            Có API key mới đang bị nhập trùng. Hệ thống sẽ không cho lưu cho tới khi anh xóa bớt dòng trùng.
+                                        </div>
+                                    )}
                                     <p className="text-xs text-gray-500">
                                         Đang lưu trên server: {settings.ai_api_keys_count || 0} key. Backend sẽ xoay từng tổ hợp <span className="font-mono text-gray-300">key x model</span> theo thứ tự ưu tiên.
                                     </p>
