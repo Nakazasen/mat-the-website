@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import hashlib
 from datetime import datetime, timedelta, timezone
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 from urllib.parse import quote
 
-from fastapi import APIRouter, Header, HTTPException, Query, status
+from fastapi import APIRouter, Header, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/api/reader", tags=["reader_learning"])
@@ -115,8 +115,10 @@ class ReaderReviewResponse(BaseModel):
 
 class ReaderSentenceTtsRequest(BaseModel):
     locale: str = "vi"
-    sentence_text: str = Field(..., min_length=1, max_length=1200)
+    sentence_text: str = Field(..., min_length=1, max_length=200)
     speed: float = Field(default=1.0, ge=0.5, le=1.5)
+    chapter_id: Optional[int] = None
+    voice: Optional[str] = None
 
 
 class ReaderSentenceTtsResponse(BaseModel):
@@ -124,6 +126,13 @@ class ReaderSentenceTtsResponse(BaseModel):
     detail: str
     audio_url: Optional[str] = None
     provider: Optional[str] = None
+    cached: bool = False
+
+
+class ReaderLearningStatsResponse(BaseModel):
+    saved_vocab_count: int
+    saved_sentence_count: int
+    review_due_count: int
 
 
 def _get_supabase():
@@ -142,6 +151,30 @@ def _normalize_locale(locale: Optional[str]) -> str:
     return normalize_locale(locale or "vi")
 
 
+def _get_build_content_hash():
+    try:
+        from main import build_content_hash
+    except ImportError:
+        from backend.main import build_content_hash
+    return build_content_hash
+
+
+def _get_generate_structured_translation_payload():
+    try:
+        from main import generate_structured_translation_payload
+    except ImportError:
+        from backend.main import generate_structured_translation_payload
+    return generate_structured_translation_payload
+
+
+def _get_parse_json_like_payload():
+    try:
+        from main import parse_json_like_payload
+    except ImportError:
+        from backend.main import parse_json_like_payload
+    return parse_json_like_payload
+
+
 def _extract_bearer_token(authorization: Optional[str]) -> Optional[str]:
     if not authorization:
         return None
@@ -156,11 +189,18 @@ def _normalize_term(term: str) -> str:
     return " ".join((term or "").strip().split()).lower()
 
 
+def _normalize_sentence(text: Optional[str], max_length: int = 1200) -> Optional[str]:
+    normalized = " ".join((text or "").strip().split())
+    if not normalized:
+        return None
+    return normalized[:max_length]
+
+
 def _context_hash(context_sentence: Optional[str]) -> str:
-    normalized = " ".join((context_sentence or "").strip().split()).lower()
+    normalized = _normalize_sentence(context_sentence)
     if not normalized:
         return "global"
-    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:24]
+    return hashlib.sha256(normalized.lower().encode("utf-8")).hexdigest()[:24]
 
 
 def _build_external_links(locale: str, term: str) -> list[ReaderExternalLink]:
@@ -169,37 +209,121 @@ def _build_external_links(locale: str, term: str) -> list[ReaderExternalLink]:
         return []
     encoded = quote(query)
     if locale == "ja":
-        return [ReaderExternalLink(label="Jotoba", url=f"https://jotoba.de/search/0/{encoded}")]
+        return [
+            ReaderExternalLink(label="Jotoba", url=f"https://jotoba.de/search/0/{encoded}"),
+            ReaderExternalLink(label="Jisho", url=f"https://jisho.org/search/{encoded}"),
+        ]
     if locale == "zh-CN":
         return [
             ReaderExternalLink(
                 label="MDBG",
                 url=f"https://www.mdbg.net/chinese/dictionary?page=worddict&wdrst=0&wdqb={encoded}",
-            )
+            ),
+            ReaderExternalLink(label="Pleco", url=f"https://www.pleco.com/?search={encoded}"),
         ]
     if locale == "en":
         return [
             ReaderExternalLink(
                 label="Cambridge",
                 url=f"https://dictionary.cambridge.org/dictionary/english/{encoded}",
-            )
+            ),
+            ReaderExternalLink(
+                label="Longman",
+                url=f"https://www.ldoceonline.com/dictionary/{encoded}",
+            ),
         ]
     return []
 
 
-def _build_placeholder_lookup(locale: str, term: str) -> ReaderLookupResponse:
-    notes = (
-        "MVP scaffold: hiện mới cố định contract, cache và luồng lưu học liệu. "
-        "Bước tiếp theo là nối rule-based lookup và AI giải nghĩa theo ngữ cảnh."
+def _build_vi_rule_based_lookup(term: str) -> ReaderLookupResponse:
+    normalized_term = _normalize_term(term)
+    return ReaderLookupResponse(
+        term=term,
+        normalized_term=normalized_term,
+        locale="vi",
+        reading=None,
+        meaning_vi=term,
+        pos="từ/cụm tiếng Việt",
+        notes="Đây là nội dung tiếng Việt. Tra nhanh chủ yếu hữu ích hơn với Anh, Nhật và Trung.",
+        source="rule_based",
+        external_links=[],
     )
+
+
+def _lookup_schema() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "properties": {
+            "meaning_vi": {"type": "string"},
+            "reading": {"type": "string"},
+            "pos": {"type": "string"},
+            "notes": {"type": "string"},
+        },
+        "required": ["meaning_vi", "reading", "pos", "notes"],
+        "additionalProperties": False,
+    }
+
+
+def _lookup_prompt(locale: str, term: str, context_sentence: Optional[str]) -> tuple[str, str]:
+    locale_label = {
+        "en": "tiếng Anh",
+        "ja": "tiếng Nhật",
+        "zh-CN": "tiếng Trung giản thể",
+    }.get(locale, locale)
+    context_text = context_sentence or "(không có câu ngữ cảnh)"
+    system_instruction = (
+        "Bạn là trợ lý tra từ ngoại ngữ trong trang đọc truyện. "
+        "Hãy trả về JSON ngắn gọn, đúng schema, không thêm markdown."
+    )
+    user_prompt = (
+        f"Ngôn ngữ nguồn: {locale_label}\n"
+        f"Từ hoặc cụm cần tra: {term}\n"
+        f"Câu ngữ cảnh: {context_text}\n\n"
+        "Yêu cầu:\n"
+        "1. meaning_vi: nghĩa tiếng Việt ngắn gọn, đúng theo ngữ cảnh hiện tại.\n"
+        "2. reading:\n"
+        '   - en: IPA hoặc phát âm gần đúng rất ngắn\n'
+        '   - ja: kana hoặc cách đọc ngắn gọn\n'
+        '   - zh-CN: pinyin\n'
+        '   - nếu không chắc thì trả ""\n'
+        "3. pos: từ loại hoặc nhãn ngắn như noun, verb, idiom, proper noun.\n"
+        "4. notes: tối đa 2 câu ngắn; nếu là tên riêng, idiom hoặc phrasal verb thì nêu rõ.\n"
+        "5. Không lan man, không trả quá dài.\n"
+    )
+    return system_instruction, user_prompt
+
+
+def _parse_lookup_payload(raw_text: str) -> dict[str, str]:
+    parse_json_like_payload = _get_parse_json_like_payload()
+    parsed = parse_json_like_payload(raw_text)
+    return {
+        "meaning_vi": str(parsed.get("meaning_vi") or "").strip(),
+        "reading": str(parsed.get("reading") or "").strip(),
+        "pos": str(parsed.get("pos") or "").strip(),
+        "notes": str(parsed.get("notes") or "").strip(),
+    }
+
+
+async def _lookup_with_ai(locale: str, term: str, context_sentence: Optional[str]) -> ReaderLookupResponse:
+    generate_structured_translation_payload = _get_generate_structured_translation_payload()
+    system_instruction, user_prompt = _lookup_prompt(locale, term, context_sentence)
+    payload = await generate_structured_translation_payload(
+        system_instruction=system_instruction,
+        user_prompt=user_prompt,
+        response_json_schema=_lookup_schema(),
+        parser=_parse_lookup_payload,
+        timeout_seconds=45.0,
+    )
+
     return ReaderLookupResponse(
         term=term,
         normalized_term=_normalize_term(term),
         locale=locale,
-        meaning_vi=None,
-        pos=None,
-        notes=notes,
-        source="placeholder",
+        reading=payload.get("reading") or None,
+        meaning_vi=payload.get("meaning_vi") or None,
+        pos=payload.get("pos") or None,
+        notes=payload.get("notes") or None,
+        source="ai",
         external_links=_build_external_links(locale, term),
     )
 
@@ -208,13 +332,14 @@ def _raise_schema_error(exc: Exception) -> None:
     raise HTTPException(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         detail=(
-            "Reader learning schema chưa sẵn sàng. Hãy chạy scripts/supabase_reader_learning.sql. "
+            "Reader learning schema chưa sẵn sàng. "
+            "Hãy chạy scripts/supabase_reader_learning.sql. "
             f"Chi tiết: {exc}"
         ),
     )
 
 
-def _verify_reader_user(authorization: Optional[str]) -> dict:
+def _verify_reader_user(authorization: Optional[str]) -> dict[str, Optional[str]]:
     token = _extract_bearer_token(authorization)
     if not token:
         raise HTTPException(
@@ -243,21 +368,39 @@ def _verify_reader_user(authorization: Optional[str]) -> dict:
     }
 
 
-@router.post("/lookup", response_model=ReaderLookupResponse)
-async def lookup_reader_term(body: ReaderLookupRequest):
-    locale = _normalize_locale(body.locale)
-    term = " ".join(body.term.strip().split())
-    if not term:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="term không được để trống.")
+def _deserialize_lookup_payload(row: dict[str, Any]) -> Optional[ReaderLookupResponse]:
+    payload = row.get("payload_json")
+    if not isinstance(payload, dict):
+        return None
 
+    links_raw = payload.get("external_links") or []
+    links: list[ReaderExternalLink] = []
+    for item in links_raw:
+        if isinstance(item, dict) and item.get("label") and item.get("url"):
+            links.append(ReaderExternalLink(label=str(item["label"]), url=str(item["url"])))
+
+    try:
+        return ReaderLookupResponse(
+            term=str(payload.get("term") or ""),
+            normalized_term=str(payload.get("normalized_term") or ""),
+            locale=str(payload.get("locale") or row.get("locale") or "vi"),
+            reading=(str(payload["reading"]).strip() if payload.get("reading") else None),
+            meaning_vi=(str(payload["meaning_vi"]).strip() if payload.get("meaning_vi") else None),
+            pos=(str(payload["pos"]).strip() if payload.get("pos") else None),
+            notes=(str(payload["notes"]).strip() if payload.get("notes") else None),
+            source="cache",
+            external_links=links,
+        )
+    except Exception:
+        return None
+
+
+def _get_cached_lookup(locale: str, normalized_term: str, context_hash: str) -> Optional[ReaderLookupResponse]:
     supabase = _get_supabase()
-    context_hash = _context_hash(body.context_sentence)
-    normalized_term = _normalize_term(term)
-
     try:
         result = (
             supabase.table("reader_lookup_cache")
-            .select("payload_json, expires_at, source")
+            .select("payload_json, expires_at, locale")
             .eq("locale", locale)
             .eq("normalized_term", normalized_term)
             .eq("context_hash", context_hash)
@@ -267,19 +410,66 @@ async def lookup_reader_term(body: ReaderLookupRequest):
     except Exception as exc:
         _raise_schema_error(exc)
 
-    if result.data:
-        row = result.data[0]
-        expires_at = row.get("expires_at")
-        if not expires_at or datetime.fromisoformat(expires_at.replace("Z", "+00:00")) > datetime.now(timezone.utc):
-            payload = row.get("payload_json") or {}
-            payload.setdefault("term", term)
-            payload.setdefault("normalized_term", normalized_term)
-            payload.setdefault("locale", locale)
-            payload.setdefault("source", "cache")
-            payload.setdefault("external_links", [link.dict() for link in _build_external_links(locale, term)])
-            return ReaderLookupResponse(**payload)
+    if not result.data:
+        return None
 
-    return _build_placeholder_lookup(locale, term)
+    row = result.data[0]
+    expires_at = row.get("expires_at")
+    if expires_at:
+        try:
+            expires_at_dt = datetime.fromisoformat(str(expires_at).replace("Z", "+00:00"))
+            if expires_at_dt < datetime.now(timezone.utc):
+                return None
+        except Exception:
+            return None
+
+    return _deserialize_lookup_payload(row)
+
+
+def _cache_lookup_response(locale: str, normalized_term: str, context_hash: str, response: ReaderLookupResponse) -> None:
+    supabase = _get_supabase()
+    payload = response.dict()
+    payload["external_links"] = [item.dict() for item in response.external_links]
+    try:
+        supabase.table("reader_lookup_cache").upsert(
+            {
+                "locale": locale,
+                "normalized_term": normalized_term,
+                "context_hash": context_hash,
+                "payload_json": payload,
+                "source": response.source,
+                "expires_at": (datetime.now(timezone.utc) + timedelta(days=14)).isoformat(),
+            },
+            on_conflict="locale,normalized_term,context_hash",
+        ).execute()
+    except Exception:
+        pass
+
+
+@router.post("/lookup", response_model=ReaderLookupResponse)
+async def lookup_reader_term(body: ReaderLookupRequest):
+    locale = _normalize_locale(body.locale)
+    term = " ".join(body.term.strip().split())
+    context_sentence = _normalize_sentence(body.context_sentence)
+
+    if not term:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="term không được để trống.")
+
+    if locale == "vi":
+        return _build_vi_rule_based_lookup(term)
+
+    normalized_term = _normalize_term(term)
+    context_hash = _context_hash(context_sentence)
+
+    cached = _get_cached_lookup(locale, normalized_term, context_hash)
+    if cached:
+        if not cached.external_links:
+            cached.external_links = _build_external_links(locale, term)
+        return cached
+
+    response = await _lookup_with_ai(locale, term, context_sentence)
+    _cache_lookup_response(locale, normalized_term, context_hash, response)
+    return response
 
 
 @router.post("/save-vocab", response_model=ReaderSavedVocabItem)
@@ -479,11 +669,107 @@ async def review_reader_vocab(
 
 
 @router.post("/sentence-tts", response_model=ReaderSentenceTtsResponse)
-async def create_reader_sentence_tts(body: ReaderSentenceTtsRequest):
-    _normalize_locale(body.locale)
+async def create_reader_sentence_tts(body: ReaderSentenceTtsRequest, request: Request):
+    locale = _normalize_locale(body.locale)
+    sentence_text = _normalize_sentence(body.sentence_text, max_length=200)
+    if not sentence_text:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="sentence_text không được để trống.")
+
+    build_content_hash = _get_build_content_hash()
+    content_hash = build_content_hash(sentence_text)
+    entity_id = body.chapter_id or 0
+    voice = body.voice or "default"
+    audio_url = (
+        f"{str(request.base_url).rstrip('/')}/api/tts"
+        f"?lang={quote(locale)}&speed={body.speed}&text={quote(sentence_text)}"
+    )
+    cached = False
+
+    supabase = _get_supabase()
+    try:
+        existing = (
+            supabase.table("tts_audio_cache")
+            .select("audio_url")
+            .eq("entity_type", "sentence")
+            .eq("entity_id", entity_id)
+            .eq("locale", locale)
+            .eq("voice", voice)
+            .eq("content_hash", content_hash)
+            .limit(1)
+            .execute()
+        )
+        if existing.data:
+            cached = True
+            audio_url = existing.data[0].get("audio_url") or audio_url
+        else:
+            supabase.table("tts_audio_cache").upsert(
+                {
+                    "entity_type": "sentence",
+                    "entity_id": entity_id,
+                    "locale": locale,
+                    "voice": voice,
+                    "provider": "google-translate-tts",
+                    "content_hash": content_hash,
+                    "audio_url": audio_url,
+                },
+                on_conflict="entity_type,entity_id,locale,voice,content_hash",
+            ).execute()
+    except Exception:
+        pass
+
     return ReaderSentenceTtsResponse(
-        status="not_implemented",
-        detail="Sentence TTS skeleton đã sẵn sàng. Bước tiếp theo là nối vào pipeline TTS hiện có theo từng câu.",
-        audio_url=None,
-        provider=None,
+        status="ready",
+        detail="Âm thanh câu đã sẵn sàng.",
+        audio_url=audio_url,
+        provider="google-translate-tts",
+        cached=cached,
+    )
+
+
+@router.get("/learning-stats", response_model=ReaderLearningStatsResponse)
+async def get_reader_learning_stats(authorization: Optional[str] = Header(default=None)):
+    user = _verify_reader_user(authorization)
+    supabase = _get_supabase()
+
+    try:
+        vocab_result = (
+            supabase.table("reader_saved_vocab")
+            .select("id", count="exact")
+            .eq("user_id", user["id"])
+            .execute()
+        )
+        sentence_result = (
+            supabase.table("reader_saved_sentences")
+            .select("id", count="exact")
+            .eq("user_id", user["id"])
+            .execute()
+        )
+        vocab_ids_result = (
+            supabase.table("reader_saved_vocab")
+            .select("id")
+            .eq("user_id", user["id"])
+            .execute()
+        )
+    except Exception as exc:
+        _raise_schema_error(exc)
+
+    vocab_ids = [row["id"] for row in (vocab_ids_result.data or []) if row.get("id")]
+    review_due_count = 0
+    if vocab_ids:
+        try:
+            review_result = (
+                supabase.table("reader_vocab_reviews")
+                .select("saved_vocab_id", count="exact")
+                .in_("saved_vocab_id", vocab_ids)
+                .lte("next_review_at", datetime.now(timezone.utc).isoformat())
+                .execute()
+            )
+            review_due_count = review_result.count or 0
+        except Exception as exc:
+            _raise_schema_error(exc)
+
+    return ReaderLearningStatsResponse(
+        saved_vocab_count=vocab_result.count or 0,
+        saved_sentence_count=sentence_result.count or 0,
+        review_due_count=review_due_count,
     )

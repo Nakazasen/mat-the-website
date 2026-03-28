@@ -112,6 +112,8 @@ export interface ReaderSentenceTtsRequest {
     locale: Locale;
     sentence_text: string;
     speed?: number;
+    chapter_id?: number;
+    voice?: string;
 }
 
 export interface ReaderSentenceTtsResponse {
@@ -119,6 +121,13 @@ export interface ReaderSentenceTtsResponse {
     detail: string;
     audio_url?: string | null;
     provider?: string | null;
+    cached?: boolean;
+}
+
+export interface ReaderLearningStatsResponse {
+    saved_vocab_count: number;
+    saved_sentence_count: number;
+    review_due_count: number;
 }
 
 async function getReaderAccessToken(): Promise<string | null> {
@@ -234,4 +243,8 @@ export function requestReaderSentenceTts(data: ReaderSentenceTtsRequest): Promis
         method: "POST",
         body: JSON.stringify(data),
     });
+}
+
+export function getReaderLearningStats(): Promise<ReaderLearningStatsResponse> {
+    return readerRequest<ReaderLearningStatsResponse>("/learning-stats", undefined, true);
 }

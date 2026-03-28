@@ -1,12 +1,23 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, type RefObject } from 'react';
-import { BookOpenText, BookmarkPlus, ExternalLink, Loader2, Quote, Search, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import {
+    BookOpenText,
+    BookmarkPlus,
+    ExternalLink,
+    Loader2,
+    Quote,
+    Search,
+    Square,
+    Volume2,
+    X,
+} from 'lucide-react';
 
 import { useLocale } from '@/context/LocaleContext';
 import type { Locale } from '@/lib/i18n/config';
 import {
     lookupReaderTerm,
+    requestReaderSentenceTts,
     saveReaderSentence,
     saveReaderVocab,
     type ReaderLookupResponse,
@@ -84,6 +95,13 @@ function findSelectionSentence(anchorElement: HTMLElement | null, selectedText: 
     return selectedText;
 }
 
+function getLookupSourceLabel(source?: string | null): string {
+    if (source === 'cache') return 'Cache';
+    if (source === 'rule_based') return 'Rule-based';
+    if (source === 'ai') return 'AI';
+    return 'Unknown';
+}
+
 export default function ReaderQuickLookup({
     chapterId,
     chapterProgress,
@@ -91,6 +109,8 @@ export default function ReaderQuickLookup({
     sourceLocale,
 }: ReaderQuickLookupProps) {
     const { dictionary } = useLocale();
+    const audioRef = useRef<HTMLAudioElement | null>(null);
+
     const [selectedText, setSelectedText] = useState('');
     const [selectedSentence, setSelectedSentence] = useState('');
     const [toolbarPosition, setToolbarPosition] = useState<{ top: number; left: number } | null>(null);
@@ -103,6 +123,9 @@ export default function ReaderQuickLookup({
     const [saveSentenceLoading, setSaveSentenceLoading] = useState(false);
     const [saveMessage, setSaveMessage] = useState<string | null>(null);
     const [saveError, setSaveError] = useState<string | null>(null);
+    const [audioLoading, setAudioLoading] = useState(false);
+    const [audioError, setAudioError] = useState<string | null>(null);
+    const [audioPlaying, setAudioPlaying] = useState(false);
 
     const externalDictionaryUrl = useMemo(() => {
         if (lookupResult?.external_links?.[0]?.url) return lookupResult.external_links[0].url;
@@ -113,12 +136,21 @@ export default function ReaderQuickLookup({
         setToolbarPosition(null);
     }, []);
 
+    const stopSentenceAudio = useCallback(() => {
+        if (!audioRef.current) return;
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+        setAudioPlaying(false);
+    }, []);
+
     const resetLookupState = useCallback(() => {
         setLookupResult(null);
         setLookupError(null);
         setSaveMessage(null);
         setSaveError(null);
-    }, []);
+        setAudioError(null);
+        stopSentenceAudio();
+    }, [stopSentenceAudio]);
 
     const readCurrentSelection = useCallback(() => {
         const container = containerRef.current;
@@ -187,6 +219,7 @@ export default function ReaderQuickLookup({
         setLookupResult(null);
         setSaveMessage(null);
         setSaveError(null);
+        setAudioError(null);
         setLastLookupKey(lookupKey);
 
         try {
@@ -229,7 +262,7 @@ export default function ReaderQuickLookup({
                 reading: lookupResult?.reading || undefined,
                 meaning_vi: lookupResult?.meaning_vi || undefined,
                 pos: lookupResult?.pos || undefined,
-                notes: lookupResult?.notes || `Lưu khi đang đọc tới chương ${chapterProgress}.`,
+                notes: lookupResult?.notes || `Lưu khi đang đọc chương ${chapterProgress}.`,
                 context_sentence: selectedSentence || undefined,
                 chapter_id: chapterId,
                 source: lookupResult?.source || 'manual',
@@ -240,7 +273,7 @@ export default function ReaderQuickLookup({
         } finally {
             setSaveVocabLoading(false);
         }
-    }, [chapterId, lookupResult, saveVocabLoading, selectedSentence, selectedText, sourceLocale]);
+    }, [chapterId, chapterProgress, lookupResult, saveVocabLoading, selectedSentence, selectedText, sourceLocale]);
 
     const handleSaveSentence = useCallback(async () => {
         if (!selectedSentence || saveSentenceLoading) return;
@@ -265,7 +298,74 @@ export default function ReaderQuickLookup({
         } finally {
             setSaveSentenceLoading(false);
         }
-    }, [chapterId, lookupResult, saveSentenceLoading, selectedSentence, selectedText, sourceLocale]);
+    }, [chapterId, chapterProgress, lookupResult, saveSentenceLoading, selectedSentence, selectedText, sourceLocale]);
+
+    const handlePlaySentence = useCallback(async (speed: number) => {
+        if (!selectedSentence || audioLoading) return;
+
+        setAudioLoading(true);
+        setAudioError(null);
+
+        try {
+            const sentenceForAudio = selectedSentence.trim();
+            if (sentenceForAudio.length > 200) {
+                throw new Error('Câu này quá dài cho audio nhanh. Hãy chọn cụm ngắn hơn.');
+            }
+
+            const payload = await requestReaderSentenceTts({
+                locale: sourceLocale,
+                sentence_text: sentenceForAudio,
+                speed,
+                chapter_id: chapterId,
+            });
+
+            if (!payload.audio_url) {
+                throw new Error(payload.detail || 'Không tạo được audio câu.');
+            }
+
+            const audio = audioRef.current;
+            if (!audio) {
+                throw new Error('Trình phát audio chưa sẵn sàng.');
+            }
+
+            if (audio.src !== payload.audio_url) {
+                audio.src = payload.audio_url;
+            }
+            audio.currentTime = 0;
+            await audio.play();
+            setAudioPlaying(true);
+        } catch (error: unknown) {
+            setAudioError((error as Error)?.message || 'Không phát được audio câu.');
+            setAudioPlaying(false);
+        } finally {
+            setAudioLoading(false);
+        }
+    }, [audioLoading, chapterId, selectedSentence, sourceLocale]);
+
+    useEffect(() => {
+        const audio = audioRef.current;
+        if (!audio) return undefined;
+
+        const handleEnded = () => setAudioPlaying(false);
+        const handlePause = () => setAudioPlaying(false);
+        const handlePlay = () => setAudioPlaying(true);
+        const handleError = () => {
+            setAudioPlaying(false);
+            setAudioError('Audio câu không tải được. Hãy thử lại.');
+        };
+
+        audio.addEventListener('ended', handleEnded);
+        audio.addEventListener('pause', handlePause);
+        audio.addEventListener('play', handlePlay);
+        audio.addEventListener('error', handleError);
+
+        return () => {
+            audio.removeEventListener('ended', handleEnded);
+            audio.removeEventListener('pause', handlePause);
+            audio.removeEventListener('play', handlePlay);
+            audio.removeEventListener('error', handleError);
+        };
+    }, []);
 
     useEffect(() => {
         const handlePointerUp = (event: MouseEvent | TouchEvent) => {
@@ -281,10 +381,21 @@ export default function ReaderQuickLookup({
             if (!panelOpen) hideToolbar();
         };
 
-        const handleEscape = (event: KeyboardEvent) => {
+        const handleKeyDown = (event: KeyboardEvent) => {
             if (event.key === 'Escape') {
                 hideToolbar();
                 setPanelOpen(false);
+                stopSentenceAudio();
+                return;
+            }
+
+            if (
+                event.altKey &&
+                event.key.toLowerCase() === 'l' &&
+                !shouldIgnoreSelectionTarget(event.target)
+            ) {
+                event.preventDefault();
+                runLookup();
             }
         };
 
@@ -292,19 +403,21 @@ export default function ReaderQuickLookup({
         document.addEventListener('touchend', handlePointerUp);
         document.addEventListener('keyup', handleKeyUp);
         window.addEventListener('scroll', handleScroll, { passive: true });
-        window.addEventListener('keydown', handleEscape);
+        window.addEventListener('keydown', handleKeyDown);
 
         return () => {
             document.removeEventListener('mouseup', handlePointerUp);
             document.removeEventListener('touchend', handlePointerUp);
             document.removeEventListener('keyup', handleKeyUp);
             window.removeEventListener('scroll', handleScroll);
-            window.removeEventListener('keydown', handleEscape);
+            window.removeEventListener('keydown', handleKeyDown);
         };
-    }, [hideToolbar, panelOpen, readCurrentSelection]);
+    }, [hideToolbar, panelOpen, readCurrentSelection, runLookup, stopSentenceAudio]);
 
     return (
         <>
+            <audio ref={audioRef} preload="none" className="hidden" />
+
             {toolbarPosition && selectedText && (
                 <div
                     className="fixed z-[65] -translate-x-1/2"
@@ -322,7 +435,7 @@ export default function ReaderQuickLookup({
             )}
 
             {(panelOpen || selectedText) && (
-                <div className="fixed bottom-24 left-4 right-4 z-[64] md:left-6 md:right-auto md:w-[380px]">
+                <div className="fixed bottom-24 left-4 right-4 z-[64] md:left-6 md:right-auto md:w-[400px]">
                     <div className="overflow-hidden rounded-2xl border border-cyan-900/40 bg-[#090d12]/95 shadow-[0_18px_60px_rgba(0,0,0,0.45)] backdrop-blur">
                         <div className="flex items-center gap-2 border-b border-cyan-900/30 px-4 py-3">
                             <BookOpenText size={15} className="text-cyan-300" />
@@ -358,6 +471,9 @@ export default function ReaderQuickLookup({
                                             {selectedSentence}
                                         </div>
                                     )}
+                                    <div className="mt-3 text-[10px] text-ash-500">
+                                        Phím tắt: <span className="font-mono text-cyan-300">Alt+L</span> để tra nhanh phần đang chọn.
+                                    </div>
                                 </div>
 
                                 {lookupLoading && (
@@ -390,7 +506,7 @@ export default function ReaderQuickLookup({
                                         </div>
 
                                         <div className="mt-3 whitespace-pre-wrap leading-7 text-gray-100">
-                                            {lookupResult.meaning_vi || 'Đang ở chế độ scaffold: contract lookup đã có, bước tiếp theo sẽ nối rule-based và AI giải nghĩa ngữ cảnh.'}
+                                            {lookupResult.meaning_vi || 'Chưa có nghĩa ngắn cho mục này.'}
                                         </div>
 
                                         {lookupResult.notes && (
@@ -400,8 +516,14 @@ export default function ReaderQuickLookup({
                                         )}
 
                                         <div className="mt-3 text-[10px] font-mono uppercase tracking-[0.2em] text-cyan-400">
-                                            Source: {lookupResult.source}
+                                            Nguồn: {getLookupSourceLabel(lookupResult.source)}
                                         </div>
+                                    </div>
+                                )}
+
+                                {audioError && (
+                                    <div className="rounded-xl border border-red-900/40 bg-red-950/20 px-3 py-3 text-sm text-red-200">
+                                        {audioError}
                                     </div>
                                 )}
 
@@ -426,6 +548,36 @@ export default function ReaderQuickLookup({
                                     >
                                         <Search size={12} />
                                         {dictionary.lookup.action}
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => handlePlaySentence(1)}
+                                        disabled={!selectedSentence || audioLoading}
+                                        className="inline-flex items-center gap-2 rounded-lg border border-sky-700/40 px-3 py-2 text-[11px] font-mono text-sky-300 hover:bg-sky-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                        {audioLoading ? <Loader2 size={12} className="animate-spin" /> : <Volume2 size={12} />}
+                                        Nghe 1x
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => handlePlaySentence(0.75)}
+                                        disabled={!selectedSentence || audioLoading}
+                                        className="inline-flex items-center gap-2 rounded-lg border border-sky-700/40 px-3 py-2 text-[11px] font-mono text-sky-300 hover:bg-sky-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                        {audioLoading ? <Loader2 size={12} className="animate-spin" /> : <Volume2 size={12} />}
+                                        Nghe 0.75x
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={stopSentenceAudio}
+                                        disabled={!audioPlaying}
+                                        className="inline-flex items-center gap-2 rounded-lg border border-rose-700/40 px-3 py-2 text-[11px] font-mono text-rose-300 hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                        <Square size={12} />
+                                        Dừng audio
                                     </button>
 
                                     <button
