@@ -7,10 +7,12 @@ import { useLocale } from "@/context/LocaleContext";
 
 interface WikiCharacter {
     name: string;
+    slug?: string;
     faction?: string;
     status?: string;
     ability?: string;
     first_appearance?: number;
+    description?: string;
 }
 
 interface CharacterTooltipProps {
@@ -152,6 +154,19 @@ export default function CharacterTooltip({
                             {character.first_appearance && (
                                 <div style={{ color: "#555", fontSize: "10px", marginTop: "4px" }}>
                                     {dictionary.tooltip.firstAppearance}: {dictionary.tooltip.chapter} {character.first_appearance}
+                                </div>
+                            )}
+                            {character.description && (
+                                <div
+                                    style={{
+                                        marginTop: "8px",
+                                        paddingTop: "6px",
+                                        borderTop: "1px solid rgba(57,255,20,0.12)",
+                                        color: "#c9c4bb",
+                                        lineHeight: 1.5,
+                                    }}
+                                >
+                                    {character.description}
                                 </div>
                             )}
                         </>

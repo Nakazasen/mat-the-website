@@ -12,19 +12,27 @@ function normalizeCharacterNames(characterNames: string[]): string[] {
     ).sort((left, right) => right.length - left.length);
 }
 
-export function annotateCharacterNames(html: string, characterNames: string[]): string {
-    if (typeof window === "undefined") return html;
+function isCjkName(name: string): boolean {
+    return /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u.test(name);
+}
 
-    const names = normalizeCharacterNames(characterNames);
-    if (names.length === 0) return html;
+function buildCharacterPattern(characterNames: string[], requireWordBoundaries: boolean): RegExp | null {
+    const names = characterNames
+        .map((name) => name.trim())
+        .filter((name) => name.length >= 2);
+    if (names.length === 0) return null;
 
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, "text/html");
-    const pattern = new RegExp(
-        `(^|[^\\p{L}\\p{N}_])(${names.map(escapeRegExp).join("|")})(?=$|[^\\p{L}\\p{N}_])`,
-        "giu"
-    );
+    if (requireWordBoundaries) {
+        return new RegExp(
+            `(^|[^\\p{L}\\p{N}_])(${names.map(escapeRegExp).join("|")})(?=$|[^\\p{L}\\p{N}_])`,
+            "giu"
+        );
+    }
 
+    return new RegExp(`(${names.map(escapeRegExp).join("|")})`, "gu");
+}
+
+function annotateNamesWithPattern(doc: Document, pattern: RegExp, useBoundaryGroup: boolean): void {
     const walker = doc.createTreeWalker(
         doc.body,
         NodeFilter.SHOW_TEXT,
@@ -60,8 +68,8 @@ export function annotateCharacterNames(html: string, characterNames: string[]): 
         let match: RegExpExecArray | null;
 
         while ((match = pattern.exec(text)) !== null) {
-            const boundary = match[1] ?? "";
-            const matchedName = match[2];
+            const boundary = useBoundaryGroup ? (match[1] ?? "") : "";
+            const matchedName = useBoundaryGroup ? match[2] : match[1];
             const nameStart = match.index + boundary.length;
             const nameEnd = nameStart + matchedName.length;
 
@@ -88,6 +96,28 @@ export function annotateCharacterNames(html: string, characterNames: string[]): 
         }
 
         node.parentNode?.replaceChild(fragment, node);
+    }
+}
+
+export function annotateCharacterNames(html: string, characterNames: string[]): string {
+    if (typeof window === "undefined") return html;
+
+    const names = normalizeCharacterNames(characterNames);
+    if (names.length === 0) return html;
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
+    const cjkNames = names.filter(isCjkName);
+    const wordNames = names.filter((name) => !isCjkName(name));
+
+    const cjkPattern = buildCharacterPattern(cjkNames, false);
+    if (cjkPattern) {
+        annotateNamesWithPattern(doc, cjkPattern, false);
+    }
+
+    const wordPattern = buildCharacterPattern(wordNames, true);
+    if (wordPattern) {
+        annotateNamesWithPattern(doc, wordPattern, true);
     }
 
     return doc.body.innerHTML;

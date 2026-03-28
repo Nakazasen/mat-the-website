@@ -28,6 +28,7 @@ router = APIRouter(prefix="/wiki", tags=["wiki_search"])
 
 class CharacterProfile(BaseModel):
     name: str
+    slug: Optional[str] = None
     faction: Optional[str] = None
     status: Optional[str] = None
     ability: Optional[str] = None
@@ -74,6 +75,51 @@ def query_character(supabase, search_value: str, chapter: int):
     return None
 
 
+def query_character_translation_match(supabase, search_value: str, chapter: int, locale: str):
+    if not locale or locale == "vi":
+        return None
+
+    attempts = [
+        search_value,
+        normalize_name(search_value),
+    ]
+
+    for candidate in attempts:
+        if not candidate:
+            continue
+        try:
+            translation_result = (
+                supabase.table("wiki_entry_translations")
+                .select("wiki_entry_id, title, summary, content")
+                .eq("locale", locale)
+                .ilike("title", f"%{candidate}%")
+                .limit(5)
+                .execute()
+            )
+            for translation_row in (translation_result.data or []):
+                wiki_entry_id = translation_row.get("wiki_entry_id")
+                if not wiki_entry_id:
+                    continue
+                entry_result = (
+                    supabase.table("wiki_entries")
+                    .select("*")
+                    .eq("id", wiki_entry_id)
+                    .limit(1)
+                    .execute()
+                )
+                if not entry_result.data:
+                    continue
+                entry = entry_result.data[0]
+                chapter_introduced = entry.get("chapter_introduced")
+                if chapter_introduced is not None and chapter_introduced > chapter:
+                    continue
+                return entry, translation_row
+        except Exception:
+            continue
+
+    return None, None
+
+
 def query_character_translation(supabase, wiki_entry_id: str, locale: str):
     if not wiki_entry_id or locale == "vi":
         return None
@@ -108,10 +154,14 @@ async def get_character(
         raise HTTPException(status_code=503, detail="Database not configured")
 
     try:
-        row = query_character(supabase, name.strip(), chapter)
+        row, translation = query_character_translation_match(supabase, name.strip(), chapter, locale)
+        if not row:
+            row = query_character(supabase, name.strip(), chapter)
         if not row:
             normalized_query = normalize_name(name)
-            row = query_character(supabase, normalized_query, chapter)
+            row, translation = query_character_translation_match(supabase, normalized_query, chapter, locale)
+            if not row:
+                row = query_character(supabase, normalized_query, chapter)
 
         if not row:
             return None
@@ -120,7 +170,8 @@ async def get_character(
         if chapter_introduced is not None and chapter_introduced > chapter:
             return None
 
-        translation = query_character_translation(supabase, row.get("id"), locale)
+        if not translation:
+            translation = query_character_translation(supabase, row.get("id"), locale)
         resolved_name = row.get("name") or row.get("title") or name
         resolved_description = row.get("description") or row.get("summary")
         if translation:
@@ -129,6 +180,7 @@ async def get_character(
 
         return CharacterProfile(
             name=resolved_name,
+            slug=row.get("slug"),
             faction=row.get("faction"),
             status=row.get("status"),
             ability=row.get("ability"),
