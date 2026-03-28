@@ -29,6 +29,7 @@ router = APIRouter(prefix="/wiki", tags=["wiki_search"])
 class CharacterProfile(BaseModel):
     name: str
     slug: Optional[str] = None
+    image_url: Optional[str] = None
     faction: Optional[str] = None
     status: Optional[str] = None
     ability: Optional[str] = None
@@ -71,6 +72,29 @@ def query_character(supabase, search_value: str, chapter: int):
                 return result.data[0]
         except Exception:
             continue
+
+    return None
+
+
+def query_character_alias_match(supabase, search_value: str, chapter: int):
+    if not search_value:
+        return None
+
+    try:
+        result = (
+            supabase.table("wiki_entries")
+            .select("*")
+            .contains("tags", [search_value])
+            .limit(5)
+            .execute()
+        )
+        for entry in (result.data or []):
+            chapter_introduced = entry.get("chapter_introduced")
+            if chapter_introduced is not None and chapter_introduced > chapter:
+                continue
+            return entry
+    except Exception:
+        return None
 
     return None
 
@@ -156,10 +180,14 @@ async def get_character(
     try:
         row, translation = query_character_translation_match(supabase, name.strip(), chapter, locale)
         if not row:
+            row = query_character_alias_match(supabase, name.strip(), chapter)
+        if not row:
             row = query_character(supabase, name.strip(), chapter)
         if not row:
             normalized_query = normalize_name(name)
             row, translation = query_character_translation_match(supabase, normalized_query, chapter, locale)
+            if not row:
+                row = query_character_alias_match(supabase, normalized_query, chapter)
             if not row:
                 row = query_character(supabase, normalized_query, chapter)
 
@@ -181,6 +209,7 @@ async def get_character(
         return CharacterProfile(
             name=resolved_name,
             slug=row.get("slug"),
+            image_url=row.get("image_url"),
             faction=row.get("faction"),
             status=row.get("status"),
             ability=row.get("ability"),

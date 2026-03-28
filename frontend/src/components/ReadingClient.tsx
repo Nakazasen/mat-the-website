@@ -34,6 +34,11 @@ interface ReadingClientProps {
     isFallback?: boolean;
 }
 
+interface WikiCharacterEntry {
+    title?: string;
+    tags?: string[];
+}
+
 function shouldIgnoreNavigationHotkeys(target: EventTarget | null): boolean {
     if (!(target instanceof HTMLElement)) return false;
     return Boolean(target.closest('input, textarea, select, button, a, [contenteditable="true"]'));
@@ -124,6 +129,14 @@ export default function ReadingClient({
     useEffect(() => {
         let isActive = true;
 
+        const extractAliases = (entries: WikiCharacterEntry[]): string[] => entries
+            .flatMap((entry) => [
+                entry?.title?.trim(),
+                ...(Array.isArray(entry?.tags) ? entry.tags : []),
+            ])
+            .map((value) => value?.trim())
+            .filter((value): value is string => Boolean(value && value.length >= 2));
+
         const fetchCharacterNames = async () => {
             try {
                 const params = new URLSearchParams({
@@ -140,13 +153,74 @@ export default function ReadingClient({
                     .map((entry: { title?: string }) => entry?.title?.trim())
                     .filter((value: string | undefined): value is string => Boolean(value && value.length >= 2));
 
-                if (isActive) setCharacterNames(names);
+                if (isActive) {
+                    setCharacterNames((previous) => (previous.length > names.length ? previous : names));
+                }
             } catch {
-                if (isActive) setCharacterNames([]);
+                if (isActive) {
+                    setCharacterNames((previous) => previous);
+                }
             }
         };
 
         fetchCharacterNames();
+        return () => {
+            isActive = false;
+        };
+    }, [backendUrl, locale]);
+
+    useEffect(() => {
+        let isActive = true;
+
+        const extractAliases = (entries: WikiCharacterEntry[]): string[] => entries
+            .flatMap((entry) => [
+                entry?.title?.trim(),
+                ...(Array.isArray(entry?.tags) ? entry.tags : []),
+            ])
+            .map((value) => value?.trim())
+            .filter((value): value is string => Boolean(value && value.length >= 2));
+
+        const fetchCharacterAliases = async () => {
+            try {
+                const baseParams = new URLSearchParams({
+                    category: "Nhân vật",
+                    limit: "200",
+                });
+                const localeParams = new URLSearchParams(baseParams);
+                localeParams.set("locale", locale);
+
+                const requests = [
+                    fetch(`${backendUrl}/api/wiki?${localeParams.toString()}`, { cache: "force-cache" }),
+                ];
+
+                if (locale !== "vi") {
+                    const viParams = new URLSearchParams(baseParams);
+                    viParams.set("locale", "vi");
+                    requests.push(fetch(`${backendUrl}/api/wiki?${viParams.toString()}`, { cache: "force-cache" }));
+                }
+
+                const responses = await Promise.all(requests);
+                const payloads = await Promise.all(
+                    responses.map(async (response) => (response.ok ? response.json() : null)),
+                );
+                const aliases = Array.from(
+                    new Set(
+                        payloads.flatMap((payload) => {
+                            const entries = Array.isArray(payload?.entries) ? payload.entries as WikiCharacterEntry[] : [];
+                            return extractAliases(entries);
+                        }),
+                    ),
+                );
+
+                if (isActive && aliases.length > 0) {
+                    setCharacterNames(aliases);
+                }
+            } catch {
+                // Keep the basic scan list if the richer alias load fails.
+            }
+        };
+
+        fetchCharacterAliases();
         return () => {
             isActive = false;
         };
