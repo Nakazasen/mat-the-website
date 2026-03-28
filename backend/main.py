@@ -2715,6 +2715,7 @@ async def admin_translate_chapter(
 @app.post("/api/admin/chapters/{chapter_number}/improve-quality", summary="[Admin] Improve chapter translation quality")
 async def admin_improve_chapter_translation_quality(
     chapter_number: int,
+    force: bool = Query(False, description="Force quality refinement even if the chapter was already refined"),
     authorization: Optional[str] = Header(None),
 ):
     await verify_admin(authorization)
@@ -2731,12 +2732,50 @@ async def admin_improve_chapter_translation_quality(
 
     chapter_row = chapter_resp.data
     content_text = fetch_r2_content(chapter_row["content_url"])
+    existing_translation_resp = (
+        supabase.table("chapter_translations")
+        .select("locale, translation_status, translation_source")
+        .eq("chapter_id", chapter_row["id"])
+        .in_("locale", list(TRANSLATION_TARGET_LOCALES))
+        .execute()
+    )
+    published_locales: list[str] = []
+    needed_locales: list[str] = []
+    skipped_locales: list[str] = []
+    for row in (existing_translation_resp.data or []):
+        locale = row.get("locale")
+        if not locale or row.get("translation_status") != "published":
+            continue
+        published_locales.append(locale)
+        if force or row.get("translation_source") != "ai_refine":
+            needed_locales.append(locale)
+        else:
+            skipped_locales.append(locale)
+
+    if not published_locales:
+        return {
+            "message": "No existing published translation found to improve",
+            "chapter_number": chapter_number,
+            "translated_locales": [],
+            "failed_translations": [],
+            "skipped_locales": [],
+        }
+
+    if not needed_locales:
+        return {
+            "message": "Chapter translation quality already up to date",
+            "chapter_number": chapter_number,
+            "translated_locales": [],
+            "failed_translations": [],
+            "skipped_locales": sorted(set(skipped_locales)),
+        }
+
     try:
         improvement_result = await improve_chapter_translations(
             chapter_row,
             chapter_row["title"],
             content_text,
-            list(TRANSLATION_TARGET_LOCALES),
+            needed_locales,
         )
         translated_locales = improvement_result["translated_locales"]
         failed_translations = improvement_result["failed_translations"]
@@ -2764,12 +2803,19 @@ async def admin_improve_chapter_translation_quality(
         "chapter_number": chapter_number,
         "translated_locales": translated_locales,
         "failed_translations": failed_translations,
+        "skipped_locales": sorted(set(skipped_locales)),
     }
 
 class AdminBatchTranslateRequest(BaseModel):
     start_chapter: int = 1
     end_chapter: int
     only_missing: bool = True
+
+class AdminBatchImproveQualityRequest(BaseModel):
+    start_chapter: int = 1
+    end_chapter: int
+    only_unrefined: bool = True
+    force: bool = False
 
 class AdminChapterStatusRequest(BaseModel):
     chapter_numbers: list[int]
@@ -2879,6 +2925,123 @@ async def admin_translate_chapters_batch(
         "failed_chapters": failed_chapters,
     }
 
+@app.post("/api/admin/chapters/improve-quality-batch", summary="[Admin] Batch improve chapter translation quality")
+async def admin_improve_chapters_quality_batch(
+    body: AdminBatchImproveQualityRequest,
+    authorization: Optional[str] = Header(None),
+):
+    await verify_admin(authorization)
+
+    start_chapter = max(1, body.start_chapter)
+    end_chapter = max(start_chapter, body.end_chapter)
+
+    chapters_resp = (
+        supabase.table("chapters")
+        .select("*")
+        .gte("chapter_number", start_chapter)
+        .lte("chapter_number", end_chapter)
+        .order("chapter_number")
+        .execute()
+    )
+    chapter_rows = chapters_resp.data or []
+    if not chapter_rows:
+        raise HTTPException(status_code=404, detail="No chapters found in selected range")
+
+    translation_rows_resp = (
+        supabase.table("chapter_translations")
+        .select("chapter_id, locale, translation_status, translation_source")
+        .in_("chapter_id", [row["id"] for row in chapter_rows])
+        .execute()
+    )
+    published_map: dict[int, dict[str, str]] = {}
+    for row in (translation_rows_resp.data or []):
+        chapter_id = row.get("chapter_id")
+        locale = row.get("locale")
+        if not chapter_id or not locale or row.get("translation_status") != "published":
+            continue
+        published_map.setdefault(chapter_id, {})[locale] = str(row.get("translation_source") or "")
+
+    translated_chapters = []
+    skipped_chapters = []
+    failed_chapters = []
+
+    for chapter_row in chapter_rows:
+        chapter_sources = published_map.get(chapter_row["id"], {})
+        published_locales = [locale for locale in TRANSLATION_TARGET_LOCALES if locale in chapter_sources]
+        if not published_locales:
+            skipped_chapters.append(chapter_row["chapter_number"])
+            continue
+
+        if body.force:
+            needed_locales = published_locales
+        elif body.only_unrefined:
+            needed_locales = [locale for locale in published_locales if chapter_sources.get(locale) != "ai_refine"]
+        else:
+            needed_locales = published_locales
+
+        if not needed_locales:
+            skipped_chapters.append(chapter_row["chapter_number"])
+            continue
+
+        try:
+            content_text = fetch_r2_content(chapter_row["content_url"])
+            improvement_result = await improve_chapter_translations(
+                chapter_row,
+                chapter_row["title"],
+                content_text,
+                needed_locales,
+            )
+            completed_locales = improvement_result["translated_locales"]
+            chapter_locale_errors = [
+                f"{item['locale']}: {item.get('detail') or 'Quality refinement failed'}"
+                for item in (improvement_result.get("failed_translations") or [])
+            ]
+
+            if completed_locales:
+                translated_chapters.append(
+                    {
+                        "chapter_number": chapter_row["chapter_number"],
+                        "translated_locales": completed_locales,
+                    }
+                )
+            if chapter_locale_errors:
+                failed_chapters.append(
+                    {
+                        "chapter_number": chapter_row["chapter_number"],
+                        "status_code": 500,
+                        "detail": "\n".join(chapter_locale_errors),
+                    }
+                )
+        except HTTPException as exc:
+            failed_chapters.append(
+                {
+                    "chapter_number": chapter_row["chapter_number"],
+                    "status_code": exc.status_code,
+                    "detail": str(exc.detail),
+                }
+            )
+        except Exception as exc:
+            failed_chapters.append(
+                {
+                    "chapter_number": chapter_row["chapter_number"],
+                    "status_code": 500,
+                    "detail": str(exc),
+                }
+            )
+
+    return {
+        "message": "Batch chapter quality improvement completed",
+        "range": {"start_chapter": start_chapter, "end_chapter": end_chapter},
+        "only_unrefined": body.only_unrefined,
+        "force": body.force,
+        "translated_count": len(translated_chapters),
+        "skipped_count": len(skipped_chapters),
+        "failed_count": len(failed_chapters),
+        "translated_chapters": translated_chapters,
+        "skipped_chapters": skipped_chapters,
+        "failed_chapters": failed_chapters,
+    }
+
 @app.post("/api/admin/chapters/translation-statuses", summary="[Admin] Get chapter translation statuses")
 async def admin_get_chapter_translation_statuses(
     body: AdminChapterStatusRequest,
@@ -2903,7 +3066,7 @@ async def admin_get_chapter_translation_statuses(
     chapter_id_to_number = {row["id"]: row["chapter_number"] for row in chapter_rows}
     translation_rows_resp = (
         supabase.table("chapter_translations")
-        .select("chapter_id, locale, translation_status, attempt_count, last_error, updated_at")
+        .select("chapter_id, locale, translation_status, translation_source, attempt_count, last_error, updated_at")
         .in_("chapter_id", list(chapter_id_to_number.keys()))
         .execute()
     )
@@ -2914,9 +3077,12 @@ async def admin_get_chapter_translation_statuses(
         status_map[chapter_number] = {
             "chapter_number": chapter_number,
             "published_locales": [],
+            "refined_locales": [],
             "failed_locales": [],
             "in_progress_locales": [],
             "published_count": 0,
+            "refined_count": 0,
+            "can_improve": False,
             "failed_count": 0,
             "in_progress_count": 0,
             "attempt_count": 0,
@@ -2935,9 +3101,12 @@ async def admin_get_chapter_translation_statuses(
             {
                 "chapter_number": chapter_number,
                 "published_locales": [],
+                "refined_locales": [],
                 "failed_locales": [],
                 "in_progress_locales": [],
                 "published_count": 0,
+                "refined_count": 0,
+                "can_improve": False,
                 "failed_count": 0,
                 "in_progress_count": 0,
                 "attempt_count": 0,
@@ -2948,12 +3117,15 @@ async def admin_get_chapter_translation_statuses(
         )
         locale = row.get("locale")
         row_status = row.get("translation_status")
+        row_source = str(row.get("translation_source") or "")
         row_attempt = int(row.get("attempt_count") or 0)
         row_updated_at = row.get("updated_at")
         row_error = row.get("last_error")
 
         if row_status == "published" and locale:
             target["published_locales"].append(locale)
+            if row_source == "ai_refine":
+                target["refined_locales"].append(locale)
         elif row_status == "failed" and locale:
             target["failed_locales"].append(locale)
         elif row_status == "in_progress" and locale:
@@ -2967,11 +3139,14 @@ async def admin_get_chapter_translation_statuses(
 
     for chapter_number, payload in status_map.items():
         payload["published_locales"] = sorted(set(payload["published_locales"]))
+        payload["refined_locales"] = sorted(set(payload["refined_locales"]))
         payload["failed_locales"] = sorted(set(payload["failed_locales"]))
         payload["in_progress_locales"] = sorted(set(payload["in_progress_locales"]))
         payload["published_count"] = len(payload["published_locales"])
+        payload["refined_count"] = len(payload["refined_locales"])
         payload["failed_count"] = len(payload["failed_locales"])
         payload["in_progress_count"] = len(payload["in_progress_locales"])
+        payload["can_improve"] = any(locale not in payload["refined_locales"] for locale in payload["published_locales"])
         payload["status_label"] = (
             "Đang dịch"
             if payload["in_progress_count"] > 0
@@ -2982,6 +3157,13 @@ async def admin_get_chapter_translation_statuses(
             else f"Đã hoàn thành {payload['published_count']}/3"
             if payload["published_count"] > 0
             else "Chưa dịch"
+        )
+
+    for payload in status_map.values():
+        payload["quality_status_label"] = (
+            f"Đã nâng chất lượng {payload['refined_count']}/{payload['published_count']}"
+            if payload["refined_count"] > 0
+            else "Chưa nâng chất lượng"
         )
 
     return {"statuses": [status_map[number] for number in requested_numbers]}

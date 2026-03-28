@@ -56,6 +56,7 @@ export interface AdminChapterTranslateResult {
     message: string;
     chapter_number: number;
     translated_locales: string[];
+    skipped_locales?: string[];
     failed_translations?: TranslationFailure[];
 }
 
@@ -328,8 +329,8 @@ export async function translateAdminChapter(chapterNumber: number, token: string
     return payload;
 }
 
-export async function improveAdminChapterTranslation(chapterNumber: number, token: string): Promise<AdminChapterTranslateResult> {
-    const res = await fetch(`${API_BASE_URL}/api/admin/chapters/${chapterNumber}/improve-quality`, {
+export async function improveAdminChapterTranslation(chapterNumber: number, token: string, force: boolean = false): Promise<AdminChapterTranslateResult> {
+    const res = await fetch(`${API_BASE_URL}/api/admin/chapters/${chapterNumber}/improve-quality?force=${force ? "true" : "false"}`, {
         method: "POST",
         headers: {
             Authorization: `Bearer ${token}`,
@@ -372,6 +373,33 @@ export async function translateAdminChaptersBatch(
     return payload;
 }
 
+export async function improveAdminChaptersBatch(
+    data: { start_chapter: number; end_chapter: number; only_unrefined?: boolean; force?: boolean },
+    token: string
+): Promise<{
+    message: string;
+    translated_count: number;
+    skipped_count: number;
+    failed_count: number;
+    translated_chapters: Array<{ chapter_number: number; translated_locales: string[] }>;
+    skipped_chapters: number[];
+    failed_chapters: Array<{ chapter_number: number; detail?: string }>;
+}> {
+    const res = await fetch(`${API_BASE_URL}/api/admin/chapters/improve-quality-batch`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(data),
+    });
+    const payload = await res.json();
+    if (!res.ok) {
+        throw new Error(buildAdminAuthErrorMessage(res, payload.detail || "Failed to batch improve chapter translation"));
+    }
+    return payload;
+}
+
 export async function getAdminChapterTranslationStatuses(
     chapterNumbers: number[],
     token: string
@@ -379,15 +407,19 @@ export async function getAdminChapterTranslationStatuses(
     statuses: Array<{
         chapter_number: number;
         published_locales: string[];
+        refined_locales: string[];
         failed_locales: string[];
         in_progress_locales: string[];
         published_count: number;
+        refined_count: number;
+        can_improve: boolean;
         failed_count: number;
         in_progress_count: number;
         attempt_count: number;
         last_error?: string | null;
         last_error_locale?: string | null;
         status_label: string;
+        quality_status_label: string;
     }>;
 }> {
     const res = await fetch(`${API_BASE_URL}/api/admin/chapters/translation-statuses`, {
