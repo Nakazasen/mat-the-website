@@ -57,6 +57,7 @@ desktop.ini
 scripts/*.txt
 scripts/*.json
 scripts/mat-the-truyen/
+reports/
 **/*.docx
 **/*.docx#
 ~$*.docx
