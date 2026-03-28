@@ -395,17 +395,31 @@ def _build_source_reference_confidence(
     match_mode: Literal["sentence", "paragraph"],
     block_score: float,
     sentence_score: float,
+    translated_excerpt: str,
+    source_excerpt: str,
 ) -> Literal["high", "medium", "low"]:
+    translated_len = len((_normalize_match_text(translated_excerpt) or "").strip())
+    source_len = len((_normalize_match_text(source_excerpt) or "").strip())
+    if translated_len == 0 or source_len == 0:
+        return "low"
+    too_short_source = source_len > 0 and source_len < 12
+
     if match_mode == "sentence":
-        if sentence_score >= 0.72 and block_score >= 0.4:
+        if (
+            not too_short_source
+            and sentence_score >= 0.86
+            and block_score >= 0.58
+            and translated_len >= 18
+            and source_len >= 16
+        ):
             return "high"
-        if sentence_score >= 0.45 or block_score >= 0.5:
+        if sentence_score >= 0.55 or block_score >= 0.62:
             return "medium"
         return "low"
 
-    if block_score >= 1.02:
-        return "high"
-    if block_score >= 0.45:
+    # Paragraph mode has inherently higher uncertainty after alignment.
+    # Keep it capped at medium to avoid overclaiming confidence.
+    if block_score >= 0.68 and translated_len >= 32 and source_len >= 28:
         return "medium"
     return "low"
 
@@ -1096,7 +1110,13 @@ async def source_reference(body: ReaderSourceReferenceRequest):
         max_sentences=1 if match_mode == "sentence" else 3,
         max_chars=320 if match_mode == "sentence" else 620,
     )
-    confidence = _build_source_reference_confidence(match_mode, best_score, sentence_score)
+    confidence = _build_source_reference_confidence(
+        match_mode,
+        best_score,
+        sentence_score,
+        translated_excerpt,
+        source_excerpt,
+    )
 
     _log_reader_event(
         "info",

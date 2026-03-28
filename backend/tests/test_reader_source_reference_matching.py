@@ -58,9 +58,53 @@ def test_map_source_block_index_by_relative_position_handles_count_mismatch():
 
 
 def test_build_source_reference_confidence_levels():
-    assert reader_learning._build_source_reference_confidence("sentence", 0.6, 0.8) == "high"
-    assert reader_learning._build_source_reference_confidence("sentence", 0.35, 0.5) == "medium"
-    assert reader_learning._build_source_reference_confidence("sentence", 0.2, 0.2) == "low"
-    assert reader_learning._build_source_reference_confidence("paragraph", 1.1, 0.0) == "high"
-    assert reader_learning._build_source_reference_confidence("paragraph", 0.6, 0.0) == "medium"
-    assert reader_learning._build_source_reference_confidence("paragraph", 0.2, 0.0) == "low"
+    assert (
+        reader_learning._build_source_reference_confidence(
+            "sentence",
+            0.62,
+            0.9,
+            "Han Phong stood before the director's desk in silence.",
+            "Hàn Phong đứng trước bàn giám đốc, im lặng chịu trận.",
+        )
+        == "high"
+    )
+    assert (
+        reader_learning._build_source_reference_confidence(
+            "sentence",
+            0.58,
+            0.55,
+            "Han Phong stood before the desk.",
+            "Hàn Phong đứng trước bàn.",
+        )
+        == "medium"
+    )
+    assert (
+        reader_learning._build_source_reference_confidence(
+            "sentence",
+            0.2,
+            0.2,
+            "short",
+            "-",
+        )
+        == "low"
+    )
+    assert (
+        reader_learning._build_source_reference_confidence(
+            "paragraph",
+            0.8,
+            0.0,
+            "This is a longer translated paragraph used for alignment checks.",
+            "Đây là một đoạn gốc tiếng Việt dài hơn để kiểm tra đối chiếu.",
+        )
+        == "medium"
+    )
+    assert (
+        reader_learning._build_source_reference_confidence(
+            "paragraph",
+            0.6,
+            0.0,
+            "Medium block score paragraph.",
+            "Đoạn ngắn.",
+        )
+        == "low"
+    )
