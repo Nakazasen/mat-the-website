@@ -597,11 +597,14 @@ async def lookup_reader_term(body: ReaderLookupRequest):
     context_hash = _context_hash(context_sentence)
     build_rule_based_lookup = _get_build_rule_based_lookup()
     rule_based_payload = build_rule_based_lookup(locale, term, context_sentence)
+    cache_normalized_term = rule_based_payload.get("normalized_term") if rule_based_payload else None
+    if not cache_normalized_term:
+        cache_normalized_term = normalized_term
 
     if rule_based_payload and rule_based_payload.get("meaning_vi"):
         response = ReaderLookupResponse(
             term=term,
-            normalized_term=rule_based_payload.get("normalized_term") or normalized_term,
+            normalized_term=cache_normalized_term,
             locale=locale,
             reading=rule_based_payload.get("reading"),
             meaning_vi=rule_based_payload.get("meaning_vi"),
@@ -612,7 +615,7 @@ async def lookup_reader_term(body: ReaderLookupRequest):
         )
         _cache_payload(
             locale=locale,
-            normalized_term=normalized_term,
+            normalized_term=cache_normalized_term,
             context_hash=context_hash,
             payload={
                 **response.dict(),
@@ -622,7 +625,7 @@ async def lookup_reader_term(body: ReaderLookupRequest):
         )
         return response
 
-    cached = _get_cached_lookup(locale, normalized_term, context_hash)
+    cached = _get_cached_lookup(locale, cache_normalized_term, context_hash)
     if cached:
         if locale in {"ja", "zh-CN"} and not cached.reading:
             cached = None
@@ -641,7 +644,7 @@ async def lookup_reader_term(body: ReaderLookupRequest):
             response.notes = rule_based_payload.get("notes")
     _cache_payload(
         locale=locale,
-        normalized_term=normalized_term,
+        normalized_term=cache_normalized_term,
         context_hash=context_hash,
         payload={
             **response.dict(),

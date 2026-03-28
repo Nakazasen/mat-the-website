@@ -6,8 +6,16 @@ def test_build_rule_based_lookup_returns_english_phrasal_verb():
 
     assert payload is not None
     assert payload["meaning_vi"] == "đảm bảo, chắc chắn"
-    assert payload["reading"] == "/meɪk ʃʊr/"
+    assert payload["reading"] == "/meik ʃʊr/"
     assert payload["source"] == "rule_based"
+
+
+def test_build_rule_based_lookup_normalizes_english_alias():
+    payload = build_rule_based_lookup("en", "made sure")
+
+    assert payload is not None
+    assert payload["normalized_term"] == "make sure"
+    assert payload["meaning_vi"] == "đảm bảo, chắc chắn"
 
 
 def test_build_rule_based_lookup_returns_japanese_reading():
@@ -15,7 +23,15 @@ def test_build_rule_based_lookup_returns_japanese_reading():
 
     assert payload is not None
     assert payload["reading"] == "せいじつ"
-    assert payload["meaning_vi"] == "chân thành; thành thật"
+    assert payload["meaning_vi"] == "chân thành; thành thật; nghiêm túc"
+
+
+def test_build_rule_based_lookup_strips_japanese_suffix():
+    payload = build_rule_based_lookup("ja", "誠実に")
+
+    assert payload is not None
+    assert payload["normalized_term"] == "誠実"
+    assert payload["reading"] == "せいじつ"
 
 
 def test_build_rule_based_lookup_returns_chinese_pinyin():
@@ -24,6 +40,14 @@ def test_build_rule_based_lookup_returns_chinese_pinyin():
     assert payload is not None
     assert payload["reading"] == "niú rǔ"
     assert payload["meaning_vi"] == "sữa bò"
+
+
+def test_build_rule_based_lookup_composes_chinese_reading_from_characters():
+    payload = build_rule_based_lookup("zh-CN", "老板")
+
+    assert payload is not None
+    assert payload["reading"] == "lǎo bǎn"
+    assert payload["meaning_vi"] == "ông chủ; sếp"
 
 
 def test_build_rule_based_lookup_uses_kana_fallback_for_reading_only():
