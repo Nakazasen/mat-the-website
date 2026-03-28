@@ -455,6 +455,9 @@ export default function AudioPlayer({
         return () => window.removeEventListener('keydown', handleHotkeys);
     }, [pause, play, playState, replayCurrentChunk, resume, skipToNextChunk, stop]);
 
+    const showCompactMobilePlayer = !isDesktop && playState !== 'stopped' && mobileLearningPanelActive;
+    const showFloatingPlayer = playState !== 'stopped' && !showCompactMobilePlayer;
+
     return (
         <>
             {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
@@ -540,7 +543,38 @@ export default function AudioPlayer({
                 </div>
             </div>
 
-            {playState !== 'stopped' && !(mobileLearningPanelActive && !isDesktop) && (
+            {showCompactMobilePlayer && (
+                <div className="fixed bottom-4 right-4 z-[72] md:hidden">
+                    <div className="flex items-center gap-2 rounded-full border border-toxic-green-DEFAULT/25 bg-[#0d1116]/96 px-3 py-2 text-gray-100 shadow-[0_18px_50px_rgba(0,0,0,0.42)] backdrop-blur">
+                        <button
+                            type="button"
+                            onClick={playState === 'playing' ? pause : resume}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-toxic-green-DEFAULT/35 bg-toxic-green-DEFAULT/10 text-toxic-green-DEFAULT"
+                            aria-label={playState === 'playing' ? dictionary.audio.pause : dictionary.audio.resume}
+                        >
+                            {playState === 'playing' ? <Pause size={14} /> : <Play size={14} />}
+                        </button>
+                        <div className="min-w-0">
+                            <div className="truncate text-[10px] font-mono uppercase tracking-[0.18em] text-toxic-green-DEFAULT">
+                                {dictionary.audio.floatingTitle}
+                            </div>
+                            <div className="truncate text-[11px] text-gray-300">
+                                {chunkIndexRef.current + 1}/{Math.max(chunksRef.current.length, 1)}
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={stop}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-gray-800 text-gray-400 hover:border-red-500 hover:text-red-400"
+                            aria-label="Stop audio"
+                        >
+                            <Square size={13} fill="currentColor" />
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {showFloatingPlayer && (
                 <div
                     ref={floatingPanelRef}
                     className="fixed bottom-24 left-4 right-4 z-[62] md:right-auto md:w-[360px]"
