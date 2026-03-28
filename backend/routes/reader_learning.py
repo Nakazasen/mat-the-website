@@ -346,6 +346,17 @@ def _join_sentence_window(sentences: list[str], start_index: int, count: int) ->
     return " ".join(sentence.strip() for sentence in sentences[safe_start:safe_end] if sentence and sentence.strip()).strip()
 
 
+def _cap_excerpt(text: Optional[str], max_sentences: int, max_chars: int) -> str:
+    plain_text = _strip_html_to_text(text)
+    if not plain_text:
+        return ""
+    sentences = _split_sentences(plain_text)
+    excerpt = " ".join(sentences[: max(1, max_sentences)]).strip() if sentences else plain_text
+    if len(excerpt) <= max_chars:
+        return excerpt
+    return excerpt[:max_chars].rstrip()
+
+
 def _selected_sentence_window_size(selected_text: str) -> int:
     selected_sentences = _split_sentences(selected_text)
     if len(selected_sentences) >= 2:
@@ -1019,6 +1030,12 @@ async def source_reference(body: ReaderSourceReferenceRequest):
             source_excerpt = _join_sentence_window(source_sentences, mapped_sentence_index, 1) or source_excerpt
         elif sentence_score >= 0.2:
             translated_excerpt = selected_text.strip()
+
+    source_excerpt = _cap_excerpt(
+        source_excerpt,
+        max_sentences=1 if match_mode == "sentence" else 3,
+        max_chars=320 if match_mode == "sentence" else 620,
+    )
 
     _log_reader_event(
         "info",
