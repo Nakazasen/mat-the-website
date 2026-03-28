@@ -35,6 +35,8 @@ import {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mat-the-website.onrender.com';
 const SAFE_BATCH_LIMIT = 2;
+const FULL_BATCH_MAX_RETRIES = 3;
+const FULL_BATCH_RETRY_DELAY_MS = 2500;
 
 interface Chapter {
     id: number;
@@ -101,6 +103,23 @@ function formatBatchNetworkError(message: string | undefined, completed: number,
         return `Mất kết nối tới backend khi chạy block tiếp theo. Tiến độ đã giữ tới chương ${completed}/${total}. Bấm chạy lại để tiếp tục phần còn thiếu.`;
     }
     return normalized;
+}
+
+function isTransientBackendFetchError(message: string | undefined): boolean {
+    const normalized = (message || '').trim().toLowerCase();
+    if (!normalized) return false;
+    return (
+        normalized === 'failed to fetch'
+        || normalized.includes('networkerror')
+        || normalized.includes('load failed')
+        || normalized.includes('backend')
+        || normalized.includes('gateway')
+        || normalized.includes('fetch')
+    );
+}
+
+function sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export default function AdminChaptersPage() {
@@ -384,15 +403,34 @@ export default function AdminChaptersPage() {
         try {
             for (let start = 1; start <= total; start += blockSize) {
                 const end = Math.min(start + blockSize - 1, total);
-                const freshToken = await resolveAdminToken();
-                const result = await translateAdminChaptersBatch(
-                    {
-                        start_chapter: start,
-                        end_chapter: end,
-                        only_missing: true,
-                    },
-                    freshToken,
-                );
+                let result: Awaited<ReturnType<typeof translateAdminChaptersBatch>> | null = null;
+                let lastBlockError: any = null;
+
+                for (let attempt = 1; attempt <= FULL_BATCH_MAX_RETRIES; attempt += 1) {
+                    try {
+                        const freshToken = await resolveAdminToken();
+                        result = await translateAdminChaptersBatch(
+                            {
+                                start_chapter: start,
+                                end_chapter: end,
+                                only_missing: true,
+                            },
+                            freshToken,
+                        );
+                        break;
+                    } catch (err: any) {
+                        lastBlockError = err;
+                        if (!isTransientBackendFetchError(err?.message) || attempt === FULL_BATCH_MAX_RETRIES) {
+                            throw err;
+                        }
+                        setBatchResult(`Mất kết nối tạm thời ở block ${start}-${end}. Đang thử lại lần ${attempt + 1}/${FULL_BATCH_MAX_RETRIES}...`);
+                        await sleep(FULL_BATCH_RETRY_DELAY_MS * attempt);
+                    }
+                }
+
+                if (!result) {
+                    throw lastBlockError || new Error('Failed to translate current block');
+                }
 
                 translated += result.translated_count;
                 skipped += result.skipped_count;
@@ -411,6 +449,9 @@ export default function AdminChaptersPage() {
                     `Đã chạy tới chương ${end}/${total}. Dịch mới: ${translated}, bỏ qua: ${skipped}, lỗi: ${failed}.`
                 );
                 setBatchFailureDetails([...aggregatedFailures]);
+                if (start + blockSize <= total) {
+                    await sleep(600);
+                }
             }
         } catch (err: any) {
             setError(err?.message || 'Không thể dịch toàn bộ chương còn thiếu.');
