@@ -8,6 +8,7 @@ This provides spoiler-safe Quick Scan data for the HUD.
 """
 
 import re
+from difflib import SequenceMatcher
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -43,6 +44,116 @@ def normalize_name(name: str) -> str:
 
     nfkd = unicodedata.normalize("NFKD", name.lower().strip())
     return re.sub(r"[^\w\s]", "", "".join(c for c in nfkd if not unicodedata.combining(c))).strip()
+
+
+def _compact_name(value: str) -> str:
+    return re.sub(r"\s+", "", value or "")
+
+
+def _alias_match_score(search_value: str, alias_value: str) -> float:
+    query = normalize_name(search_value)
+    alias = normalize_name(alias_value)
+    if not query or not alias:
+        return 0.0
+
+    if query == alias:
+        return 1.0
+    if query in alias or alias in query:
+        return 0.92
+
+    query_compact = _compact_name(query)
+    alias_compact = _compact_name(alias)
+    if query_compact and alias_compact and (query_compact in alias_compact or alias_compact in query_compact):
+        return 0.86
+
+    query_tokens = [token for token in query.split(" ") if token]
+    alias_tokens = [token for token in alias.split(" ") if token]
+    if query_tokens and alias_tokens:
+        overlap = len(set(query_tokens) & set(alias_tokens)) / max(len(set(query_tokens)), 1)
+        if overlap >= 0.75:
+            return 0.8
+
+    return SequenceMatcher(None, query_compact[:120], alias_compact[:120]).ratio() * 0.75
+
+
+def query_character_alias_match_fuzzy(supabase, search_value: str, chapter: int, locale: str):
+    if not search_value:
+        return None, None
+
+    try:
+        entries_result = (
+            supabase.table("wiki_entries")
+            .select("*")
+            .eq("category", "Nhân vật")
+            .limit(500)
+            .execute()
+        )
+        entries = list(entries_result.data or [])
+    except Exception:
+        return None, None
+
+    spoiler_safe_entries = []
+    for entry in entries:
+        chapter_introduced = entry.get("chapter_introduced")
+        if chapter_introduced is not None and chapter_introduced > chapter:
+            continue
+        spoiler_safe_entries.append(entry)
+
+    if not spoiler_safe_entries:
+        return None, None
+
+    entry_ids = [entry.get("id") for entry in spoiler_safe_entries if entry.get("id")]
+    translations_by_entry: dict[str, list[dict]] = {}
+    if entry_ids:
+        try:
+            translation_result = (
+                supabase.table("wiki_entry_translations")
+                .select("wiki_entry_id, locale, title, summary, content")
+                .in_("wiki_entry_id", entry_ids)
+                .limit(3000)
+                .execute()
+            )
+            for row in (translation_result.data or []):
+                key = str(row.get("wiki_entry_id") or "")
+                if not key:
+                    continue
+                translations_by_entry.setdefault(key, []).append(row)
+        except Exception:
+            translations_by_entry = {}
+
+    best_entry = None
+    best_translation = None
+    best_score = 0.0
+
+    for entry in spoiler_safe_entries:
+        alias_candidates: list[tuple[str, Optional[dict], float]] = []
+        if entry.get("title"):
+            alias_candidates.append((str(entry.get("title")), None, 0.0))
+        if entry.get("name"):
+            alias_candidates.append((str(entry.get("name")), None, 0.0))
+        if isinstance(entry.get("tags"), list):
+            for tag in entry.get("tags") or []:
+                if tag:
+                    alias_candidates.append((str(tag), None, 0.0))
+
+        entry_translations = translations_by_entry.get(str(entry.get("id")), [])
+        for translation in entry_translations:
+            title = translation.get("title")
+            if not title:
+                continue
+            locale_bonus = 0.06 if translation.get("locale") == locale else 0.0
+            alias_candidates.append((str(title), translation, locale_bonus))
+
+        for alias_text, alias_translation, bonus in alias_candidates:
+            score = _alias_match_score(search_value, alias_text) + bonus
+            if score > best_score:
+                best_score = score
+                best_entry = entry
+                best_translation = alias_translation
+
+    if best_score < 0.72:
+        return None, None
+    return best_entry, best_translation
 
 
 def query_character(supabase, search_value: str, chapter: int):
@@ -234,6 +345,8 @@ async def get_character(
                 row = query_character_alias_match(supabase, normalized_query, chapter)
             if not row:
                 row = query_character(supabase, normalized_query, chapter)
+        if not row:
+            row, translation = query_character_alias_match_fuzzy(supabase, name.strip(), chapter, locale)
         if not row:
             row, translation = query_character_translation_match_any_locale(supabase, name.strip(), chapter)
         if not row:
