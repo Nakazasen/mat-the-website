@@ -101,7 +101,7 @@ def query_character_alias_match(supabase, search_value: str, chapter: int):
 
 def query_character_translation_match(supabase, search_value: str, chapter: int, locale: str):
     if not locale or locale == "vi":
-        return None
+        return None, None
 
     attempts = [
         search_value,
@@ -118,6 +118,50 @@ def query_character_translation_match(supabase, search_value: str, chapter: int,
                 .eq("locale", locale)
                 .ilike("title", f"%{candidate}%")
                 .limit(5)
+                .execute()
+            )
+            for translation_row in (translation_result.data or []):
+                wiki_entry_id = translation_row.get("wiki_entry_id")
+                if not wiki_entry_id:
+                    continue
+                entry_result = (
+                    supabase.table("wiki_entries")
+                    .select("*")
+                    .eq("id", wiki_entry_id)
+                    .limit(1)
+                    .execute()
+                )
+                if not entry_result.data:
+                    continue
+                entry = entry_result.data[0]
+                chapter_introduced = entry.get("chapter_introduced")
+                if chapter_introduced is not None and chapter_introduced > chapter:
+                    continue
+                return entry, translation_row
+        except Exception:
+            continue
+
+    return None, None
+
+
+def query_character_translation_match_any_locale(supabase, search_value: str, chapter: int):
+    if not search_value:
+        return None, None
+
+    attempts = [
+        search_value,
+        normalize_name(search_value),
+    ]
+
+    for candidate in attempts:
+        if not candidate:
+            continue
+        try:
+            translation_result = (
+                supabase.table("wiki_entry_translations")
+                .select("wiki_entry_id, locale, title, summary, content")
+                .ilike("title", f"%{candidate}%")
+                .limit(8)
                 .execute()
             )
             for translation_row in (translation_result.data or []):
@@ -190,6 +234,11 @@ async def get_character(
                 row = query_character_alias_match(supabase, normalized_query, chapter)
             if not row:
                 row = query_character(supabase, normalized_query, chapter)
+        if not row:
+            row, translation = query_character_translation_match_any_locale(supabase, name.strip(), chapter)
+        if not row:
+            normalized_query = normalize_name(name)
+            row, translation = query_character_translation_match_any_locale(supabase, normalized_query, chapter)
 
         if not row:
             return None
