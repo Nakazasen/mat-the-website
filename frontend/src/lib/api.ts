@@ -486,6 +486,36 @@ export interface WikiEntriesResponse {
     total_pages: number;
 }
 
+function decodeHtmlEntitiesText(value?: string | null): string | undefined {
+    if (value == null) return undefined;
+
+    return value
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&amp;/g, "&")
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&#x([0-9a-fA-F]+);/g, (_match, hex) => {
+            const codePoint = Number.parseInt(hex, 16);
+            return Number.isFinite(codePoint) ? String.fromCodePoint(codePoint) : _match;
+        })
+        .replace(/&#(\d+);/g, (_match, dec) => {
+            const codePoint = Number.parseInt(dec, 10);
+            return Number.isFinite(codePoint) ? String.fromCodePoint(codePoint) : _match;
+        });
+}
+
+function normalizeWikiListEntry(entry: WikiEntry): WikiEntry {
+    return {
+        ...entry,
+        title: decodeHtmlEntitiesText(entry.title) || entry.title,
+        summary: decodeHtmlEntitiesText(entry.summary) || entry.summary,
+        tags: Array.isArray(entry.tags)
+            ? entry.tags.map((tag) => decodeHtmlEntitiesText(tag) || tag)
+            : entry.tags,
+    };
+}
+
 export async function getUserRole(token: string): Promise<string> {
     try {
         const res = await fetch(`${API_BASE_URL}/api/user/role`, {
@@ -525,15 +555,20 @@ export async function getWikiEntries(
     // Backward compatibility: If it's an array (old API), wrap it in the expected object structure
     if (Array.isArray(data)) {
         return {
-            entries: data,
+            entries: data.map((entry) => normalizeWikiListEntry(entry as WikiEntry)),
             total: data.length,
             page: 1,
             limit: Math.max(data.length, limit),
             total_pages: 1
         };
     }
-    
-    return data;
+
+    return {
+        ...data,
+        entries: Array.isArray(data.entries)
+            ? data.entries.map((entry: WikiEntry) => normalizeWikiListEntry(entry))
+            : [],
+    };
 }
 
 export async function getWikiEntry(slug: string, locale?: Locale): Promise<WikiEntry> {
