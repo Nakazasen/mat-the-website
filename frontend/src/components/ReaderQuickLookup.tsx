@@ -99,6 +99,14 @@ function shouldAutoLookupSelection(text: string): boolean {
     return normalized.length <= 32 && wordCount <= 2;
 }
 
+function shouldPrioritizeSourceReference(locale: Locale, text: string): boolean {
+    if (locale === 'vi') return false;
+    const normalized = normalizeSelectionText(text, 240);
+    if (!normalized) return false;
+    const wordCount = normalized.split(/\s+/).filter(Boolean).length;
+    return normalized.length >= 24 || wordCount >= 5;
+}
+
 export default function ReaderQuickLookup({
     chapterId,
     chapterProgress,
@@ -145,6 +153,10 @@ export default function ReaderQuickLookup({
     }, [audioActive, audioPanelHeight, isDesktop]);
 
     const panelTop = useMemo(() => (isDesktop ? 92 : 80), [isDesktop]);
+    const preferSourceReference = useMemo(
+        () => shouldPrioritizeSourceReference(sourceLocale, selectedText),
+        [selectedText, sourceLocale],
+    );
 
     const hideToolbar = useCallback(() => {
         setToolbarPosition(null);
@@ -419,6 +431,17 @@ export default function ReaderQuickLookup({
         }
     }, [chapterId, selectedSentence, selectedText, sourceLocale, sourceReferenceLoading]);
 
+    const openSourceReferencePanel = useCallback(() => {
+        if (!selectedText || !chapterId || sourceLocale === 'vi') return;
+        setPanelOpen(true);
+        hideToolbar();
+        setLookupError(null);
+        setSaveMessage(null);
+        setSaveError(null);
+        setAudioError(null);
+        void handleLoadSourceReference();
+    }, [chapterId, handleLoadSourceReference, hideToolbar, selectedText, sourceLocale]);
+
     useEffect(() => {
         const audio = audioRef.current;
         if (!audio) return undefined;
@@ -468,6 +491,11 @@ export default function ReaderQuickLookup({
             if (event.altKey && event.key.toLowerCase() === 'l' && !shouldIgnoreSelectionTarget(event.target)) {
                 event.preventDefault();
                 runLookup();
+            }
+
+            if (event.altKey && event.key.toLowerCase() === 'v' && !shouldIgnoreSelectionTarget(event.target)) {
+                event.preventDefault();
+                openSourceReferencePanel();
             }
         };
 
@@ -538,6 +566,7 @@ export default function ReaderQuickLookup({
         selectedSentence,
         selectedText,
         showSelectionRequiredError,
+        openSourceReferencePanel,
     ]);
 
     useEffect(() => {
@@ -651,14 +680,36 @@ export default function ReaderQuickLookup({
                     className="fixed z-[65] -translate-x-1/2"
                     style={{ top: `${toolbarPosition.top}px`, left: `${toolbarPosition.left}px` }}
                 >
-                    <button
-                        type="button"
-                        onClick={() => runLookup()}
-                        className="inline-flex items-center gap-2 rounded-full border border-cyan-500/40 bg-ash-950/95 px-3 py-2 text-[11px] font-mono text-cyan-300 shadow-[0_8px_30px_rgba(0,0,0,0.45)] backdrop-blur hover:border-cyan-400 hover:text-cyan-200"
-                    >
-                        <Search size={12} />
-                        {dictionary.lookup.action}
-                    </button>
+                    <div className="flex flex-wrap items-center justify-center gap-2 rounded-full border border-gray-800/70 bg-ash-950/95 px-2 py-2 shadow-[0_8px_30px_rgba(0,0,0,0.45)] backdrop-blur">
+                        {sourceLocale !== 'vi' && preferSourceReference && (
+                            <button
+                                type="button"
+                                onClick={openSourceReferencePanel}
+                                className="inline-flex items-center gap-2 rounded-full border border-emerald-500/40 bg-emerald-950/30 px-3 py-2 text-[11px] font-mono text-emerald-300 hover:border-emerald-400 hover:text-emerald-200"
+                            >
+                                <BookOpenText size={12} />
+                                Gốc VI
+                            </button>
+                        )}
+                        <button
+                            type="button"
+                            onClick={() => runLookup()}
+                            className="inline-flex items-center gap-2 rounded-full border border-cyan-500/40 bg-ash-950/95 px-3 py-2 text-[11px] font-mono text-cyan-300 hover:border-cyan-400 hover:text-cyan-200"
+                        >
+                            <Search size={12} />
+                            {dictionary.lookup.action}
+                        </button>
+                        {sourceLocale !== 'vi' && !preferSourceReference && (
+                            <button
+                                type="button"
+                                onClick={openSourceReferencePanel}
+                                className="inline-flex items-center gap-2 rounded-full border border-emerald-500/40 bg-emerald-950/30 px-3 py-2 text-[11px] font-mono text-emerald-300 hover:border-emerald-400 hover:text-emerald-200"
+                            >
+                                <BookOpenText size={12} />
+                                Gốc VI
+                            </button>
+                        )}
+                    </div>
                 </div>
             )}
 
@@ -704,7 +755,7 @@ export default function ReaderQuickLookup({
                                         </div>
                                     )}
                                     <div className="mt-3 text-[10px] text-ash-500">
-                                        Click đúp vào từ ngắn để tra ngay, hoặc dùng <span className="font-mono text-cyan-300">Alt+L</span>.
+                                        Click đúp vào từ ngắn để tra ngay, hoặc dùng <span className="font-mono text-cyan-300">Alt+L</span> / <span className="font-mono text-emerald-300">Alt+V</span>.
                                     </div>
                                 </div>
 
@@ -767,13 +818,25 @@ export default function ReaderQuickLookup({
                                         <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-emerald-300">
                                             Đối chiếu bản gốc tiếng Việt
                                         </div>
-                                        {sourceReference.translated_excerpt && (
-                                            <div className="mt-3 rounded-lg border border-ash-800 bg-black/20 px-3 py-2 text-xs leading-6 text-ash-300">
-                                                {sourceReference.translated_excerpt}
+                                        <div className="mt-3 grid gap-3 md:grid-cols-2">
+                                            {sourceReference.translated_excerpt && (
+                                                <div className="rounded-lg border border-ash-800 bg-black/20 px-3 py-3">
+                                                    <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-cyan-300">
+                                                        Bản dịch hiện tại
+                                                    </div>
+                                                    <div className="mt-2 whitespace-pre-wrap text-xs leading-6 text-ash-300">
+                                                        {sourceReference.translated_excerpt}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            <div className="rounded-lg border border-emerald-900/30 bg-black/20 px-3 py-3">
+                                                <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-emerald-300">
+                                                    Bản gốc VI
+                                                </div>
+                                                <div className="mt-2 whitespace-pre-wrap text-xs leading-6 text-emerald-50">
+                                                    {sourceReference.source_excerpt}
+                                                </div>
                                             </div>
-                                        )}
-                                        <div className="mt-3 whitespace-pre-wrap leading-7 text-emerald-50">
-                                            {sourceReference.source_excerpt}
                                         </div>
                                         {typeof sourceReference.paragraph_index === 'number' && (
                                             <div className="mt-3 text-[10px] font-mono uppercase tracking-[0.2em] text-emerald-400">
@@ -813,7 +876,7 @@ export default function ReaderQuickLookup({
                                     {sourceLocale !== 'vi' && (
                                         <button
                                             type="button"
-                                            onClick={handleLoadSourceReference}
+                                            onClick={openSourceReferencePanel}
                                             disabled={!selectedText || !chapterId || sourceReferenceLoading}
                                             className="inline-flex items-center gap-2 rounded-lg border border-emerald-700/40 px-3 py-2 text-[11px] font-mono text-emerald-300 hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-50"
                                         >
@@ -883,6 +946,9 @@ export default function ReaderQuickLookup({
                                             {dictionary.lookup.external}
                                         </a>
                                     )}
+                                    <div className="mt-2 text-[10px] text-emerald-300/80">
+                                        Bôi đen đoạn dài rồi bấm <span className="font-mono text-emerald-300">Gốc VI</span> để đối chiếu trực tiếp, không cần tra AI trước.
+                                    </div>
                                 </div>
                             </div>
                         )}
