@@ -1,6 +1,9 @@
 """
-FastAPI Backend - M蘯｡t Th蘯ｿ Sinh Hoﾃ｡ Nguy Cﾆ｡
-Cung c蘯･p API metadata chﾆｰﾆ｡ng. N盻冓 dung chﾆｰﾆ｡ng ﾄ柁ｰ盻｣c fetch t盻ｫ Cloudflare R2.
+
+FastAPI Backend - Mạt Thế Sinh Hoá Nguy Cơ
+
+Cung cấp API metadata chương. Nội dung chương được fetch từ Cloudflare R2.
+
 """
 
 import asyncio
@@ -15,72 +18,146 @@ from datetime import datetime, timezone
 from time import monotonic
 from typing import Optional, List, Callable, TypeVar, Any
 from urllib.parse import quote
+
 import boto3
+
 from botocore.client import Config
+
 import httpx
+
 from fastapi import FastAPI, HTTPException, Query, Header, status, UploadFile, File
+
 from fastapi.middleware.cors import CORSMiddleware
+
 from fastapi.responses import StreamingResponse, PlainTextResponse
+
 from pydantic import BaseModel
+
 from supabase import create_client, Client
+
 from dotenv import load_dotenv
+
 import sys
+
 # Add both current and parent directory to sys.path for maximum compatibility
+
 current_dir = os.path.dirname(os.path.abspath(__file__))
+
 parent_dir = os.path.dirname(current_dir)
+
 if current_dir not in sys.path:
+
     sys.path.insert(0, current_dir)
+
 if parent_dir not in sys.path:
+
     sys.path.insert(0, parent_dir)
 
 # Consolidated imports with intelligent fallback
-try:
-    # Try importing as top-level modules first (when running from within backend/)
-    from security_utils import sanitize_html, sanitize_plaintext, extract_bearer_token
-    from routes.engagement import create_engagement_router
-    from routes.hq_dashboard import router as hq_router
-    from routes.ai_oracle import router as oracle_router
-    from routes.wiki_search import router as wiki_router
-except (ImportError, ModuleNotFoundError):
-    # Fallback to absolute imports (when running from project root)
-    from backend.security_utils import sanitize_html, sanitize_plaintext, extract_bearer_token
-    from backend.routes.engagement import create_engagement_router
-    from backend.routes.hq_dashboard import router as hq_router
-    from backend.routes.ai_oracle import router as oracle_router
-    from backend.routes.wiki_search import router as wiki_router
 
+try:
+
+    # Try importing as top-level modules first (when running from within backend/)
+
+    from security_utils import sanitize_html, sanitize_plaintext, extract_bearer_token
+    from prompts.translation_prompts import (
+        build_chapter_multilocale_system_instruction,
+        build_chapter_multilocale_user_prompt,
+        build_chapter_translation_prompt,
+        build_guide_multilocale_system_instruction,
+        build_guide_multilocale_user_prompt,
+        build_homepage_multilocale_system_instruction,
+        build_homepage_multilocale_user_prompt,
+        build_homepage_translation_prompt,
+        build_wiki_multilocale_system_instruction,
+        build_wiki_multilocale_user_prompt,
+        build_wiki_translation_prompt,
+    )
+
+    from routes.engagement import create_engagement_router
+
+    from routes.hq_dashboard import router as hq_router
+
+    from routes.ai_oracle import router as oracle_router
+
+    from routes.wiki_search import router as wiki_router
+
+except (ImportError, ModuleNotFoundError):
+
+    # Fallback to absolute imports (when running from project root)
+
+    from backend.security_utils import sanitize_html, sanitize_plaintext, extract_bearer_token
+    from backend.prompts.translation_prompts import (
+        build_chapter_multilocale_system_instruction,
+        build_chapter_multilocale_user_prompt,
+        build_chapter_translation_prompt,
+        build_guide_multilocale_system_instruction,
+        build_guide_multilocale_user_prompt,
+        build_homepage_multilocale_system_instruction,
+        build_homepage_multilocale_user_prompt,
+        build_homepage_translation_prompt,
+        build_wiki_multilocale_system_instruction,
+        build_wiki_multilocale_user_prompt,
+        build_wiki_translation_prompt,
+    )
+
+    from backend.routes.engagement import create_engagement_router
+
+    from backend.routes.hq_dashboard import router as hq_router
+
+    from backend.routes.ai_oracle import router as oracle_router
+
+    from backend.routes.wiki_search import router as wiki_router
 
 load_dotenv(override=True)
 
 # === SUPABASE CLIENT ===
+
 SUPABASE_URL = os.getenv("SUPABASE_URL")
+
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
+
     raise RuntimeError("SUPABASE_URL and SUPABASE_KEY must be configured in .env")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # === CLOUDFLARE R2 CLIENT ===
+
 R2_ACCESS_KEY = os.getenv("R2_ACCESS_KEY_ID")
+
 R2_SECRET_KEY = os.getenv("R2_SECRET_ACCESS_KEY")
+
 # Support both R2_ENDPOINT_URL (old) and R2_ENDPOINT (new on Render)
+
 R2_ENDPOINT = os.getenv("R2_ENDPOINT_URL") or os.getenv("R2_ENDPOINT")
+
 R2_BUCKET = os.getenv("R2_BUCKET_NAME", "mat-the")
+
 # Support both R2_PUBLIC_URL and R2_PUBLIC_BASE_URL
+
 R2_PUBLIC_URL = os.getenv("R2_PUBLIC_URL") or os.getenv("R2_PUBLIC_BASE_URL") or ""
 
 r2_client = None
-if R2_ACCESS_KEY and R2_SECRET_KEY and R2_ENDPOINT:
-    r2_client = boto3.client(
-        's3',
-        endpoint_url=R2_ENDPOINT,
-        aws_access_key_id=R2_ACCESS_KEY,
-        aws_secret_access_key=R2_SECRET_KEY,
-        config=Config(signature_version='s3v4'),
-        region_name='auto',
-    )
 
+if R2_ACCESS_KEY and R2_SECRET_KEY and R2_ENDPOINT:
+
+    r2_client = boto3.client(
+
+        's3',
+
+        endpoint_url=R2_ENDPOINT,
+
+        aws_access_key_id=R2_ACCESS_KEY,
+
+        aws_secret_access_key=R2_SECRET_KEY,
+
+        config=Config(signature_version='s3v4'),
+
+        region_name='auto',
+
+    )
 
 def slugify(text: str) -> str:
     """Convert Vietnamese text to ASCII slug for use as R2 object key."""
@@ -88,7 +165,6 @@ def slugify(text: str) -> str:
     text = re.sub(r'[\u0300-\u036f]', '', text)
     text = re.sub(r'[^\w\s-]', '', text.lower())
     return re.sub(r'[-\s]+', '-', text).strip('-')
-
 
 SUPPORTED_LOCALES = ("vi", "en", "zh-CN", "ja")
 DEFAULT_LOCALE = "vi"
@@ -124,7 +200,6 @@ TRANSLATION_RATE_LIMIT_STATE: dict[str, float] = {}
 TRANSLATION_RATE_LIMIT_LOCK = asyncio.Lock()
 T = TypeVar("T")
 
-
 def normalize_locale(value: Optional[str]) -> str:
     if not value:
         return DEFAULT_LOCALE
@@ -141,17 +216,14 @@ def normalize_locale(value: Optional[str]) -> str:
         return "ja"
     return DEFAULT_LOCALE
 
-
 def safe_select(table_name: str, select_fields: str = "*"):
     try:
         return supabase.table(table_name).select(select_fields)
     except Exception:
         return None
 
-
 def build_content_hash(text: str) -> str:
     return hashlib.sha256((text or "").encode("utf-8")).hexdigest()
-
 
 def load_translation_glossary() -> list[dict]:
     try:
@@ -162,7 +234,6 @@ def load_translation_glossary() -> list[dict]:
     except Exception:
         pass
     return []
-
 
 def build_glossary_prompt() -> str:
     glossary = load_translation_glossary()
@@ -182,7 +253,6 @@ def build_glossary_prompt() -> str:
             lines.append(f"- {source}: {mapped}")
     return "\n".join(lines) if lines else "Khong co glossary bo sung."
 
-
 def build_target_translation_locales(locales: Optional[List[str]] = None) -> list[str]:
     if not locales:
         return list(TRANSLATION_TARGET_LOCALES)
@@ -196,14 +266,12 @@ def build_target_translation_locales(locales: Optional[List[str]] = None) -> lis
             normalized.append(locale)
     return normalized
 
-
 def build_target_locale_prompt(locales: list[str]) -> str:
     lines = []
     for locale in locales:
         locale_name = TRANSLATION_LOCALE_LABELS.get(locale, locale)
         lines.append(f'- "{locale}": {locale_name}')
     return "\n".join(lines)
-
 
 def build_multilocale_object_schema(target_locales: list[str], field_schemas: dict[str, dict[str, Any]]) -> dict:
     ordered_fields = list(field_schemas.keys())
@@ -230,7 +298,6 @@ def build_multilocale_object_schema(target_locales: list[str], field_schemas: di
         "additionalProperties": False,
     }
 
-
 def extract_gemini_text_response(data: dict) -> str:
     candidates = data.get("candidates") or []
     if not candidates:
@@ -242,7 +309,6 @@ def extract_gemini_text_response(data: dict) -> str:
     if not text:
         raise ValueError("Missing Gemini text response")
     return text
-
 
 def chunk_translation_source_text(source_text: str, max_chars: int = TRANSLATION_MULTI_LOCALE_MAX_SOURCE_CHARS) -> list[str]:
     normalized = (source_text or "").replace("\r\n", "\n").replace("\r", "\n").strip()
@@ -276,7 +342,6 @@ def chunk_translation_source_text(source_text: str, max_chars: int = TRANSLATION
         chunks.append(remaining)
     return chunks
 
-
 def parse_multilocale_translation_payload(
     raw_text: str,
     target_locales: list[str],
@@ -301,14 +366,12 @@ def parse_multilocale_translation_payload(
         payload[locale] = parsed_locale_payload
     return payload
 
-
 def extract_r2_object_key(content_url: str) -> Optional[str]:
     if not content_url or not R2_PUBLIC_URL:
         return None
     clean_url = re.sub(r'^https?://', '', content_url)
     clean_base = re.sub(r'^https?://', '', R2_PUBLIC_URL)
     return clean_url.replace(clean_base, "").lstrip("/")
-
 
 def fetch_r2_content(content_url: str) -> str:
     object_key = extract_r2_object_key(content_url)
@@ -319,7 +382,6 @@ def fetch_r2_content(content_url: str) -> str:
     response = httpx.get(content_url, timeout=20.0)
     response.raise_for_status()
     return response.text
-
 
 def resolve_chapter_translation(chapter_id: int, locale: str):
     locale = normalize_locale(locale)
@@ -341,7 +403,6 @@ def resolve_chapter_translation(chapter_id: int, locale: str):
         return None
     return None
 
-
 def resolve_novel_translation(locale: str):
     locale = normalize_locale(locale)
     if locale == DEFAULT_LOCALE:
@@ -361,7 +422,6 @@ def resolve_novel_translation(locale: str):
         return None
     return None
 
-
 def normalize_model_catalog(raw_catalog, fallback_model: str) -> list[str]:
     if isinstance(raw_catalog, list):
         catalog = [f"{item}".strip() for item in raw_catalog if f"{item}".strip()]
@@ -376,7 +436,6 @@ def normalize_model_catalog(raw_catalog, fallback_model: str) -> list[str]:
     deduped = list(dict.fromkeys(catalog))
     return sorted(deduped, key=lambda item: MODEL_PRIORITY.get(item, len(DEFAULT_TRANSLATION_MODELS) + 100))
 
-
 def normalize_api_key_catalog(raw_keys, fallback_key: str) -> list[str]:
     keys = []
     if isinstance(raw_keys, list):
@@ -384,7 +443,6 @@ def normalize_api_key_catalog(raw_keys, fallback_key: str) -> list[str]:
     if fallback_key and fallback_key.strip():
         keys.insert(0, fallback_key.strip())
     return list(dict.fromkeys([item for item in keys if item]))
-
 
 def is_translation_retryable(exc: HTTPException) -> bool:
     detail = str(exc.detail).lower()
@@ -395,7 +453,6 @@ def is_translation_retryable(exc: HTTPException) -> bool:
         or "quota" in detail
         or exc.status_code in (400, 404, 401, 403)
     )
-
 
 def build_translation_failure_detail(
     attempts: list[dict],
@@ -415,15 +472,12 @@ def build_translation_failure_detail(
     lines.append(f"Lỗi cuối cùng: {final_detail}")
     return "\n".join(lines)
 
-
 def get_model_min_interval_seconds(model_name: str) -> float:
     return MODEL_MIN_INTERVAL_SECONDS.get(model_name, 6.5)
-
 
 def get_key_model_bucket(model_name: str, api_key: str) -> str:
     key_hash = hashlib.sha1(api_key.encode("utf-8")).hexdigest()[:8] if api_key else "nokey"
     return f"{model_name}|{key_hash}"
-
 
 def clean_json_like_response(raw_text: str) -> str:
     cleaned = (raw_text or "").strip()
@@ -437,7 +491,6 @@ def clean_json_like_response(raw_text: str) -> str:
     if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
         cleaned = cleaned[first_brace:last_brace + 1]
     return cleaned.strip()
-
 
 def escape_json_string_control_chars(raw_text: str) -> str:
     result: list[str] = []
@@ -474,15 +527,20 @@ def escape_json_string_control_chars(raw_text: str) -> str:
 
     return "".join(result)
 
-
 def parse_json_like_payload(raw_text: str) -> dict:
+    """
+    Phân tích chuỗi JSON từ phản hồi của AI, bao gồm việc làm sạch và sửa lỗi ký tự điều khiển.
+    """
     cleaned = clean_json_like_response(raw_text)
     try:
         return json.loads(cleaned)
     except json.JSONDecodeError:
         repaired = escape_json_string_control_chars(cleaned)
-        return json.loads(repaired)
-
+        try:
+            return json.loads(repaired)
+        except json.JSONDecodeError:
+            # Final attempt: try to extract anything between brackets
+            return {}
 
 async def generate_structured_translation_payload(
     system_instruction: str,
@@ -572,7 +630,6 @@ async def generate_structured_translation_payload(
         )
     raise HTTPException(status_code=502, detail="Khong co mo hinh dich AI kha dung")
 
-
 async def throttle_translation_request(model_name: str, api_key: str):
     bucket = get_key_model_bucket(model_name, api_key)
     min_interval = get_model_min_interval_seconds(model_name)
@@ -584,7 +641,6 @@ async def throttle_translation_request(model_name: str, api_key: str):
         if wait_seconds > 0:
             await asyncio.sleep(wait_seconds)
         TRANSLATION_RATE_LIMIT_STATE[bucket] = monotonic()
-
 
 def resolve_homepage_translation(locale: str):
     locale = normalize_locale(locale)
@@ -606,7 +662,6 @@ def resolve_homepage_translation(locale: str):
         return None
     return None
 
-
 def resolve_wiki_translation(entry_id: str, locale: str):
     locale = normalize_locale(locale)
     if locale == DEFAULT_LOCALE:
@@ -625,7 +680,6 @@ def resolve_wiki_translation(entry_id: str, locale: str):
     except Exception:
         return None
     return None
-
 
 def apply_wiki_translation(entry: dict, locale: str) -> dict:
     translation = resolve_wiki_translation(entry.get("id"), locale)
@@ -647,7 +701,6 @@ def apply_wiki_translation(entry: dict, locale: str) -> dict:
     entry["is_fallback"] = is_fallback
     return entry
 
-
 def sanitize_homepage_features(features) -> list[dict]:
     cleaned = []
     if not isinstance(features, list):
@@ -665,7 +718,6 @@ def sanitize_homepage_features(features) -> list[dict]:
         )
     return cleaned
 
-
 def prepare_homepage_settings_payload(payload: Optional[dict]) -> dict:
     raw = dict(payload or {})
     return {
@@ -676,7 +728,6 @@ def prepare_homepage_settings_payload(payload: Optional[dict]) -> dict:
         "features_title": sanitize_plaintext(raw.get("features_title")) if raw.get("features_title") is not None else None,
         "features_json": sanitize_homepage_features(raw.get("features_json")),
     }
-
 
 def apply_homepage_translation(payload: dict, locale: str) -> dict:
     requested_locale = normalize_locale(locale)
@@ -705,7 +756,6 @@ def apply_homepage_translation(payload: dict, locale: str) -> dict:
     payload["is_fallback"] = is_fallback
     return payload
 
-
 async def resolve_ai_settings_for_translation() -> tuple[str, list[str], list[str]]:
     try:
         settings = (
@@ -731,7 +781,6 @@ async def resolve_ai_settings_for_translation() -> tuple[str, list[str], list[st
         DEFAULT_TRANSLATION_MODELS.copy(),
         normalize_api_key_catalog([], fallback_key),
     )
-
 
 async def translate_text_with_ai(source_text: str, source_locale: str, target_locale: str, context_label: str) -> str:
     _active_model, model_catalog, api_keys = await resolve_ai_settings_for_translation()
@@ -817,7 +866,6 @@ SOURCE:
         )
     raise HTTPException(status_code=502, detail="Không có mô hình dịch khả dụng")
 
-
 async def translate_chapter_payload_with_ai(
     title: str,
     content: str,
@@ -830,29 +878,14 @@ async def translate_chapter_payload_with_ai(
         raise HTTPException(status_code=503, detail="AI translation is not configured")
 
     glossary_prompt = build_glossary_prompt()
-    prompt = f"""
-Ban la bien dich vien chuyen nghiep cho tieu thuyet sinh ton hau tan the.
-Hay dich title va content sau tu {source_locale} sang {target_locale}.
-
-YEU CAU:
-1. Giu nguyen ten rieng theo glossary neu co.
-2. Khong duoc rut gon, khong them giai thich, khong them markdown.
-3. Giu nguyen ngat doan va thu tu noi dung.
-4. Tra ve DUY NHAT mot JSON hop le theo schema:
-{{"title":"...","content":"..."}}
-5. Khong boc JSON trong code fence.
-
-CONTEXT: {context_label}
-
-GLOSSARY:
-{glossary_prompt}
-
-SOURCE TITLE:
-{title}
-
-SOURCE CONTENT:
-{content}
-""".strip()
+    prompt = build_chapter_translation_prompt(
+        title=title,
+        content=content,
+        source_locale=source_locale,
+        target_locale=target_locale,
+        context_label=context_label,
+        glossary_prompt=glossary_prompt,
+    )
 
     payload = {
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
@@ -936,7 +969,6 @@ SOURCE CONTENT:
         )
     raise HTTPException(status_code=502, detail="Không có mô hình dịch chương khả dụng")
 
-
 async def translate_chapter_payloads_with_ai(
     title: str,
     content: str,
@@ -957,16 +989,7 @@ async def translate_chapter_payloads_with_ai(
             "content": {"type": "string"},
         },
     )
-    system_instruction = """
-Ban la bien dich vien chuyen nghiep cho tieu thuyet sinh ton hau tan the.
-Nhiem vu cua ban la dich chinh xac, day du, tu nhien va nhat quan.
-
-QUY TAC BAT BUOC:
-1. Giu nguyen ten rieng theo glossary neu co.
-2. Khong duoc rut gon, bo y, them y, them giai thich hoac markdown.
-3. Giu nguyen thu tu noi dung, ngat doan, xung ho va ten ky nang.
-4. Chi tra ve JSON hop le dung schema duoc yeu cau.
-""".strip()
+    system_instruction = build_chapter_multilocale_system_instruction()
 
     translated_payloads = {
         locale: {"title": "", "content_parts": []}
@@ -975,23 +998,16 @@ QUY TAC BAT BUOC:
     content_chunks = chunk_translation_source_text(content)
 
     for chunk_index, content_chunk in enumerate(content_chunks, start=1):
-        user_prompt = f"""
-CONTEXT: {context_label}
-SOURCE LOCALE: {source_locale}
-TARGET LOCALES:
-{locale_prompt}
-
-GLOSSARY:
-{glossary_prompt}
-
-HUONG DAN CHO CHUNK NAY:
-- Day la chunk {chunk_index}/{len(content_chunks)} cua noi dung chuong.
-- Luon tra ve day du ban dich title cho moi locale.
-- Chi dich phan content chunk duoc cung cap ben duoi.
-
-SOURCE JSON:
-{json.dumps({"title": title, "content": content_chunk}, ensure_ascii=False)}
-""".strip()
+        user_prompt = build_chapter_multilocale_user_prompt(
+            title=title,
+            content_chunk=content_chunk,
+            source_locale=source_locale,
+            locale_prompt=locale_prompt,
+            glossary_prompt=glossary_prompt,
+            context_label=context_label,
+            chunk_index=chunk_index,
+            chunk_count=len(content_chunks),
+        )
 
         chunk_payload = await generate_structured_translation_payload(
             system_instruction=system_instruction,
@@ -1019,7 +1035,6 @@ SOURCE JSON:
         }
         for locale in target_locales
     }
-
 
 async def upsert_chapter_translations(chapter_row: dict, title: str, content: str, locales: list[str]) -> dict:
     target_locales = build_target_translation_locales(locales)
@@ -1158,7 +1173,6 @@ async def upsert_chapter_translations(chapter_row: dict, title: str, content: st
         "failed_translations": failed_translations,
     }
 
-
 async def upsert_chapter_translation(chapter_row: dict, title: str, content: str, locale: str):
     if normalize_locale(locale) == DEFAULT_LOCALE:
         return None
@@ -1234,7 +1248,6 @@ async def upsert_chapter_translation(chapter_row: dict, title: str, content: str
         supabase.table("chapter_translations").upsert(failure_payload, on_conflict="chapter_id,locale").execute()
         raise
 
-
 async def translate_homepage_payload_with_ai(settings_payload: dict, target_locale: str) -> dict:
     _active_model, model_catalog, api_keys = await resolve_ai_settings_for_translation()
     if not api_keys:
@@ -1257,26 +1270,12 @@ async def translate_homepage_payload_with_ai(settings_payload: dict, target_loca
             for feature in (base_payload.get("features_json") or [])
         ],
     }
-    serialized_source = json.dumps(source_payload, ensure_ascii=False)
-
-    prompt = f"""
-Ban la bien dich vien chuyen nghiep cho website tieu thuyet sinh ton hau tan the.
-Hay dich toan bo payload homepage sau tu {DEFAULT_LOCALE} sang {target_locale}.
-
-YEU CAU:
-1. Giu nguyen ten rieng theo glossary neu co.
-2. Khong duoc rut gon, khong them giai thich, khong them markdown.
-3. warning_description duoc phep giu HTML co san, chi dich phan van ban.
-4. Giu nguyen so luong item trong features_json va giu nguyen icon.
-5. Tra ve DUY NHAT mot JSON hop le theo dung schema nguon.
-6. Khong boc JSON trong code fence.
-
-GLOSSARY:
-{glossary_prompt}
-
-SOURCE JSON:
-{serialized_source}
-""".strip()
+    prompt = build_homepage_translation_prompt(
+        source_payload=source_payload,
+        target_locale=target_locale,
+        glossary_prompt=glossary_prompt,
+        source_locale=DEFAULT_LOCALE,
+    )
 
     payload = {
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
@@ -1355,7 +1354,6 @@ SOURCE JSON:
         )
     raise HTTPException(status_code=502, detail="Khong co mo hinh dich homepage kha dung")
 
-
 async def translate_homepage_payloads_with_ai(settings_payload: dict, locales: list[str]) -> dict[str, dict]:
     target_locales = build_target_translation_locales(locales)
     if not target_locales:
@@ -1402,30 +1400,15 @@ async def translate_homepage_payloads_with_ai(settings_payload: dict, locales: l
             },
         },
     )
-    system_instruction = """
-Ban la bien dich vien chuyen nghiep cho website tieu thuyet sinh ton hau tan the.
-Hay dich noi dung CMS trang chu mot cach tu nhien, nhat quan va giu dung cau truc du lieu.
-
-QUY TAC BAT BUOC:
-1. Giu nguyen ten rieng theo glossary neu co.
-2. Khong duoc rut gon, them y, them giai thich hay markdown.
-3. warning_description co the chua HTML, chi dich phan van ban va giu nguyen cau truc.
-4. Giu nguyen so luong item trong features_json va giu nguyen icon tung item.
-5. Chi tra ve JSON hop le dung schema duoc yeu cau.
-""".strip()
+    system_instruction = build_homepage_multilocale_system_instruction()
     translated_payloads = await generate_structured_translation_payload(
         system_instruction=system_instruction,
-        user_prompt=f"""
-SOURCE LOCALE: {DEFAULT_LOCALE}
-TARGET LOCALES:
-{locale_prompt}
-
-GLOSSARY:
-{glossary_prompt}
-
-SOURCE JSON:
-{json.dumps(source_payload, ensure_ascii=False)}
-""".strip(),
+        user_prompt=build_homepage_multilocale_user_prompt(
+            source_payload=source_payload,
+            locale_prompt=locale_prompt,
+            glossary_prompt=glossary_prompt,
+            source_locale=DEFAULT_LOCALE,
+        ),
         response_json_schema=schema,
         parser=lambda raw_text: parse_multilocale_translation_payload(
             raw_text,
@@ -1452,7 +1435,6 @@ SOURCE JSON:
         translated["features_json"] = translated_features
         sanitized_payloads[locale] = translated
     return sanitized_payloads
-
 
 async def upsert_homepage_translations(settings_payload: dict, locales: list[str]) -> dict:
     target_locales = build_target_translation_locales(locales)
@@ -1495,7 +1477,6 @@ async def upsert_homepage_translations(settings_payload: dict, locales: list[str
         "failed_translations": failed_translations,
     }
 
-
 async def upsert_homepage_translation(settings_payload: dict, locale: str):
     locale = normalize_locale(locale)
     if locale == DEFAULT_LOCALE:
@@ -1529,7 +1510,6 @@ async def upsert_homepage_translation(settings_payload: dict, locale: str):
     except Exception:
         return None
 
-
 async def translate_wiki_payload_with_ai(entry_payload: dict, target_locale: str) -> dict:
     _active_model, model_catalog, api_keys = await resolve_ai_settings_for_translation()
     if not api_keys:
@@ -1541,26 +1521,12 @@ async def translate_wiki_payload_with_ai(entry_payload: dict, target_locale: str
         "summary": entry_payload.get("summary") or "",
         "content": entry_payload.get("content") or "",
     }
-    serialized_source = json.dumps(source_payload, ensure_ascii=False)
-
-    prompt = f"""
-Ban la bien dich vien chuyen nghiep cho wiki nhan vat, sinh vat va the luc trong tieu thuyet sinh ton hau tan the.
-Hay dich toan bo payload wiki sau tu {DEFAULT_LOCALE} sang {target_locale}.
-
-YEU CAU:
-1. Giu nguyen ten rieng theo glossary neu co.
-2. Khong duoc rut gon, khong them giai thich, khong them markdown.
-3. Truong content co the chua HTML, hay giu nguyen cau truc HTML va chi dich phan van ban.
-4. Tra ve DUY NHAT mot JSON hop le theo schema:
-{{"title":"...","summary":"...","content":"..."}}
-5. Khong boc JSON trong code fence.
-
-GLOSSARY:
-{glossary_prompt}
-
-SOURCE JSON:
-{serialized_source}
-""".strip()
+    prompt = build_wiki_translation_prompt(
+        source_payload=source_payload,
+        target_locale=target_locale,
+        glossary_prompt=glossary_prompt,
+        source_locale=DEFAULT_LOCALE,
+    )
 
     payload = {
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
@@ -1646,7 +1612,6 @@ SOURCE JSON:
         )
     raise HTTPException(status_code=502, detail="Khong co mo hinh dich wiki kha dung")
 
-
 async def translate_wiki_payloads_with_ai(entry_payload: dict, locales: list[str]) -> dict[str, dict]:
     target_locales = build_target_translation_locales(locales)
     if not target_locales:
@@ -1667,29 +1632,15 @@ async def translate_wiki_payloads_with_ai(entry_payload: dict, locales: list[str
             "content": {"type": "string"},
         },
     )
-    system_instruction = """
-Ban la bien dich vien chuyen nghiep cho wiki nhan vat, sinh vat va the luc trong tieu thuyet sinh ton hau tan the.
-Hay dich day du, chinh xac va giu dung cau truc HTML neu co.
-
-QUY TAC BAT BUOC:
-1. Giu nguyen ten rieng theo glossary neu co.
-2. Khong duoc rut gon, them giai thich hay markdown.
-3. Truong content co the chua HTML, chi dich phan van ban va giu nguyen cau truc.
-4. Chi tra ve JSON hop le dung schema duoc yeu cau.
-""".strip()
+    system_instruction = build_wiki_multilocale_system_instruction()
     translated_payloads = await generate_structured_translation_payload(
         system_instruction=system_instruction,
-        user_prompt=f"""
-SOURCE LOCALE: {DEFAULT_LOCALE}
-TARGET LOCALES:
-{locale_prompt}
-
-GLOSSARY:
-{glossary_prompt}
-
-SOURCE JSON:
-{json.dumps(source_payload, ensure_ascii=False)}
-""".strip(),
+        user_prompt=build_wiki_multilocale_user_prompt(
+            source_payload=source_payload,
+            locale_prompt=locale_prompt,
+            glossary_prompt=glossary_prompt,
+            source_locale=DEFAULT_LOCALE,
+        ),
         response_json_schema=schema,
         parser=lambda raw_text: parse_multilocale_translation_payload(raw_text, target_locales, ["title", "summary", "content"]),
     )
@@ -1708,7 +1659,6 @@ SOURCE JSON:
             "content": translated_content,
         }
     return sanitized_payloads
-
 
 async def upsert_wiki_translations(entry_row: dict, locales: list[str]) -> dict:
     target_locales = build_target_translation_locales(locales)
@@ -1743,7 +1693,6 @@ async def upsert_wiki_translations(entry_row: dict, locales: list[str]) -> dict:
         "failed_translations": failed_translations,
     }
 
-
 async def upsert_wiki_translation(entry_row: dict, locale: str):
     locale = normalize_locale(locale)
     if locale == DEFAULT_LOCALE:
@@ -1764,101 +1713,171 @@ async def upsert_wiki_translation(entry_row: dict, locale: str):
         .execute()
     )
 
-
 # === ADMIN AUTH ===
+
 async def verify_admin(authorization: Optional[str]) -> dict:
+
     """
-    Xﾃ｡c th盻ｱc token Admin t盻ｫ Header Authorization (Bearer <token>).
+
+    Xác th盻ｱc token Admin từ Header Authorization (Bearer <token>).
+
     """
+
     token = extract_bearer_token(authorization)
+
     if not token:
+
         raise HTTPException(
+
             status_code=status.HTTP_401_UNAUTHORIZED, 
-            detail="Thi蘯ｿu token xﾃ｡c th盻ｱc. Hﾃ｣y ﾄ惰ハg nh蘯ｭp l蘯｡i."
+
+            detail="Thiếu token xác th盻ｱc. Hãy ﾄ惰ハg nhập lại."
+
         )
 
     try:
+
         # Verify Supabase JWT only
+
         user_resp = supabase.auth.get_user(token)
+
         if not user_resp or not user_resp.user:
+
             raise HTTPException(
+
                 status_code=status.HTTP_401_UNAUTHORIZED, 
-                detail="Token khﾃｴng h盻｣p l盻・ho蘯ｷc ﾄ妥｣ h蘯ｿt h蘯｡n."
+
+                detail="Token không h盻｣p l盻・ho蘯ｷc ﾄ妥｣ hết hạn."
+
             )
+
         
-        # Truy v蘯･n profile ﾄ黛ｻ・l蘯･y role (editor/superadmin)
+
+        # Truy vấn profile đểlấy role (editor/superadmin)
+
         profile_resp = supabase.table("profiles").select("role").eq("id", user_resp.user.id).execute()
+
         
+
         user_role = "editor" # M蘯ｷc ﾄ黛ｻ杵h
+
         if profile_resp.data:
+
             user_role = profile_resp.data[0].get("role", "editor").lower()
+
             
+
         return {
+
             "id": user_resp.user.id,
+
             "email": user_resp.user.email,
+
             "role": user_role
+
         }
+
     except HTTPException:
+
         raise
+
     except Exception as e:
+
         print(f"Auth Error: {str(e)}")
+
         raise HTTPException(
+
             status_code=status.HTTP_401_UNAUTHORIZED, 
-            detail="Token khﾃｴng h盻｣p l盻・ho蘯ｷc ﾄ妥｣ h蘯ｿt h蘯｡n."
+
+            detail="Token không h盻｣p l盻・ho蘯ｷc ﾄ妥｣ hết hạn."
+
         )
 
-
 # === FASTAPI APP ===
+
 app = FastAPI(
-    title="M蘯｡t Th蘯ｿ API",
-    description="API backend cho website ﾄ黛ｻ皇 truy盻㌻ M蘯｡t Th蘯ｿ - Sinh Hoﾃ｡ Nguy Cﾆ｡",
+
+    title="Mạt Thế API",
+
+    description="API backend cho website đọc truy盻㌻ Mạt Thế - Sinh Hoá Nguy Cﾆ｡",
+
     version="1.0.0",
+
     docs_url="/docs",
-    redoc_url=None,  # disable redoc ﾄ黛ｻ・gi蘯｣m memory trﾃｪn Render free tier
+
+    redoc_url=None,  # disable redoc đểgiảm memory trên Render free tier
+
 )
 
 # === CORS MIDDLEWARE ===
+
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
 
 app.add_middleware(
+
     CORSMiddleware,
+
     allow_origins=ALLOWED_ORIGINS if ALLOWED_ORIGINS != ["*"] else ["*"],
+
     allow_credentials=ALLOWED_ORIGINS != ["*"],
+
     allow_methods=["*"],
+
     allow_headers=["*"],
+
     expose_headers=["*"],
+
 )
 
 app.include_router(create_engagement_router(supabase))
+
 app.include_router(hq_router)
+
 app.include_router(oracle_router)
+
 app.include_router(wiki_router)
 
-
 @app.middleware("http")
+
 async def log_requests(request, call_next):
+
     # Log incoming request for better debugging on Render/Vercel
+
     print(f"DEBUG: {request.method} {request.url}")
+
     try:
+
         response = await call_next(request)
+
         return response
+
     except Exception as e:
+
         import traceback
+
         print(f"ERROR: Crash in {request.method} {request.url}: {str(e)}")
+
         print(traceback.format_exc())
+
         from fastapi.responses import JSONResponse
+
         return JSONResponse(
+
             status_code=500,
+
             content={"detail": "Internal Server Error"}
+
         )
 
 # === DATA MODELS ===
+
 class Chapter(BaseModel):
     id: int
     chapter_number: int
     title: str
     content_url: str  # Cloudflare R2 public URL
     created_at: str
+
     word_count: Optional[int] = None
     view_count: int = 0
     is_side_story: bool = False
@@ -1869,74 +1888,123 @@ class Chapter(BaseModel):
     translated_content: Optional[str] = None
 
 class ChaptersResponse(BaseModel):
+
     chapters: list[Chapter]
+
     total: int
+
     page: int
+
     limit: int
+
     total_pages: int
+
     max_chapter: int
 
 # ============================================================
+
 # ROUTES
+
 # ============================================================
 
 @app.get("/api/health")
+
 async def health_check():
+
     """Health check endpoint cho Render monitoring"""
+
     return {"status": "ok", "service": "mat-the-api"}
 
-
 @app.get("/api/chapters", response_model=ChaptersResponse)
+
 async def get_chapters(
+
     page: int = Query(1, ge=1, description="S盻・trang"),
-    limit: int = Query(50, ge=1, le=100, description="S盻・chﾆｰﾆ｡ng m盻擁 trang"),
-    sort: str = Query("asc", pattern="^(asc|desc)$", description="Th盻ｩ t盻ｱ s蘯ｯp x蘯ｿp: asc ho蘯ｷc desc"),
-    search: Optional[str] = Query(None, description="Tﾃｬm ki蘯ｿm theo tiﾃｪu ﾄ黛ｻ・ho蘯ｷc s盻・chﾆｰﾆ｡ng"),
-    is_side_story: Optional[bool] = Query(None, description="L盻皇 ngo蘯｡i truy盻㌻ (true) ho蘯ｷc m蘯｡ch chﾃｭnh (false)"),
+
+    limit: int = Query(50, ge=1, le=100, description="S盻・chương m盻擁 trang"),
+
+    sort: str = Query("asc", pattern="^(asc|desc)$", description="Th盻ｩ t盻ｱ s蘯ｯp xếp: asc ho蘯ｷc desc"),
+
+    search: Optional[str] = Query(None, description="Tìm kiếm theo tiêu đểho蘯ｷc s盻・chương"),
+
+    is_side_story: Optional[bool] = Query(None, description="L盻皇 ngoại truy盻㌻ (true) ho蘯ｷc mạch chﾃｭnh (false)"),
+
     locale: str = Query(DEFAULT_LOCALE, description="Requested locale"),
 ):
     """
-    L蘯･y danh sﾃ｡ch chﾆｰﾆ｡ng cﾃｳ phﾃ｢n trang.
+
+    Lấy danh sách chương có phận trang.
+
     
-    - **page**: Trang hi盻㌻ t蘯｡i (b蘯ｯt ﾄ黛ｺｧu t盻ｫ 1)
-    - **limit**: S盻・chﾆｰﾆ｡ng m盻擁 trang (t盻訴 ﾄ疎 100)
-    - **sort**: S蘯ｯp x蘯ｿp theo th盻ｩ t盻ｱ chﾆｰﾆ｡ng (asc/desc)
+
+    - **page**: Trang hi盻㌻ tại (b蘯ｯt ﾄ黛ｺｧu từ 1)
+
+    - **limit**: S盻・chương m盻擁 trang (t盻訴 ﾄ疎 100)
+
+    - **sort**: S蘯ｯp xếp theo th盻ｩ t盻ｱ chương (asc/desc)
+
     """
+
     try:
+
         offset = (page - 1) * limit
 
         # Build base query
+
         query = supabase.table("chapters").select("id, chapter_number, title, content_url, created_at, word_count, is_side_story", count="exact")
+
         
+
         # Apply filters
+
         if is_side_story is not None:
+
             query = query.eq("is_side_story", is_side_story)
 
         # Apply search if provided
+
         if search:
+
             if search.isdigit():
+
                 query = query.eq("chapter_number", int(search))
+
             else:
+
                 query = query.ilike("title", f"%{search}%")
 
         # Fetch page
+
         ascending = sort == "asc"
+
         resp = (
+
             query.order("chapter_number", desc=not ascending)
+
             .range(offset, offset + limit - 1)
+
             .execute()
+
         )
 
         total = resp.count or 0
 
         # Fetch max chapter number for realistic pagination bounding
+
         max_chapter_resp = (
+
             supabase.table("chapters")
+
             .select("chapter_number")
+
             .order("chapter_number", desc=True)
+
             .limit(1)
+
             .execute()
+
         )
+
         max_chapter = max_chapter_resp.data[0]["chapter_number"] if max_chapter_resp.data else total
 
         requested_locale = normalize_locale(locale)
@@ -1954,40 +2022,62 @@ async def get_chapters(
         total_pages = (total + limit - 1) // limit if limit > 0 else 1
 
         return ChaptersResponse(
+
             chapters=chapters,
+
             total=total,
+
             page=page,
+
             limit=limit,
+
             total_pages=total_pages,
+
             max_chapter=max_chapter,
+
         )
 
     except Exception as e:
+
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
-
 @app.get("/api/chapters/{chapter_number}", response_model=Chapter)
+
 async def get_chapter(
     chapter_number: int,
     locale: str = Query(DEFAULT_LOCALE, description="Requested locale"),
 ):
     """
-    L蘯･y thﾃｴng tin metadata c盻ｧa m盻冲 chﾆｰﾆ｡ng bao g盻杜 URL file R2 ch盻ｩa n盻冓 dung.
-    Frontend s蘯ｽ dﾃｹng content_url nﾃy ﾄ黛ｻ・fetch n盻冓 dung th蘯ｳng t盻ｫ Cloudflare CDN.
+
+    Lấy thông tin metadata của m盻冲 chương bao g盻杜 URL file R2 ch盻ｩa nội dung.
+
+    Frontend s蘯ｽ dùng content_url này đểfetch nội dung th蘯ｳng từ Cloudflare CDN.
+
     
-    - **chapter_number**: S盻・chﾆｰﾆ｡ng th盻ｱc t蘯ｿ trong truy盻㌻
+
+    - **chapter_number**: S盻・chương th盻ｱc tế trong truy盻㌻
+
     """
+
     try:
+
         resp = (
+
             supabase.table("chapters")
+
             .select("id, chapter_number, title, content_url, created_at, word_count, is_side_story")
+
             .eq("chapter_number", chapter_number)
+
             .single()
+
             .execute()
+
         )
 
         if not resp.data:
-            raise HTTPException(status_code=404, detail=f"Chﾆｰﾆ｡ng {chapter_number} khﾃｴng tﾃｬm th蘯･y")
+
+            raise HTTPException(status_code=404, detail=f"Chﾆｰﾆ｡ng {chapter_number} không tìm thấy")
 
         requested_locale = normalize_locale(locale)
         chapter_payload = dict(resp.data)
@@ -2012,69 +2102,109 @@ async def get_chapter(
         return Chapter(**chapter_payload)
 
     except HTTPException:
+
         raise
+
     except Exception as e:
+
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
-
 # === TTS PROXY ===
+
 @app.get("/api/tts", summary="Google Translate TTS Proxy")
+
 async def tts_proxy(
-    text: str = Query(..., max_length=200, description="Vﾄハ b蘯｣n c蘯ｧn ﾄ黛ｻ皇 (t盻訴 ﾄ疎 200 kﾃｽ t盻ｱ)"),
-    lang: str = Query("vi", description="Ngﾃｴn ng盻ｯ (vi, en, ...)"),
-    speed: float = Query(1.0, ge=0.5, le=2.0, description="T盻祖 ﾄ黛ｻ・ﾄ黛ｻ皇"),
+    text: str = Query(..., max_length=200, description="Vﾄハ bản cần đọc (t盻訴 ﾄ疎 200 kﾃｽ t盻ｱ)"),
+
+    lang: str = Query("vi", description="Ngôn ng盻ｯ (vi, en, ...)"),
+
+    speed: float = Query(1.0, ge=0.5, le=2.0, description="T盻祖 đểđọc"),
+
 ):
+
     """
-    Proxy Google Translate TTS ﾄ黛ｻ・trﾃ｡nh b盻・ch蘯ｷn khi g盻絞 tr盻ｱc ti蘯ｿp t盻ｫ browser.
-    Tr蘯｣ v盻・audio MP3 stream.
+
+    Proxy Google Translate TTS đểtránh b盻・ch蘯ｷn khi g盻絞 tr盻ｱc tiếp từ browser.
+
+    Trả v盻・audio MP3 stream.
+
     """
+
     url = (
+
         f"https://translate.google.com/translate_tts"
+
         f"?ie=UTF-8&client=tw-ob&tl={lang}&ttsspeed={speed}"
+
         f"&q={quote(text)}"
+
     )
+
     headers = {
+
         "User-Agent": (
+
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+
             "AppleWebKit/537.36 (KHTML, like Gecko) "
+
             "Chrome/120.0.0.0 Safari/537.36"
+
         ),
+
         "Referer": "https://translate.google.com/",
+
         "Accept": "audio/webm,audio/ogg,audio/wav,audio/*;q=0.9,*/*;q=0.5",
+
     }
 
     try:
+
         async with httpx.AsyncClient(timeout=15.0) as client:
+
             resp = await client.get(url, headers=headers, follow_redirects=True)
 
         if resp.status_code != 200:
+
             raise HTTPException(
+
                 status_code=502,
-                detail=f"Google TTS tr蘯｣ v盻・{resp.status_code}"
+
+                detail=f"Google TTS trả v盻・{resp.status_code}"
+
             )
 
         return StreamingResponse(
+
             io.BytesIO(resp.content),
+
             media_type="audio/mpeg",
+
             headers={
+
                 "Cache-Control": "public, max-age=3600",
+
                 "Access-Control-Allow-Origin": "*",
+
             },
+
         )
 
     except httpx.TimeoutException:
+
         raise HTTPException(status_code=504, detail="Google TTS timeout")
+
     except HTTPException:
+
         raise
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 class ChapterTtsRequest(BaseModel):
     chapter_id: int
     locale: str = DEFAULT_LOCALE
     voice: Optional[str] = None
-
 
 @app.post("/api/tts/chapter", summary="Prepare chapter TTS metadata")
 async def prepare_chapter_tts(body: ChapterTtsRequest):
@@ -2137,116 +2267,173 @@ async def prepare_chapter_tts(body: ChapterTtsRequest):
         "content_hash": content_hash,
     }
 
-
 # ============================================================
+
 # ADMIN ROUTES (JWT Protected)
+
 # ============================================================
 
 class AdminChapterCreate(BaseModel):
+
     chapter_number: int
+
     title: str
+
     content: str  # Raw text content of the chapter
+
     is_side_story: bool = False
 
-
 class AdminChapterUpdate(BaseModel):
+
     title: Optional[str] = None
+
     content: Optional[str] = None
+
     is_side_story: Optional[bool] = None
 
+@app.post("/api/admin/chapters", summary="[Admin] Thêm chương mới")
 
-@app.post("/api/admin/chapters", summary="[Admin] Thﾃｪm chﾆｰﾆ｡ng m盻嬖")
 async def admin_create_chapter(
+
     body: AdminChapterCreate,
+
     authorization: Optional[str] = Header(None),
+
 ):
-    """Thﾃｪm chﾆｰﾆ｡ng m盻嬖: Upload n盻冓 dung lﾃｪn R2, lﾆｰu metadata vﾃo Supabase."""
+
+    """Thêm chương mới: Upload nội dung lên R2, lﾆｰu metadata vào Supabase."""
+
     user = await verify_admin(authorization)
 
     if not r2_client:
-        raise HTTPException(status_code=500, detail="R2 chﾆｰa ﾄ柁ｰ盻｣c c蘯･u hﾃｬnh trﾃｪn server")
+
+        raise HTTPException(status_code=500, detail="R2 chﾆｰa được cấu hình trên server")
 
     # Check chapter number uniqueness
+
     existing = supabase.table("chapters").select("id").eq("chapter_number", body.chapter_number).execute()
+
     if existing.data:
-        raise HTTPException(status_code=409, detail=f"Chﾆｰﾆ｡ng {body.chapter_number} ﾄ妥｣ t盻渡 t蘯｡i")
+
+        raise HTTPException(status_code=409, detail=f"Chﾆｰﾆ｡ng {body.chapter_number} ﾄ妥｣ t盻渡 tại")
 
     sanitized_content = sanitize_html(body.content) or ""
 
     # Upload content to R2
+
     slug = slugify(f"chuong-{body.chapter_number}-{body.title}")
+
     object_key = f"chapters/{body.chapter_number:04d}-{slug}.txt"
+
     content_bytes = sanitized_content.encode("utf-8")
 
     r2_client.put_object(
+
         Bucket=R2_BUCKET,
+
         Key=object_key,
+
         Body=content_bytes,
+
         ContentType="text/plain; charset=utf-8",
+
     )
 
     content_url = f"{R2_PUBLIC_URL}/{object_key}"
+
     word_count = len(sanitized_content.split())
 
     # Insert metadata into Supabase
+
     result = supabase.table("chapters").insert({
+
         "chapter_number": body.chapter_number,
+
         "title": body.title,
+
         "content_url": content_url,
+
         "word_count": word_count,
+
         "is_side_story": body.is_side_story,
+
     }).execute()
 
-    return {"message": "Thﾃｪm chﾆｰﾆ｡ng thﾃnh cﾃｴng", "chapter": result.data[0]}
+    return {"message": "Thêm chương thành công", "chapter": result.data[0]}
 
+@app.put("/api/admin/chapters/{chapter_number}", summary="[Admin] S盻ｭa chương")
 
-@app.put("/api/admin/chapters/{chapter_number}", summary="[Admin] S盻ｭa chﾆｰﾆ｡ng")
 async def admin_update_chapter(
+
     chapter_number: int,
+
     body: AdminChapterUpdate,
+
     authorization: Optional[str] = Header(None),
+
 ):
-    """S盻ｭa tiﾃｪu ﾄ黛ｻ・vﾃ/ho蘯ｷc n盻冓 dung chﾆｰﾆ｡ng."""
+
+    """S盻ｭa tiêu đểvà/ho蘯ｷc nội dung chương."""
+
     await verify_admin(authorization)
 
     # Fetch existing chapter
+
     existing = supabase.table("chapters").select("*").eq("chapter_number", chapter_number).single().execute()
+
     if not existing.data:
-        raise HTTPException(status_code=404, detail=f"Chﾆｰﾆ｡ng {chapter_number} khﾃｴng tﾃｬm th蘯･y")
+
+        raise HTTPException(status_code=404, detail=f"Chﾆｰﾆ｡ng {chapter_number} không tìm thấy")
 
     chapter = existing.data
+
     update_data = {}
 
     # Update content on R2 if provided
+
     if body.content is not None:
+
         if not r2_client:
-            raise HTTPException(status_code=500, detail="R2 chﾆｰa ﾄ柁ｰ盻｣c c蘯･u hﾃｬnh trﾃｪn server")
+
+            raise HTTPException(status_code=500, detail="R2 chﾆｰa được cấu hình trên server")
+
         sanitized_content = sanitize_html(body.content) or ""
 
         # Derive key from content_url
+
         content_url = chapter["content_url"]
+
         object_key = content_url.replace(f"{R2_PUBLIC_URL}/", "")
 
         r2_client.put_object(
+
             Bucket=R2_BUCKET,
+
             Key=object_key,
+
             Body=sanitized_content.encode("utf-8"),
+
             ContentType="text/plain; charset=utf-8",
+
         )
+
         update_data["word_count"] = len(sanitized_content.split())
 
     if body.title is not None:
+
         update_data["title"] = body.title
 
     if body.is_side_story is not None:
+
         update_data["is_side_story"] = body.is_side_story
 
     if update_data:
+
         result = supabase.table("chapters").update(update_data).eq("chapter_number", chapter_number).execute()
-        return {"message": "C蘯ｭp nh蘯ｭt thﾃnh cﾃｴng", "chapter": result.data[0]}
 
-    return {"message": "Khﾃｴng cﾃｳ gﾃｬ thay ﾄ黛ｻ品"}
+        return {"message": "Cập nhật thành công", "chapter": result.data[0]}
 
+    return {"message": "Không có gì thay ﾄ黛ｻ品"}
 
 @app.post("/api/admin/chapters/{chapter_number}/translate", summary="[Admin] Translate chapter to EN/ZH-CN/JA")
 async def admin_translate_chapter(
@@ -2302,16 +2489,13 @@ async def admin_translate_chapter(
         "failed_translations": failed_translations,
     }
 
-
 class AdminBatchTranslateRequest(BaseModel):
     start_chapter: int = 1
     end_chapter: int
     only_missing: bool = True
 
-
 class AdminChapterStatusRequest(BaseModel):
     chapter_numbers: list[int]
-
 
 @app.post("/api/admin/chapters/translate-batch", summary="[Admin] Batch translate chapters to EN/ZH-CN/JA")
 async def admin_translate_chapters_batch(
@@ -2417,7 +2601,6 @@ async def admin_translate_chapters_batch(
         "skipped_chapters": skipped_chapters,
         "failed_chapters": failed_chapters,
     }
-
 
 @app.post("/api/admin/chapters/translation-statuses", summary="[Admin] Get chapter translation statuses")
 async def admin_get_chapter_translation_statuses(
@@ -2526,17 +2709,25 @@ async def admin_get_chapter_translation_statuses(
 
     return {"statuses": [status_map[number] for number in requested_numbers]}
 
-
 class NovelSettings(BaseModel):
     title: str
+
     author: str
+
     description: str
+
     cover_url: str
+
     status: str
+
     genres: list[str]
+
     donate_qr_url: str = ""
+
     total_chapters: int = 0
+
     max_chapter: int = 0
+
     total_views: int = 0
     total_likes: int = 0
     ai_model_name: str = TRANSLATION_MODEL_FALLBACK
@@ -2547,47 +2738,74 @@ class NovelSettings(BaseModel):
     resolved_locale: str = DEFAULT_LOCALE
     is_fallback: bool = False
 
-
 class AdminNovelUpdate(BaseModel):
     title: Optional[str] = None
+
     author: Optional[str] = None
+
     description: Optional[str] = None
+
     cover_url: Optional[str] = None
+
     status: Optional[str] = None
+
     genres: Optional[list[str]] = None
+
     donate_qr_url: Optional[str] = None
     ai_model_name: Optional[str] = None
     ai_model_catalog: Optional[list[str]] = None
     ai_api_key: Optional[str] = None
     ai_api_keys: Optional[list[str]] = None
 
-
 @app.get("/api/novel", response_model=NovelSettings)
+
 async def get_novel_settings(locale: str = Query(DEFAULT_LOCALE, description="Requested locale")):
-    """L蘯･y thﾃｴng tin chung c盻ｧa truy盻㌻ (Tﾃｪn, tﾃ｡c gi蘯｣, mﾃｴ t蘯｣...)"""
+    """Lấy thông tin chung của truy盻㌻ (Tên, tác giả, mô tả...)"""
+
     try:
+
         # 1. Fetch current stats (Total chapters, Max chapter, and aggregated View/Like counts)
+
         # We fetch all at once to minimize Supabase calls
+
         stats_resp = supabase.table("chapters").select("chapter_number, view_count, likes_count", count="exact").order("chapter_number", desc=True).execute()
+
         
+
         total_chapters = stats_resp.count or 0
+
         max_chapter = stats_resp.data[0]["chapter_number"] if stats_resp.data else 0
+
         total_views = sum(row.get("view_count", 0) for row in stats_resp.data) if stats_resp.data else 0
+
         total_likes = sum(row.get("likes_count", 0) for row in stats_resp.data) if stats_resp.data else 0
 
         # 2. Fetch novel settings
+
         resp = supabase.table("novel_settings").select("*").eq("id", 1).single().execute()
+
         
+
         default_settings = {
-            "title": "M蘯｡t Th蘯ｿ - Sinh Hoﾃ｡ Nguy Cﾆ｡",
-            "author": "Hﾃn Nhﾆｰ盻｣c Tuy蘯ｿt",
-            "description": "Truy盻㌻ l蘯･y b盻訴 c蘯｣nh t蘯ｭn th蘯ｿ ﾄ黛ｻ冲 nhiﾃｪn ph盻ｧ xu盻創g, thﾃ｢y ma lan trﾃn, quﾃ｡i v蘯ｭt d盻・bi蘯ｿn n盻品 lﾃｪn kh蘯ｯp nﾆ｡i, loﾃi ngﾆｰ盻拱 b盻・ﾄ黛ｺｩy vﾃo m盻冲 trﾃｲ chﾆ｡i tﾃn kh盻祖 kinh hoﾃng nhﾆｰng cﾅｩng 蘯ｩn ch盻ｩa cﾆ｡ h盻冓 l盻嬾 lao...",
+
+            "title": "Mạt Thế - Sinh Hoá Nguy Cﾆ｡",
+
+            "author": "Hàn Nhﾆｰ盻｣c Tuyết",
+
+            "description": "Truy盻㌻ lấy b盻訴 cảnh tận thế ﾄ黛ｻ冲 nhiên ph盻ｧ xu盻創g, thﾃ｢y ma lan tràn, quái vật d盻・biến n盻品 lên kh蘯ｯp nﾆ｡i, loài ngﾆｰ盻拱 b盻・ﾄ黛ｺｩy vào m盻冲 trò chﾆ｡i tàn kh盻祖 kinh hoàng nhﾆｰng cﾅｩng ẩn ch盻ｩa cﾆ｡ h盻冓 l盻嬾 lao...",
+
             "cover_url": "https://pub-28de8065099f4ffea76bd6dc28a9bcf3.r2.dev/matthe-hero.jpg",
-            "status": "ﾄ紳ng c蘯ｭp nh蘯ｭt",
-            "genres": ["M蘯｡t Th蘯ｿ", "Sinh T盻渡", "H盻・Th盻創g", "D盻・Nﾄハg"],
+
+            "status": "ﾄ紳ng cập nhật",
+
+            "genres": ["Mạt Thế", "Sinh T盻渡", "H盻・Th盻創g", "D盻・Nﾄハg"],
+
             "donate_qr_url": "",
+
             "total_chapters": total_chapters,
+
             "max_chapter": max_chapter,
+
             "total_views": total_views,
             "total_likes": total_likes,
             "ai_model_catalog": DEFAULT_TRANSLATION_MODELS.copy(),
@@ -2602,12 +2820,19 @@ async def get_novel_settings(locale: str = Query(DEFAULT_LOCALE, description="Re
             default_settings["is_fallback"] = requested_locale != DEFAULT_LOCALE
             return NovelSettings(**default_settings)
         
+
         # Merge data
+
         model_fields = NovelSettings.__fields__.keys()
+
         final_data = {k: v for k, v in resp.data.items() if k in model_fields}
+
         final_data["description"] = sanitize_html(final_data.get("description")) or ""
+
         final_data["total_chapters"] = total_chapters
+
         final_data["max_chapter"] = max_chapter
+
         final_data["total_views"] = total_views
         final_data["total_likes"] = total_likes
         final_data["ai_model_name"] = resp.data.get("ai_model_name", TRANSLATION_MODEL_FALLBACK)
@@ -2628,7 +2853,9 @@ async def get_novel_settings(locale: str = Query(DEFAULT_LOCALE, description="Re
         elif requested_locale != DEFAULT_LOCALE:
             final_data["is_fallback"] = True
         
+
         # Security: Never return the actual API key to the frontend
+
         db_key = resp.data.get("ai_api_key")
         final_data["has_ai_key"] = bool(key_catalog or (db_key and len(db_key) > 5))
         if "ai_api_key" in final_data:
@@ -2636,19 +2863,33 @@ async def get_novel_settings(locale: str = Query(DEFAULT_LOCALE, description="Re
         if "ai_api_keys" in final_data:
             del final_data["ai_api_keys"]
         
+
         return NovelSettings(**final_data)
+
     except Exception as e:
+
         print(f"DEBUG: get_novel_settings error: {str(e)}")
-        # Fallback d盻ｯ li盻㎡ m蘯ｷc ﾄ黛ｻ杵h n蘯ｿu l盻擁 DB (trﾃ｡nh s蘯ｭp trang ch盻ｧ)
+
+        # Fallback d盻ｯ li盻㎡ m蘯ｷc ﾄ黛ｻ杵h nếu l盻擁 DB (tránh sập trang chủ)
+
         return NovelSettings(
-            title="M蘯｡t Th蘯ｿ - Sinh Hoﾃ｡ Nguy Cﾆ｡",
-            author="Hﾃn Nhﾆｰ盻｣c Tuy蘯ｿt",
-            description="L盻擁 t蘯｣i d盻ｯ li盻㎡. Hﾃ｣y th盻ｭ l蘯｡i sau.",
+
+            title="Mạt Thế - Sinh Hoá Nguy Cﾆ｡",
+
+            author="Hàn Nhﾆｰ盻｣c Tuyết",
+
+            description="L盻擁 tải d盻ｯ li盻㎡. Hãy th盻ｭ lại sau.",
+
             cover_url="/hero-bg.png",
-            status="ﾄ紳ng c蘯ｭp nh蘯ｭt",
-            genres=["M蘯｡t Th蘯ｿ"],
+
+            status="ﾄ紳ng cập nhật",
+
+            genres=["Mạt Thế"],
+
             total_chapters=0,
+
             max_chapter=0,
+
             total_views=0,
             total_likes=0,
             ai_model_name=TRANSLATION_MODEL_FALLBACK,
@@ -2659,20 +2900,32 @@ async def get_novel_settings(locale: str = Query(DEFAULT_LOCALE, description="Re
             is_fallback=normalize_locale(locale) != DEFAULT_LOCALE,
         )
 
-
 @app.put("/api/admin/novel", summary="[Admin] Cập nhật thông tin truyện & cấu hình hệ thống")
+
 async def admin_update_novel(
+
     body: AdminNovelUpdate,
+
     authorization: Optional[str] = Header(None),
+
 ):
+
     """Cập nhật các thông tin chung của truyện và cấu hình AI."""
+
     user = await verify_admin(authorization)
+
     
+
     data = body.model_dump(exclude_none=True)
+
     if not data:
+
         return {"message": "Không có gì thay đổi"}
+
     
+
     if "description" in data:
+
         data["description"] = sanitize_html(data.get("description")) or ""
 
     ai_fields = {"ai_model_name", "ai_model_catalog", "ai_api_key", "ai_api_keys"}
@@ -2700,7 +2953,7 @@ async def admin_update_novel(
     saved_row = result.data[0] if result.data else {"id": 1, **data}
     key_catalog = normalize_api_key_catalog(saved_row.get("ai_api_keys"), saved_row.get("ai_api_key") or "")
     return {
-        "message": "C蘯ｭp nh蘯ｭt thﾃnh cﾃｴng",
+        "message": "Cập nhật thành công",
         "data": {
             "id": saved_row.get("id", 1),
             "title": saved_row.get("title"),
@@ -2726,238 +2979,385 @@ class HomepageSettings(BaseModel):
     resolved_locale: str = DEFAULT_LOCALE
     is_fallback: bool = False
 
-
 class HomepageAutoSaveResponse(BaseModel):
     message: str
     settings: dict
     auto_translated_locales: list[str] = []
     failed_translations: list[dict] = []
 
-
 class Profile(BaseModel):
+
     id: str
+
     email: str
+
     role: str
+
     display_name: Optional[str] = None
+
     avatar_url: Optional[str] = None
+
     created_at: str
 
-
 class AccountInvite(BaseModel):
+
     email: str
+
     password: str
+
     display_name: str
+
     role: str = "editor"
 
+@app.get("/api/admin/users", response_model=List[Profile], summary="[Admin] Danh sách nhân sự")
 
-@app.get("/api/admin/users", response_model=List[Profile], summary="[Admin] Danh sﾃ｡ch nhﾃ｢n s盻ｱ")
 async def admin_get_users(authorization: Optional[str] = Header(None)):
-    """L蘯･y danh sﾃ｡ch t蘯･t c蘯｣ nhﾃ｢n s盻ｱ (Profiles). Ch盻・dﾃnh cho SuperAdmin."""
+
+    """Lấy danh sách tất cả nhân sự (Profiles). Chỉdành cho SuperAdmin."""
+
     user = await verify_admin(authorization)
+
     
-    # Ch盻・SuperAdmin m盻嬖 ﾄ柁ｰ盻｣c xem danh sﾃ｡ch nhﾃ｢n s盻ｱ
+
+    # Chỉ SuperAdmin mới được xem danh sách nhân sự
+
     if user["role"] != "superadmin":
-        raise HTTPException(status_code=403, detail="Ch盻・SuperAdmin m盻嬖 cﾃｳ quy盻］ xem danh sﾃ｡ch nhﾃ｢n s盻ｱ")
+
+        raise HTTPException(status_code=403, detail="Chỉ SuperAdmin mới có quyền xem danh sách nhân sự")
+
     
+
     resp = supabase.table("profiles").select("*").order("created_at", desc=True).execute()
+
     return resp.data
 
+@app.post("/api/admin/invite", summary="[Admin] Tạo tài khoản nhân sự mới")
 
-@app.post("/api/admin/invite", summary="[Admin] T蘯｡o tﾃi kho蘯｣n nhﾃ｢n s盻ｱ m盻嬖")
 async def admin_invite_user(
-    body: AccountInvite,
-    authorization: Optional[str] = Header(None)
-):
-    """T蘯｡o tﾃi kho蘯｣n Auth vﾃ Profile m盻嬖 cho nhﾃ｢n viﾃｪn. Ch盻・dﾃnh cho SuperAdmin."""
-    user = await verify_admin(authorization)
-    
-    # Ki盻ノ tra quy盻］ SuperAdmin
-    if user["role"] != "superadmin":
-        raise HTTPException(status_code=403, detail="Ch盻・SuperAdmin m盻嬖 cﾃｳ quy盻］ t蘯｡o nhﾃ｢n s盻ｱ m盻嬖")
-    
-    # 1. T蘯｡o user trong h盻・th盻創g Auth c盻ｧa Supabase b蘯ｱng Service Role
-    try:
-        # auth.admin.create_user c蘯ｧn service_role key
-        auth_resp = supabase.auth.admin.create_user({
-            "email": body.email,
-            "password": body.password,
-            "email_confirm": True,
-            "user_metadata": {"full_name": body.display_name}
-        })
-        
-        if not auth_resp or not auth_resp.user:
-            raise Exception("Supabase khﾃｴng tr蘯｣ v盻・thﾃｴng tin user m盻嬖.")
 
-        # 2. Update role trong b蘯｣ng profiles
+    body: AccountInvite,
+
+    authorization: Optional[str] = Header(None)
+
+):
+
+    """Tạo tài khoản Auth và Profile mới cho nhân viên. Chỉdành cho SuperAdmin."""
+
+    user = await verify_admin(authorization)
+
+    
+
+    # Kiểm tra quyền SuperAdmin
+
+    if user["role"] != "superadmin":
+
+        raise HTTPException(status_code=403, detail="Chỉ SuperAdmin mới có quyền tạo nhân sự mới")
+
+    
+
+    # 1. Tạo user trong hệ thống Auth của Supabase bằng Service Role
+
+    try:
+
+        # auth.admin.create_user cần service_role key
+
+        auth_resp = supabase.auth.admin.create_user({
+
+            "email": body.email,
+
+            "password": body.password,
+
+            "email_confirm": True,
+
+            "user_metadata": {"full_name": body.display_name}
+
+        })
+
+        
+
+        if not auth_resp or not auth_resp.user:
+
+            raise Exception("Supabase không trả v盻・thông tin user mới.")
+
+        # 2. Update role trong bảng profiles
+
         if body.role != "editor":
+
             supabase.table("profiles").update({"role": body.role}).eq("id", auth_resp.user.id).execute()
+
             
-        return {"message": "ﾄ静｣ t蘯｡o tﾃi kho蘯｣n thﾃnh cﾃｴng", "user_id": auth_resp.user.id}
+
+        return {"message": "Đã tạo tài khoản thành công", "user_id": auth_resp.user.id}
+
     except Exception as e:
+
         error_msg = str(e)
+
         if "User not allowed" in error_msg:
-            detail = "L盻擁: Backend chﾆｰa ﾄ柁ｰ盻｣c c蘯･p quy盻］ Admin (Service Role Key). Hﾃ｣y ki盻ノ tra SUPABASE_KEY."
+
+            detail = "L盻擁: Backend chﾆｰa được cấp quyền Admin (Service Role Key). Hãy ki盻ノ tra SUPABASE_KEY."
+
         else:
-            detail = f"L盻擁 t蘯｡o tﾃi kho蘯｣n: {error_msg}"
+
+            detail = f"L盻擁 tạo tài khoản: {error_msg}"
+
         raise HTTPException(status_code=500, detail=detail)
 
-
 class ProfileUpdate(BaseModel):
+
     display_name: Optional[str] = None
+
     role: Optional[str] = None
 
-@app.get("/api/user/role", summary="L蘯･y quy盻］ (Role) c盻ｧa ngﾆｰ盻拱 dﾃｹng hi盻㌻ t蘯｡i")
+@app.get("/api/user/role", summary="Lấy quyền (Role) của ngﾆｰ盻拱 dùng hi盻㌻ tại")
+
 async def get_current_user_role(authorization: Optional[str] = Header(None)):
-    """Ki盻ノ tra quy盻］ c盻ｧa ngﾆｰ盻拱 dﾃｹng (editor hay superadmin)."""
+
+    """Kiểm tra quyền của ngﾆｰ盻拱 dùng (editor hay superadmin)."""
+
     user = await verify_admin(authorization)
+
     return {"role": user["role"]}
 
-@app.put("/api/admin/personnel/{user_id}", summary="[Admin] C蘯ｭp nh蘯ｭt nhﾃ｢n s盻ｱ")
+@app.put("/api/admin/personnel/{user_id}", summary="[Admin] Cập nhật nhân sự")
+
 async def admin_update_user(
+
     user_id: str,
+
     body: ProfileUpdate,
+
     authorization: Optional[str] = Header(None)
+
 ):
-    """C蘯ｭp nh蘯ｭt profile nhﾃ｢n s盻ｱ (tﾃｪn, vai trﾃｲ, email, m蘯ｭt kh蘯ｩu). Ch盻・dﾃnh cho SuperAdmin."""
+
+    """Cập nhật profile nhân sự (tên, vai trò, email, mật khẩu). Chỉdành cho SuperAdmin."""
+
     user = await verify_admin(authorization)
 
     if user["role"] != "superadmin":
-        raise HTTPException(status_code=403, detail="Ch盻・SuperAdmin m盻嬖 cﾃｳ quy盻］ ch盻穎h s盻ｭa nhﾃ｢n s盻ｱ")
+
+        raise HTTPException(status_code=403, detail="Chỉ SuperAdmin mới có quyền ch盻穎h s盻ｭa nhân sự")
 
     try:
+
         from datetime import datetime, timezone
+
         # Update profile table
+
         profile_data = {}
+
         if body.display_name is not None:
+
             profile_data["display_name"] = body.display_name
+
         if body.role is not None:
+
             profile_data["role"] = body.role
+
         if body.email is not None:
+
             profile_data["email"] = body.email
 
         if profile_data:
+
             profile_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+
             supabase.table("profiles").update(profile_data).eq("id", user_id).execute()
 
         # Update Auth fields (email, password)
+
         auth_updates = {}
+
         if body.email:
+
             auth_updates["email"] = body.email
+
         if body.password:
+
             if len(body.password) < 6:
-                raise HTTPException(status_code=400, detail="M蘯ｭt kh蘯ｩu ph蘯｣i cﾃｳ t盻訴 thi盻ブ 6 kﾃｽ t盻ｱ")
+
+                raise HTTPException(status_code=400, detail="Mật khẩu phải có t盻訴 thi盻ブ 6 kﾃｽ t盻ｱ")
+
             auth_updates["password"] = body.password
 
         if auth_updates:
+
             supabase.auth.admin.update_user_by_id(user_id, auth_updates)
 
-        return {"message": "ﾄ静｣ c蘯ｭp nh蘯ｭt thﾃｴng tin nhﾃ｢n s盻ｱ thﾃnh cﾃｴng"}
+        return {"message": "Đã cập nhật thông tin nhân sự thành công"}
+
     except HTTPException:
+
         raise
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"L盻擁 c蘯ｭp nh蘯ｭt: {str(e)}")
 
+        raise HTTPException(status_code=500, detail=f"L盻擁 cập nhật: {str(e)}")
 
-@app.delete("/api/admin/users/{user_id}", summary="[Admin] Xoﾃ｡ nhﾃ｢n s盻ｱ")
+@app.delete("/api/admin/users/{user_id}", summary="[Admin] Xoá nhân sự")
+
 async def admin_delete_user(
-    user_id: str,
-    authorization: Optional[str] = Header(None)
-):
-    """Xoﾃ｡ tﾃi kho蘯｣n nhﾃ｢n s盻ｱ. Ch盻・dﾃnh cho SuperAdmin."""
-    user = await verify_admin(authorization)
-    
-    # Ki盻ノ tra quy盻］ SuperAdmin
-    if user["role"] != "superadmin":
-        raise HTTPException(status_code=403, detail="Ch盻・SuperAdmin m盻嬖 cﾃｳ quy盻］ xoﾃ｡ nhﾃ｢n s盻ｱ")
-    
-    try:
-        # Xoﾃ｡ trong Auth (b蘯｣ng profiles s蘯ｽ t盻ｱ ﾄ黛ｻ冢g xoﾃ｡ do CASCADE)
-        supabase.auth.admin.delete_user(user_id)
-        return {"message": "ﾄ静｣ xoﾃ｡ nhﾃ｢n s盻ｱ thﾃnh cﾃｴng"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"L盻擁 khi xoﾃ｡ nhﾃ｢n s盻ｱ: {str(e)}")
 
+    user_id: str,
+
+    authorization: Optional[str] = Header(None)
+
+):
+
+    """Xoá tài khoản nhân sự. Chỉdành cho SuperAdmin."""
+
+    user = await verify_admin(authorization)
+
+    
+
+    # Kiểm tra quyền SuperAdmin
+
+    if user["role"] != "superadmin":
+
+        raise HTTPException(status_code=403, detail="Chỉ SuperAdmin mới có quyền xoá nhân sự")
+
+    
+
+    try:
+
+        # Xoá trong Auth (bảng profiles s蘯ｽ t盻ｱ ﾄ黛ｻ冢g xoá do CASCADE)
+
+        supabase.auth.admin.delete_user(user_id)
+
+        return {"message": "Đã xoá nhân sự thành công"}
+
+    except Exception as e:
+
+        raise HTTPException(status_code=500, detail=f"Lỗi khi xoá nhân sự: {str(e)}")
 
 # ============================================================
+
 # MAP LOCATIONS API (Phase 09)
+
 # ============================================================
 
 class MapLocation(BaseModel):
+
     id: str
+
     name: str
+
     type: str  # safe_zone, danger_zone, neutral, outpost, ruins
+
     description: Optional[str] = None
+
     lat: float
+
     lng: float
+
     image_url: Optional[str] = None
+
     created_at: str
 
-
 class AdminMapLocationIn(BaseModel):
+
     name: str
+
     type: str
+
     description: Optional[str] = None
+
     lat: float
+
     lng: float
+
     image_url: Optional[str] = None
 
-
 @app.get("/api/map-locations", response_model=List[MapLocation], summary="Lấy danh sách điểm bản đồ")
+
 async def get_map_locations():
-    """L蘯･y t蘯･t c蘯｣ cﾃ｡c ﾄ訴盻ノ ﾄ妥｡nh d蘯･u trﾃｪn b蘯｣n ﾄ黛ｻ・(Cﾃｴng khai)."""
+
+    """Lấy tất cả các điểm đánh dấu trên bản đồ (Công khai)."""
+
     resp = supabase.table("map_locations").select("*").order("created_at", desc=True).execute()
+
     rows = resp.data or []
+
     for row in rows:
+
         row["description"] = sanitize_html(row.get("description")) if row.get("description") is not None else None
+
     return rows
 
+@app.post("/api/admin/map-locations", response_model=MapLocation, summary="[Admin] Tạo điểm bản đồ mới")
 
-@app.post("/api/admin/map-locations", response_model=MapLocation, summary="[Admin] T蘯｡o ﾄ訴盻ノ b蘯｣n ﾄ黛ｻ・m盻嬖")
 async def admin_create_map_location(
+
     body: AdminMapLocationIn,
+
     authorization: Optional[str] = Header(None)
+
 ):
-    """T蘯｡o ﾄ訴盻ノ ﾄ妥｡nh d蘯･u m盻嬖 trﾃｪn b蘯｣n ﾄ黛ｻ・ Ch盻・dﾃnh cho Admin."""
+
+    """Tạo điểm đánh dấu mới trên bản đồ Chỉdành cho Admin."""
+
     await verify_admin(authorization)
 
     payload = body.dict()
+
     payload["description"] = sanitize_html(payload.get("description")) if payload.get("description") is not None else None
 
     resp = supabase.table("map_locations").insert(payload).execute()
+
     if not resp.data:
+
         raise HTTPException(status_code=500, detail="Không thể tạo điểm bản đồ")
+
     return resp.data[0]
 
-
 @app.put("/api/admin/map-locations/{location_id}", response_model=MapLocation, summary="[Admin] Cập nhật điểm bản đồ")
+
 async def admin_update_map_location(
+
     location_id: str,
+
     body: AdminMapLocationIn,
+
     authorization: Optional[str] = Header(None)
+
 ):
-    """C蘯ｭp nh蘯ｭt thﾃｴng tin ﾄ訴盻ノ ﾄ妥｡nh d蘯･u. Ch盻・dﾃnh cho Admin."""
+
+    """Cập nhật thông tin điểm đánh dấu. Chỉdành cho Admin."""
+
     await verify_admin(authorization)
 
     payload = body.dict()
+
     payload["description"] = sanitize_html(payload.get("description")) if payload.get("description") is not None else None
 
     resp = supabase.table("map_locations").update(payload).eq("id", location_id).execute()
+
     if not resp.data:
-        raise HTTPException(status_code=404, detail="Khﾃｴng tﾃｬm th蘯･y ﾄ訴盻ノ b蘯｣n ﾄ黛ｻ・ﾄ黛ｻ・c蘯ｭp nh蘯ｭt")
+
+        raise HTTPException(status_code=404, detail="Không tìm thấy điểm bản đồđểcập nhật")
+
     return resp.data[0]
 
-
 @app.delete("/api/admin/map-locations/{location_id}", summary="[Admin] Xóa điểm bản đồ")
-async def admin_delete_map_location(
-    location_id: str,
-    authorization: Optional[str] = Header(None)
-):
-    """Xoﾃ｡ ﾄ訴盻ノ ﾄ妥｡nh d蘯･u kh盻淑 b蘯｣n ﾄ黛ｻ・ Ch盻・dﾃnh cho Admin."""
-    await verify_admin(authorization)
-    
-    supabase.table("map_locations").delete().eq("id", location_id).execute()
-    return {"message": "ﾄ静｣ xoﾃ｡ ﾄ訴盻ノ b蘯｣n ﾄ黛ｻ・thﾃnh cﾃｴng"}
 
+async def admin_delete_map_location(
+
+    location_id: str,
+
+    authorization: Optional[str] = Header(None)
+
+):
+
+    """Xoá điểm đánh dấu khỏi bản đồ Chỉdành cho Admin."""
+
+    await verify_admin(authorization)
+
+    
+
+    supabase.table("map_locations").delete().eq("id", location_id).execute()
+
+    return {"message": "Đã xoá điểm bản đồthành công"}
 
 def build_default_homepage_settings() -> dict:
     return {
@@ -2968,7 +3368,6 @@ def build_default_homepage_settings() -> dict:
         "features_title": "ĐIỂM NỔI BẬT",
         "features_json": [],
     }
-
 
 @app.get("/api/homepage", response_model=HomepageSettings)
 async def get_homepage_settings_i18n(locale: str = Query(DEFAULT_LOCALE, description="Requested locale")):
@@ -2985,7 +3384,6 @@ async def get_homepage_settings_i18n(locale: str = Query(DEFAULT_LOCALE, descrip
 
     translated_payload = apply_homepage_translation(base_payload, locale)
     return HomepageSettings(**translated_payload)
-
 
 @app.put("/api/admin/homepage", summary="[Admin] Cập nhật cấu hình trang chủ")
 async def admin_update_homepage_i18n(
@@ -3021,7 +3419,6 @@ async def admin_update_homepage_i18n(
         .execute()
     )
     return {"message": "Cập nhật bản dịch trang chủ thành công", "settings": result.data[0] if result.data else payload}
-
 
 @app.post("/api/admin/homepage/translate", summary="[Admin] Dịch AI cấu hình trang chủ")
 async def admin_translate_homepage_i18n(
@@ -3070,7 +3467,6 @@ async def admin_translate_homepage_i18n(
         "message": "Đã dịch cấu hình trang chủ",
         "translated_locales": translated_locales,
     }
-
 
 @app.put("/api/admin/homepage/auto-save", response_model=HomepageAutoSaveResponse, summary="[Admin] Luu trang chu va tu dong dich AI")
 async def admin_auto_save_homepage_i18n(
@@ -3146,494 +3542,844 @@ async def admin_auto_save_homepage_i18n(
         "failed_translations": [],
     }
 
-
 @app.get("/api/_legacy/homepage", response_model=HomepageSettings)
 async def get_homepage_settings():
-    """L蘯･y c蘯･u hﾃｬnh n盻冓 dung hi盻ハ th盻・trﾃｪn trang ch盻ｧ."""
-    try:
-        resp = supabase.table("homepage_settings").select("*").eq("id", 1).single().execute()
-        if not resp.data:
-            return HomepageSettings(
-                warning_title="C蘯｢NH Bﾃ＾ KHU V盻ｰC C蘯､M",
-                warning_subtitle="BIOSAFETY LEVEL 4 ﾂｷ RESTRICTED ACCESS",
-                warning_headline="TR蘯ｬN ﾄ雪ｻ晦 SINH T盻ｬ",
-                warning_description="Nﾄノ 20XX. Virus Z-79 bﾃｹng phﾃ｡t t盻ｫ m盻冲 phﾃｲng thﾃｭ nghi盻㍊ bﾃｭ m蘯ｭt...",
-                features_title="ﾄ蝕盻・ N盻祢 B蘯ｬT",
-                features_json=[]
-            )
-        cleaned = dict(resp.data)
-        cleaned["warning_description"] = sanitize_html(cleaned.get("warning_description")) or ""
-        return HomepageSettings(**cleaned)
-    except Exception:
-        # Fallback if table doesn't exist yet
-        return HomepageSettings(
-            warning_title="C蘯｢NH Bﾃ＾ KHU V盻ｰC C蘯､M",
-            warning_subtitle="BIOSAFETY LEVEL 4 ﾂｷ RESTRICTED ACCESS",
-            warning_headline="TR蘯ｬN ﾄ雪ｻ晦 SINH T盻ｬ",
-            warning_description="Nﾄノ 20XX. Virus Z-79 bﾃｹng phﾃ｡t t盻ｫ m盻冲 phﾃｲng thﾃｭ nghi盻㍊ bﾃｭ m蘯ｭt...",
-            features_title="ﾄ蝕盻・ N盻祢 B蘯ｬT",
-            features_json=[]
-        )
+    """Lấy cấu hình nội dung hi盻ハ th盻・trên trang chủ."""
 
+    try:
+
+        resp = supabase.table("homepage_settings").select("*").eq("id", 1).single().execute()
+
+        if not resp.data:
+
+            return HomepageSettings(
+
+                warning_title="C蘯｢NH Bﾃ＾ KHU V盻ｰC C蘯､M",
+
+                warning_subtitle="BIOSAFETY LEVEL 4 ﾂｷ RESTRICTED ACCESS",
+
+                warning_headline="TR蘯ｬN ﾄ雪ｻ晦 SINH T盻ｬ",
+
+                warning_description="Nﾄノ 20XX. Virus Z-79 bùng phát từ m盻冲 phòng thﾃｭ nghi盻㍊ bﾃｭ mật...",
+
+                features_title="ﾄ蝕盻・ NỔI BẬT",
+
+                features_json=[]
+
+            )
+
+        cleaned = dict(resp.data)
+
+        cleaned["warning_description"] = sanitize_html(cleaned.get("warning_description")) or ""
+
+        return HomepageSettings(**cleaned)
+
+    except Exception:
+
+        # Fallback if table doesn't exist yet
+
+        return HomepageSettings(
+
+            warning_title="C蘯｢NH Bﾃ＾ KHU V盻ｰC C蘯､M",
+
+            warning_subtitle="BIOSAFETY LEVEL 4 ﾂｷ RESTRICTED ACCESS",
+
+            warning_headline="TR蘯ｬN ﾄ雪ｻ晦 SINH T盻ｬ",
+
+            warning_description="Nﾄノ 20XX. Virus Z-79 bùng phát từ m盻冲 phòng thﾃｭ nghi盻㍊ bﾃｭ mật...",
+
+            features_title="ﾄ蝕盻・ NỔI BẬT",
+
+            features_json=[]
+
+        )
 
 @app.put("/api/_legacy/admin/homepage", summary="[Legacy] Cập nhật cấu hình trang chủ")
 async def admin_update_homepage(
     body: HomepageSettings,
+
     authorization: Optional[str] = Header(None),
+
 ):
-    """C蘯ｭp nh蘯ｭt cﾃ｡c ﾄ双蘯｡n text vﾃ c蘯･u hﾃｬnh trﾃｪn trang ch盻ｧ."""
+
+    """Cập nhật các ﾄ双ạn text và cấu hình trên trang chủ."""
+
     await verify_admin(authorization)
+
     
+
     data = body.model_dump(exclude_none=True)
+
     data["warning_description"] = sanitize_html(data.get("warning_description")) or ""
+
     data["id"] = 1
+
     data["updated_at"] = "now()"
+
     
+
     result = supabase.table("homepage_settings").upsert(data).execute()
-    return {"message": "C蘯ｭp nh蘯ｭt trang ch盻ｧ thﾃnh cﾃｴng", "settings": result.data[0] if result.data else data}
 
+    return {"message": "Cập nhật trang chủ thành công", "settings": result.data[0] if result.data else data}
 
-@app.get("/api/admin/chapters/{chapter_number}/content", summary="[Admin] L蘯･y n盻冓 dung chﾆｰﾆ｡ng t盻ｫ R2")
+@app.get("/api/admin/chapters/{chapter_number}/content", summary="[Admin] Lấy nội dung chương từ R2")
+
 async def admin_get_chapter_content(
+
     chapter_number: int,
+
     authorization: Optional[str] = Header(None),
+
 ):
-    """L蘯･y n盻冓 dung text thﾃｴ c盻ｧa chﾆｰﾆ｡ng t盻ｫ R2 (Proxy qua Backend ﾄ黛ｻ・trﾃ｡nh CORS)."""
+
+    """Lấy nội dung text thô của chương từ R2 (Proxy qua Backend đểtránh CORS)."""
+
     await verify_admin(authorization)
 
     # Fetch metadata to get content_url
+
     resp = (
+
         supabase.table("chapters")
+
         .select("content_url")
+
         .eq("chapter_number", chapter_number)
+
         .single()
+
         .execute()
+
     )
 
     if not resp.data or not resp.data.get("content_url"):
-        raise HTTPException(status_code=404, detail="Khﾃｴng tﾃｬm th蘯･y n盻冓 dung chﾆｰﾆ｡ng")
+
+        raise HTTPException(status_code=404, detail="Không tìm thấy nội dung chương")
 
     if not r2_client:
+
         missing = []
+
         if not R2_ACCESS_KEY: missing.append("R2_ACCESS_KEY_ID")
+
         if not R2_SECRET_KEY: missing.append("R2_SECRET_ACCESS_KEY")
+
         if not R2_ENDPOINT: missing.append("R2_ENDPOINT_URL")
-        detail = f"R2 chﾆｰa ﾄ柁ｰ盻｣c c蘯･u hﾃｬnh. Thi蘯ｿu bi蘯ｿn: {', '.join(missing)}"
+
+        detail = f"R2 chﾆｰa được cấu hình. Thiếu biến: {', '.join(missing)}"
+
         raise HTTPException(status_code=500, detail=detail)
 
     # Extract object key from URL (more robustly)
+
     content_url = resp.data["content_url"]
+
     # Handle possible http/https mismatch or trailing slashes
+
     import re
+
     clean_url = re.sub(r'^https?://', '', content_url)
+
     clean_base = re.sub(r'^https?://', '', R2_PUBLIC_URL)
+
     object_key = clean_url.replace(clean_base, "").lstrip("/")
 
     try:
-        r2_resp = r2_client.get_object(Bucket=R2_BUCKET, Key=object_key)
-        content = r2_resp["Body"].read().decode("utf-8")
-        return PlainTextResponse(content)
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"L盻擁 khi ﾄ黛ｻ皇 t盻ｫ R2: {str(e)}")
 
+        r2_resp = r2_client.get_object(Bucket=R2_BUCKET, Key=object_key)
+
+        content = r2_resp["Body"].read().decode("utf-8")
+
+        return PlainTextResponse(content)
+
+    except Exception as e:
+
+        raise HTTPException(status_code=502, detail=f"Lỗi khi đọc từ R2: {str(e)}")
 
 # === DELETE chapter route was at the end ===
-@app.delete("/api/admin/chapters/{chapter_number}", summary="[Admin] Xﾃｳa chﾆｰﾆ｡ng")
+
+@app.delete("/api/admin/chapters/{chapter_number}", summary="[Admin] Xóa chương")
+
 async def admin_delete_chapter(
+
     chapter_number: int,
+
     authorization: Optional[str] = Header(None),
+
 ):
-    """Xﾃｳa chﾆｰﾆ｡ng: Xﾃｳa file trﾃｪn R2 vﾃ xﾃｳa metadata trong Supabase."""
+
+    """Xóa chương: Xóa file trên R2 và xﾃｳa metadata trong Supabase."""
+
     await verify_admin(authorization)
 
     # Fetch existing chapter
+
     existing = supabase.table("chapters").select("*").eq("chapter_number", chapter_number).single().execute()
+
     if not existing.data:
-        raise HTTPException(status_code=404, detail=f"Chﾆｰﾆ｡ng {chapter_number} khﾃｴng tﾃｬm th蘯･y")
+
+        raise HTTPException(status_code=404, detail=f"Chﾆｰﾆ｡ng {chapter_number} không tìm thấy")
 
     chapter = existing.data
 
     # Delete from R2
+
     if r2_client and chapter.get("content_url"):
+
         object_key = chapter["content_url"].replace(f"{R2_PUBLIC_URL}/", "")
+
         try:
+
             r2_client.delete_object(Bucket=R2_BUCKET, Key=object_key)
+
         except Exception:
+
             pass  # Continue even if R2 delete fails
 
     # Delete from Supabase
+
     supabase.table("chapters").delete().eq("chapter_number", chapter_number).execute()
 
-    return {"message": f"ﾄ静｣ xﾃｳa chﾆｰﾆ｡ng {chapter_number}"}
-
+    return {"message": f"Đã xﾃｳa chương {chapter_number}"}
 
 # === ANALYTICS ROUTES ===
 
-@app.get("/api/admin/analytics/top-chapters", summary="[Admin] Top chﾆｰﾆ｡ng ﾄ黛ｻ皇 nhi盻「 nh蘯･t")
+@app.get("/api/admin/analytics/top-chapters", summary="[Admin] Top chương đọc nhi盻「 nhất")
+
 async def admin_get_top_chapters(
+
     limit: int = Query(10, ge=1, le=50),
+
     authorization: Optional[str] = Header(None),
+
 ):
-    """L蘯･y danh sﾃ｡ch cﾃ｡c chﾆｰﾆ｡ng cﾃｳ lﾆｰ盻｣t ﾄ黛ｻ皇 cao nh蘯･t."""
+
+    """Lấy danh sách các chương có lượt đọc cao nhất."""
+
     await verify_admin(authorization)
+
     
+
     try:
+
         resp = (
+
             supabase.table("chapters")
+
             .select("chapter_number, title, view_count")
+
             .order("view_count", desc=True)
+
             .limit(limit)
+
             .execute()
+
         )
+
         return resp.data
+
     except Exception as e:
+
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/admin/analytics/top-liked", summary="[Admin] Top chương được yêu thích nhất")
 
-@app.get("/api/admin/analytics/top-liked", summary="[Admin] Top chﾆｰﾆ｡ng ﾄ柁ｰ盻｣c yﾃｪu thﾃｭch nh蘯･t")
 async def admin_get_top_liked(
+
     limit: int = Query(10, ge=1, le=50),
+
     authorization: Optional[str] = Header(None),
+
 ):
-    """L蘯･y danh sﾃ｡ch cﾃ｡c chﾆｰﾆ｡ng cﾃｳ lﾆｰ盻｣t th蘯｣ tim cao nh蘯･t."""
+
+    """Lấy danh sách các chương có lượt thả tim cao nhất."""
+
     await verify_admin(authorization)
 
     try:
-        resp = (
-            supabase.table("chapters")
-            .select("chapter_number, title, likes_count")
-            .order("likes_count", desc=True)
-            .limit(limit)
-            .execute()
-        )
-        return resp.data
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
+        resp = (
+
+            supabase.table("chapters")
+
+            .select("chapter_number, title, likes_count")
+
+            .order("likes_count", desc=True)
+
+            .limit(limit)
+
+            .execute()
+
+        )
+
+        return resp.data
+
+    except Exception as e:
+
+        raise HTTPException(status_code=500, detail=str(e))
 
 # === COMMENT ROUTES ===
 
 class Comment(BaseModel):
+
     id: str
+
     chapter_number: int
+
     user_name: str
+
     content: str
+
     created_at: str
 
-
 class AdminCommentUpdate(BaseModel):
+
     content: str
 
+@app.get("/api/admin/comments", summary="[Admin] Lấy danh sách tất cả bình luận")
 
-@app.get("/api/admin/comments", summary="[Admin] L蘯･y danh sﾃ｡ch t蘯･t c蘯｣ bﾃｬnh lu蘯ｭn")
 async def admin_get_comments(
+
     page: int = Query(1, ge=1),
+
     limit: int = Query(50, ge=1, le=100),
+
     authorization: Optional[str] = Header(None)
+
 ):
-    """L蘯･y danh sﾃ｡ch bﾃｬnh lu蘯ｭn trﾃｪn toﾃn h盻・th盻創g, cﾃｳ phﾃ｢n trang."""
+
+    """Lấy danh sách bình luận trên toàn hệ thống, có phận trang."""
+
     await verify_admin(authorization)
+
     try:
+
         offset = (page - 1) * limit
+
         resp = (
+
             supabase.table("comments")
+
             .select("*", count="exact")
+
             .order("created_at", desc=True)
+
             .range(offset, offset + limit - 1)
+
             .execute()
+
         )
+
         total = resp.count or 0
+
         total_pages = (total + limit - 1) // limit if limit > 0 else 1
+
         comments = resp.data or []
+
         for comment in comments:
+
             comment["user_name"] = sanitize_plaintext(comment.get("user_name")) or "ẩn danh"
+
             comment["content"] = sanitize_plaintext(comment.get("content")) or ""
+
         return {
+
             "comments": comments,
+
             "total": total,
+
             "page": page,
+
             "limit": limit,
+
             "total_pages": total_pages
+
         }
+
     except Exception as e:
+
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.put("/api/admin/comments/{comment_id}", summary="[Admin] S盻ｭa bình luận")
 
-@app.put("/api/admin/comments/{comment_id}", summary="[Admin] S盻ｭa bﾃｬnh lu蘯ｭn")
 async def admin_update_comment(
+
     comment_id: str,
+
     body: AdminCommentUpdate,
+
     authorization: Optional[str] = Header(None)
+
 ):
-    """S盻ｭa n盻冓 dung bﾃｬnh lu蘯ｭn c盻ｧa ﾄ黛ｻ冂 gi蘯｣."""
+
+    """S盻ｭa nội dung bình luận của ﾄ黛ｻ冂 giả."""
+
     await verify_admin(authorization)
+
     try:
+
         resp = supabase.table("comments").update({"content": sanitize_plaintext(body.content) or ""}).eq("id", comment_id).execute()
+
         if not resp.data:
-            raise HTTPException(status_code=404, detail="Khﾃｴng tﾃｬm th蘯･y bﾃｬnh lu蘯ｭn")
+
+            raise HTTPException(status_code=404, detail="Không tìm thấy bình luận")
+
         return resp.data[0]
+
     except HTTPException:
+
         raise
+
     except Exception as e:
+
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.delete("/api/admin/comments/{comment_id}", summary="[Admin] Xóa bình luận")
 
-@app.delete("/api/admin/comments/{comment_id}", summary="[Admin] Xﾃｳa bﾃｬnh lu蘯ｭn")
 async def admin_delete_comment(
+
     comment_id: str,
+
     authorization: Optional[str] = Header(None)
+
 ):
-    """Xﾃｳa m盻冲 bﾃｬnh lu蘯ｭn kh盻淑 h盻・th盻創g."""
+
+    """Xóa m盻冲 bình luận khỏi hệ thống."""
+
     await verify_admin(authorization)
+
     try:
+
         supabase.table("comments").delete().eq("id", comment_id).execute()
-        return {"status": "success", "message": "ﾄ静｣ xﾃｳa bﾃｬnh lu蘯ｭn"}
+
+        return {"status": "success", "message": "Đã xﾃｳa bình luận"}
+
     except Exception as e:
+
         raise HTTPException(status_code=500, detail=str(e))
 
-
 # ============================================================
+
 # IMAGE UPLOAD (CLOUDFLARE R2)
+
 # ============================================================
 
-@app.post("/api/upload/image", summary="Upload 蘯｣nh lﾃｪn Cloudflare R2 (Admin)")
+@app.post("/api/upload/image", summary="Upload ảnh lên Cloudflare R2 (Admin)")
+
 async def upload_image(
+
     file: UploadFile = File(...),
+
     authorization: Optional[str] = Header(None)
+
 ):
-    """Upload 蘯｣nh ph盻･c v盻･ cho Editor/Wiki. Yﾃｪu c蘯ｧu quy盻］ Admin."""
+
+    """Upload ảnh ph盻･c v盻･ cho Editor/Wiki. Yêu c蘯ｧu quyền Admin."""
+
     await verify_admin(authorization)
+
     
+
     if not r2_client:
-        raise HTTPException(status_code=500, detail="C蘯･u hﾃｬnh Cloudflare R2 chﾆｰa hoﾃn ch盻穎h")
+
+        raise HTTPException(status_code=500, detail="Cấu hình Cloudflare R2 chﾆｰa hoàn ch盻穎h")
+
         
+
     try:
+
         import uuid
+
         from datetime import datetime
+
         
+
         # Validate file type
+
         valid_types = ["image/jpeg", "image/png", "image/gif", "image/webp"]
+
         if file.content_type not in valid_types:
-            raise HTTPException(status_code=400, detail="Ch盻・h盻・tr盻｣ file 蘯｣nh (JPG, PNG, GIF, WEBP)")
+
+            raise HTTPException(status_code=400, detail="Chỉh盻・tr盻｣ file ảnh (JPG, PNG, GIF, WEBP)")
+
             
+
         # Generate unique filename
+
         ext = file.filename.split('.')[-1] if '.' in file.filename else 'png'
+
         date_str = datetime.now().strftime("%Y%m%d")
+
         unique_id = str(uuid.uuid4())[:8]
+
         filename = f"uploads/{date_str}_{unique_id}.{ext}"
+
         
+
         # Read file
+
         contents = await file.read()
+
         
+
         # Upload to R2 (Wrapped in threadpool to avoid blocking event loop)
+
         from fastapi.concurrency import run_in_threadpool
+
         
+
         await run_in_threadpool(
+
             r2_client.put_object,
+
             Bucket=R2_BUCKET,
+
             Key=filename,
+
             Body=contents,
+
             ContentType=file.content_type
+
         )
+
         
+
         # Return URL
-        # ﾄ雪ｺ｣m b蘯｣o R2_PUBLIC_URL khﾃｴng k蘯ｿt thﾃｺc b蘯ｱng /
+
+        # ﾄ雪ｺ｣m bảo R2_PUBLIC_URL không kết thﾃｺc bằng /
+
         base_url = R2_PUBLIC_URL.rstrip('/')
+
         public_url = f"{base_url}/{filename}"
+
         return {"url": public_url}
+
         
+
     except HTTPException:
+
         raise
+
     except Exception as e:
+
         raise HTTPException(status_code=500, detail=str(e))
 
-
 # ============================================================
-# FACTION HIERARCHY (Cﾃ｢y T盻・Ch盻ｩc Th蘯ｿ L盻ｱc)
+
+# FACTION HIERARCHY (Cﾃ｢y T盻・Ch盻ｩc Thế L盻ｱc)
+
 # ============================================================
 
 class FactionMemberIn(BaseModel):
+
     character_id: Optional[str] = None
+
     parent_id: Optional[str] = None
+
     role_title: str = ""
+
     division: Optional[str] = None
+
     rank_level: int = 0
+
     sort_order: int = 0
 
-
 class FactionMemberOut(BaseModel):
+
     id: str
+
     faction_id: str
+
     character_id: Optional[str] = None
+
     parent_id: Optional[str] = None
+
     role_title: str
+
     division: Optional[str] = None
+
     rank_level: int
+
     sort_order: int
+
     created_at: str
+
     # Joined character info
+
     character_name: Optional[str] = None
+
     character_slug: Optional[str] = None
+
     character_image: Optional[str] = None
 
+@app.get("/api/wiki/{slug}/hierarchy", summary="Lấy cﾃ｢y tỷch盻ｩc của thế l盻ｱc (public)")
 
-@app.get("/api/wiki/{slug}/hierarchy", summary="L蘯･y cﾃ｢y t盻・ch盻ｩc c盻ｧa th蘯ｿ l盻ｱc (public)")
 async def get_faction_hierarchy(slug: str):
-    """L蘯･y toﾃn b盻・cﾃ｢y phﾃ｢n c蘯･p c盻ｧa 1 th蘯ｿ l盻ｱc theo slug."""
+
+    """Lấy toàn b盻・cﾃ｢y phﾃ｢n cấp của 1 thế l盻ｱc theo slug."""
+
     try:
+
         # 1. Get the faction wiki entry
+
         faction_resp = (
+
             supabase.table("wiki_entries")
+
             .select("id, title, category")
+
             .eq("slug", slug)
+
             .single()
+
             .execute()
+
         )
+
         if not faction_resp.data:
-            raise HTTPException(status_code=404, detail="Khﾃｴng tﾃｬm th蘯･y th蘯ｿ l盻ｱc")
-        if faction_resp.data.get("category") != "Th蘯ｿ l盻ｱc":
-            raise HTTPException(status_code=400, detail="Entry nﾃy khﾃｴng ph蘯｣i Th蘯ｿ l盻ｱc")
+
+            raise HTTPException(status_code=404, detail="Không tìm thấy thế l盻ｱc")
+
+        if faction_resp.data.get("category") != "Thế l盻ｱc":
+
+            raise HTTPException(status_code=400, detail="Entry này không phải Thế l盻ｱc")
 
         faction_id = faction_resp.data["id"]
 
         # 2. Get all members of this faction
+
         members_resp = (
+
             supabase.table("faction_members")
+
             .select("*")
+
             .eq("faction_id", faction_id)
+
             .order("rank_level")
+
             .order("sort_order")
+
             .execute()
+
         )
 
         members = members_resp.data or []
 
         # 3. Collect unique character IDs to batch-fetch their info
+
         char_ids = list(set(m["character_id"] for m in members if m.get("character_id")))
+
         char_map = {}
+
         if char_ids:
+
             chars_resp = (
+
                 supabase.table("wiki_entries")
+
                 .select("id, title, slug, image_url")
+
                 .in_("id", char_ids)
+
                 .execute()
+
             )
+
             for c in (chars_resp.data or []):
+
                 char_map[c["id"]] = c
 
         # 4. Enrich members with character info
+
         result = []
+
         for m in members:
+
             char = char_map.get(m.get("character_id"), {})
+
             result.append({
+
                 **m,
+
                 "character_name": char.get("title"),
+
                 "character_slug": char.get("slug"),
+
                 "character_image": char.get("image_url"),
+
             })
 
         return {
+
             "faction_id": faction_id,
+
             "faction_title": faction_resp.data["title"],
+
             "members": result,
+
         }
+
     except HTTPException:
+
         raise
+
     except Exception as e:
+
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/admin/wiki/{faction_id}/members", summary="[Admin] Thêm thành viên vào cﾃ｢y thế l盻ｱc")
 
-@app.post("/api/admin/wiki/{faction_id}/members", summary="[Admin] Thﾃｪm thﾃnh viﾃｪn vﾃo cﾃ｢y th蘯ｿ l盻ｱc")
 async def admin_add_faction_member(
+
     faction_id: str,
+
     body: FactionMemberIn,
+
     authorization: Optional[str] = Header(None),
+
 ):
-    """Thﾃｪm m盻冲 node m盻嬖 vﾃo cﾃ｢y t盻・ch盻ｩc. Yﾃｪu c蘯ｧu quy盻］ Admin."""
+
+    """Thêm m盻冲 node mới vào cﾃ｢y tỷch盻ｩc. Yêu c蘯ｧu quyền Admin."""
+
     await verify_admin(authorization)
+
     try:
+
         data = body.model_dump(exclude_none=True)
+
         data["faction_id"] = faction_id
+
         result = supabase.table("faction_members").insert(data).execute()
+
         if not result.data:
-            raise HTTPException(status_code=500, detail="Khﾃｴng th盻・thﾃｪm thﾃnh viﾃｪn")
+
+            raise HTTPException(status_code=500, detail="Không th盻・thêm thành viên")
+
         return result.data[0]
+
     except HTTPException:
+
         raise
+
     except Exception as e:
+
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.put("/api/admin/wiki/members/{member_id}", summary="[Admin] S盻ｭa thành viên trong cﾃ｢y thế l盻ｱc")
 
-@app.put("/api/admin/wiki/members/{member_id}", summary="[Admin] S盻ｭa thﾃnh viﾃｪn trong cﾃ｢y th蘯ｿ l盻ｱc")
 async def admin_update_faction_member(
+
     member_id: str,
+
     body: FactionMemberIn,
+
     authorization: Optional[str] = Header(None),
+
 ):
-    """C蘯ｭp nh蘯ｭt thﾃｴng tin node trong cﾃ｢y t盻・ch盻ｩc."""
+
+    """Cập nhật thông tin node trong cﾃ｢y tỷch盻ｩc."""
+
     await verify_admin(authorization)
+
     try:
+
         data = body.model_dump(exclude_none=True)
+
         result = supabase.table("faction_members").update(data).eq("id", member_id).execute()
+
         if not result.data:
-            raise HTTPException(status_code=404, detail="Khﾃｴng tﾃｬm th蘯･y thﾃnh viﾃｪn")
+
+            raise HTTPException(status_code=404, detail="Không tìm thấy thành viên")
+
         return result.data[0]
+
     except HTTPException:
+
         raise
+
     except Exception as e:
+
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.delete("/api/admin/wiki/members/{member_id}", summary="[Admin] Xóa thành viên khỏi cﾃ｢y thế l盻ｱc")
 
-@app.delete("/api/admin/wiki/members/{member_id}", summary="[Admin] Xﾃｳa thﾃnh viﾃｪn kh盻淑 cﾃ｢y th蘯ｿ l盻ｱc")
 async def admin_delete_faction_member(
+
     member_id: str,
+
     authorization: Optional[str] = Header(None),
+
 ):
-    """Xﾃｳa node kh盻淑 cﾃ｢y. Children s蘯ｽ ﾄ柁ｰ盻｣c detach (parent_id = null)."""
+
+    """Xóa node khỏi cﾃ｢y. Children s蘯ｽ được detach (parent_id = null)."""
+
     await verify_admin(authorization)
+
     try:
+
         # Detach children first (set their parent to null)
+
         supabase.table("faction_members").update({"parent_id": None}).eq("parent_id", member_id).execute()
+
         # Delete the member
+
         supabase.table("faction_members").delete().eq("id", member_id).execute()
+
         return {"status": "deleted", "id": member_id}
+
     except Exception as e:
+
         raise HTTPException(status_code=500, detail=str(e))
 
-
 # ============================================================
+
 # WIKI - Bﾃ，H KHOA TOﾃN THﾆｯ
+
 # ============================================================
 
-VALID_WIKI_CATEGORIES = ["Nhﾃ｢n v蘯ｭt", "Sinh v蘯ｭt", "Th蘯ｿ l盻ｱc", "V蘯ｭt ph蘯ｩm", "ﾄ雪ｻ蟻 ﾄ訴盻ノ"]
-
+VALID_WIKI_CATEGORIES = ["Nhﾃ｢n vật", "Sinh vật", "Thế l盻ｱc", "Vật phẩm", "ﾄ雪ｻ蟻 điểm"]
 
 class WikiEntryOut(BaseModel):
-    id: str
-    title: str
-    category: str
-    slug: str
-    summary: Optional[str] = None
-    content: Optional[str] = None
-    image_url: Optional[str] = None
-    tags: Optional[list[str]] = None
-    sort_order: int = 0
-    is_main_character: bool = False
-    created_at: str
-    updated_at: str
 
+    id: str
+
+    title: str
+
+    category: str
+
+    slug: str
+
+    summary: Optional[str] = None
+
+    content: Optional[str] = None
+
+    image_url: Optional[str] = None
+
+    tags: Optional[list[str]] = None
+
+    sort_order: int = 0
+
+    is_main_character: bool = False
+
+    created_at: str
+
+    updated_at: str
 
 class WikiEntryIn(BaseModel):
     title: str
     category: str
     slug: str
     summary: Optional[str] = None
+
     content: Optional[str] = None
+
     image_url: Optional[str] = None
+
     tags: Optional[list[str]] = None
+
     sort_order: Optional[int] = None
     is_main_character: Optional[bool] = None
-
 
 class AdminWikiBatchTranslateRequest(BaseModel):
     category: Optional[str] = None
@@ -3642,151 +4388,251 @@ class AdminWikiBatchTranslateRequest(BaseModel):
     limit: int = 50
     only_missing: bool = True
 
+@app.get("/api/wiki", summary="Lấy danh sách Wiki")
 
-@app.get("/api/wiki", summary="L蘯･y danh sﾃ｡ch Wiki")
 async def get_wiki_entries(
+
     category: Optional[str] = Query(None, description="L盻皇 theo category"),
+
     search: Optional[str] = Query(None, description="Tim kiem theo tieu de"),
+
     page: int = Query(1, ge=1, description="S盻・trang"),
+
     limit: int = Query(50, ge=1, le=200, description="S盻・lﾆｰ盻｣ng m盻擁 trang"),
+
 ):
-    """L蘯･y danh sﾃ｡ch t蘯･t c蘯｣ wiki entries, cﾃｳ th盻・l盻皇 theo category ho蘯ｷc tﾃｬm ki蘯ｿm."""
+
+    """Lấy danh sách tất cả wiki entries, có th盻・l盻皇 theo category ho蘯ｷc tìm kiếm."""
+
     try:
+
         offset = (page - 1) * limit
+
         query = supabase.table("wiki_entries").select("*", count="exact")
+
         if category:
+
             query = query.eq("category", category)
+
         if search:
+
             query = query.ilike("title", f"%{search}%")
+
         
+
         resp = (
+
             query.order("is_main_character", desc=True)
+
             .order("sort_order", desc=False, nullsfirst=False)
+
             .order("category")
+
             .order("title")
+
             .range(offset, offset + limit - 1)
+
             .execute()
+
         )
+
         
+
         total = resp.count or 0
+
         total_pages = (total + limit - 1) // limit if limit > 0 else 1
+
         
+
         entries = resp.data or []
+
         for entry in entries:
+
             entry["summary"] = sanitize_html(entry.get("summary")) if entry.get("summary") is not None else None
+
             entry["content"] = sanitize_html(entry.get("content")) if entry.get("content") is not None else None
 
         return {
+
             "entries": entries,
+
             "total": total,
+
             "page": page,
+
             "limit": limit,
+
             "total_pages": total_pages
+
         }
+
     except Exception as e:
+
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/wiki/{slug}", summary="Lấy chi tiết Wiki entry")
 
-@app.get("/api/wiki/{slug}", summary="L蘯･y chi ti蘯ｿt Wiki entry")
 async def get_wiki_entry(slug: str, locale: str = Query(DEFAULT_LOCALE, description="Requested locale")):
-    """L蘯･y m盻冲 wiki entry theo slug."""
+    """Lấy m盻冲 wiki entry theo slug."""
+
     try:
+
         resp = (
+
             supabase.table("wiki_entries")
+
             .select("*")
+
             .eq("slug", slug)
+
             .single()
+
             .execute()
+
         )
+
         if not resp.data:
-            raise HTTPException(status_code=404, detail="Khﾃｴng tﾃｬm th蘯･y entry")
+
+            raise HTTPException(status_code=404, detail="Không tìm thấy entry")
+
         data = dict(resp.data)
         data["summary"] = sanitize_html(data.get("summary")) if data.get("summary") is not None else None
         data["content"] = sanitize_html(data.get("content")) if data.get("content") is not None else None
         apply_wiki_translation(data, normalize_locale(locale))
         return data
     except HTTPException:
+
         raise
+
     except Exception as e:
+
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/wiki", summary="Tạo Wiki entry mới (Admin)")
 
-@app.post("/api/wiki", summary="T蘯｡o Wiki entry m盻嬖 (Admin)")
 async def create_wiki_entry(
-    body: WikiEntryIn,
-    authorization: Optional[str] = Header(None),
-):
-    """T蘯｡o wiki entry m盻嬖. Yﾃｪu c蘯ｧu quy盻］ Admin."""
-    await verify_admin(authorization)
-    try:
-        if body.category not in VALID_WIKI_CATEGORIES:
-            raise HTTPException(status_code=400, detail=f"Category khﾃｴng h盻｣p l盻・ Ch盻肱 trong: {VALID_WIKI_CATEGORIES}")
-        data = body.model_dump(exclude_none=True)
-        data["summary"] = sanitize_html(data.get("summary")) if data.get("summary") is not None else None
-        data["content"] = sanitize_html(data.get("content")) if data.get("content") is not None else None
-        result = supabase.table("wiki_entries").insert(data).execute()
-        return result.data[0]
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
+    body: WikiEntryIn,
+
+    authorization: Optional[str] = Header(None),
+
+):
+
+    """Tạo wiki entry mới. Yêu c蘯ｧu quyền Admin."""
+
+    await verify_admin(authorization)
+
+    try:
+
+        if body.category not in VALID_WIKI_CATEGORIES:
+
+            raise HTTPException(status_code=400, detail=f"Category không h盻｣p l盻・ Ch盻肱 trong: {VALID_WIKI_CATEGORIES}")
+
+        data = body.model_dump(exclude_none=True)
+
+        data["summary"] = sanitize_html(data.get("summary")) if data.get("summary") is not None else None
+
+        data["content"] = sanitize_html(data.get("content")) if data.get("content") is not None else None
+
+        result = supabase.table("wiki_entries").insert(data).execute()
+
+        return result.data[0]
+
+    except HTTPException:
+
+        raise
+
+    except Exception as e:
+
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/api/wiki/{entry_id}", summary="S盻ｭa Wiki entry (Admin)")
+
 async def update_wiki_entry(
+
     entry_id: str,
+
     body: WikiEntryIn,
+
     authorization: Optional[str] = Header(None),
+
 ):
-    """C蘯ｭp nh蘯ｭt wiki entry theo id. Yﾃｪu c蘯ｧu quy盻］ Admin."""
+
+    """Cập nhật wiki entry theo id. Yêu c蘯ｧu quyền Admin."""
+
     await verify_admin(authorization)
+
     try:
+
         from datetime import datetime, timezone
+
         data = body.model_dump(exclude_none=True)
+
         data["summary"] = sanitize_html(data.get("summary")) if data.get("summary") is not None else None
+
         data["content"] = sanitize_html(data.get("content")) if data.get("content") is not None else None
+
         data["updated_at"] = datetime.now(timezone.utc).isoformat()
+
         result = supabase.table("wiki_entries").update(data).eq("id", entry_id).execute()
+
         if not result.data:
-            raise HTTPException(status_code=404, detail="Entry khﾃｴng t盻渡 t蘯｡i")
+
+            raise HTTPException(status_code=404, detail="Entry không t盻渡 tại")
+
         return result.data[0]
+
     except HTTPException:
+
         raise
+
     except Exception as e:
+
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.delete("/api/wiki/{entry_id}", summary="Xóa Wiki entry (Admin)")
 
-@app.delete("/api/wiki/{entry_id}", summary="Xﾃｳa Wiki entry (Admin)")
 async def delete_wiki_entry(
-    entry_id: str,
-    authorization: Optional[str] = Header(None),
-):
-    """Xﾃｳa wiki entry theo id. Yﾃｪu c蘯ｧu quy盻］ Admin."""
-    await verify_admin(authorization)
-    try:
-        supabase.table("wiki_entries").delete().eq("id", entry_id).execute()
-        return {"status": "deleted", "id": entry_id}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
+    entry_id: str,
+
+    authorization: Optional[str] = Header(None),
+
+):
+
+    """Xóa wiki entry theo id. Yêu c蘯ｧu quyền Admin."""
+
+    await verify_admin(authorization)
+
+    try:
+
+        supabase.table("wiki_entries").delete().eq("id", entry_id).execute()
+
+        return {"status": "deleted", "id": entry_id}
+
+    except Exception as e:
+
+        raise HTTPException(status_code=500, detail=str(e))
 
 # ============================================================
-#   GUIDE PAGES (Hﾆｰ盻嬾g d蘯ｫn s盻ｭ d盻･ng & SOP n盻冓 b盻・
+
+#   GUIDE PAGES (Hướng dẫn s盻ｭ d盻･ng & SOP nội b盻・
+
 # ============================================================
 
 class GuidePageUpdate(BaseModel):
+
     title: Optional[str] = None
+
     content: Optional[str] = None
 
+@app.get("/api/guide/{slug}", summary="Lấy trang hﾆｰ盻嬾g dẩnn public")
 
-@app.get("/api/guide/{slug}", summary="L蘯･y trang hﾆｰ盻嬾g d蘯ｫn public")
 async def _public_guide_route(slug: str, locale: str = Query(DEFAULT_LOCALE, description="Requested locale")):
     return await get_public_guide(slug, locale)
 
-
 def build_guide_translation_slug(slug: str, locale: str) -> str:
     return f"{slug}__{normalize_locale(locale)}"
-
 
 def resolve_guide_translation(slug: str, locale: str, scope: Optional[str] = None):
     target_locale = normalize_locale(locale)
@@ -3800,7 +4646,6 @@ def resolve_guide_translation(slug: str, locale: str, scope: Optional[str] = Non
     if result.data:
         return result.data[0]
     return None
-
 
 def apply_guide_translation(payload: dict, slug: str, locale: str, scope: Optional[str] = None) -> dict:
     requested_locale = normalize_locale(locale)
@@ -3823,7 +4668,6 @@ def apply_guide_translation(payload: dict, slug: str, locale: str, scope: Option
     payload["is_fallback"] = is_fallback
     return payload
 
-
 async def translate_guide_payloads_with_ai(guide_payload: dict, locales: list[str], context_label: str) -> dict[str, dict]:
     target_locales = build_target_translation_locales(locales)
     if not target_locales:
@@ -3842,30 +4686,16 @@ async def translate_guide_payloads_with_ai(guide_payload: dict, locales: list[st
             "content": {"type": "string"},
         },
     )
-    system_instruction = """
-Ban la bien dich vien chuyen nghiep cho tai lieu huong dan va SOP cua website tieu thuyet sinh ton hau tan the.
-Hay dich day du, ro nghia va giu nguyen cau truc HTML neu co.
-
-QUY TAC BAT BUOC:
-1. Giu nguyen ten rieng theo glossary neu co.
-2. Khong duoc rut gon, them giai thich hay markdown.
-3. Truong content co the chua HTML, chi dich phan van ban va giu nguyen cau truc.
-4. Chi tra ve JSON hop le dung schema duoc yeu cau.
-""".strip()
+    system_instruction = build_guide_multilocale_system_instruction()
     translated_payloads = await generate_structured_translation_payload(
         system_instruction=system_instruction,
-        user_prompt=f"""
-CONTEXT: {context_label}
-SOURCE LOCALE: {DEFAULT_LOCALE}
-TARGET LOCALES:
-{locale_prompt}
-
-GLOSSARY:
-{glossary_prompt}
-
-SOURCE JSON:
-{json.dumps(source_payload, ensure_ascii=False)}
-""".strip(),
+        user_prompt=build_guide_multilocale_user_prompt(
+            source_payload=source_payload,
+            locale_prompt=locale_prompt,
+            glossary_prompt=glossary_prompt,
+            context_label=context_label,
+            source_locale=DEFAULT_LOCALE,
+        ),
         response_json_schema=schema,
         parser=lambda raw_text: parse_multilocale_translation_payload(raw_text, target_locales, ["title", "content"]),
     )
@@ -3882,7 +4712,6 @@ SOURCE JSON:
             "content": translated_content,
         }
     return sanitized_payloads
-
 
 async def upsert_guide_translations(slug: str, scope: str, guide_payload: dict, locales: list[str]) -> dict:
     target_locales = build_target_translation_locales(locales)
@@ -3916,9 +4745,9 @@ async def upsert_guide_translations(slug: str, scope: str, guide_payload: dict, 
         "failed_translations": failed_translations,
     }
 
-
 async def get_public_guide(slug: str, locale: str = Query(DEFAULT_LOCALE, description="Requested locale")):
-    """L蘯･y n盻冓 dung trang hﾆｰ盻嬾g d蘯ｫn cﾃｳ scope = 'public'."""
+    """Lấy nội dung trang hﾆｰ盻嬾g dẩnn có scope = 'public'."""
+
     try:
         result = supabase.table("guide_pages").select("*").eq("slug", slug).eq("scope", "public").execute()
         if not result.data:
@@ -3928,64 +4757,100 @@ async def get_public_guide(slug: str, locale: str = Query(DEFAULT_LOCALE, descri
         data["content"] = sanitize_html(data.get("content")) or ""
         return apply_guide_translation(data, slug, locale, "public")
     except Exception as e:
+
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/admin/guide/{slug}", summary="Lấy trang hﾆｰ盻嬾g dẩnn (Admin)")
 
-@app.get("/api/admin/guide/{slug}", summary="L蘯･y trang hﾆｰ盻嬾g d蘯ｫn (Admin)")
 async def get_admin_guide(
+
     slug: str,
+
     authorization: Optional[str] = Header(None),
+
 ):
-    """L蘯･y n盻冓 dung b蘯･t k盻ｳ trang nﾃo (k盻・c蘯｣ internal). Yﾃｪu c蘯ｧu Admin."""
+
+    """Lấy nội dung bất k盻ｳ trang nào (k盻・cả internal). Yêu c蘯ｧu Admin."""
+
     await verify_admin(authorization)
+
     try:
+
         result = supabase.table("guide_pages").select("*").eq("slug", slug).execute()
+
         if not result.data:
+
             return {"slug": slug, "title": "", "content": "", "scope": "internal"}
+
         data = dict(result.data[0])
+
         data["content"] = sanitize_html(data.get("content")) or ""
+
         return data
+
     except Exception as e:
+
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.put("/api/admin/guide/{slug}", summary="Cập nhật trang hﾆｰ盻嬾g dẩnn (Admin)")
 
-@app.put("/api/admin/guide/{slug}", summary="C蘯ｭp nh蘯ｭt trang hﾆｰ盻嬾g d蘯ｫn (Admin)")
 async def update_guide(
     slug: str,
+
     body: GuidePageUpdate,
+
     authorization: Optional[str] = Header(None),
+
 ):
-    """C蘯ｭp nh蘯ｭt ho蘯ｷc t蘯｡o m盻嬖 trang hﾆｰ盻嬾g d蘯ｫn. Yﾃｪu c蘯ｧu Admin."""
+
+    """Cập nhật ho蘯ｷc tạo mới trang hﾆｰ盻嬾g dẩnn. Yêu c蘯ｧu Admin."""
+
     await verify_admin(authorization)
+
     try:
+
         from datetime import datetime, timezone
+
         # Determine scope from slug
+
         scope = "internal" if slug == "admin-sop" else "public"
 
         existing = supabase.table("guide_pages").select("id").eq("slug", slug).execute()
 
         data = body.model_dump(exclude_none=True)
+
         if "content" in data:
+
             data["content"] = sanitize_html(data.get("content")) or ""
+
         data["updated_at"] = datetime.now(timezone.utc).isoformat()
 
         if existing.data:
+
             result = supabase.table("guide_pages").update(data).eq("slug", slug).execute()
+
         else:
+
             data["slug"] = slug
+
             data["scope"] = scope
+
             if "title" not in data:
+
                 data["title"] = "Hướng dẫn" if scope == "public" else "SOP Nội bộ"
+
             if "content" not in data:
+
                 data["content"] = ""
+
             result = supabase.table("guide_pages").insert(data).execute()
 
         return result.data[0] if result.data else {"status": "ok"}
+
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @app.post("/api/admin/guide/{slug}/translate", summary="[Admin] Translate guide page to EN/ZH-CN/JA")
 async def admin_translate_guide(
@@ -4034,7 +4899,6 @@ async def admin_translate_guide(
         "translated_locales": translated_locales,
         "failed_translations": failed_translations,
     }
-
 
 @app.post("/api/admin/wiki/{entry_id}/translate", summary="[Admin] Translate wiki entry to EN/ZH-CN/JA")
 async def admin_translate_wiki_entry(
@@ -4086,7 +4950,6 @@ async def admin_translate_wiki_entry(
         "translated_locales": translated_locales,
         "failed_translations": failed_translations,
     }
-
 
 @app.post("/api/admin/wiki/translate-batch", summary="[Admin] Batch translate wiki entries to EN/ZH-CN/JA")
 async def admin_translate_wiki_batch(
