@@ -18,6 +18,7 @@ import LikeButton from "./LikeButton";
 import OraclePanel from "./OraclePanel";
 import ReaderQuickLookup from "./ReaderQuickLookup";
 import ReaderSettingsPanel from "./ReaderSettingsPanel";
+import ReaderStudyDock from "./ReaderStudyDock";
 import SystemHUD from "./SystemHUD";
 
 interface ReadingClientProps {
@@ -243,6 +244,7 @@ export default function ReadingClient({
                 />
             )}
             {isMounted && <OraclePanel chapterProgress={chapterNumber} />}
+            {isMounted && <ReaderStudyDock />}
 
             <div className="reading-progress" style={{ width: `${readingProgress}%` }} />
 
@@ -345,6 +347,7 @@ export default function ReadingClient({
 
                 {isMounted && (
                     <ReaderQuickLookup
+                        chapterId={chapterId}
                         chapterProgress={chapterNumber}
                         containerRef={contentRef}
                         sourceLocale={(resolvedLocale as any) || locale}

@@ -1,46 +1,30 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, type RefObject } from 'react';
-import { BookOpenText, ExternalLink, Loader2, Search, X } from 'lucide-react';
+import { BookOpenText, BookmarkPlus, ExternalLink, Loader2, Quote, Search, X } from 'lucide-react';
 
 import { useLocale } from '@/context/LocaleContext';
 import type { Locale } from '@/lib/i18n/config';
+import {
+    lookupReaderTerm,
+    saveReaderSentence,
+    saveReaderVocab,
+    type ReaderLookupResponse,
+} from '@/lib/reader-learning';
 
 interface ReaderQuickLookupProps {
+    chapterId?: number;
     chapterProgress: number;
     containerRef: RefObject<HTMLElement | null>;
     sourceLocale: Locale;
-}
-
-interface LookupResponse {
-    answer?: string;
-    error?: string;
 }
 
 function normalizeSelectionText(text: string): string {
     return text.replace(/\s+/g, ' ').trim().slice(0, 120);
 }
 
-function buildLookupPrompt(locale: Locale, selectedText: string): string {
-    const languageLabel =
-        locale === 'ja'
-            ? 'tiếng Nhật'
-            : locale === 'zh-CN'
-                ? 'tiếng Trung giản thể'
-                : locale === 'en'
-                    ? 'tiếng Anh'
-                    : 'tiếng Việt';
-
-    return [
-        `Bạn là trợ lý tra từ nhanh cho người Việt đang học ${languageLabel} qua truyện.`,
-        `Từ hoặc cụm cần tra: "${selectedText}"`,
-        `Yêu cầu trả lời thật ngắn gọn bằng tiếng Việt:`,
-        `1. Nghĩa phù hợp nhất trong ngữ cảnh đọc truyện.`,
-        `2. Nếu là tiếng Nhật hoặc tiếng Trung, thêm cách đọc Latin nếu suy ra được.`,
-        `3. Nêu loại từ hoặc vai trò ngữ pháp nếu rõ.`,
-        `4. Nếu đây có vẻ là tên riêng, nói rõ là tên riêng và không bịa nghĩa.`,
-        `5. Trả lời tối đa 6 dòng, ưu tiên súc tích, dễ học nhanh.`,
-    ].join('\n');
+function normalizeContextText(text: string): string {
+    return text.replace(/\s+/g, ' ').trim();
 }
 
 function buildExternalDictionaryUrl(locale: Locale, selectedText: string): string | null {
@@ -57,27 +41,83 @@ function shouldIgnoreSelectionTarget(target: EventTarget | null): boolean {
     return Boolean(target.closest('button, a, input, textarea, select, [contenteditable="true"]'));
 }
 
+function extractSentenceFromText(text: string, selectedText: string): string {
+    const normalizedText = normalizeContextText(text);
+    const normalizedSelectedText = normalizeSelectionText(selectedText);
+
+    if (!normalizedText) return normalizedSelectedText;
+    if (!normalizedSelectedText) return normalizedText.slice(0, 320);
+
+    const index = normalizedText.indexOf(normalizedSelectedText);
+    if (index === -1) {
+        return normalizedText.slice(0, 320);
+    }
+
+    const punctuation = /[.!?。！？]/;
+    let start = index;
+    while (start > 0 && !punctuation.test(normalizedText[start - 1])) {
+        start -= 1;
+    }
+
+    let end = index + normalizedSelectedText.length;
+    while (end < normalizedText.length && !punctuation.test(normalizedText[end])) {
+        end += 1;
+    }
+
+    const sentence = normalizedText.slice(start, Math.min(end + 1, normalizedText.length)).trim();
+    return sentence || normalizedSelectedText;
+}
+
+function findSelectionSentence(anchorElement: HTMLElement | null, selectedText: string): string {
+    const candidates = [
+        anchorElement?.closest('p, li, blockquote, dd, dt, h1, h2, h3, h4, h5, h6'),
+        anchorElement?.closest('[data-karaoke-index]'),
+        anchorElement?.closest('div'),
+        anchorElement,
+    ].filter(Boolean) as HTMLElement[];
+
+    for (const candidate of candidates) {
+        const sentence = extractSentenceFromText(candidate.innerText || candidate.textContent || '', selectedText);
+        if (sentence) return sentence;
+    }
+
+    return selectedText;
+}
+
 export default function ReaderQuickLookup({
+    chapterId,
     chapterProgress,
     containerRef,
     sourceLocale,
 }: ReaderQuickLookupProps) {
     const { dictionary } = useLocale();
     const [selectedText, setSelectedText] = useState('');
+    const [selectedSentence, setSelectedSentence] = useState('');
     const [toolbarPosition, setToolbarPosition] = useState<{ top: number; left: number } | null>(null);
     const [panelOpen, setPanelOpen] = useState(false);
-    const [lookupAnswer, setLookupAnswer] = useState('');
+    const [lookupResult, setLookupResult] = useState<ReaderLookupResponse | null>(null);
     const [lookupError, setLookupError] = useState<string | null>(null);
     const [lookupLoading, setLookupLoading] = useState(false);
     const [lastLookupKey, setLastLookupKey] = useState('');
+    const [saveVocabLoading, setSaveVocabLoading] = useState(false);
+    const [saveSentenceLoading, setSaveSentenceLoading] = useState(false);
+    const [saveMessage, setSaveMessage] = useState<string | null>(null);
+    const [saveError, setSaveError] = useState<string | null>(null);
 
-    const externalDictionaryUrl = useMemo(
-        () => buildExternalDictionaryUrl(sourceLocale, selectedText),
-        [selectedText, sourceLocale],
-    );
+    const externalDictionaryUrl = useMemo(() => {
+        if (lookupResult?.external_links?.[0]?.url) return lookupResult.external_links[0].url;
+        return buildExternalDictionaryUrl(sourceLocale, selectedText);
+    }, [lookupResult, selectedText, sourceLocale]);
 
     const hideToolbar = useCallback(() => {
         setToolbarPosition(null);
+    }, []);
+
+    const resetLookupState = useCallback(() => {
+        setLookupResult(null);
+        setLookupError(null);
+        setSaveMessage(null);
+        setSaveError(null);
     }, []);
 
     const readCurrentSelection = useCallback(() => {
@@ -105,7 +145,7 @@ export default function ReaderQuickLookup({
         }
 
         const normalizedText = normalizeSelectionText(selection.toString());
-        if (!normalizedText || normalizedText.length < 1) {
+        if (!normalizedText) {
             hideToolbar();
             return;
         }
@@ -116,19 +156,27 @@ export default function ReaderQuickLookup({
             return;
         }
 
-        setSelectedText(normalizedText);
+        const sentence = findSelectionSentence(anchorElement, normalizedText);
+
+        setSelectedText((prev) => {
+            if (prev !== normalizedText) {
+                resetLookupState();
+            }
+            return normalizedText;
+        });
+        setSelectedSentence(sentence);
         setToolbarPosition({
             top: Math.max(12, rect.top + window.scrollY - 52),
             left: rect.left + window.scrollX + rect.width / 2,
         });
-    }, [containerRef, hideToolbar]);
+    }, [containerRef, hideToolbar, resetLookupState]);
 
     const runLookup = useCallback(async (textOverride?: string) => {
         const query = normalizeSelectionText(textOverride || selectedText);
         if (!query || lookupLoading) return;
 
-        const lookupKey = `${sourceLocale}:${query}`;
-        if (lookupKey === lastLookupKey && (lookupAnswer || lookupError)) {
+        const lookupKey = `${sourceLocale}:${query}:${selectedSentence}`;
+        if (lookupKey === lastLookupKey && (lookupResult || lookupError)) {
             setPanelOpen(true);
             return;
         }
@@ -136,38 +184,88 @@ export default function ReaderQuickLookup({
         setPanelOpen(true);
         setLookupLoading(true);
         setLookupError(null);
-        setLookupAnswer('');
+        setLookupResult(null);
+        setSaveMessage(null);
+        setSaveError(null);
         setLastLookupKey(lookupKey);
 
         try {
-            const response = await fetch('/api/oracle/ask', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    question: buildLookupPrompt(sourceLocale, query),
-                    chapter_progress: chapterProgress,
-                }),
+            const payload = await lookupReaderTerm({
+                locale: sourceLocale,
+                term: query,
+                context_sentence: selectedSentence || undefined,
+                chapter_id: chapterId,
             });
-            const payload = await response.json().catch(() => ({})) as LookupResponse;
-            if (!response.ok) {
-                throw new Error(payload.error || dictionary.lookup.failed);
-            }
-            setLookupAnswer((payload.answer || '').trim() || dictionary.lookup.failed);
+            setLookupResult(payload);
         } catch (error: unknown) {
             setLookupError((error as Error)?.message || dictionary.lookup.failed);
         } finally {
             setLookupLoading(false);
         }
     }, [
-        chapterProgress,
+        chapterId,
         dictionary.lookup.failed,
         lastLookupKey,
-        lookupAnswer,
         lookupError,
         lookupLoading,
+        lookupResult,
+        selectedSentence,
         selectedText,
         sourceLocale,
     ]);
+
+    const handleSaveVocab = useCallback(async () => {
+        if (!selectedText || saveVocabLoading) return;
+
+        setSaveVocabLoading(true);
+        setSaveMessage(null);
+        setSaveError(null);
+
+        try {
+            await saveReaderVocab({
+                locale: sourceLocale,
+                term: selectedText,
+                normalized_term: lookupResult?.normalized_term,
+                reading: lookupResult?.reading || undefined,
+                meaning_vi: lookupResult?.meaning_vi || undefined,
+                pos: lookupResult?.pos || undefined,
+                notes: lookupResult?.notes || `Lưu khi đang đọc tới chương ${chapterProgress}.`,
+                context_sentence: selectedSentence || undefined,
+                chapter_id: chapterId,
+                source: lookupResult?.source || 'manual',
+            });
+            setSaveMessage('Đã lưu từ vào kho học tập.');
+        } catch (error: unknown) {
+            setSaveError((error as Error)?.message || 'Không lưu được từ đã chọn.');
+        } finally {
+            setSaveVocabLoading(false);
+        }
+    }, [chapterId, lookupResult, saveVocabLoading, selectedSentence, selectedText, sourceLocale]);
+
+    const handleSaveSentence = useCallback(async () => {
+        if (!selectedSentence || saveSentenceLoading) return;
+
+        setSaveSentenceLoading(true);
+        setSaveMessage(null);
+        setSaveError(null);
+
+        try {
+            await saveReaderSentence({
+                locale: sourceLocale,
+                sentence_text: selectedSentence,
+                meaning_vi: lookupResult?.meaning_vi || undefined,
+                note: selectedText
+                    ? `Từ được tra trong câu: ${selectedText}. Chương đọc: ${chapterProgress}.`
+                    : `Chương đọc: ${chapterProgress}.`,
+                chapter_id: chapterId,
+            });
+            setSaveMessage('Đã lưu câu vào kho học tập.');
+        } catch (error: unknown) {
+            setSaveError((error as Error)?.message || 'Không lưu được câu hiện tại.');
+        } finally {
+            setSaveSentenceLoading(false);
+        }
+    }, [chapterId, lookupResult, saveSentenceLoading, selectedSentence, selectedText, sourceLocale]);
 
     useEffect(() => {
         const handlePointerUp = (event: MouseEvent | TouchEvent) => {
@@ -224,7 +322,7 @@ export default function ReaderQuickLookup({
             )}
 
             {(panelOpen || selectedText) && (
-                <div className="fixed bottom-24 left-4 right-4 z-[64] md:left-6 md:right-auto md:w-[360px]">
+                <div className="fixed bottom-24 left-4 right-4 z-[64] md:left-6 md:right-auto md:w-[380px]">
                     <div className="overflow-hidden rounded-2xl border border-cyan-900/40 bg-[#090d12]/95 shadow-[0_18px_60px_rgba(0,0,0,0.45)] backdrop-blur">
                         <div className="flex items-center gap-2 border-b border-cyan-900/30 px-4 py-3">
                             <BookOpenText size={15} className="text-cyan-300" />
@@ -255,6 +353,11 @@ export default function ReaderQuickLookup({
                                     <div className="mt-1 break-words text-sm text-reader-text">
                                         {selectedText || dictionary.lookup.empty}
                                     </div>
+                                    {selectedSentence && (
+                                        <div className="mt-3 rounded-lg border border-ash-800 bg-ash-950/70 px-3 py-2 text-xs leading-6 text-ash-400">
+                                            {selectedSentence}
+                                        </div>
+                                    )}
                                 </div>
 
                                 {lookupLoading && (
@@ -270,9 +373,47 @@ export default function ReaderQuickLookup({
                                     </div>
                                 )}
 
-                                {!lookupLoading && !lookupError && lookupAnswer && (
-                                    <div className="rounded-xl border border-cyan-900/30 bg-cyan-950/10 px-3 py-3 text-sm leading-7 text-gray-100 whitespace-pre-wrap">
-                                        {lookupAnswer}
+                                {!lookupLoading && !lookupError && lookupResult && (
+                                    <div className="rounded-xl border border-cyan-900/30 bg-cyan-950/10 px-3 py-3 text-sm text-gray-100">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <span className="text-base font-semibold text-white">{lookupResult.term}</span>
+                                            {lookupResult.reading && (
+                                                <span className="rounded-full border border-cyan-700/40 px-2 py-1 text-[11px] font-mono text-cyan-200">
+                                                    {lookupResult.reading}
+                                                </span>
+                                            )}
+                                            {lookupResult.pos && (
+                                                <span className="rounded-full border border-ash-700 px-2 py-1 text-[11px] font-mono text-ash-300">
+                                                    {lookupResult.pos}
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        <div className="mt-3 whitespace-pre-wrap leading-7 text-gray-100">
+                                            {lookupResult.meaning_vi || 'Đang ở chế độ scaffold: contract lookup đã có, bước tiếp theo sẽ nối rule-based và AI giải nghĩa ngữ cảnh.'}
+                                        </div>
+
+                                        {lookupResult.notes && (
+                                            <div className="mt-3 rounded-lg border border-ash-800 bg-black/20 px-3 py-3 text-xs leading-6 text-ash-300">
+                                                {lookupResult.notes}
+                                            </div>
+                                        )}
+
+                                        <div className="mt-3 text-[10px] font-mono uppercase tracking-[0.2em] text-cyan-400">
+                                            Source: {lookupResult.source}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {saveMessage && (
+                                    <div className="rounded-xl border border-green-900/40 bg-green-950/20 px-3 py-3 text-sm text-green-200">
+                                        {saveMessage}
+                                    </div>
+                                )}
+
+                                {saveError && (
+                                    <div className="rounded-xl border border-red-900/40 bg-red-950/20 px-3 py-3 text-sm text-red-200">
+                                        {saveError}
                                     </div>
                                 )}
 
@@ -285,6 +426,26 @@ export default function ReaderQuickLookup({
                                     >
                                         <Search size={12} />
                                         {dictionary.lookup.action}
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={handleSaveVocab}
+                                        disabled={!selectedText || saveVocabLoading}
+                                        className="inline-flex items-center gap-2 rounded-lg border border-emerald-700/40 px-3 py-2 text-[11px] font-mono text-emerald-300 hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                        {saveVocabLoading ? <Loader2 size={12} className="animate-spin" /> : <BookmarkPlus size={12} />}
+                                        Lưu từ
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={handleSaveSentence}
+                                        disabled={!selectedSentence || saveSentenceLoading}
+                                        className="inline-flex items-center gap-2 rounded-lg border border-amber-700/40 px-3 py-2 text-[11px] font-mono text-amber-300 hover:bg-amber-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                        {saveSentenceLoading ? <Loader2 size={12} className="animate-spin" /> : <Quote size={12} />}
+                                        Lưu câu
                                     </button>
 
                                     {externalDictionaryUrl && (

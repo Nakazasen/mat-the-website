@@ -80,6 +80,7 @@ try:
     from routes.ai_oracle import router as oracle_router
 
     from routes.wiki_search import router as wiki_router
+    from routes.reader_learning import router as reader_learning_router
 
 except (ImportError, ModuleNotFoundError):
 
@@ -106,6 +107,7 @@ except (ImportError, ModuleNotFoundError):
     from backend.routes.ai_oracle import router as oracle_router
 
     from backend.routes.wiki_search import router as wiki_router
+    from backend.routes.reader_learning import router as reader_learning_router
 
 load_dotenv(override=True)
 
@@ -193,7 +195,7 @@ MODEL_MIN_INTERVAL_SECONDS = {
     "gemma-3n-1b-it": 2.5,
 }
 TRANSLATION_MAX_OUTPUT_TOKENS = 65536
-TRANSLATION_MULTI_LOCALE_MAX_SOURCE_CHARS = 12000
+TRANSLATION_MULTI_LOCALE_MAX_SOURCE_CHARS = 4000
 TRANSLATION_RATE_LIMIT_STATE: dict[str, float] = {}
 TRANSLATION_RATE_LIMIT_LOCK = asyncio.Lock()
 T = TypeVar("T")
@@ -545,7 +547,7 @@ async def generate_structured_translation_payload(
     user_prompt: str,
     response_json_schema: dict,
     parser: Callable[[str], T],
-    timeout_seconds: float = 120.0,
+    timeout_seconds: float = 300.0,
 ) -> T:
     _active_model, model_catalog, api_keys = await resolve_ai_settings_for_translation()
     if not api_keys:
@@ -1693,6 +1695,8 @@ app.include_router(hq_router)
 app.include_router(oracle_router)
 
 app.include_router(wiki_router)
+
+app.include_router(reader_learning_router)
 
 @app.middleware("http")
 
