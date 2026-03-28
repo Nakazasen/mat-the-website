@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Pause, Play, Square, Volume2, VolumeX } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { ChevronLeft, ChevronRight, GripHorizontal, Pause, Play, Square, Volume2, VolumeX } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 import { useLocale } from '@/context/LocaleContext';
@@ -23,6 +23,9 @@ interface AudioPlayerProps {
 type PlayState = 'stopped' | 'playing' | 'paused';
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'https://mat-the-website.onrender.com').replace(/\/$/, '');
+const AUDIO_FLOATING_STORAGE_KEY = 'reader-audio-floating-position-v1';
+const AUDIO_FLOATING_WIDTH = 360;
+const AUDIO_FLOATING_MARGIN = 16;
 
 function shouldIgnoreAudioHotkeys(target: EventTarget | null): boolean {
     if (!(target instanceof HTMLElement)) return false;
@@ -69,6 +72,11 @@ export default function AudioPlayer({
     const speedRef = useRef(speed);
     const stoppedRef = useRef(true);
     const wakeLockRef = useRef<any>(null);
+    const floatingPanelRef = useRef<HTMLDivElement>(null);
+    const draggingPointerIdRef = useRef<number | null>(null);
+    const [isDesktop, setIsDesktop] = useState(false);
+    const [floatingDragging, setFloatingDragging] = useState(false);
+    const [floatingPosition, setFloatingPosition] = useState<{ top: number; left: number } | null>(null);
 
     useEffect(() => {
         speedRef.current = speed;
@@ -85,6 +93,75 @@ export default function AudioPlayer({
     useEffect(() => {
         if (audioRef.current) audioRef.current.muted = isMuted;
     }, [isMuted]);
+
+    useEffect(() => {
+        const updateViewport = () => setIsDesktop(window.innerWidth >= 768);
+        updateViewport();
+        window.addEventListener('resize', updateViewport);
+        return () => window.removeEventListener('resize', updateViewport);
+    }, []);
+
+    const getFloatingMinTop = useCallback(() => {
+        if (typeof window === 'undefined') return 96;
+        const header = document.querySelector('header');
+        if (!(header instanceof HTMLElement)) return 96;
+        return Math.max(96, Math.ceil(header.getBoundingClientRect().bottom + 12));
+    }, []);
+
+    const getFloatingDefaultPosition = useCallback(() => {
+        if (typeof window === 'undefined') {
+            return { top: 420, left: 24 };
+        }
+        const panelHeight = floatingPanelRef.current?.offsetHeight ?? 148;
+        const minTop = getFloatingMinTop();
+        const top = Math.max(minTop, window.innerHeight - panelHeight - 24);
+        return { top, left: 24 };
+    }, [getFloatingMinTop]);
+
+    const clampFloatingPosition = useCallback((position: { top: number; left: number }) => {
+        if (typeof window === 'undefined') return position;
+        const panelHeight = floatingPanelRef.current?.offsetHeight ?? 148;
+        const minTop = getFloatingMinTop();
+        const maxTop = Math.max(minTop, window.innerHeight - panelHeight - AUDIO_FLOATING_MARGIN);
+        const maxLeft = Math.max(AUDIO_FLOATING_MARGIN, window.innerWidth - AUDIO_FLOATING_WIDTH - AUDIO_FLOATING_MARGIN);
+        return {
+            top: Math.min(Math.max(minTop, position.top), maxTop),
+            left: Math.min(Math.max(AUDIO_FLOATING_MARGIN, position.left), maxLeft),
+        };
+    }, [getFloatingMinTop]);
+
+    useEffect(() => {
+        if (!isDesktop || playState === 'stopped') return;
+        try {
+            const raw = window.localStorage.getItem(AUDIO_FLOATING_STORAGE_KEY);
+            if (!raw) {
+                setFloatingPosition(clampFloatingPosition(getFloatingDefaultPosition()));
+                return;
+            }
+            const parsed = JSON.parse(raw) as { top?: number; left?: number };
+            if (typeof parsed.top === 'number' && typeof parsed.left === 'number') {
+                setFloatingPosition(clampFloatingPosition({ top: parsed.top, left: parsed.left }));
+                return;
+            }
+            setFloatingPosition(clampFloatingPosition(getFloatingDefaultPosition()));
+        } catch {
+            setFloatingPosition(clampFloatingPosition(getFloatingDefaultPosition()));
+        }
+    }, [clampFloatingPosition, getFloatingDefaultPosition, isDesktop, playState]);
+
+    useEffect(() => {
+        if (!isDesktop || !floatingPosition) return;
+        try {
+            window.localStorage.setItem(AUDIO_FLOATING_STORAGE_KEY, JSON.stringify(floatingPosition));
+        } catch {
+            // ignore storage errors
+        }
+    }, [floatingPosition, isDesktop]);
+
+    useEffect(() => {
+        if (!isDesktop || playState === 'stopped') return;
+        setFloatingPosition((current) => clampFloatingPosition(current || getFloatingDefaultPosition()));
+    }, [clampFloatingPosition, getFloatingDefaultPosition, isDesktop, playState]);
 
     useEffect(() => {
         return () => {
@@ -277,6 +354,37 @@ export default function AudioPlayer({
         jumpToChunk(chunkIndexRef.current + 1);
     }, [jumpToChunk, play, playState]);
 
+    const handleFloatingDragStart = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+        if (!isDesktop || !floatingPosition) return;
+        event.preventDefault();
+        draggingPointerIdRef.current = event.pointerId;
+        event.currentTarget.setPointerCapture(event.pointerId);
+        const startX = event.clientX;
+        const startY = event.clientY;
+        const origin = floatingPosition;
+        setFloatingDragging(true);
+
+        const handleMove = (moveEvent: PointerEvent) => {
+            if (draggingPointerIdRef.current !== null && moveEvent.pointerId !== draggingPointerIdRef.current) {
+                return;
+            }
+            setFloatingPosition(clampFloatingPosition({
+                left: origin.left + (moveEvent.clientX - startX),
+                top: origin.top + (moveEvent.clientY - startY),
+            }));
+        };
+
+        const handleUp = () => {
+            setFloatingDragging(false);
+            draggingPointerIdRef.current = null;
+            window.removeEventListener('pointermove', handleMove);
+            window.removeEventListener('pointerup', handleUp);
+        };
+
+        window.addEventListener('pointermove', handleMove);
+        window.addEventListener('pointerup', handleUp);
+    }, [clampFloatingPosition, floatingPosition, isDesktop]);
+
     useEffect(() => {
         const handleHotkeys = (event: KeyboardEvent) => {
             if (!event.altKey || event.ctrlKey || event.metaKey || shouldIgnoreAudioHotkeys(event.target)) {
@@ -395,10 +503,21 @@ export default function AudioPlayer({
             </div>
 
             {playState !== 'stopped' && (
-                <div className="fixed bottom-24 left-4 right-4 z-[62] md:bottom-6 md:left-6 md:right-auto md:w-[360px]">
+                <div
+                    ref={floatingPanelRef}
+                    className="fixed bottom-24 left-4 right-4 z-[62] md:right-auto md:w-[360px]"
+                    style={
+                        isDesktop && floatingPosition
+                            ? { top: `${floatingPosition.top}px`, left: `${floatingPosition.left}px` }
+                            : { bottom: '96px' }
+                    }
+                >
                     <div className="rounded-2xl border border-toxic-green-DEFAULT/25 bg-[#0d1116]/95 px-4 py-3 text-gray-100 shadow-[0_18px_50px_rgba(0,0,0,0.45)] backdrop-blur">
-                        <div className="flex items-center gap-2">
-                            <Volume2 size={14} className="text-toxic-green-DEFAULT" />
+                        <div
+                            className={`flex items-center gap-2 ${isDesktop ? 'cursor-grab select-none touch-none' : ''} ${floatingDragging ? 'cursor-grabbing' : ''}`}
+                            onPointerDown={isDesktop ? handleFloatingDragStart : undefined}
+                        >
+                            <Volume2 size={14} className="text-toxic-green-DEFAULT shrink-0" />
                             <div className="min-w-0 flex-1">
                                 <div className="truncate text-[11px] font-mono uppercase tracking-[0.2em] text-toxic-green-DEFAULT">
                                     {dictionary.audio.floatingTitle}
@@ -410,6 +529,12 @@ export default function AudioPlayer({
                             <span className="text-[10px] font-mono text-gray-500">
                                 {playState === 'playing' ? dictionary.audio.playing : dictionary.audio.paused}
                             </span>
+                            {isDesktop && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-[0.18em] text-gray-500">
+                                    <GripHorizontal size={12} />
+                                    Kéo
+                                </span>
+                            )}
                         </div>
 
                         <div className="mt-3 flex items-center gap-2">
