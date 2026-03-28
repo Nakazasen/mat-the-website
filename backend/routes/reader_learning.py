@@ -129,6 +129,20 @@ class ReaderSentenceTtsResponse(BaseModel):
     cached: bool = False
 
 
+class ReaderSentenceInsightRequest(BaseModel):
+    locale: str = "vi"
+    sentence_text: str = Field(..., min_length=1, max_length=1200)
+    chapter_id: Optional[int] = None
+
+
+class ReaderSentenceInsightResponse(BaseModel):
+    sentence_text: str
+    locale: str
+    meaning_vi: Optional[str] = None
+    notes: Optional[str] = None
+    source: LookupSource
+
+
 class ReaderLearningStatsResponse(BaseModel):
     saved_vocab_count: int
     saved_sentence_count: int
@@ -203,6 +217,11 @@ def _context_hash(context_sentence: Optional[str]) -> str:
     return hashlib.sha256(normalized.lower().encode("utf-8")).hexdigest()[:24]
 
 
+def _sentence_cache_key(sentence_text: str) -> str:
+    build_content_hash = _get_build_content_hash()
+    return f"sentence::{build_content_hash(sentence_text)}"
+
+
 def _build_external_links(locale: str, term: str) -> list[ReaderExternalLink]:
     query = term.strip()
     if not query:
@@ -250,6 +269,16 @@ def _build_vi_rule_based_lookup(term: str) -> ReaderLookupResponse:
     )
 
 
+def _build_vi_sentence_insight(sentence_text: str) -> ReaderSentenceInsightResponse:
+    return ReaderSentenceInsightResponse(
+        sentence_text=sentence_text,
+        locale="vi",
+        meaning_vi=sentence_text,
+        notes="Đây là câu tiếng Việt gốc, nên phần diễn giải thêm chưa cần thiết.",
+        source="rule_based",
+    )
+
+
 def _lookup_schema() -> dict[str, Any]:
     return {
         "type": "object",
@@ -260,6 +289,18 @@ def _lookup_schema() -> dict[str, Any]:
             "notes": {"type": "string"},
         },
         "required": ["meaning_vi", "reading", "pos", "notes"],
+        "additionalProperties": False,
+    }
+
+
+def _sentence_insight_schema() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "properties": {
+            "meaning_vi": {"type": "string"},
+            "notes": {"type": "string"},
+        },
+        "required": ["meaning_vi", "notes"],
         "additionalProperties": False,
     }
 
@@ -293,6 +334,27 @@ def _lookup_prompt(locale: str, term: str, context_sentence: Optional[str]) -> t
     return system_instruction, user_prompt
 
 
+def _sentence_insight_prompt(locale: str, sentence_text: str) -> tuple[str, str]:
+    locale_label = {
+        "en": "tiếng Anh",
+        "ja": "tiếng Nhật",
+        "zh-CN": "tiếng Trung giản thể",
+    }.get(locale, locale)
+    system_instruction = (
+        "Bạn là trợ lý học ngoại ngữ trong trang đọc truyện. "
+        "Hãy diễn giải ngắn gọn ý của cả câu sang tiếng Việt và trả về JSON đúng schema."
+    )
+    user_prompt = (
+        f"Ngôn ngữ nguồn: {locale_label}\n"
+        f"Câu cần diễn giải: {sentence_text}\n\n"
+        "Yêu cầu:\n"
+        "1. meaning_vi: diễn giải ngắn gọn cả câu bằng tiếng Việt tự nhiên, tối đa 2 câu.\n"
+        "2. notes: ghi chú ngắn về sắc thái, ý quan trọng hoặc điểm đáng chú ý của câu; tối đa 2 câu.\n"
+        "3. Không dùng markdown, không lan man.\n"
+    )
+    return system_instruction, user_prompt
+
+
 def _parse_lookup_payload(raw_text: str) -> dict[str, str]:
     parse_json_like_payload = _get_parse_json_like_payload()
     parsed = parse_json_like_payload(raw_text)
@@ -300,6 +362,15 @@ def _parse_lookup_payload(raw_text: str) -> dict[str, str]:
         "meaning_vi": str(parsed.get("meaning_vi") or "").strip(),
         "reading": str(parsed.get("reading") or "").strip(),
         "pos": str(parsed.get("pos") or "").strip(),
+        "notes": str(parsed.get("notes") or "").strip(),
+    }
+
+
+def _parse_sentence_insight_payload(raw_text: str) -> dict[str, str]:
+    parse_json_like_payload = _get_parse_json_like_payload()
+    parsed = parse_json_like_payload(raw_text)
+    return {
+        "meaning_vi": str(parsed.get("meaning_vi") or "").strip(),
         "notes": str(parsed.get("notes") or "").strip(),
     }
 
@@ -325,6 +396,26 @@ async def _lookup_with_ai(locale: str, term: str, context_sentence: Optional[str
         notes=payload.get("notes") or None,
         source="ai",
         external_links=_build_external_links(locale, term),
+    )
+
+
+async def _sentence_insight_with_ai(locale: str, sentence_text: str) -> ReaderSentenceInsightResponse:
+    generate_structured_translation_payload = _get_generate_structured_translation_payload()
+    system_instruction, user_prompt = _sentence_insight_prompt(locale, sentence_text)
+    payload = await generate_structured_translation_payload(
+        system_instruction=system_instruction,
+        user_prompt=user_prompt,
+        response_json_schema=_sentence_insight_schema(),
+        parser=_parse_sentence_insight_payload,
+        timeout_seconds=45.0,
+    )
+
+    return ReaderSentenceInsightResponse(
+        sentence_text=sentence_text,
+        locale=locale,
+        meaning_vi=payload.get("meaning_vi") or None,
+        notes=payload.get("notes") or None,
+        source="ai",
     )
 
 
@@ -395,7 +486,24 @@ def _deserialize_lookup_payload(row: dict[str, Any]) -> Optional[ReaderLookupRes
         return None
 
 
-def _get_cached_lookup(locale: str, normalized_term: str, context_hash: str) -> Optional[ReaderLookupResponse]:
+def _deserialize_sentence_insight_payload(row: dict[str, Any]) -> Optional[ReaderSentenceInsightResponse]:
+    payload = row.get("payload_json")
+    if not isinstance(payload, dict):
+        return None
+
+    try:
+        return ReaderSentenceInsightResponse(
+            sentence_text=str(payload.get("sentence_text") or ""),
+            locale=str(payload.get("locale") or row.get("locale") or "vi"),
+            meaning_vi=(str(payload["meaning_vi"]).strip() if payload.get("meaning_vi") else None),
+            notes=(str(payload["notes"]).strip() if payload.get("notes") else None),
+            source="cache",
+        )
+    except Exception:
+        return None
+
+
+def _get_cache_row(locale: str, normalized_term: str, context_hash: str) -> Optional[dict[str, Any]]:
     supabase = _get_supabase()
     try:
         result = (
@@ -423,13 +531,32 @@ def _get_cached_lookup(locale: str, normalized_term: str, context_hash: str) -> 
         except Exception:
             return None
 
+    return row
+
+
+def _get_cached_lookup(locale: str, normalized_term: str, context_hash: str) -> Optional[ReaderLookupResponse]:
+    row = _get_cache_row(locale, normalized_term, context_hash)
+    if not row:
+        return None
     return _deserialize_lookup_payload(row)
 
 
-def _cache_lookup_response(locale: str, normalized_term: str, context_hash: str, response: ReaderLookupResponse) -> None:
+def _get_cached_sentence_insight(locale: str, sentence_text: str) -> Optional[ReaderSentenceInsightResponse]:
+    row = _get_cache_row(locale, _sentence_cache_key(sentence_text), "global")
+    if not row:
+        return None
+    return _deserialize_sentence_insight_payload(row)
+
+
+def _cache_payload(
+    *,
+    locale: str,
+    normalized_term: str,
+    context_hash: str,
+    payload: dict[str, Any],
+    source: LookupSource,
+) -> None:
     supabase = _get_supabase()
-    payload = response.dict()
-    payload["external_links"] = [item.dict() for item in response.external_links]
     try:
         supabase.table("reader_lookup_cache").upsert(
             {
@@ -437,7 +564,7 @@ def _cache_lookup_response(locale: str, normalized_term: str, context_hash: str,
                 "normalized_term": normalized_term,
                 "context_hash": context_hash,
                 "payload_json": payload,
-                "source": response.source,
+                "source": source,
                 "expires_at": (datetime.now(timezone.utc) + timedelta(days=14)).isoformat(),
             },
             on_conflict="locale,normalized_term,context_hash",
@@ -468,7 +595,42 @@ async def lookup_reader_term(body: ReaderLookupRequest):
         return cached
 
     response = await _lookup_with_ai(locale, term, context_sentence)
-    _cache_lookup_response(locale, normalized_term, context_hash, response)
+    _cache_payload(
+        locale=locale,
+        normalized_term=normalized_term,
+        context_hash=context_hash,
+        payload={
+            **response.dict(),
+            "external_links": [item.dict() for item in response.external_links],
+        },
+        source=response.source,
+    )
+    return response
+
+
+@router.post("/sentence-insight", response_model=ReaderSentenceInsightResponse)
+async def sentence_insight(body: ReaderSentenceInsightRequest):
+    locale = _normalize_locale(body.locale)
+    sentence_text = _normalize_sentence(body.sentence_text)
+
+    if not sentence_text:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="sentence_text không được để trống.")
+
+    if locale == "vi":
+        return _build_vi_sentence_insight(sentence_text)
+
+    cached = _get_cached_sentence_insight(locale, sentence_text)
+    if cached:
+        return cached
+
+    response = await _sentence_insight_with_ai(locale, sentence_text)
+    _cache_payload(
+        locale=locale,
+        normalized_term=_sentence_cache_key(sentence_text),
+        context_hash="global",
+        payload=response.dict(),
+        source=response.source,
+    )
     return response
 
 

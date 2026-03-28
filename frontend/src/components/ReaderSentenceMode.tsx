@@ -1,0 +1,328 @@
+'use client';
+
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { BookText, Loader2, Quote, Square, Volume2, X } from 'lucide-react';
+
+import type { Locale } from '@/lib/i18n/config';
+import {
+    getReaderSentenceInsight,
+    requestReaderSentenceTts,
+    saveReaderSentence,
+    type ReaderSentenceInsightResponse,
+} from '@/lib/reader-learning';
+import { findSentenceFromPoint, shouldIgnoreSelectionTarget } from '@/lib/reader-selection';
+
+interface ReaderSentenceModeProps {
+    chapterId?: number;
+    chapterProgress: number;
+    containerRef: RefObject<HTMLElement | null>;
+    sourceLocale: Locale;
+}
+
+function getInsightSourceLabel(source?: string | null): string {
+    if (source === 'cache') return 'Cache';
+    if (source === 'rule_based') return 'Rule-based';
+    if (source === 'ai') return 'AI';
+    return 'Unknown';
+}
+
+export default function ReaderSentenceMode({
+    chapterId,
+    chapterProgress,
+    containerRef,
+    sourceLocale,
+}: ReaderSentenceModeProps) {
+    const audioRef = useRef<HTMLAudioElement | null>(null);
+
+    const [sentenceText, setSentenceText] = useState('');
+    const [panelOpen, setPanelOpen] = useState(false);
+    const [insight, setInsight] = useState<ReaderSentenceInsightResponse | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [saveLoading, setSaveLoading] = useState(false);
+    const [saveMessage, setSaveMessage] = useState<string | null>(null);
+    const [audioLoading, setAudioLoading] = useState(false);
+    const [audioError, setAudioError] = useState<string | null>(null);
+    const [audioPlaying, setAudioPlaying] = useState(false);
+
+    const canPlayAudio = useMemo(() => sentenceText.trim().length > 0 && sentenceText.trim().length <= 200, [sentenceText]);
+
+    const stopAudio = useCallback(() => {
+        if (!audioRef.current) return;
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+        setAudioPlaying(false);
+    }, []);
+
+    const openSentence = useCallback(async (sentence: string) => {
+        const normalizedSentence = sentence.trim();
+        if (!normalizedSentence) return;
+
+        setSentenceText(normalizedSentence);
+        setPanelOpen(true);
+        setInsight(null);
+        setError(null);
+        setSaveMessage(null);
+        setAudioError(null);
+        stopAudio();
+        setLoading(true);
+
+        try {
+            const payload = await getReaderSentenceInsight({
+                locale: sourceLocale,
+                sentence_text: normalizedSentence,
+                chapter_id: chapterId,
+            });
+            setInsight(payload);
+        } catch (err: unknown) {
+            setError((err as Error)?.message || 'Không phân tích được câu này.');
+        } finally {
+            setLoading(false);
+        }
+    }, [chapterId, sourceLocale, stopAudio]);
+
+    const handleSaveSentence = useCallback(async () => {
+        if (!sentenceText || saveLoading) return;
+
+        setSaveLoading(true);
+        setSaveMessage(null);
+        setError(null);
+
+        try {
+            await saveReaderSentence({
+                locale: sourceLocale,
+                sentence_text: sentenceText,
+                meaning_vi: insight?.meaning_vi || undefined,
+                note: `Lưu từ sentence mode ở chương ${chapterProgress}.`,
+                chapter_id: chapterId,
+            });
+            setSaveMessage('Đã lưu câu vào kho học tập.');
+        } catch (err: unknown) {
+            setError((err as Error)?.message || 'Không lưu được câu này.');
+        } finally {
+            setSaveLoading(false);
+        }
+    }, [chapterId, chapterProgress, insight?.meaning_vi, saveLoading, sentenceText, sourceLocale]);
+
+    const handlePlay = useCallback(async (speed: number) => {
+        if (!sentenceText || audioLoading) return;
+        if (sentenceText.length > 200) {
+            setAudioError('Câu này quá dài cho audio nhanh. Hãy chọn cụm ngắn hơn.');
+            return;
+        }
+
+        setAudioLoading(true);
+        setAudioError(null);
+
+        try {
+            const payload = await requestReaderSentenceTts({
+                locale: sourceLocale,
+                sentence_text: sentenceText,
+                speed,
+                chapter_id: chapterId,
+            });
+
+            if (!payload.audio_url) {
+                throw new Error(payload.detail || 'Không tạo được audio câu.');
+            }
+
+            const audio = audioRef.current;
+            if (!audio) {
+                throw new Error('Trình phát audio chưa sẵn sàng.');
+            }
+
+            if (audio.src !== payload.audio_url) {
+                audio.src = payload.audio_url;
+            }
+            audio.currentTime = 0;
+            await audio.play();
+            setAudioPlaying(true);
+        } catch (err: unknown) {
+            setAudioError((err as Error)?.message || 'Không phát được audio câu.');
+            setAudioPlaying(false);
+        } finally {
+            setAudioLoading(false);
+        }
+    }, [audioLoading, chapterId, sentenceText, sourceLocale]);
+
+    useEffect(() => {
+        const audio = audioRef.current;
+        if (!audio) return undefined;
+
+        const handleEnded = () => setAudioPlaying(false);
+        const handlePause = () => setAudioPlaying(false);
+        const handlePlay = () => setAudioPlaying(true);
+
+        audio.addEventListener('ended', handleEnded);
+        audio.addEventListener('pause', handlePause);
+        audio.addEventListener('play', handlePlay);
+
+        return () => {
+            audio.removeEventListener('ended', handleEnded);
+            audio.removeEventListener('pause', handlePause);
+            audio.removeEventListener('play', handlePlay);
+        };
+    }, []);
+
+    useEffect(() => {
+        const container = containerRef.current;
+        if (!container) return undefined;
+
+        const handleClick = (event: MouseEvent) => {
+            if (shouldIgnoreSelectionTarget(event.target)) return;
+            const selectionText = window.getSelection()?.toString().trim();
+            if (selectionText) return;
+
+            const sentence = findSentenceFromPoint(container, event.target, event.clientX, event.clientY);
+            if (!sentence || sentence.length < 2) return;
+
+            void openSentence(sentence);
+        };
+
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                setPanelOpen(false);
+                stopAudio();
+            }
+        };
+
+        container.addEventListener('click', handleClick);
+        window.addEventListener('keydown', handleKeyDown);
+
+        return () => {
+            container.removeEventListener('click', handleClick);
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [containerRef, openSentence, stopAudio]);
+
+    return (
+        <>
+            <audio ref={audioRef} preload="none" className="hidden" />
+
+            {panelOpen && (
+                <div className="fixed bottom-24 left-4 right-4 z-[63] md:left-auto md:right-6 md:w-[420px]">
+                    <div className="overflow-hidden rounded-2xl border border-emerald-900/40 bg-[#0a1012]/95 shadow-[0_18px_60px_rgba(0,0,0,0.45)] backdrop-blur">
+                        <div className="flex items-center gap-2 border-b border-emerald-900/30 px-4 py-3">
+                            <BookText size={15} className="text-emerald-300" />
+                            <div className="min-w-0 flex-1">
+                                <div className="text-[11px] font-mono uppercase tracking-[0.25em] text-emerald-300">
+                                    Sentence Mode
+                                </div>
+                                <div className="truncate text-[10px] text-gray-500">
+                                    Chạm vào câu bất kỳ để mở panel này
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setPanelOpen(false);
+                                    stopAudio();
+                                }}
+                                className="rounded-full border border-gray-800 p-2 text-gray-400 hover:border-emerald-500/40 hover:text-emerald-200"
+                                title="Đóng"
+                            >
+                                <X size={14} />
+                            </button>
+                        </div>
+
+                        <div className="space-y-3 px-4 py-4">
+                            <div className="rounded-xl border border-gray-800 bg-black/20 px-3 py-3">
+                                <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-gray-500">
+                                    Câu đang học
+                                </div>
+                                <div className="mt-2 text-sm leading-7 text-reader-text">
+                                    {sentenceText}
+                                </div>
+                            </div>
+
+                            {loading && (
+                                <div className="flex items-center gap-2 rounded-xl border border-emerald-900/30 bg-emerald-950/10 px-3 py-3 text-sm text-emerald-200">
+                                    <Loader2 size={14} className="animate-spin" />
+                                    Đang phân tích nghĩa ngắn của câu...
+                                </div>
+                            )}
+
+                            {!loading && error && (
+                                <div className="rounded-xl border border-red-900/40 bg-red-950/20 px-3 py-3 text-sm text-red-200">
+                                    {error}
+                                </div>
+                            )}
+
+                            {!loading && !error && insight && (
+                                <div className="rounded-xl border border-emerald-900/30 bg-emerald-950/10 px-3 py-3 text-sm text-gray-100">
+                                    <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-emerald-400">
+                                        Nguồn: {getInsightSourceLabel(insight.source)}
+                                    </div>
+
+                                    <div className="mt-3 whitespace-pre-wrap leading-7 text-gray-100">
+                                        {insight.meaning_vi || 'Chưa có diễn giải ngắn cho câu này.'}
+                                    </div>
+
+                                    {insight.notes && (
+                                        <div className="mt-3 rounded-lg border border-ash-800 bg-black/20 px-3 py-3 text-xs leading-6 text-ash-300">
+                                            {insight.notes}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {audioError && (
+                                <div className="rounded-xl border border-red-900/40 bg-red-950/20 px-3 py-3 text-sm text-red-200">
+                                    {audioError}
+                                </div>
+                            )}
+
+                            {saveMessage && (
+                                <div className="rounded-xl border border-green-900/40 bg-green-950/20 px-3 py-3 text-sm text-green-200">
+                                    {saveMessage}
+                                </div>
+                            )}
+
+                            <div className="flex flex-wrap gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => handlePlay(1)}
+                                    disabled={!canPlayAudio || audioLoading}
+                                    className="inline-flex items-center gap-2 rounded-lg border border-sky-700/40 px-3 py-2 text-[11px] font-mono text-sky-300 hover:bg-sky-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    {audioLoading ? <Loader2 size={12} className="animate-spin" /> : <Volume2 size={12} />}
+                                    Nghe 1x
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => handlePlay(0.75)}
+                                    disabled={!canPlayAudio || audioLoading}
+                                    className="inline-flex items-center gap-2 rounded-lg border border-sky-700/40 px-3 py-2 text-[11px] font-mono text-sky-300 hover:bg-sky-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    {audioLoading ? <Loader2 size={12} className="animate-spin" /> : <Volume2 size={12} />}
+                                    Nghe 0.75x
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={stopAudio}
+                                    disabled={!audioPlaying}
+                                    className="inline-flex items-center gap-2 rounded-lg border border-rose-700/40 px-3 py-2 text-[11px] font-mono text-rose-300 hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    <Square size={12} />
+                                    Dừng
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={handleSaveSentence}
+                                    disabled={!sentenceText || saveLoading}
+                                    className="inline-flex items-center gap-2 rounded-lg border border-amber-700/40 px-3 py-2 text-[11px] font-mono text-amber-300 hover:bg-amber-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    {saveLoading ? <Loader2 size={12} className="animate-spin" /> : <Quote size={12} />}
+                                    Lưu câu
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </>
+    );
+}

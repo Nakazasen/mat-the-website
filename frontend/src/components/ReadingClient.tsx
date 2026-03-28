@@ -17,6 +17,7 @@ import DonateSection from "./DonateSection";
 import LikeButton from "./LikeButton";
 import OraclePanel from "./OraclePanel";
 import ReaderQuickLookup from "./ReaderQuickLookup";
+import ReaderSentenceMode from "./ReaderSentenceMode";
 import ReaderSettingsPanel from "./ReaderSettingsPanel";
 import ReaderStudyDock from "./ReaderStudyDock";
 import SystemHUD from "./SystemHUD";
@@ -347,6 +348,15 @@ export default function ReadingClient({
 
                 {isMounted && (
                     <ReaderQuickLookup
+                        chapterId={chapterId}
+                        chapterProgress={chapterNumber}
+                        containerRef={contentRef}
+                        sourceLocale={(resolvedLocale as any) || locale}
+                    />
+                )}
+
+                {isMounted && (
+                    <ReaderSentenceMode
                         chapterId={chapterId}
                         chapterProgress={chapterNumber}
                         containerRef={contentRef}

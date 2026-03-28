@@ -22,77 +22,18 @@ import {
     saveReaderVocab,
     type ReaderLookupResponse,
 } from '@/lib/reader-learning';
+import {
+    buildExternalDictionaryUrl,
+    findSelectionSentence,
+    normalizeSelectionText,
+    shouldIgnoreSelectionTarget,
+} from '@/lib/reader-selection';
 
 interface ReaderQuickLookupProps {
     chapterId?: number;
     chapterProgress: number;
     containerRef: RefObject<HTMLElement | null>;
     sourceLocale: Locale;
-}
-
-function normalizeSelectionText(text: string): string {
-    return text.replace(/\s+/g, ' ').trim().slice(0, 120);
-}
-
-function normalizeContextText(text: string): string {
-    return text.replace(/\s+/g, ' ').trim();
-}
-
-function buildExternalDictionaryUrl(locale: Locale, selectedText: string): string | null {
-    const query = encodeURIComponent(selectedText.trim());
-    if (!query) return null;
-    if (locale === 'ja') return `https://jotoba.de/search/0/${query}`;
-    if (locale === 'zh-CN') return `https://www.mdbg.net/chinese/dictionary?page=worddict&wdrst=0&wdqb=${query}`;
-    if (locale === 'en') return `https://dictionary.cambridge.org/dictionary/english/${query}`;
-    return null;
-}
-
-function shouldIgnoreSelectionTarget(target: EventTarget | null): boolean {
-    if (!(target instanceof HTMLElement)) return false;
-    return Boolean(target.closest('button, a, input, textarea, select, [contenteditable="true"]'));
-}
-
-function extractSentenceFromText(text: string, selectedText: string): string {
-    const normalizedText = normalizeContextText(text);
-    const normalizedSelectedText = normalizeSelectionText(selectedText);
-
-    if (!normalizedText) return normalizedSelectedText;
-    if (!normalizedSelectedText) return normalizedText.slice(0, 320);
-
-    const index = normalizedText.indexOf(normalizedSelectedText);
-    if (index === -1) {
-        return normalizedText.slice(0, 320);
-    }
-
-    const punctuation = /[.!?。！？]/;
-    let start = index;
-    while (start > 0 && !punctuation.test(normalizedText[start - 1])) {
-        start -= 1;
-    }
-
-    let end = index + normalizedSelectedText.length;
-    while (end < normalizedText.length && !punctuation.test(normalizedText[end])) {
-        end += 1;
-    }
-
-    const sentence = normalizedText.slice(start, Math.min(end + 1, normalizedText.length)).trim();
-    return sentence || normalizedSelectedText;
-}
-
-function findSelectionSentence(anchorElement: HTMLElement | null, selectedText: string): string {
-    const candidates = [
-        anchorElement?.closest('p, li, blockquote, dd, dt, h1, h2, h3, h4, h5, h6'),
-        anchorElement?.closest('[data-karaoke-index]'),
-        anchorElement?.closest('div'),
-        anchorElement,
-    ].filter(Boolean) as HTMLElement[];
-
-    for (const candidate of candidates) {
-        const sentence = extractSentenceFromText(candidate.innerText || candidate.textContent || '', selectedText);
-        if (sentence) return sentence;
-    }
-
-    return selectedText;
 }
 
 function getLookupSourceLabel(source?: string | null): string {

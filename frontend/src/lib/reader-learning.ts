@@ -32,6 +32,20 @@ export interface ReaderLookupResponse {
     external_links: ReaderExternalLink[];
 }
 
+export interface ReaderSentenceInsightRequest {
+    locale: Locale;
+    sentence_text: string;
+    chapter_id?: number;
+}
+
+export interface ReaderSentenceInsightResponse {
+    sentence_text: string;
+    locale: Locale;
+    meaning_vi?: string | null;
+    notes?: string | null;
+    source: ReaderLookupSource;
+}
+
 export interface ReaderSaveVocabRequest {
     locale: Locale;
     term: string;
@@ -168,6 +182,13 @@ async function readerRequest<T>(path: string, init: RequestInit = {}, requireAut
 
 export function lookupReaderTerm(data: ReaderLookupRequest): Promise<ReaderLookupResponse> {
     return readerRequest<ReaderLookupResponse>("/lookup", {
+        method: "POST",
+        body: JSON.stringify(data),
+    });
+}
+
+export function getReaderSentenceInsight(data: ReaderSentenceInsightRequest): Promise<ReaderSentenceInsightResponse> {
+    return readerRequest<ReaderSentenceInsightResponse>("/sentence-insight", {
         method: "POST",
         body: JSON.stringify(data),
     });
