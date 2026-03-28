@@ -590,9 +590,12 @@ async def lookup_reader_term(body: ReaderLookupRequest):
 
     cached = _get_cached_lookup(locale, normalized_term, context_hash)
     if cached:
-        if not cached.external_links:
-            cached.external_links = _build_external_links(locale, term)
-        return cached
+        if locale in {"ja", "zh-CN"} and not cached.reading:
+            cached = None
+        else:
+            if not cached.external_links:
+                cached.external_links = _build_external_links(locale, term)
+            return cached
 
     response = await _lookup_with_ai(locale, term, context_sentence)
     _cache_payload(

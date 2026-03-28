@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
-import { BookText, BrainCircuit, Loader2, Quote, Square, Volume2, X } from 'lucide-react';
+import { BookText, BrainCircuit, Loader2, Quote, Search, Square, Volume2, X } from 'lucide-react';
 
 import type { Locale } from '@/lib/i18n/config';
 import {
@@ -20,6 +20,11 @@ interface ReaderSentenceModeProps {
     chapterProgress: number;
     containerRef: RefObject<HTMLElement | null>;
     sourceLocale: Locale;
+}
+
+interface CachedSentenceAnalysis {
+    insight: ReaderSentenceInsightResponse | null;
+    grammar: ReaderGrammarHintsResponse | null;
 }
 
 function getInsightSourceLabel(source?: string | null): string {
@@ -57,8 +62,10 @@ export default function ReaderSentenceMode({
     sourceLocale,
 }: ReaderSentenceModeProps) {
     const audioRef = useRef<HTMLAudioElement | null>(null);
+    const cacheRef = useRef<Map<string, CachedSentenceAnalysis>>(new Map());
 
     const [sentenceText, setSentenceText] = useState('');
+    const [toolbarPosition, setToolbarPosition] = useState<{ top: number; left: number } | null>(null);
     const [panelOpen, setPanelOpen] = useState(false);
     const [insight, setInsight] = useState<ReaderSentenceInsightResponse | null>(null);
     const [grammarHints, setGrammarHints] = useState<ReaderGrammarHintsResponse | null>(null);
@@ -78,10 +85,12 @@ export default function ReaderSentenceMode({
         [sentenceText],
     );
 
-    const bottomOffset = useMemo(() => {
+    const panelBottom = useMemo(() => {
         if (audioActive) return isDesktop ? 226 : 196;
         return isDesktop ? 96 : 88;
     }, [audioActive, isDesktop]);
+
+    const panelTop = useMemo(() => (isDesktop ? 92 : 80), [isDesktop]);
 
     const stopAudio = useCallback(() => {
         if (!audioRef.current) return;
@@ -90,20 +99,55 @@ export default function ReaderSentenceMode({
         setAudioPlaying(false);
     }, []);
 
-    const openSentence = useCallback(async (sentence: string) => {
-        const normalizedSentence = sentence.trim();
-        if (!normalizedSentence) return;
-
-        setSentenceText(normalizedSentence);
-        setPanelOpen(true);
+    const resetAnalysisState = useCallback(() => {
         setInsight(null);
         setGrammarHints(null);
         setError(null);
         setSaveMessage(null);
         setAudioError(null);
         stopAudio();
+    }, [stopAudio]);
+
+    const handleSentencePick = useCallback((sentence: string, clientX: number, clientY: number) => {
+        const normalizedSentence = sentence.trim();
+        if (!normalizedSentence) return;
+
+        setSentenceText((previous) => {
+            if (previous !== normalizedSentence) {
+                resetAnalysisState();
+                setPanelOpen(false);
+            }
+            return normalizedSentence;
+        });
+
+        setToolbarPosition({
+            top: Math.max(16, clientY + window.scrollY - 48),
+            left: Math.max(48, clientX + window.scrollX),
+        });
+    }, [resetAnalysisState]);
+
+    const runSentenceAnalysis = useCallback(async () => {
+        const normalizedSentence = sentenceText.trim();
+        if (!normalizedSentence || loading) return;
+
+        setToolbarPosition(null);
+        setPanelOpen(true);
+        setError(null);
+        setSaveMessage(null);
+        setAudioError(null);
+        stopAudio();
+
+        const cached = cacheRef.current.get(normalizedSentence);
+        if (cached) {
+            setInsight(cached.insight);
+            setGrammarHints(cached.grammar);
+            return;
+        }
+
         setLoading(true);
         setGrammarLoading(true);
+        setInsight(null);
+        setGrammarHints(null);
 
         try {
             const insightPayload = await getReaderSentenceInsight({
@@ -113,28 +157,35 @@ export default function ReaderSentenceMode({
             });
             setInsight(insightPayload);
 
+            let grammarPayload: ReaderGrammarHintsResponse | null = null;
             try {
-                const grammarPayload = await getReaderGrammarHints({
+                grammarPayload = await getReaderGrammarHints({
                     locale: sourceLocale,
                     sentence_text: normalizedSentence,
                     chapter_id: chapterId,
                 });
                 setGrammarHints(grammarPayload);
             } catch {
-                setGrammarHints({
+                grammarPayload = {
                     sentence_text: normalizedSentence,
                     locale: sourceLocale,
                     hints: [],
                     source: 'rule_based',
-                });
+                };
+                setGrammarHints(grammarPayload);
             }
+
+            cacheRef.current.set(normalizedSentence, {
+                insight: insightPayload,
+                grammar: grammarPayload,
+            });
         } catch (err: unknown) {
             setError((err as Error)?.message || 'Không phân tích được câu này.');
         } finally {
             setLoading(false);
             setGrammarLoading(false);
         }
-    }, [chapterId, sourceLocale, stopAudio]);
+    }, [chapterId, loading, sentenceText, sourceLocale, stopAudio]);
 
     const handleSaveSentence = useCallback(async () => {
         if (!sentenceText || saveLoading) return;
@@ -231,11 +282,12 @@ export default function ReaderSentenceMode({
             const sentence = findSentenceFromPoint(container, event.target, event.clientX, event.clientY);
             if (!sentence || sentence.length < 2) return;
 
-            void openSentence(sentence);
+            handleSentencePick(sentence, event.clientX, event.clientY);
         };
 
         const handleKeyDown = (event: KeyboardEvent) => {
             if (event.key === 'Escape') {
+                setToolbarPosition(null);
                 setPanelOpen(false);
                 stopAudio();
             }
@@ -248,7 +300,7 @@ export default function ReaderSentenceMode({
             container.removeEventListener('click', handleClick);
             window.removeEventListener('keydown', handleKeyDown);
         };
-    }, [containerRef, openSentence, stopAudio]);
+    }, [containerRef, handleSentencePick, stopAudio]);
 
     useEffect(() => {
         const handleAudioState = (event: Event) => {
@@ -271,12 +323,28 @@ export default function ReaderSentenceMode({
         <>
             <audio ref={audioRef} preload="none" className="hidden" />
 
+            {toolbarPosition && sentenceText && !panelOpen && (
+                <div
+                    className="fixed z-[65] -translate-x-1/2"
+                    style={{ top: `${toolbarPosition.top}px`, left: `${toolbarPosition.left}px` }}
+                >
+                    <button
+                        type="button"
+                        onClick={() => void runSentenceAnalysis()}
+                        className="inline-flex items-center gap-2 rounded-full border border-emerald-500/40 bg-ash-950/95 px-3 py-2 text-[11px] font-mono text-emerald-300 shadow-[0_8px_30px_rgba(0,0,0,0.45)] backdrop-blur hover:border-emerald-400 hover:text-emerald-200"
+                    >
+                        <BrainCircuit size={12} />
+                        Phân tích câu
+                    </button>
+                </div>
+            )}
+
             {panelOpen && (
                 <div
-                    className="fixed left-4 right-4 z-[63] md:left-auto md:right-6 md:w-[430px]"
-                    style={{ bottom: `${bottomOffset}px` }}
+                    className="fixed inset-x-4 z-[63] md:left-auto md:right-6 md:w-[430px]"
+                    style={{ top: `${panelTop}px`, bottom: `${panelBottom}px` }}
                 >
-                    <div className="max-h-[72vh] overflow-hidden rounded-2xl border border-emerald-900/40 bg-[#0a1012]/95 shadow-[0_18px_60px_rgba(0,0,0,0.45)] backdrop-blur">
+                    <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-emerald-900/40 bg-[#0a1012]/95 shadow-[0_18px_60px_rgba(0,0,0,0.45)] backdrop-blur">
                         <div className="flex items-center gap-2 border-b border-emerald-900/30 px-4 py-3">
                             <BookText size={15} className="text-emerald-300" />
                             <div className="min-w-0 flex-1">
@@ -284,13 +352,14 @@ export default function ReaderSentenceMode({
                                     Sentence Mode
                                 </div>
                                 <div className="truncate text-[10px] text-gray-500">
-                                    Chạm vào câu bất kỳ để mở panel này
+                                    Chỉ phân tích khi bạn bấm nút, không tự đốt token mỗi lần chạm.
                                 </div>
                             </div>
                             <button
                                 type="button"
                                 onClick={() => {
                                     setPanelOpen(false);
+                                    setToolbarPosition(null);
                                     stopAudio();
                                 }}
                                 className="rounded-full border border-gray-800 p-2 text-gray-400 hover:border-emerald-500/40 hover:text-emerald-200"
@@ -300,7 +369,7 @@ export default function ReaderSentenceMode({
                             </button>
                         </div>
 
-                        <div className="max-h-[calc(72vh-64px)] space-y-3 overflow-y-auto px-4 py-4">
+                        <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
                             <div className="rounded-xl border border-gray-800 bg-black/20 px-3 py-3">
                                 <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-gray-500">
                                     Câu đang học
@@ -401,7 +470,9 @@ export default function ReaderSentenceMode({
                                     {saveMessage}
                                 </div>
                             )}
+                        </div>
 
+                        <div className="border-t border-emerald-900/20 px-4 py-4">
                             <div className="flex flex-wrap gap-2">
                                 <button
                                     type="button"
@@ -441,6 +512,18 @@ export default function ReaderSentenceMode({
                                 >
                                     {saveLoading ? <Loader2 size={12} className="animate-spin" /> : <Quote size={12} />}
                                     Lưu câu
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setPanelOpen(false);
+                                        setToolbarPosition(null);
+                                    }}
+                                    className="ml-auto inline-flex items-center gap-2 rounded-lg border border-gray-800 px-3 py-2 text-[11px] font-mono text-gray-300 hover:border-emerald-500/30 hover:text-emerald-200"
+                                >
+                                    <Search size={12} />
+                                    Chọn câu khác
                                 </button>
                             </div>
                         </div>

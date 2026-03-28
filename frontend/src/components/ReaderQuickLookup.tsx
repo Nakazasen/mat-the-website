@@ -43,6 +43,50 @@ function getLookupSourceLabel(source?: string | null): string {
     return 'Unknown';
 }
 
+function getReadingLabel(locale: Locale): string {
+    if (locale === 'ja') return 'Furigana';
+    if (locale === 'zh-CN') return 'Pinyin';
+    if (locale === 'en') return 'Pronunciation';
+    return 'Cách đọc';
+}
+
+function renderReadingBlock(locale: Locale, result: ReaderLookupResponse) {
+    if (!result.reading) return null;
+
+    if (locale === 'ja') {
+        return (
+            <div className="mt-3 rounded-xl border border-cyan-900/30 bg-black/20 px-3 py-3">
+                <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-cyan-300">Furigana</div>
+                <div className="mt-2">
+                    <ruby className="text-2xl font-semibold text-white ruby-align-center">
+                        {result.term}
+                        <rt className="pb-1 text-sm font-normal tracking-[0.08em] text-cyan-300">{result.reading}</rt>
+                    </ruby>
+                </div>
+            </div>
+        );
+    }
+
+    if (locale === 'zh-CN') {
+        return (
+            <div className="mt-3 rounded-xl border border-cyan-900/30 bg-black/20 px-3 py-3">
+                <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-cyan-300">Pinyin</div>
+                <div className="mt-2 text-xs tracking-[0.16em] text-cyan-200">{result.reading}</div>
+                <div className="mt-1 text-2xl font-semibold text-white">{result.term}</div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="mt-3 rounded-xl border border-cyan-900/30 bg-black/20 px-3 py-3">
+            <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-cyan-300">
+                {getReadingLabel(locale)}
+            </div>
+            <div className="mt-2 text-lg font-semibold text-white">{result.reading}</div>
+        </div>
+    );
+}
+
 export default function ReaderQuickLookup({
     chapterId,
     chapterProgress,
@@ -79,6 +123,8 @@ export default function ReaderQuickLookup({
         if (audioActive) return isDesktop ? 226 : 196;
         return isDesktop ? 96 : 88;
     }, [audioActive, isDesktop]);
+
+    const panelTop = useMemo(() => (isDesktop ? 92 : 80), [isDesktop]);
 
     const hideToolbar = useCallback(() => {
         setToolbarPosition(null);
@@ -397,10 +443,10 @@ export default function ReaderQuickLookup({
 
             {(panelOpen || selectedText) && (
                 <div
-                    className="fixed left-4 right-4 z-[64] md:left-6 md:right-auto md:w-[400px]"
-                    style={{ bottom: `${panelBottom}px` }}
+                    className="fixed inset-x-4 z-[64] md:left-6 md:right-auto md:w-[400px]"
+                    style={{ top: `${panelTop}px`, bottom: `${panelBottom}px` }}
                 >
-                    <div className="max-h-[68vh] overflow-hidden rounded-2xl border border-cyan-900/40 bg-[#090d12]/95 shadow-[0_18px_60px_rgba(0,0,0,0.45)] backdrop-blur">
+                    <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-cyan-900/40 bg-[#090d12]/95 shadow-[0_18px_60px_rgba(0,0,0,0.45)] backdrop-blur">
                         <div className="flex items-center gap-2 border-b border-cyan-900/30 px-4 py-3">
                             <BookOpenText size={15} className="text-cyan-300" />
                             <div className="min-w-0 flex-1">
@@ -422,7 +468,7 @@ export default function ReaderQuickLookup({
                         </div>
 
                         {panelOpen && (
-                            <div className="max-h-[calc(68vh-60px)] space-y-3 overflow-y-auto px-4 py-4">
+                            <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
                                 <div className="rounded-xl border border-gray-800 bg-black/20 px-3 py-2">
                                     <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-gray-500">
                                         {dictionary.lookup.selected}
@@ -457,17 +503,14 @@ export default function ReaderQuickLookup({
                                     <div className="rounded-xl border border-cyan-900/30 bg-cyan-950/10 px-3 py-3 text-sm text-gray-100">
                                         <div className="flex flex-wrap items-center gap-2">
                                             <span className="text-base font-semibold text-white">{lookupResult.term}</span>
-                                            {lookupResult.reading && (
-                                                <span className="rounded-full border border-cyan-700/40 px-2 py-1 text-[11px] font-mono text-cyan-200">
-                                                    {lookupResult.reading}
-                                                </span>
-                                            )}
                                             {lookupResult.pos && (
                                                 <span className="rounded-full border border-ash-700 px-2 py-1 text-[11px] font-mono text-ash-300">
                                                     {lookupResult.pos}
                                                 </span>
                                             )}
                                         </div>
+
+                                        {renderReadingBlock(sourceLocale, lookupResult)}
 
                                         <div className="mt-3 whitespace-pre-wrap leading-7 text-gray-100">
                                             {lookupResult.meaning_vi || 'Chưa có nghĩa ngắn cho mục này.'}
@@ -502,7 +545,11 @@ export default function ReaderQuickLookup({
                                         {saveError}
                                     </div>
                                 )}
+                            </div>
+                        )}
 
+                        {panelOpen && (
+                            <div className="border-t border-cyan-900/20 px-4 py-4">
                                 <div className="flex flex-wrap gap-2">
                                     <button
                                         type="button"
