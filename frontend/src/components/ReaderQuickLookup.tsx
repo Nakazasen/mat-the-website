@@ -87,6 +87,13 @@ function renderReadingBlock(locale: Locale, result: ReaderLookupResponse) {
     );
 }
 
+function shouldAutoLookupSelection(text: string): boolean {
+    const normalized = normalizeSelectionText(text, 48);
+    if (!normalized) return false;
+    const wordCount = normalized.split(/\s+/).filter(Boolean).length;
+    return normalized.length <= 32 && wordCount <= 2;
+}
+
 export default function ReaderQuickLookup({
     chapterId,
     chapterProgress,
@@ -163,7 +170,55 @@ export default function ReaderQuickLookup({
         clearBrowserSelection();
     }, [clearBrowserSelection, hideToolbar, resetLookupState]);
 
-    const readCurrentSelection = useCallback(() => {
+    const runLookup = useCallback(async (textOverride?: string, sentenceOverride?: string) => {
+        const query = normalizeSelectionText(textOverride || selectedText);
+        const contextSentence = sentenceOverride ?? selectedSentence;
+        if (!query || lookupLoading) return;
+
+        const lookupKey = `${sourceLocale}:${query}:${contextSentence}`;
+        if (lookupKey === lastLookupKey && (lookupResult || lookupError)) {
+            setPanelOpen(true);
+            hideToolbar();
+            return;
+        }
+
+        setPanelOpen(true);
+        hideToolbar();
+        setLookupLoading(true);
+        setLookupError(null);
+        setLookupResult(null);
+        setSaveMessage(null);
+        setSaveError(null);
+        setAudioError(null);
+        setLastLookupKey(lookupKey);
+
+        try {
+            const payload = await lookupReaderTerm({
+                locale: sourceLocale,
+                term: query,
+                context_sentence: contextSentence || undefined,
+                chapter_id: chapterId,
+            });
+            setLookupResult(payload);
+        } catch (error: unknown) {
+            setLookupError((error as Error)?.message || dictionary.lookup.failed);
+        } finally {
+            setLookupLoading(false);
+        }
+    }, [
+        chapterId,
+        dictionary.lookup.failed,
+        hideToolbar,
+        lastLookupKey,
+        lookupError,
+        lookupLoading,
+        lookupResult,
+        selectedSentence,
+        selectedText,
+        sourceLocale,
+    ]);
+
+    const readCurrentSelection = useCallback((triggerLookup = false) => {
         const container = containerRef.current;
         if (!container) {
             hideToolbar();
@@ -212,53 +267,12 @@ export default function ReaderQuickLookup({
             top: Math.max(12, rect.top + window.scrollY - 52),
             left: rect.left + window.scrollX + rect.width / 2,
         });
-    }, [containerRef, hideToolbar, resetLookupState]);
-
-    const runLookup = useCallback(async (textOverride?: string) => {
-        const query = normalizeSelectionText(textOverride || selectedText);
-        if (!query || lookupLoading) return;
-
-        const lookupKey = `${sourceLocale}:${query}:${selectedSentence}`;
-        if (lookupKey === lastLookupKey && (lookupResult || lookupError)) {
-            setPanelOpen(true);
-            hideToolbar();
-            return;
+        if (triggerLookup && shouldAutoLookupSelection(normalizedText)) {
+            window.setTimeout(() => {
+                void runLookup(normalizedText, sentence);
+            }, 0);
         }
-
-        setPanelOpen(true);
-        hideToolbar();
-        setLookupLoading(true);
-        setLookupError(null);
-        setLookupResult(null);
-        setSaveMessage(null);
-        setSaveError(null);
-        setAudioError(null);
-        setLastLookupKey(lookupKey);
-
-        try {
-            const payload = await lookupReaderTerm({
-                locale: sourceLocale,
-                term: query,
-                context_sentence: selectedSentence || undefined,
-                chapter_id: chapterId,
-            });
-            setLookupResult(payload);
-        } catch (error: unknown) {
-            setLookupError((error as Error)?.message || dictionary.lookup.failed);
-        } finally {
-            setLookupLoading(false);
-        }
-    }, [
-        chapterId,
-        dictionary.lookup.failed,
-        lastLookupKey,
-        lookupError,
-        lookupLoading,
-        lookupResult,
-        selectedSentence,
-        selectedText,
-        sourceLocale,
-    ]);
+    }, [containerRef, hideToolbar, resetLookupState, runLookup]);
 
     const handleSaveVocab = useCallback(async () => {
         if (!selectedText || saveVocabLoading) return;
@@ -383,11 +397,12 @@ export default function ReaderQuickLookup({
     useEffect(() => {
         const handlePointerUp = (event: MouseEvent | TouchEvent) => {
             if (shouldIgnoreSelectionTarget(event.target)) return;
-            window.setTimeout(readCurrentSelection, 0);
+            const triggerLookup = event instanceof MouseEvent && event.detail >= 2;
+            window.setTimeout(() => readCurrentSelection(triggerLookup), 0);
         };
 
         const handleKeyUp = () => {
-            window.setTimeout(readCurrentSelection, 0);
+            window.setTimeout(() => readCurrentSelection(false), 0);
         };
 
         const handleScroll = () => {
@@ -514,7 +529,7 @@ export default function ReaderQuickLookup({
                                         </div>
                                     )}
                                     <div className="mt-3 text-[10px] text-ash-500">
-                                        Phím tắt: <span className="font-mono text-cyan-300">Alt+L</span> để tra nhanh phần đang chọn.
+                                        Click đúp vào từ ngắn để tra ngay, hoặc dùng <span className="font-mono text-cyan-300">Alt+L</span>.
                                     </div>
                                 </div>
 
