@@ -328,6 +328,39 @@ def _find_best_matching_block(translated_blocks: list[str], selected_text: str, 
     return best_index, best_score
 
 
+def _block_start_offsets(blocks: list[str]) -> tuple[list[int], int]:
+    offsets: list[int] = []
+    cursor = 0
+    for block in blocks:
+        normalized = _normalize_match_text(block)
+        offsets.append(cursor)
+        cursor += len(normalized) + 1
+    return offsets, max(cursor, 1)
+
+
+def _map_source_block_index_by_relative_position(
+    translated_blocks: list[str],
+    source_blocks: list[str],
+    translated_index: int,
+) -> int:
+    if not translated_blocks or not source_blocks:
+        return 0
+    safe_translated_index = max(0, min(translated_index, len(translated_blocks) - 1))
+    translated_offsets, translated_total = _block_start_offsets(translated_blocks)
+    source_offsets, source_total = _block_start_offsets(source_blocks)
+
+    translated_pos = translated_offsets[safe_translated_index]
+    relative = translated_pos / max(translated_total - 1, 1)
+    target_source_pos = int(relative * max(source_total - 1, 1))
+
+    mapped_index = len(source_offsets) - 1
+    for index, start in enumerate(source_offsets):
+        if start >= target_source_pos:
+            mapped_index = index
+            break
+    return max(0, min(mapped_index, len(source_blocks) - 1))
+
+
 def _split_sentences(text: Optional[str]) -> list[str]:
     plain_text = _strip_html_to_text(text)
     if not plain_text:
@@ -1003,7 +1036,11 @@ async def source_reference(body: ReaderSourceReferenceRequest):
         )
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chưa tìm được đoạn gốc tiếng Việt tương ứng.")
 
-    source_index = min(best_index, max(len(source_blocks) - 1, 0))
+    source_index = _map_source_block_index_by_relative_position(
+        translated_blocks,
+        source_blocks,
+        best_index,
+    )
     translated_excerpt = selected_text.strip()
     source_excerpt = source_blocks[source_index].strip()
     match_mode: Literal["sentence", "paragraph"] = "paragraph"
