@@ -1,11 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { BookMarked, ChevronLeft, Loader2 } from "lucide-react";
+import { BookMarked, ChevronLeft, Loader2, RefreshCcw, Sparkles } from "lucide-react";
 
 import { useLocale } from "@/context/LocaleContext";
-import { getSavedReaderVocab, type ReaderSavedVocabItem } from "@/lib/reader-learning";
+import {
+    getReaderLearningStats,
+    getSavedReaderVocab,
+    reviewSavedReaderVocab,
+    type ReaderLearningStatsResponse,
+    type ReaderReviewResponse,
+    type ReaderSavedVocabItem,
+} from "@/lib/reader-learning";
 import type { Locale } from "@/lib/i18n/config";
 
 const LOCALE_OPTIONS: Array<{ value: "" | Locale; label: string }> = [
@@ -15,40 +22,87 @@ const LOCALE_OPTIONS: Array<{ value: "" | Locale; label: string }> = [
     { value: "zh-CN", label: "中文" },
 ];
 
+const REVIEW_BUTTONS: Array<{ grade: number; label: string; hint: string }> = [
+    { grade: 0, label: "Quên", hint: "Ôn lại ngay" },
+    { grade: 1, label: "Khó", hint: "Lặp lại sớm" },
+    { grade: 2, label: "Ổn", hint: "Nhớ tạm ổn" },
+    { grade: 3, label: "Nhớ rõ", hint: "Đẩy lịch xa hơn" },
+];
+
+type ReviewMap = Record<string, ReaderReviewResponse>;
+
+function formatReviewSummary(review?: ReaderReviewResponse | null): string | null {
+    if (!review) return null;
+    const nextReview = review.next_review_at
+        ? new Date(review.next_review_at).toLocaleString("vi-VN")
+        : "ngay bây giờ";
+    return `Đã ôn ${review.review_count} lần. Lần tới: ${nextReview}.`;
+}
+
 export default function SavedVocabPage() {
     const { localizePath, locale } = useLocale();
     const [items, setItems] = useState<ReaderSavedVocabItem[]>([]);
+    const [stats, setStats] = useState<ReaderLearningStatsResponse | null>(null);
+    const [reviewMap, setReviewMap] = useState<ReviewMap>({});
     const [filterLocale, setFilterLocale] = useState<"" | Locale>(locale === "vi" ? "" : locale);
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [reviewLoadingId, setReviewLoadingId] = useState<string | null>(null);
+    const [reviewMessage, setReviewMessage] = useState<string | null>(null);
 
-    useEffect(() => {
-        let mounted = true;
-        setLoading(true);
+    const loadPage = useCallback(async (showRefreshing = false) => {
+        if (showRefreshing) setRefreshing(true);
+        else setLoading(true);
         setError(null);
 
-        getSavedReaderVocab({ locale: filterLocale || undefined, page: 1, limit: 100 })
-            .then((payload) => {
-                if (!mounted) return;
-                setItems(payload.items);
-            })
-            .catch((err: unknown) => {
-                if (!mounted) return;
-                setError((err as Error)?.message || "Không tải được danh sách từ đã lưu.");
-                setItems([]);
-            })
-            .finally(() => {
-                if (mounted) setLoading(false);
-            });
-
-        return () => {
-            mounted = false;
-        };
+        try {
+            const [vocabPayload, statsPayload] = await Promise.all([
+                getSavedReaderVocab({ locale: filterLocale || undefined, page: 1, limit: 100 }),
+                getReaderLearningStats(),
+            ]);
+            setItems(vocabPayload.items);
+            setStats(statsPayload);
+        } catch (err: unknown) {
+            setError((err as Error)?.message || "Không tải được danh sách từ đã lưu.");
+            setItems([]);
+            setStats(null);
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
     }, [filterLocale]);
+
+    useEffect(() => {
+        void loadPage(false);
+    }, [loadPage]);
+
+    const handleReview = useCallback(async (savedVocabId: string, grade: number) => {
+        setReviewLoadingId(savedVocabId);
+        setReviewMessage(null);
+        setError(null);
+
+        try {
+            const payload = await reviewSavedReaderVocab({
+                saved_vocab_id: savedVocabId,
+                grade,
+            });
+            setReviewMap((prev) => ({ ...prev, [savedVocabId]: payload }));
+            setReviewMessage("Đã cập nhật lịch ôn cho từ vừa chọn.");
+            const statsPayload = await getReaderLearningStats();
+            setStats(statsPayload);
+        } catch (err: unknown) {
+            setError((err as Error)?.message || "Không cập nhật được lịch ôn.");
+        } finally {
+            setReviewLoadingId(null);
+        }
+    }, []);
+
+    const latestItems = useMemo(() => items.slice(0, 100), [items]);
 
     return (
         <div className="min-h-screen bg-black text-white">
-            <div className="mx-auto max-w-4xl px-4 py-10">
+            <div className="mx-auto max-w-5xl px-4 py-10">
                 <Link
                     href={localizePath("/profile")}
                     className="inline-flex items-center gap-2 text-sm text-ash-400 hover:text-toxic-green-DEFAULT"
@@ -58,7 +112,7 @@ export default function SavedVocabPage() {
                 </Link>
 
                 <div className="mt-6 rounded-3xl border border-ash-800 bg-ash-950/80 p-6 shadow-2xl">
-                    <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                         <div>
                             <div className="flex items-center gap-3 text-cyan-300">
                                 <BookMarked size={18} />
@@ -66,26 +120,59 @@ export default function SavedVocabPage() {
                             </div>
                             <h1 className="mt-3 text-3xl font-biohazard tracking-wide">Từ đã lưu</h1>
                             <p className="mt-2 max-w-2xl text-sm leading-6 text-ash-400">
-                                Trang này là skeleton MVP cho kho từ vựng cá nhân. Ở bước tiếp theo sẽ có thêm lọc theo chương,
-                                mức độ nhớ và ôn tập SRS.
+                                Đây là kho từ vựng lấy trực tiếp từ lúc đọc truyện. Anh có thể lọc theo ngôn ngữ, xem ngữ cảnh,
+                                rồi đánh giá nhanh để hệ thống chuẩn bị cho ôn tập SRS ở bước tiếp theo.
                             </p>
                         </div>
 
-                        <label className="flex flex-col gap-2 text-sm text-ash-400">
-                            <span>Ngôn ngữ</span>
-                            <select
-                                value={filterLocale}
-                                onChange={(event) => setFilterLocale(event.target.value as "" | Locale)}
-                                className="rounded-xl border border-ash-700 bg-black px-3 py-2 text-white outline-none"
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                            <label className="flex flex-col gap-2 text-sm text-ash-400">
+                                <span>Ngôn ngữ</span>
+                                <select
+                                    value={filterLocale}
+                                    onChange={(event) => setFilterLocale(event.target.value as "" | Locale)}
+                                    className="rounded-xl border border-ash-700 bg-black px-3 py-2 text-white outline-none"
+                                >
+                                    {LOCALE_OPTIONS.map((option) => (
+                                        <option key={option.label} value={option.value}>
+                                            {option.label}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
+
+                            <button
+                                type="button"
+                                onClick={() => void loadPage(true)}
+                                disabled={refreshing}
+                                className="inline-flex items-center gap-2 rounded-xl border border-cyan-700/40 px-4 py-2 text-sm text-cyan-300 hover:bg-cyan-500/10 disabled:opacity-50"
                             >
-                                {LOCALE_OPTIONS.map((option) => (
-                                    <option key={option.label} value={option.value}>
-                                        {option.label}
-                                    </option>
-                                ))}
-                            </select>
-                        </label>
+                                {refreshing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCcw size={16} />}
+                                Làm mới
+                            </button>
+                        </div>
                     </div>
+
+                    <div className="mt-6 grid gap-3 sm:grid-cols-3">
+                        <div className="rounded-2xl border border-ash-800 bg-black/20 px-4 py-4">
+                            <div className="text-[10px] font-mono uppercase tracking-[0.24em] text-ash-500">Tổng từ đã lưu</div>
+                            <div className="mt-2 text-3xl font-semibold text-white">{stats?.saved_vocab_count ?? "..."}</div>
+                        </div>
+                        <div className="rounded-2xl border border-ash-800 bg-black/20 px-4 py-4">
+                            <div className="text-[10px] font-mono uppercase tracking-[0.24em] text-ash-500">Câu đã lưu</div>
+                            <div className="mt-2 text-3xl font-semibold text-white">{stats?.saved_sentence_count ?? "..."}</div>
+                        </div>
+                        <div className="rounded-2xl border border-ash-800 bg-black/20 px-4 py-4">
+                            <div className="text-[10px] font-mono uppercase tracking-[0.24em] text-ash-500">Đến hạn ôn</div>
+                            <div className="mt-2 text-3xl font-semibold text-toxic-green-DEFAULT">{stats?.review_due_count ?? "..."}</div>
+                        </div>
+                    </div>
+
+                    {reviewMessage && (
+                        <div className="mt-6 rounded-2xl border border-green-900/40 bg-green-950/20 px-4 py-4 text-sm text-green-200">
+                            {reviewMessage}
+                        </div>
+                    )}
 
                     <div className="mt-6">
                         {loading && (
@@ -101,41 +188,80 @@ export default function SavedVocabPage() {
                             </div>
                         )}
 
-                        {!loading && !error && items.length === 0 && (
+                        {!loading && !error && latestItems.length === 0 && (
                             <div className="rounded-2xl border border-dashed border-ash-700 bg-black/20 px-4 py-8 text-center text-sm text-ash-500">
                                 Chưa có từ nào được lưu cho bộ lọc hiện tại.
                             </div>
                         )}
 
-                        {!loading && !error && items.length > 0 && (
-                            <div className="space-y-3">
-                                {items.map((item) => (
-                                    <div key={item.id} className="rounded-2xl border border-ash-800 bg-black/25 px-4 py-4">
-                                        <div className="flex flex-wrap items-start justify-between gap-3">
-                                            <div>
-                                                <div className="text-lg font-semibold text-white">{item.term}</div>
-                                                <div className="mt-1 text-xs font-mono uppercase tracking-[0.2em] text-cyan-300">
-                                                    {item.locale}
-                                                    {item.reading ? ` • ${item.reading}` : ""}
-                                                    {item.pos ? ` • ${item.pos}` : ""}
+                        {!loading && !error && latestItems.length > 0 && (
+                            <div className="space-y-4">
+                                {latestItems.map((item) => {
+                                    const review = reviewMap[item.id];
+                                    return (
+                                        <div key={item.id} className="rounded-2xl border border-ash-800 bg-black/25 px-4 py-4">
+                                            <div className="flex flex-wrap items-start justify-between gap-3">
+                                                <div>
+                                                    <div className="text-lg font-semibold text-white">{item.term}</div>
+                                                    <div className="mt-1 flex flex-wrap gap-2 text-xs font-mono uppercase tracking-[0.2em] text-cyan-300">
+                                                        <span>{item.locale}</span>
+                                                        {item.reading && <span>{item.reading}</span>}
+                                                        {item.pos && <span>{item.pos}</span>}
+                                                        {item.source && <span>{item.source}</span>}
+                                                    </div>
+                                                </div>
+                                                <div className="text-xs text-ash-500">
+                                                    {new Date(item.created_at).toLocaleString("vi-VN")}
                                                 </div>
                                             </div>
-                                            <div className="text-xs text-ash-500">
-                                                {new Date(item.created_at).toLocaleString("vi-VN")}
-                                            </div>
-                                        </div>
 
-                                        <div className="mt-3 text-sm leading-6 text-ash-200">
-                                            {item.meaning_vi || "Chưa có nghĩa tiếng Việt được lưu."}
-                                        </div>
-
-                                        {item.context_sentence && (
-                                            <div className="mt-3 rounded-xl border border-ash-800 bg-ash-950/80 px-3 py-3 text-sm italic text-ash-400">
-                                                {item.context_sentence}
+                                            <div className="mt-3 text-sm leading-6 text-ash-200">
+                                                {item.meaning_vi || "Chưa có nghĩa tiếng Việt được lưu cho mục này."}
                                             </div>
-                                        )}
-                                    </div>
-                                ))}
+
+                                            {item.notes && (
+                                                <div className="mt-3 rounded-xl border border-ash-800 bg-ash-950/70 px-3 py-3 text-sm text-ash-300">
+                                                    {item.notes}
+                                                </div>
+                                            )}
+
+                                            {item.context_sentence && (
+                                                <div className="mt-3 rounded-xl border border-ash-800 bg-black/20 px-3 py-3 text-sm italic text-ash-400">
+                                                    {item.context_sentence}
+                                                </div>
+                                            )}
+
+                                            <div className="mt-4 flex flex-wrap items-center gap-2">
+                                                {REVIEW_BUTTONS.map((button) => (
+                                                    <button
+                                                        key={button.grade}
+                                                        type="button"
+                                                        onClick={() => void handleReview(item.id, button.grade)}
+                                                        disabled={reviewLoadingId === item.id}
+                                                        className="rounded-lg border border-cyan-900/30 px-3 py-2 text-xs text-cyan-200 hover:border-cyan-500/40 hover:bg-cyan-500/10 disabled:opacity-50"
+                                                        title={button.hint}
+                                                    >
+                                                        {reviewLoadingId === item.id ? (
+                                                            <span className="inline-flex items-center gap-2">
+                                                                <Loader2 size={12} className="animate-spin" />
+                                                                Đang lưu
+                                                            </span>
+                                                        ) : (
+                                                            button.label
+                                                        )}
+                                                    </button>
+                                                ))}
+                                            </div>
+
+                                            {review && (
+                                                <div className="mt-3 inline-flex items-center gap-2 rounded-xl border border-toxic-green-DEFAULT/20 bg-toxic-green-DEFAULT/10 px-3 py-2 text-sm text-toxic-green-DEFAULT">
+                                                    <Sparkles size={14} />
+                                                    {formatReviewSummary(review)}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
                             </div>
                         )}
                     </div>
