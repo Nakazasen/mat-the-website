@@ -93,6 +93,18 @@ export default function AudioPlayer({
         };
     }, [onIndexChange]);
 
+    useEffect(() => {
+        window.dispatchEvent(new CustomEvent('reader-audio-state', {
+            detail: { active: playState !== 'stopped' },
+        }));
+
+        return () => {
+            window.dispatchEvent(new CustomEvent('reader-audio-state', {
+                detail: { active: false },
+            }));
+        };
+    }, [playState]);
+
     const stop = useCallback(() => {
         stoppedRef.current = true;
         if (wakeLockRef.current) {

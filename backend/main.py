@@ -81,6 +81,7 @@ try:
 
     from routes.wiki_search import router as wiki_router
     from routes.reader_learning import router as reader_learning_router
+    from routes.reader_grammar import router as reader_grammar_router
 
 except (ImportError, ModuleNotFoundError):
 
@@ -108,6 +109,7 @@ except (ImportError, ModuleNotFoundError):
 
     from backend.routes.wiki_search import router as wiki_router
     from backend.routes.reader_learning import router as reader_learning_router
+    from backend.routes.reader_grammar import router as reader_grammar_router
 
 load_dotenv(override=True)
 
@@ -1697,6 +1699,8 @@ app.include_router(oracle_router)
 app.include_router(wiki_router)
 
 app.include_router(reader_learning_router)
+
+app.include_router(reader_grammar_router)
 
 @app.middleware("http")
 

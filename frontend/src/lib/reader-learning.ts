@@ -46,6 +46,36 @@ export interface ReaderSentenceInsightResponse {
     source: ReaderLookupSource;
 }
 
+export type ReaderGrammarHintCategory =
+    | "grammar"
+    | "structure"
+    | "idiom"
+    | "phrasal_verb"
+    | "collocation"
+    | "conjugation"
+    | "aspect"
+    | "tone";
+
+export interface ReaderGrammarHint {
+    title: string;
+    explanation_vi: string;
+    example_fragment?: string | null;
+    category: ReaderGrammarHintCategory;
+}
+
+export interface ReaderGrammarHintsRequest {
+    locale: Locale;
+    sentence_text: string;
+    chapter_id?: number;
+}
+
+export interface ReaderGrammarHintsResponse {
+    sentence_text: string;
+    locale: Locale;
+    hints: ReaderGrammarHint[];
+    source: ReaderLookupSource;
+}
+
 export interface ReaderSaveVocabRequest {
     locale: Locale;
     term: string;
@@ -189,6 +219,13 @@ export function lookupReaderTerm(data: ReaderLookupRequest): Promise<ReaderLooku
 
 export function getReaderSentenceInsight(data: ReaderSentenceInsightRequest): Promise<ReaderSentenceInsightResponse> {
     return readerRequest<ReaderSentenceInsightResponse>("/sentence-insight", {
+        method: "POST",
+        body: JSON.stringify(data),
+    });
+}
+
+export function getReaderGrammarHints(data: ReaderGrammarHintsRequest): Promise<ReaderGrammarHintsResponse> {
+    return readerRequest<ReaderGrammarHintsResponse>("/grammar-hints", {
         method: "POST",
         body: JSON.stringify(data),
     });

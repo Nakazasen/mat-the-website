@@ -2,7 +2,7 @@
 
 import type { Locale } from "@/lib/i18n/config";
 
-const SENTENCE_BOUNDARY_REGEX = /[.!?。！？…\n]/;
+const SENTENCE_BOUNDARY_REGEX = /[.!?。！？\n]/;
 const BLOCK_SELECTOR = "p, li, blockquote, dd, dt, h1, h2, h3, h4, h5, h6, [data-karaoke-index], div";
 
 export function normalizeSelectionText(text: string, maxLength = 120): string {
@@ -17,7 +17,9 @@ export function buildExternalDictionaryUrl(locale: Locale, selectedText: string)
     const query = encodeURIComponent(selectedText.trim());
     if (!query) return null;
     if (locale === "ja") return `https://jotoba.de/search/0/${query}`;
-    if (locale === "zh-CN") return `https://www.mdbg.net/chinese/dictionary?page=worddict&wdrst=0&wdqb=${query}`;
+    if (locale === "zh-CN") {
+        return `https://www.mdbg.net/chinese/dictionary?page=worddict&wdrst=0&wdqb=${query}`;
+    }
     if (locale === "en") return `https://dictionary.cambridge.org/dictionary/english/${query}`;
     return null;
 }

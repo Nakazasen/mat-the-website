@@ -67,11 +67,18 @@ export default function ReaderQuickLookup({
     const [audioLoading, setAudioLoading] = useState(false);
     const [audioError, setAudioError] = useState<string | null>(null);
     const [audioPlaying, setAudioPlaying] = useState(false);
+    const [audioActive, setAudioActive] = useState(false);
+    const [isDesktop, setIsDesktop] = useState(false);
 
     const externalDictionaryUrl = useMemo(() => {
         if (lookupResult?.external_links?.[0]?.url) return lookupResult.external_links[0].url;
         return buildExternalDictionaryUrl(sourceLocale, selectedText);
     }, [lookupResult, selectedText, sourceLocale]);
+
+    const panelBottom = useMemo(() => {
+        if (audioActive) return isDesktop ? 226 : 196;
+        return isDesktop ? 96 : 88;
+    }, [audioActive, isDesktop]);
 
     const hideToolbar = useCallback(() => {
         setToolbarPosition(null);
@@ -203,7 +210,7 @@ export default function ReaderQuickLookup({
                 reading: lookupResult?.reading || undefined,
                 meaning_vi: lookupResult?.meaning_vi || undefined,
                 pos: lookupResult?.pos || undefined,
-                notes: lookupResult?.notes || `Lưu khi đang đọc chương ${chapterProgress}.`,
+                notes: lookupResult?.notes || `Lưu khi đọc chương ${chapterProgress}.`,
                 context_sentence: selectedSentence || undefined,
                 chapter_id: chapterId,
                 source: lookupResult?.source || 'manual',
@@ -330,11 +337,7 @@ export default function ReaderQuickLookup({
                 return;
             }
 
-            if (
-                event.altKey &&
-                event.key.toLowerCase() === 'l' &&
-                !shouldIgnoreSelectionTarget(event.target)
-            ) {
+            if (event.altKey && event.key.toLowerCase() === 'l' && !shouldIgnoreSelectionTarget(event.target)) {
                 event.preventDefault();
                 runLookup();
             }
@@ -354,6 +357,23 @@ export default function ReaderQuickLookup({
             window.removeEventListener('keydown', handleKeyDown);
         };
     }, [hideToolbar, panelOpen, readCurrentSelection, runLookup, stopSentenceAudio]);
+
+    useEffect(() => {
+        const handleAudioState = (event: Event) => {
+            const detail = (event as CustomEvent<{ active?: boolean }>).detail;
+            setAudioActive(Boolean(detail?.active));
+        };
+
+        const updateViewport = () => setIsDesktop(window.innerWidth >= 768);
+
+        updateViewport();
+        window.addEventListener('resize', updateViewport);
+        window.addEventListener('reader-audio-state', handleAudioState as EventListener);
+        return () => {
+            window.removeEventListener('resize', updateViewport);
+            window.removeEventListener('reader-audio-state', handleAudioState as EventListener);
+        };
+    }, []);
 
     return (
         <>
@@ -376,8 +396,11 @@ export default function ReaderQuickLookup({
             )}
 
             {(panelOpen || selectedText) && (
-                <div className="fixed bottom-24 left-4 right-4 z-[64] md:left-6 md:right-auto md:w-[400px]">
-                    <div className="overflow-hidden rounded-2xl border border-cyan-900/40 bg-[#090d12]/95 shadow-[0_18px_60px_rgba(0,0,0,0.45)] backdrop-blur">
+                <div
+                    className="fixed left-4 right-4 z-[64] md:left-6 md:right-auto md:w-[400px]"
+                    style={{ bottom: `${panelBottom}px` }}
+                >
+                    <div className="max-h-[68vh] overflow-hidden rounded-2xl border border-cyan-900/40 bg-[#090d12]/95 shadow-[0_18px_60px_rgba(0,0,0,0.45)] backdrop-blur">
                         <div className="flex items-center gap-2 border-b border-cyan-900/30 px-4 py-3">
                             <BookOpenText size={15} className="text-cyan-300" />
                             <div className="min-w-0 flex-1">
@@ -399,7 +422,7 @@ export default function ReaderQuickLookup({
                         </div>
 
                         {panelOpen && (
-                            <div className="space-y-3 px-4 py-4">
+                            <div className="max-h-[calc(68vh-60px)] space-y-3 overflow-y-auto px-4 py-4">
                                 <div className="rounded-xl border border-gray-800 bg-black/20 px-3 py-2">
                                     <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-gray-500">
                                         {dictionary.lookup.selected}
