@@ -6,6 +6,8 @@ import {
     BookmarkPlus,
     ExternalLink,
     Loader2,
+    Maximize2,
+    Minimize2,
     Quote,
     Repeat,
     Search,
@@ -41,6 +43,7 @@ interface ReaderQuickLookupProps {
 
 const MOBILE_PANEL_EVENT = 'reader-learning-mobile-panel';
 const AUDIO_LAYOUT_EVENT = 'reader-audio-layout';
+const SOURCE_REFERENCE_EVENT = 'reader-open-source-reference-from-selection';
 
 function getLookupSourceLabel(source?: string | null): string {
     if (source === 'cache') return 'Cache';
@@ -176,6 +179,7 @@ export default function ReaderQuickLookup({
     const [sourceReferenceError, setSourceReferenceError] = useState<string | null>(null);
     const [sourceReference, setSourceReference] = useState<ReaderSourceReferenceResponse | null>(null);
     const [sourceReferenceSwapOrder, setSourceReferenceSwapOrder] = useState(false);
+    const [panelExpanded, setPanelExpanded] = useState(false);
 
     const externalDictionaryUrl = useMemo(() => {
         if (lookupResult?.external_links?.[0]?.url) return lookupResult.external_links[0].url;
@@ -188,6 +192,10 @@ export default function ReaderQuickLookup({
     }, [audioActive, audioPanelHeight, isDesktop]);
 
     const panelTop = useMemo(() => (isDesktop ? 92 : 80), [isDesktop]);
+    const desktopPanelWidth = useMemo(() => {
+        if (!isDesktop) return undefined;
+        return panelExpanded ? 'min(920px, calc(100vw - 3rem))' : '480px';
+    }, [isDesktop, panelExpanded]);
     const preferSourceReference = useMemo(
         () => shouldPrioritizeSourceReference(sourceLocale, selectedText),
         [selectedText, sourceLocale],
@@ -244,6 +252,21 @@ export default function ReaderQuickLookup({
         setSaveError(null);
         setAudioError(null);
     }, [hideToolbar]);
+
+    const showSourceReferenceSelectionError = useCallback(() => {
+        setPanelOpen(true);
+        hideToolbar();
+        setSourceReference(null);
+        setSourceReferenceLoading(false);
+        setSourceReferenceError('Hãy bôi đen một câu hoặc đoạn trước khi mở Gốc VI.');
+        setLookupError(null);
+        setSaveMessage(null);
+        setSaveError(null);
+        setAudioError(null);
+        if (isDesktop) {
+            setPanelExpanded(true);
+        }
+    }, [hideToolbar, isDesktop]);
 
     const captureCurrentSelection = useCallback(() => {
         const container = containerRef.current;
@@ -474,16 +497,19 @@ export default function ReaderQuickLookup({
         if (!selectedText || !chapterId || sourceLocale === 'vi') return;
         setPanelOpen(true);
         hideToolbar();
+        if (isDesktop) {
+            setPanelExpanded(true);
+        }
         setLookupError(null);
         setSaveMessage(null);
         setSaveError(null);
         setAudioError(null);
         void handleLoadSourceReference();
-    }, [chapterId, handleLoadSourceReference, hideToolbar, selectedText, sourceLocale]);
+    }, [chapterId, handleLoadSourceReference, hideToolbar, isDesktop, selectedText, sourceLocale]);
 
     const renderDiffText = useCallback(
         (value: { before: string; changed: string; after: string }, tone: 'cyan' | 'emerald') => (
-            <div className="mt-2 whitespace-pre-wrap text-xs leading-6">
+            <div className="mt-2 whitespace-pre-wrap text-sm leading-7">
                 <span>{value.before}</span>
                 {value.changed && (
                     <mark
@@ -594,6 +620,39 @@ export default function ReaderQuickLookup({
             }, 0);
         };
 
+        const handleSourceReferenceRequest = () => {
+            const snapshot = captureCurrentSelection();
+            if (!snapshot) {
+                if (selectedText) {
+                    openSourceReferencePanel();
+                    return;
+                }
+                showSourceReferenceSelectionError();
+                return;
+            }
+
+            const { normalizedText, sentence, rect } = snapshot;
+            setSelectedText((prev) => {
+                if (prev !== normalizedText) {
+                    resetLookupState();
+                }
+                return normalizedText;
+            });
+            setSelectedSentence(sentence);
+            setToolbarPosition({
+                top: Math.max(12, rect.top + window.scrollY - 52),
+                left: rect.left + window.scrollX + rect.width / 2,
+            });
+            window.setTimeout(() => {
+                setPanelOpen(true);
+                hideToolbar();
+                if (isDesktop) {
+                    setPanelExpanded(true);
+                }
+                void handleLoadSourceReference();
+            }, 0);
+        };
+
         document.addEventListener('mouseup', handlePointerUp);
         document.addEventListener('touchend', handlePointerUp);
         document.addEventListener('mousedown', handlePointerDown);
@@ -602,6 +661,7 @@ export default function ReaderQuickLookup({
         window.addEventListener('scroll', handleScroll, { passive: true });
         window.addEventListener('keydown', handleKeyDown);
         window.addEventListener('reader-open-lookup-from-selection', handleLookupRequest as EventListener);
+        window.addEventListener(SOURCE_REFERENCE_EVENT, handleSourceReferenceRequest as EventListener);
 
         return () => {
             document.removeEventListener('mouseup', handlePointerUp);
@@ -612,11 +672,15 @@ export default function ReaderQuickLookup({
             window.removeEventListener('scroll', handleScroll);
             window.removeEventListener('keydown', handleKeyDown);
             window.removeEventListener('reader-open-lookup-from-selection', handleLookupRequest as EventListener);
+            window.removeEventListener(SOURCE_REFERENCE_EVENT, handleSourceReferenceRequest as EventListener);
         };
     }, [
         captureCurrentSelection,
         closeLookupPanel,
+        handleLoadSourceReference,
         hideToolbar,
+        isDesktop,
+        openSourceReferencePanel,
         panelOpen,
         readCurrentSelection,
         resetLookupState,
@@ -624,7 +688,7 @@ export default function ReaderQuickLookup({
         selectedSentence,
         selectedText,
         showSelectionRequiredError,
-        openSourceReferencePanel,
+        showSourceReferenceSelectionError,
     ]);
 
     useEffect(() => {
@@ -774,8 +838,8 @@ export default function ReaderQuickLookup({
             {panelOpen && (
                 <div
                     ref={panelRef}
-                    className="fixed inset-x-4 z-[64] md:left-6 md:right-auto md:w-[400px]"
-                    style={{ top: `${panelTop}px`, bottom: `${panelBottom}px` }}
+                    className="fixed inset-x-4 z-[64] md:left-6 md:right-auto"
+                    style={{ top: `${panelTop}px`, bottom: `${panelBottom}px`, width: desktopPanelWidth }}
                 >
                     <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-cyan-900/40 bg-[#090d12]/95 shadow-[0_18px_60px_rgba(0,0,0,0.45)] backdrop-blur">
                         <div className="flex items-center gap-2 border-b border-cyan-900/30 px-4 py-3">
@@ -788,6 +852,16 @@ export default function ReaderQuickLookup({
                                     {selectedText || dictionary.lookup.hint}
                                 </div>
                             </div>
+                            {isDesktop && (
+                                <button
+                                    type="button"
+                                    onClick={() => setPanelExpanded((prev) => !prev)}
+                                    className="rounded-full border border-gray-800 p-2 text-gray-400 hover:border-cyan-500/40 hover:text-cyan-200"
+                                    title={panelExpanded ? 'Thu gọn panel đối chiếu' : 'Mở rộng panel đối chiếu'}
+                                >
+                                    {panelExpanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                                </button>
+                            )}
                             <button
                                 type="button"
                                 onClick={closeLookupPanel}
@@ -804,11 +878,11 @@ export default function ReaderQuickLookup({
                                     <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-gray-500">
                                         {dictionary.lookup.selected}
                                     </div>
-                                    <div className="mt-1 break-words text-sm text-reader-text">
+                                    <div className="mt-2 whitespace-pre-wrap break-words text-sm leading-7 text-reader-text">
                                         {selectedText || dictionary.lookup.empty}
                                     </div>
                                     {selectedSentence && (
-                                        <div className="mt-3 rounded-lg border border-ash-800 bg-ash-950/70 px-3 py-2 text-xs leading-6 text-ash-400">
+                                        <div className="mt-3 rounded-lg border border-ash-800 bg-ash-950/70 px-3 py-3 text-sm leading-7 text-ash-300">
                                             {selectedSentence}
                                         </div>
                                     )}
@@ -891,7 +965,7 @@ export default function ReaderQuickLookup({
                                                 {getSourceReferenceModeLabel(sourceReference.match_mode)}
                                             </div>
                                         </div>
-                                        <div className="mt-3 grid gap-3 md:grid-cols-2">
+                                        <div className={`mt-3 grid gap-3 ${isDesktop && panelExpanded ? 'md:grid-cols-2' : 'grid-cols-1'}`}>
                                             {(sourceReferenceSwapOrder ? [
                                                 {
                                                     key: 'source',
@@ -939,7 +1013,7 @@ export default function ReaderQuickLookup({
                                                     {sourceReferenceDiff.hasDiff
                                                         ? renderDiffText(card.segments, card.tone)
                                                         : (
-                                                            <div className={`mt-2 whitespace-pre-wrap text-xs leading-6 ${
+                                                            <div className={`mt-2 whitespace-pre-wrap text-sm leading-7 ${
                                                                 card.tone === 'cyan' ? 'text-ash-300' : 'text-emerald-50'
                                                             }`}>
                                                                 {card.content}

@@ -91,7 +91,17 @@ function triggerLookupFromSelection() {
     window.dispatchEvent(new CustomEvent("reader-open-lookup-from-selection"));
 }
 
-function LookupActionButton({ onAfterTrigger }: { onAfterTrigger?: () => void }) {
+function triggerSourceReferenceFromSelection() {
+    window.dispatchEvent(new CustomEvent("reader-open-source-reference-from-selection"));
+}
+
+function LookupActionButtons({
+    showSourceReference,
+    onAfterTrigger,
+}: {
+    showSourceReference: boolean;
+    onAfterTrigger?: () => void;
+}) {
     const handleMouseDown = useCallback((event: ReactMouseEvent<HTMLButtonElement>) => {
         event.preventDefault();
         triggerLookupFromSelection();
@@ -111,17 +121,50 @@ function LookupActionButton({ onAfterTrigger }: { onAfterTrigger?: () => void })
         }
     }, [onAfterTrigger]);
 
+    const handleSourceMouseDown = useCallback((event: ReactMouseEvent<HTMLButtonElement>) => {
+        event.preventDefault();
+        triggerSourceReferenceFromSelection();
+        onAfterTrigger?.();
+    }, [onAfterTrigger]);
+
+    const handleSourceTouchStart = useCallback(() => {
+        triggerSourceReferenceFromSelection();
+        onAfterTrigger?.();
+    }, [onAfterTrigger]);
+
+    const handleSourceKeyDown = useCallback((event: ReactKeyboardEvent<HTMLButtonElement>) => {
+        if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            triggerSourceReferenceFromSelection();
+            onAfterTrigger?.();
+        }
+    }, [onAfterTrigger]);
+
     return (
-        <button
-            type="button"
-            onMouseDown={handleMouseDown}
-            onTouchStart={handleTouchStart}
-            onKeyDown={handleKeyDown}
-            className="mx-3 mt-3 inline-flex items-center justify-center gap-2 rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-sm text-cyan-200 hover:border-cyan-400 hover:bg-cyan-500/15"
-        >
-            <Search size={14} />
-            Tra từ đang chọn
-        </button>
+        <div className="mx-3 mt-3 grid grid-cols-1 gap-2">
+            {showSourceReference && (
+                <button
+                    type="button"
+                    onMouseDown={handleSourceMouseDown}
+                    onTouchStart={handleSourceTouchStart}
+                    onKeyDown={handleSourceKeyDown}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200 hover:border-emerald-400 hover:bg-emerald-500/15"
+                >
+                    <BookMarked size={14} />
+                    Gốc VI đang chọn
+                </button>
+            )}
+            <button
+                type="button"
+                onMouseDown={handleMouseDown}
+                onTouchStart={handleTouchStart}
+                onKeyDown={handleKeyDown}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-sm text-cyan-200 hover:border-cyan-400 hover:bg-cyan-500/15"
+            >
+                <Search size={14} />
+                Tra từ đang chọn
+            </button>
+        </div>
     );
 }
 
@@ -170,6 +213,7 @@ function StudyStats({
 }
 
 export default function ReaderStudyDock() {
+    const { locale } = useLocale();
     const desktopPanelRef = useRef<HTMLDivElement | null>(null);
     const draggingPointerIdRef = useRef<number | null>(null);
     const [stats, setStats] = useState<ReaderLearningStatsResponse | null>(null);
@@ -250,6 +294,11 @@ export default function ReaderStudyDock() {
         if (!audioActive) return 88;
         return Math.max(88, audioPanelHeight + 116);
     }, [audioActive, audioPanelHeight]);
+
+    const mobileLearningButtonBottom = useMemo(() => {
+        if (!audioActive) return mobileBottom;
+        return Math.max(104, audioPanelHeight + 106);
+    }, [audioActive, audioPanelHeight, mobileBottom]);
 
     const getDesktopMinTop = useCallback(() => {
         if (typeof window === "undefined") return DESKTOP_DEFAULT_POSITION.top;
@@ -371,21 +420,26 @@ export default function ReaderStudyDock() {
                     </div>
 
                     <LookupTips />
-                    <LookupActionButton />
+                    <LookupActionButtons showSourceReference={locale !== "vi"} />
                     <StudyLinks />
                 </div>
             </div>
 
             {!mobileReaderPanelActive && (
-                <div className="fixed left-4 z-[58] md:hidden" style={{ bottom: `${mobileBottom}px` }}>
-                <button
-                    type="button"
-                    onClick={() => setMobileOpen(true)}
-                    className="inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-[#071018]/95 px-4 py-3 text-sm text-cyan-200 shadow-[0_10px_30px_rgba(0,0,0,0.38)] backdrop-blur"
+                <div
+                    className={`fixed z-[58] md:hidden ${audioActive ? "right-4" : "left-4"}`}
+                    style={{ bottom: `${mobileLearningButtonBottom}px` }}
                 >
-                    <GraduationCap size={16} />
-                    Learning
-                </button>
+                    <button
+                        type="button"
+                        onClick={() => setMobileOpen(true)}
+                        className={`inline-flex items-center rounded-full border border-cyan-500/30 bg-[#071018]/95 text-cyan-200 shadow-[0_10px_30px_rgba(0,0,0,0.38)] backdrop-blur ${
+                            audioActive ? "gap-1.5 px-3 py-2 text-xs" : "gap-2 px-4 py-3 text-sm"
+                        }`}
+                    >
+                        <GraduationCap size={audioActive ? 14 : 16} />
+                        <span className={audioActive ? "font-mono uppercase tracking-[0.2em]" : ""}>Learning</span>
+                    </button>
                 </div>
             )}
 
@@ -424,7 +478,10 @@ export default function ReaderStudyDock() {
                                 <StudyStats loading={loading} error={error} stats={stats} />
                             </div>
                             <LookupTips />
-                            <LookupActionButton onAfterTrigger={() => setMobileOpen(false)} />
+                            <LookupActionButtons
+                                showSourceReference={locale !== "vi"}
+                                onAfterTrigger={() => setMobileOpen(false)}
+                            />
                             <StudyLinks onNavigate={() => setMobileOpen(false)} />
                         </div>
                     </div>

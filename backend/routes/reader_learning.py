@@ -333,6 +333,28 @@ def _split_sentences(text: Optional[str]) -> list[str]:
     return sentences if sentences else [plain_text.strip()]
 
 
+def _join_sentence_window(sentences: list[str], start_index: int, count: int) -> str:
+    if not sentences:
+        return ""
+    safe_start = max(0, min(start_index, len(sentences) - 1))
+    safe_count = max(1, count)
+    safe_end = min(len(sentences), safe_start + safe_count)
+    return " ".join(sentence.strip() for sentence in sentences[safe_start:safe_end] if sentence and sentence.strip()).strip()
+
+
+def _selected_sentence_window_size(selected_text: str) -> int:
+    selected_sentences = _split_sentences(selected_text)
+    if len(selected_sentences) >= 2:
+        return min(len(selected_sentences), 4)
+
+    normalized_selected = _normalize_match_text(selected_text)
+    if len(normalized_selected) >= 200:
+        return 3
+    if len(normalized_selected) >= 120:
+        return 2
+    return 1
+
+
 def _should_match_sentence(selected_text: str, context_sentence: Optional[str]) -> bool:
     normalized_selected = _normalize_match_text(selected_text)
     normalized_context = _normalize_match_text(context_sentence)
@@ -967,22 +989,32 @@ async def source_reference(body: ReaderSourceReferenceRequest):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chưa tìm được đoạn gốc tiếng Việt tương ứng.")
 
     source_index = min(best_index, max(len(source_blocks) - 1, 0))
-    translated_excerpt = translated_blocks[best_index].strip()
+    translated_excerpt = selected_text.strip()
     source_excerpt = source_blocks[source_index].strip()
     match_mode: Literal["sentence", "paragraph"] = "paragraph"
 
-    if _should_match_sentence(selected_text, context_sentence):
-        translated_sentences = _split_sentences(translated_excerpt)
-        source_sentences = _split_sentences(source_excerpt)
-        sentence_index, sentence_score = _find_best_matching_block(
-            translated_sentences,
-            selected_text,
-            context_sentence,
-        )
-        if sentence_index is not None and sentence_score >= 0.35:
+    translated_block_excerpt = translated_blocks[best_index].strip()
+    translated_sentences = _split_sentences(translated_block_excerpt)
+    source_sentences = _split_sentences(source_excerpt)
+    sentence_index, sentence_score = _find_best_matching_block(
+        translated_sentences,
+        selected_text,
+        context_sentence,
+    )
+    selected_window_size = _selected_sentence_window_size(selected_text)
+
+    if sentence_index is not None and source_sentences:
+        mapped_sentence_index = min(sentence_index, max(len(source_sentences) - 1, 0))
+        aligned_source_excerpt = _join_sentence_window(source_sentences, mapped_sentence_index, selected_window_size)
+        if aligned_source_excerpt:
+            source_excerpt = aligned_source_excerpt
+
+        if _should_match_sentence(selected_text, context_sentence) and sentence_score >= 0.35:
             match_mode = "sentence"
             translated_excerpt = translated_sentences[sentence_index].strip()
-            source_excerpt = source_sentences[min(sentence_index, max(len(source_sentences) - 1, 0))].strip()
+            source_excerpt = _join_sentence_window(source_sentences, mapped_sentence_index, 1) or source_excerpt
+        elif sentence_score >= 0.2:
+            translated_excerpt = selected_text.strip()
 
     _log_reader_event(
         "info",
