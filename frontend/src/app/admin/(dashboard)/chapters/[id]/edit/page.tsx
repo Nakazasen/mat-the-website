@@ -6,10 +6,31 @@ import Link from 'next/link';
 import { AlertTriangle, ArrowLeft, CheckCircle2, Languages, Save } from 'lucide-react';
 
 import RichTextEditor from '@/components/Editor';
-import { translateAdminChapter } from '@/lib/api';
+import { translateAdminChapter, type AdminChapterTranslateResult, type TranslationFailure } from '@/lib/api';
 import { createAdminClient } from '@/lib/supabase-admin';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
+
+function formatTranslationFailures(failures: TranslationFailure[] | undefined): string {
+    if (!Array.isArray(failures) || failures.length === 0) {
+        return 'Không nhận được chi tiết lỗi từ backend.';
+    }
+    return failures
+        .map((item) => `${item.locale || 'unknown'}: ${(item.detail || '').trim() || 'Không rõ nguyên nhân lỗi.'}`)
+        .join(' | ');
+}
+
+function buildTranslateNotice(chapterNumber: number, result: AdminChapterTranslateResult): string {
+    const translatedLocales = Array.isArray(result.translated_locales) ? result.translated_locales : [];
+    const failedLocales = Array.isArray(result.failed_translations) ? result.failed_translations : [];
+    if (failedLocales.length === 0) {
+        return `Đã dịch chương ${chapterNumber}: ${translatedLocales.join(', ') || 'không có locale nào cần xử lý'}.`;
+    }
+    if (translatedLocales.length === 0) {
+        return `Chương ${chapterNumber} chưa dịch được locale nào. ${formatTranslationFailures(failedLocales)}`;
+    }
+    return `Chương ${chapterNumber} dịch được ${translatedLocales.join(', ')}, nhưng còn lỗi: ${formatTranslationFailures(failedLocales)}`;
+}
 
 export default function EditChapterPage() {
     const params = useParams();
@@ -25,6 +46,7 @@ export default function EditChapterPage() {
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
     const [token, setToken] = useState<string | null>(null);
+    const [translateNotice, setTranslateNotice] = useState<string | null>(null);
 
     useEffect(() => {
         const supabase = createAdminClient();
@@ -119,11 +141,12 @@ export default function EditChapterPage() {
     const handleTranslate = async () => {
         if (!token) return;
         setTranslating(true);
+        setTranslateNotice(null);
         try {
             const result = await translateAdminChapter(chapterNumber, token);
-            alert(`Đã dịch chương ${chapterNumber}: ${result.translated_locales.join(', ')}`);
+            setTranslateNotice(buildTranslateNotice(chapterNumber, result));
         } catch (err: any) {
-            alert(`Lỗi dịch chương ${chapterNumber}: ${err.message}`);
+            setTranslateNotice(`Lỗi dịch chương ${chapterNumber}: ${err?.message || 'Không nhận được thông báo lỗi từ backend.'}`);
         } finally {
             setTranslating(false);
         }
@@ -165,6 +188,13 @@ export default function EditChapterPage() {
                 <div className="flex items-center gap-2 text-red-400 bg-red-950/30 border border-red-900/50 rounded p-3 text-sm mb-4">
                     <AlertTriangle size={14} />
                     <span>{error}</span>
+                </div>
+            )}
+
+            {translateNotice && (
+                <div className="flex items-start gap-2 text-amber-200 bg-amber-950/20 border border-amber-900/40 rounded p-3 text-sm mb-4">
+                    <Languages size={14} className="mt-0.5 shrink-0" />
+                    <span className="whitespace-pre-wrap break-words">{translateNotice}</span>
                 </div>
             )}
 

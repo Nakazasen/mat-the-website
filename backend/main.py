@@ -963,6 +963,29 @@ async def upsert_chapter_translations(chapter_row: dict, title: str, content: st
     if not target_locales:
         return {"translated_locales": [], "failed_translations": []}
 
+    def build_failed_translation_row(
+        locale: str,
+        existing_row: Optional[dict],
+        *,
+        error_detail: str,
+        failure_time: str,
+    ) -> dict:
+        current_row = existing_row or {}
+        return {
+            "chapter_id": chapter_row["id"],
+            "locale": locale,
+            # Postgres checks NOT NULL on the INSERT half of upsert before conflict handling.
+            "title": current_row.get("title") or "",
+            "content": current_row.get("content") or "",
+            "summary": current_row.get("summary"),
+            "translation_status": "failed",
+            "translation_source": "ai",
+            "content_hash": content_hash,
+            "updated_at": failure_time,
+            "last_error": error_detail,
+            "attempt_count": attempt_counts[locale],
+        }
+
     content_hash = build_content_hash(content)
     now_iso = datetime.now(timezone.utc).isoformat()
     existing_resp = (
@@ -1014,16 +1037,12 @@ async def upsert_chapter_translations(chapter_row: dict, title: str, content: st
         failure_time = datetime.now(timezone.utc).isoformat()
         for locale in target_locales:
             supabase.table("chapter_translations").upsert(
-                {
-                    "chapter_id": chapter_row["id"],
-                    "locale": locale,
-                    "translation_status": "failed",
-                    "translation_source": "ai",
-                    "content_hash": content_hash,
-                    "updated_at": failure_time,
-                    "last_error": str(exc.detail),
-                    "attempt_count": attempt_counts[locale],
-                },
+                build_failed_translation_row(
+                    locale,
+                    existing_rows.get(locale),
+                    error_detail=str(exc.detail),
+                    failure_time=failure_time,
+                ),
                 on_conflict="chapter_id,locale",
             ).execute()
         raise
@@ -1031,16 +1050,12 @@ async def upsert_chapter_translations(chapter_row: dict, title: str, content: st
         failure_time = datetime.now(timezone.utc).isoformat()
         for locale in target_locales:
             supabase.table("chapter_translations").upsert(
-                {
-                    "chapter_id": chapter_row["id"],
-                    "locale": locale,
-                    "translation_status": "failed",
-                    "translation_source": "ai",
-                    "content_hash": content_hash,
-                    "updated_at": failure_time,
-                    "last_error": str(exc),
-                    "attempt_count": attempt_counts[locale],
-                },
+                build_failed_translation_row(
+                    locale,
+                    existing_rows.get(locale),
+                    error_detail=str(exc),
+                    failure_time=failure_time,
+                ),
                 on_conflict="chapter_id,locale",
             ).execute()
         raise
@@ -1055,16 +1070,12 @@ async def upsert_chapter_translations(chapter_row: dict, title: str, content: st
         if not translated_title or not translated_content:
             detail = f"Missing translated chapter payload for locale {locale}"
             supabase.table("chapter_translations").upsert(
-                {
-                    "chapter_id": chapter_row["id"],
-                    "locale": locale,
-                    "translation_status": "failed",
-                    "translation_source": "ai",
-                    "content_hash": content_hash,
-                    "updated_at": translated_at,
-                    "last_error": detail,
-                    "attempt_count": attempt_counts[locale],
-                },
+                build_failed_translation_row(
+                    locale,
+                    existing_rows.get(locale),
+                    error_detail=detail,
+                    failure_time=translated_at,
+                ),
                 on_conflict="chapter_id,locale",
             ).execute()
             failed_translations.append({"locale": locale, "status_code": 502, "detail": detail})

@@ -8,6 +8,30 @@ import type { Locale } from '@/lib/i18n/config';
 const API_BASE_URL =
     (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
 
+async function readJsonSafely<T>(res: Response): Promise<T | Record<string, unknown>> {
+    const text = await res.text();
+    if (!text) return {};
+    try {
+        return JSON.parse(text) as T;
+    } catch {
+        return {};
+    }
+}
+
+function buildFailureDetails(
+    failures: Array<{ locale: string; detail?: string; status_code?: number }> | undefined,
+    fallback: string,
+): string {
+    if (!Array.isArray(failures) || failures.length === 0) return fallback;
+    return failures
+        .map((item) => {
+            const locale = item.locale || "unknown";
+            const detail = (item.detail || "").trim() || fallback;
+            return `${locale}: ${detail}`;
+        })
+        .join(" | ");
+}
+
 export interface Chapter {
     id: number;
     chapter_number: number;
@@ -20,6 +44,19 @@ export interface Chapter {
     is_fallback?: boolean;
     translated_title?: string;
     translated_content?: string;
+}
+
+export interface TranslationFailure {
+    locale: string;
+    detail?: string;
+    status_code?: number;
+}
+
+export interface AdminChapterTranslateResult {
+    message: string;
+    chapter_number: number;
+    translated_locales: string[];
+    failed_translations?: TranslationFailure[];
 }
 
 export interface ChaptersResponse {
@@ -250,16 +287,19 @@ export async function resetAdminOracleRateLimit(token: string): Promise<AdminOra
     return payload;
 }
 
-export async function translateAdminChapter(chapterNumber: number, token: string): Promise<{ message: string; chapter_number: number; translated_locales: string[] }> {
+export async function translateAdminChapter(chapterNumber: number, token: string): Promise<AdminChapterTranslateResult> {
     const res = await fetch(`${API_BASE_URL}/api/admin/chapters/${chapterNumber}/translate`, {
         method: "POST",
         headers: {
             Authorization: `Bearer ${token}`,
         },
     });
-    const payload = await res.json();
+    const payload = await readJsonSafely<AdminChapterTranslateResult>(res) as AdminChapterTranslateResult;
     if (!res.ok) {
-        throw new Error(payload.detail || "Failed to translate chapter");
+        const errorMessage =
+            (payload as { detail?: string })?.detail ||
+            buildFailureDetails(payload.failed_translations, "Failed to translate chapter");
+        throw new Error(errorMessage);
     }
     return payload;
 }

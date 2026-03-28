@@ -1,5 +1,6 @@
 import backend.main as main
 import pytest
+from fastapi import HTTPException
 
 
 def test_build_target_translation_locales_filters_duplicates_and_vi():
@@ -69,3 +70,68 @@ async def test_translate_chapter_payload_with_ai_uses_structured_flow(monkeypatc
     )
 
     assert payload == {"title": "Hello", "content": "World"}
+
+
+@pytest.mark.asyncio
+async def test_upsert_chapter_translations_failure_upsert_includes_required_text_fields(monkeypatch):
+    class FakeExecuteResult:
+        def __init__(self, data):
+            self.data = data
+
+    class FakeQuery:
+        def __init__(self, table_name, store):
+            self.table_name = table_name
+            self.store = store
+            self.filters = {}
+
+        def select(self, _fields):
+            return self
+
+        def eq(self, key, value):
+            self.filters[key] = value
+            return self
+
+        def in_(self, key, value):
+            self.filters[key] = value
+            return self
+
+        def execute(self):
+            if self.table_name == "chapter_translations":
+                return FakeExecuteResult([])
+            return FakeExecuteResult([{"id": 999, "chapter_number": 817, "title": "Thu linh te hai."}])
+
+        def upsert(self, payload, on_conflict=None):
+            self.store.append({"table": self.table_name, "payload": payload, "on_conflict": on_conflict})
+            return self
+
+    class FakeSupabase:
+        def __init__(self):
+            self.upserts = []
+
+        def table(self, table_name):
+            return FakeQuery(table_name, self.upserts)
+
+    fake_supabase = FakeSupabase()
+    monkeypatch.setattr(main, "supabase", fake_supabase)
+
+    async def fake_translate_chapter_payloads_with_ai(**_kwargs):
+        raise HTTPException(status_code=503, detail="AI translation is not configured")
+
+    monkeypatch.setattr(main, "translate_chapter_payloads_with_ai", fake_translate_chapter_payloads_with_ai)
+
+    with pytest.raises(HTTPException):
+        await main.upsert_chapter_translations(
+            chapter_row={"id": 999, "chapter_number": 817, "title": "Thu linh te hai."},
+            title="Thu linh te hai.",
+            content="Noi dung chuong",
+            locales=["en"],
+        )
+
+    failed_payloads = [
+        item["payload"]
+        for item in fake_supabase.upserts
+        if item["table"] == "chapter_translations" and item["payload"].get("translation_status") == "failed"
+    ]
+    assert failed_payloads, "Expected failed upsert payload to be recorded"
+    assert failed_payloads[0]["title"] == ""
+    assert failed_payloads[0]["content"] == ""

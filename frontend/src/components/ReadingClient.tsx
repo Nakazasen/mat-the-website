@@ -16,6 +16,7 @@ import CommentSection from "./CommentSection";
 import DonateSection from "./DonateSection";
 import LikeButton from "./LikeButton";
 import OraclePanel from "./OraclePanel";
+import ReaderQuickLookup from "./ReaderQuickLookup";
 import ReaderSettingsPanel from "./ReaderSettingsPanel";
 import SystemHUD from "./SystemHUD";
 
@@ -29,6 +30,11 @@ interface ReadingClientProps {
     totalChapters: number;
     resolvedLocale?: string;
     isFallback?: boolean;
+}
+
+function shouldIgnoreNavigationHotkeys(target: EventTarget | null): boolean {
+    if (!(target instanceof HTMLElement)) return false;
+    return Boolean(target.closest('input, textarea, select, button, a, [contenteditable="true"]'));
 }
 
 export default function ReadingClient({
@@ -172,6 +178,9 @@ export default function ReadingClient({
 
     useEffect(() => {
         const handleKey = (event: KeyboardEvent) => {
+            if (shouldIgnoreNavigationHotkeys(event.target) || event.altKey || event.ctrlKey || event.metaKey) {
+                return;
+            }
             if (event.key === "ArrowLeft" && prevId) {
                 window.location.href = localizePath(`/chapters/${prevId}`);
             } else if (event.key === "ArrowRight" && nextId) {
@@ -333,6 +342,14 @@ export default function ReadingClient({
                 <div ref={contentRef} className="reading-container !bg-transparent !text-inherit prose max-w-none" style={{ fontSize: `${fontSize}px`, lineHeight: 1.8 }}>
                     {!isMounted ? <div dangerouslySetInnerHTML={{ __html: highlightedContent }} /> : karaokeNodes}
                 </div>
+
+                {isMounted && (
+                    <ReaderQuickLookup
+                        chapterProgress={chapterNumber}
+                        containerRef={contentRef}
+                        sourceLocale={(resolvedLocale as any) || locale}
+                    />
+                )}
 
                 <div className="mt-12 mb-8 flex flex-col items-center">
                     <div className="text-[10px] font-mono text-reader-muted mb-4 tracking-[0.4em]">{dictionary.reader.shareStory.toUpperCase()}</div>

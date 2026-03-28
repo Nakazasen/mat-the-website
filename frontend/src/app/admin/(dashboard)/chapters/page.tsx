@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import {
     AlertTriangle,
     ArrowRight,
+    CheckCircle2,
     CheckSquare,
     CheckSquare2,
     ChevronLeft,
@@ -21,7 +22,13 @@ import {
 } from 'lucide-react';
 
 import { createAdminClient } from '@/lib/supabase-admin';
-import { getAdminChapterTranslationStatuses, translateAdminChapter, translateAdminChaptersBatch } from '@/lib/api';
+import {
+    getAdminChapterTranslationStatuses,
+    translateAdminChapter,
+    translateAdminChaptersBatch,
+    type AdminChapterTranslateResult,
+    type TranslationFailure,
+} from '@/lib/api';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mat-the-website.onrender.com';
 const SAFE_BATCH_LIMIT = 2;
@@ -45,6 +52,41 @@ interface ChapterTranslationStatus {
     last_error?: string | null;
     last_error_locale?: string | null;
     status_label: string;
+}
+
+type ActionNotice = {
+    tone: 'success' | 'error';
+    message: string;
+};
+
+function formatTranslationFailures(failures: TranslationFailure[] | undefined): string {
+    if (!Array.isArray(failures) || failures.length === 0) {
+        return 'Không nhận được chi tiết lỗi từ backend.';
+    }
+    return failures
+        .map((item) => `${item.locale || 'unknown'}: ${(item.detail || '').trim() || 'Không rõ nguyên nhân lỗi.'}`)
+        .join(' | ');
+}
+
+function buildSingleTranslateNotice(chapterNumber: number, result: AdminChapterTranslateResult): ActionNotice {
+    const translatedLocales = Array.isArray(result.translated_locales) ? result.translated_locales : [];
+    const failedLocales = Array.isArray(result.failed_translations) ? result.failed_translations : [];
+    if (failedLocales.length === 0) {
+        return {
+            tone: 'success',
+            message: `Đã dịch chương ${chapterNumber}: ${translatedLocales.join(', ') || 'không có locale nào cần xử lý'}.`,
+        };
+    }
+    if (translatedLocales.length === 0) {
+        return {
+            tone: 'error',
+            message: `Chương ${chapterNumber} chưa dịch được locale nào. ${formatTranslationFailures(failedLocales)}`,
+        };
+    }
+    return {
+        tone: 'error',
+        message: `Chương ${chapterNumber} dịch được ${translatedLocales.join(', ')}, nhưng còn lỗi: ${formatTranslationFailures(failedLocales)}`,
+    };
 }
 
 function formatBatchNetworkError(message: string | undefined, completed: number, total: number): string {
@@ -84,6 +126,7 @@ export default function AdminChaptersPage() {
     const [fullBatchRunning, setFullBatchRunning] = useState(false);
     const [fullBatchProgress, setFullBatchProgress] = useState<{ completed: number; total: number; translated: number; skipped: number; failed: number } | null>(null);
     const [translationStatusMap, setTranslationStatusMap] = useState<Record<number, ChapterTranslationStatus>>({});
+    const [actionNotice, setActionNotice] = useState<ActionNotice | null>(null);
 
     useEffect(() => {
         if (!error || error !== 'Failed to fetch') return;
@@ -143,26 +186,29 @@ export default function AdminChaptersPage() {
         fetchChapters(1);
     }, [fetchChapters]);
 
-    useEffect(() => {
-        const loadStatuses = async () => {
-            if (!token || chapters.length === 0) return;
-            try {
-                const result = await getAdminChapterTranslationStatuses(
-                    chapters.map((chapter) => chapter.chapter_number),
-                    token,
-                );
-                const nextMap: Record<number, ChapterTranslationStatus> = {};
+    const refreshTranslationStatuses = useCallback(async (targetChapters?: number[]) => {
+        if (!token) return;
+        const chapterNumbers = (targetChapters && targetChapters.length > 0)
+            ? targetChapters
+            : chapters.map((chapter) => chapter.chapter_number);
+        if (chapterNumbers.length === 0) return;
+        try {
+            const result = await getAdminChapterTranslationStatuses(chapterNumbers, token);
+            setTranslationStatusMap((prev) => {
+                const nextMap = { ...prev };
                 for (const item of result.statuses || []) {
                     nextMap[item.chapter_number] = item;
                 }
-                setTranslationStatusMap(nextMap);
-            } catch {
-                // Keep the page usable even if status summary fails.
-            }
-        };
-
-        loadStatuses();
+                return nextMap;
+            });
+        } catch {
+            // Keep the page usable even if status summary fails.
+        }
     }, [chapters, token]);
+
+    useEffect(() => {
+        refreshTranslationStatuses();
+    }, [refreshTranslationStatuses]);
 
     const filteredChapters = useMemo(() => {
         if (!searchQuery.trim()) return chapters;
@@ -208,11 +254,17 @@ export default function AdminChaptersPage() {
     const handleTranslate = async (chapterNumber: number) => {
         if (!token) return;
         setTranslatingId(chapterNumber);
+        setActionNotice(null);
         try {
             const result = await translateAdminChapter(chapterNumber, token);
-            alert(`Đã dịch chương ${chapterNumber}: ${result.translated_locales.join(', ')}`);
+            setActionNotice(buildSingleTranslateNotice(chapterNumber, result));
+            await refreshTranslationStatuses([chapterNumber]);
         } catch (err: any) {
-            alert(`Lỗi dịch chương ${chapterNumber}: ${err.message}`);
+            setActionNotice({
+                tone: 'error',
+                message: `Lỗi dịch chương ${chapterNumber}: ${err?.message || 'Không nhận được thông báo lỗi từ backend.'}`,
+            });
+            await refreshTranslationStatuses([chapterNumber]);
         } finally {
             setTranslatingId(null);
         }
@@ -233,6 +285,7 @@ export default function AdminChaptersPage() {
         setBatchResult(null);
         setBatchFailureDetails([]);
         setError(null);
+        setActionNotice(null);
 
         try {
             const result = await translateAdminChaptersBatch(
@@ -247,6 +300,7 @@ export default function AdminChaptersPage() {
                 `Đã xử lý ${startChapter}-${endChapter}. Dịch mới: ${result.translated_count}, bỏ qua: ${result.skipped_count}, lỗi: ${result.failed_count}.`
             );
             setBatchFailureDetails(result.failed_chapters || []);
+            await refreshTranslationStatuses();
         } catch (err: any) {
             setError(err?.message || 'Không thể batch dịch chương.');
         } finally {
@@ -267,6 +321,7 @@ export default function AdminChaptersPage() {
         setFullBatchRunning(true);
         setBatchRunning(false);
         setError(null);
+        setActionNotice(null);
         setBatchResult(null);
         setBatchFailureDetails([]);
         setFullBatchProgress({ completed: 0, total, translated: 0, skipped: 0, failed: 0 });
@@ -311,6 +366,7 @@ export default function AdminChaptersPage() {
             setError(err?.message || 'Không thể dịch toàn bộ chương còn thiếu.');
         } finally {
             setFullBatchRunning(false);
+            await refreshTranslationStatuses();
         }
     };
 
@@ -493,6 +549,21 @@ export default function AdminChaptersPage() {
                 <div className="flex items-center gap-2 text-red-400 bg-red-950/30 border border-red-900/50 rounded p-3 text-sm mb-4">
                     <AlertTriangle size={14} />
                     <span>{error}</span>
+                </div>
+            )}
+
+            {actionNotice && (
+                <div
+                    className={`flex items-start gap-2 rounded p-3 text-sm mb-4 ${
+                        actionNotice.tone === 'success'
+                            ? 'border border-green-900/50 bg-green-950/30 text-green-300'
+                            : 'border border-red-900/50 bg-red-950/30 text-red-200'
+                    }`}
+                >
+                    {actionNotice.tone === 'success'
+                        ? <CheckCircle2 size={14} className="mt-0.5 shrink-0" />
+                        : <AlertTriangle size={14} className="mt-0.5 shrink-0" />}
+                    <span className="whitespace-pre-wrap break-words">{actionNotice.message}</span>
                 </div>
             )}
 

@@ -24,6 +24,11 @@ type PlayState = 'stopped' | 'playing' | 'paused';
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'https://mat-the-website.onrender.com').replace(/\/$/, '');
 
+function shouldIgnoreAudioHotkeys(target: EventTarget | null): boolean {
+    if (!(target instanceof HTMLElement)) return false;
+    return Boolean(target.closest('input, textarea, select, [contenteditable="true"]'));
+}
+
 function ttsLocale(locale: Locale) {
     if (locale === 'zh-CN') return 'zh-CN';
     return locale;
@@ -177,6 +182,15 @@ export default function AudioPlayer({
         }
     }, [localizePath, nextId, prevId, router, stop, updateMetadata]);
 
+    const jumpToChunk = useCallback((index: number) => {
+        if (!chunksRef.current.length) return;
+        const nextIndex = Math.min(Math.max(index, 0), chunksRef.current.length - 1);
+        stoppedRef.current = false;
+        setupMediaSession();
+        requestWakeLock();
+        playChunk(nextIndex);
+    }, [playChunk, requestWakeLock, setupMediaSession]);
+
     useEffect(() => {
         const audio = audioRef.current;
         if (!audio) return;
@@ -233,6 +247,55 @@ export default function AudioPlayer({
             playChunk(chunkIndexRef.current);
         }
     }, [playChunk, requestWakeLock]);
+
+    const replayCurrentChunk = useCallback(() => {
+        const audio = audioRef.current;
+        if (playState !== 'stopped' && audio && audio.currentTime > 3) {
+            audio.currentTime = 0;
+            return;
+        }
+        jumpToChunk(Math.max(0, chunkIndexRef.current - 1));
+    }, [jumpToChunk, playState]);
+
+    const skipToNextChunk = useCallback(() => {
+        if (playState === 'stopped') {
+            play();
+            return;
+        }
+        jumpToChunk(chunkIndexRef.current + 1);
+    }, [jumpToChunk, play, playState]);
+
+    useEffect(() => {
+        const handleHotkeys = (event: KeyboardEvent) => {
+            if (!event.altKey || event.ctrlKey || event.metaKey || shouldIgnoreAudioHotkeys(event.target)) {
+                return;
+            }
+
+            const key = event.key.toLowerCase();
+            if (key === 'p') {
+                event.preventDefault();
+                if (playState === 'stopped') {
+                    play();
+                } else if (playState === 'playing') {
+                    pause();
+                } else {
+                    resume();
+                }
+            } else if (key === 's') {
+                event.preventDefault();
+                stop();
+            } else if (event.key === '[') {
+                event.preventDefault();
+                replayCurrentChunk();
+            } else if (event.key === ']') {
+                event.preventDefault();
+                skipToNextChunk();
+            }
+        };
+
+        window.addEventListener('keydown', handleHotkeys);
+        return () => window.removeEventListener('keydown', handleHotkeys);
+    }, [pause, play, playState, replayCurrentChunk, resume, skipToNextChunk, stop]);
 
     return (
         <>
@@ -313,7 +376,81 @@ export default function AudioPlayer({
                         </span>
                     </div>
                 )}
+
+                <div className="mt-3 border-t border-gray-800 pt-3 text-[10px] font-mono text-gray-500">
+                    {dictionary.audio.shortcuts}
+                </div>
             </div>
+
+            {playState !== 'stopped' && (
+                <div className="fixed bottom-24 left-4 right-4 z-[62] md:bottom-6 md:left-6 md:right-auto md:w-[360px]">
+                    <div className="rounded-2xl border border-toxic-green-DEFAULT/25 bg-[#0d1116]/95 px-4 py-3 text-gray-100 shadow-[0_18px_50px_rgba(0,0,0,0.45)] backdrop-blur">
+                        <div className="flex items-center gap-2">
+                            <Volume2 size={14} className="text-toxic-green-DEFAULT" />
+                            <div className="min-w-0 flex-1">
+                                <div className="truncate text-[11px] font-mono uppercase tracking-[0.2em] text-toxic-green-DEFAULT">
+                                    {dictionary.audio.floatingTitle}
+                                </div>
+                                <div className="truncate text-xs text-gray-400">
+                                    {chapterTitle} · {chunkIndexRef.current + 1}/{Math.max(chunksRef.current.length, 1)}
+                                </div>
+                            </div>
+                            <span className="text-[10px] font-mono text-gray-500">
+                                {playState === 'playing' ? dictionary.audio.playing : dictionary.audio.paused}
+                            </span>
+                        </div>
+
+                        <div className="mt-3 flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={replayCurrentChunk}
+                                className="inline-flex items-center gap-1 rounded-lg border border-gray-800 px-3 py-2 text-[11px] font-mono text-gray-300 hover:border-toxic-green-DEFAULT/40 hover:text-toxic-green-DEFAULT"
+                            >
+                                <ChevronLeft size={12} />
+                                {dictionary.audio.replay}
+                            </button>
+
+                            {playState === 'playing' ? (
+                                <button
+                                    type="button"
+                                    onClick={pause}
+                                    className="inline-flex items-center gap-2 rounded-lg border border-toxic-green-DEFAULT/40 bg-toxic-green-DEFAULT/10 px-3 py-2 text-[11px] font-mono text-toxic-green-DEFAULT hover:bg-toxic-green-DEFAULT/20"
+                                >
+                                    <Pause size={13} />
+                                    {dictionary.audio.pause}
+                                </button>
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={resume}
+                                    className="inline-flex items-center gap-2 rounded-lg border border-toxic-green-DEFAULT/40 bg-toxic-green-DEFAULT/10 px-3 py-2 text-[11px] font-mono text-toxic-green-DEFAULT hover:bg-toxic-green-DEFAULT/20"
+                                >
+                                    <Play size={13} fill="currentColor" />
+                                    {dictionary.audio.resume}
+                                </button>
+                            )}
+
+                            <button
+                                type="button"
+                                onClick={stop}
+                                className="rounded-lg border border-gray-800 p-2 text-gray-400 hover:border-red-500 hover:text-red-300"
+                                title={dictionary.audio.stopped}
+                            >
+                                <Square size={13} fill="currentColor" />
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={skipToNextChunk}
+                                className="ml-auto inline-flex items-center gap-1 rounded-lg border border-gray-800 px-3 py-2 text-[11px] font-mono text-gray-300 hover:border-toxic-green-DEFAULT/40 hover:text-toxic-green-DEFAULT"
+                            >
+                                {dictionary.audio.skip}
+                                <ChevronRight size={12} />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </>
     );
 }

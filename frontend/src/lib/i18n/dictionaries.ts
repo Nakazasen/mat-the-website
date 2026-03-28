@@ -61,8 +61,23 @@ export interface Dictionary {
         play: string;
         pause: string;
         resume: string;
+        replay: string;
+        skip: string;
         changeChapter: string;
         keepScreenOn: string;
+        floatingTitle: string;
+        shortcuts: string;
+    };
+    lookup: {
+        action: string;
+        title: string;
+        selected: string;
+        loading: string;
+        empty: string;
+        failed: string;
+        close: string;
+        external: string;
+        hint: string;
     };
     oracle: {
         title: string;
@@ -206,8 +221,23 @@ export const dictionaries: Record<Locale, Dictionary> = {
             play: "Phát",
             pause: "Tạm dừng",
             resume: "Tiếp tục",
+            replay: "Nghe lại",
+            skip: "Đoạn kế",
             changeChapter: "Chuyển chương",
             keepScreenOn: "Tắt màn hình vẫn nghe được",
+            floatingTitle: "Điều khiển audio",
+            shortcuts: "Phím tắt: Alt+P phát/tạm dừng, Alt+S dừng, Alt+[ lùi đoạn, Alt+] tới đoạn",
+        },
+        lookup: {
+            action: "Tra nhanh",
+            title: "Tra từ trong trang",
+            selected: "Từ/cụm đã chọn",
+            loading: "AI đang giải nghĩa...",
+            empty: "Chọn một từ hoặc cụm ngắn trong đoạn để tra ngay mà không rời trang.",
+            failed: "Chưa tra được lúc này. Hãy thử lại sau.",
+            close: "Đóng",
+            external: "Mở từ điển chuyên sâu",
+            hint: "Bôi đen một từ hoặc cụm ngắn để tra nhanh.",
         },
         oracle: {
             title: "AI Oracle",
@@ -363,8 +393,23 @@ export const dictionaries: Record<Locale, Dictionary> = {
             play: "Play",
             pause: "Pause",
             resume: "Resume",
+            replay: "Replay",
+            skip: "Next chunk",
             changeChapter: "Change chapter",
             keepScreenOn: "Audio keeps playing with the screen off",
+            floatingTitle: "Audio controls",
+            shortcuts: "Shortcuts: Alt+P play/pause, Alt+S stop, Alt+[ previous chunk, Alt+] next chunk",
+        },
+        lookup: {
+            action: "Lookup",
+            title: "In-page lookup",
+            selected: "Selected text",
+            loading: "Checking meaning...",
+            empty: "Select a word or short phrase in the chapter to look it up without leaving the page.",
+            failed: "Lookup is unavailable right now. Try again later.",
+            close: "Close",
+            external: "Open full dictionary",
+            hint: "Highlight a word or short phrase for a quick lookup.",
         },
         oracle: {
             title: "AI Oracle",
@@ -520,8 +565,23 @@ export const dictionaries: Record<Locale, Dictionary> = {
             play: "播放",
             pause: "暂停",
             resume: "继续",
+            replay: "重听",
+            skip: "下一段",
             changeChapter: "切换章节",
             keepScreenOn: "锁屏后仍可继续播放",
+            floatingTitle: "音频控制",
+            shortcuts: "快捷键：Alt+P 播放/暂停，Alt+S 停止，Alt+[ 上一段，Alt+] 下一段",
+        },
+        lookup: {
+            action: "速查",
+            title: "页内查词",
+            selected: "已选文本",
+            loading: "正在解析词义...",
+            empty: "选中一个词或短语，即可在当前页面快速查义。",
+            failed: "暂时无法查词，请稍后再试。",
+            close: "关闭",
+            external: "打开完整词典",
+            hint: "选中文中的一个词或短语即可速查。",
         },
         oracle: {
             title: "AI Oracle",
@@ -677,8 +737,23 @@ export const dictionaries: Record<Locale, Dictionary> = {
             play: "再生",
             pause: "一時停止",
             resume: "再開",
+            replay: "聞き直す",
+            skip: "次の区切り",
             changeChapter: "話を切り替える",
             keepScreenOn: "画面オフでも再生を続けます",
+            floatingTitle: "音声コントロール",
+            shortcuts: "ショートカット: Alt+P 再生/一時停止, Alt+S 停止, Alt+[ 前の区切り, Alt+] 次の区切り",
+        },
+        lookup: {
+            action: "クイック辞書",
+            title: "ページ内単語検索",
+            selected: "選択した語句",
+            loading: "意味を確認中...",
+            empty: "単語や短いフレーズを選択すると、ページを離れずにすぐ調べられます。",
+            failed: "今は検索できません。後でもう一度試してください。",
+            close: "閉じる",
+            external: "詳しい辞書を開く",
+            hint: "語句を選択するとクイック検索できます。",
         },
         oracle: {
             title: "AI Oracle",
