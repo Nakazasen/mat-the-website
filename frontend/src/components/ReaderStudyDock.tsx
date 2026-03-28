@@ -80,7 +80,7 @@ function LookupTips() {
                 </div>
                 <div>2. Click đúp vào một từ ngắn để mở tra từ ngay.</div>
                 <div>
-                    3. Sau khi đã chọn chữ, nhấn <span className="font-mono text-cyan-200">Alt+L</span>.
+                    3. Sau khi đã chọn chữ, nhấn <span className="font-mono text-cyan-200">Alt+L</span> để tra từ, hoặc bấm <span className="font-medium text-emerald-200">Gốc VI đang chọn</span> / <span className="font-mono text-emerald-200">Alt+V</span> để đối chiếu bản gốc.
                 </div>
             </div>
         </div>

@@ -473,16 +473,18 @@ export default function ReaderQuickLookup({
         }
     }, [audioLoading, chapterId, selectedSentence, sourceLocale]);
 
-    const handleLoadSourceReference = useCallback(async () => {
-        if (sourceLocale === 'vi' || !chapterId || !selectedText || sourceReferenceLoading) return;
+    const handleLoadSourceReference = useCallback(async (textOverride?: string, sentenceOverride?: string) => {
+        const sourceText = normalizeSelectionText(textOverride || selectedText);
+        const sourceSentence = sentenceOverride ?? selectedSentence;
+        if (sourceLocale === 'vi' || !chapterId || !sourceText || sourceReferenceLoading) return;
 
         setSourceReferenceLoading(true);
         setSourceReferenceError(null);
         try {
             const payload = await getReaderSourceReference({
                 locale: sourceLocale,
-                selected_text: selectedText,
-                context_sentence: selectedSentence || undefined,
+                selected_text: sourceText,
+                context_sentence: sourceSentence || undefined,
                 chapter_id: chapterId,
             });
             setSourceReference(payload);
@@ -504,7 +506,7 @@ export default function ReaderQuickLookup({
         setSaveMessage(null);
         setSaveError(null);
         setAudioError(null);
-        void handleLoadSourceReference();
+        void handleLoadSourceReference(selectedText, selectedSentence);
     }, [chapterId, handleLoadSourceReference, hideToolbar, isDesktop, selectedText, sourceLocale]);
 
     const renderDiffText = useCallback(
@@ -649,7 +651,7 @@ export default function ReaderQuickLookup({
                 if (isDesktop) {
                     setPanelExpanded(true);
                 }
-                void handleLoadSourceReference();
+                void handleLoadSourceReference(normalizedText, sentence);
             }, 0);
         };
 
