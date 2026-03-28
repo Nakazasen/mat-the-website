@@ -108,3 +108,37 @@ def test_build_source_reference_confidence_levels():
         )
         == "low"
     )
+
+
+def test_extract_sentence_alignment_entries_filters_invalid_payload():
+    entries = reader_learning._extract_sentence_alignment_entries(
+        {
+            "entries": [
+                {"translated_excerpt": "Alpha sentence.", "source_excerpt": "Câu alpha."},
+                {"translated_excerpt": "", "source_excerpt": "Missing translated"},
+                {"translated_excerpt": "Missing source", "source_excerpt": ""},
+                "invalid-item",
+            ]
+        }
+    )
+
+    assert len(entries) == 1
+    assert entries[0]["translated_excerpt"] == "Alpha sentence."
+    assert entries[0]["source_excerpt"] == "Câu alpha."
+
+
+def test_resolve_source_reference_from_alignment_prefers_sentence_match():
+    entries = [
+        {"translated_excerpt": "Han Phong stood in silence.", "source_excerpt": "Hàn Phong đứng im lặng."},
+        {"translated_excerpt": "The director kept shouting.", "source_excerpt": "Giám đốc vẫn quát tháo."},
+    ]
+    result = reader_learning._resolve_source_reference_from_alignment(
+        entries,
+        selected_text="Han Phong stood in silence.",
+        context_sentence="Han Phong stood in silence.",
+    )
+
+    assert result is not None
+    assert result["match_mode"] == "sentence"
+    assert result["translated_excerpt"] == "Han Phong stood in silence."
+    assert result["source_excerpt"] == "Hàn Phong đứng im lặng."

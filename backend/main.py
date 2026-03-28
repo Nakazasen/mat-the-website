@@ -210,8 +210,11 @@ MODEL_MIN_INTERVAL_SECONDS = {
 }
 TRANSLATION_MAX_OUTPUT_TOKENS = 65536
 TRANSLATION_MULTI_LOCALE_MAX_SOURCE_CHARS = 4000
+TRANSLATION_ALIGNMENT_MAX_SENTENCE_CHARS = 360
+TRANSLATION_ALIGNMENT_VERSION = 1
 TRANSLATION_RATE_LIMIT_STATE: dict[str, float] = {}
 TRANSLATION_RATE_LIMIT_LOCK = asyncio.Lock()
+CHAPTER_TRANSLATION_ALIGNMENT_SUPPORTED: Optional[bool] = None
 T = TypeVar("T")
 
 def normalize_locale(value: Optional[str]) -> str:
@@ -238,6 +241,18 @@ def safe_select(table_name: str, select_fields: str = "*"):
 
 def build_content_hash(text: str) -> str:
     return hashlib.sha256((text or "").encode("utf-8")).hexdigest()
+
+
+def chapter_translation_alignment_supported() -> bool:
+    global CHAPTER_TRANSLATION_ALIGNMENT_SUPPORTED
+    if CHAPTER_TRANSLATION_ALIGNMENT_SUPPORTED is not None:
+        return CHAPTER_TRANSLATION_ALIGNMENT_SUPPORTED
+    try:
+        supabase.table("chapter_translations").select("sentence_alignment").limit(1).execute()
+        CHAPTER_TRANSLATION_ALIGNMENT_SUPPORTED = True
+    except Exception:
+        CHAPTER_TRANSLATION_ALIGNMENT_SUPPORTED = False
+    return CHAPTER_TRANSLATION_ALIGNMENT_SUPPORTED
 
 def load_translation_glossary() -> list[dict]:
     try:
@@ -395,6 +410,112 @@ def split_text_into_chunk_count(source_text: str, chunk_count: int) -> list[str]
         groups.append([])
 
     return ["\n\n".join(group).strip() for group in groups[:chunk_count]]
+
+
+def _strip_html_for_alignment(text: Optional[str]) -> str:
+    if not text:
+        return ""
+    normalized = re.sub(r"(?i)<br\s*/?>", "\n", text)
+    normalized = re.sub(r"(?i)</p\s*>", "\n\n", normalized)
+    normalized = re.sub(r"(?i)</div\s*>", "\n\n", normalized)
+    normalized = re.sub(r"<[^>]+>", "", normalized)
+    normalized = normalized.replace("\r\n", "\n").replace("\r", "\n")
+    return normalized.strip()
+
+
+def _split_sentences_for_alignment(text: Optional[str]) -> list[str]:
+    plain = _strip_html_for_alignment(text)
+    if not plain:
+        return []
+    parts = re.split(r"(?<=[.!?。！？；;])\s+|\n+", plain)
+    sentences = [" ".join(part.strip().split()) for part in parts if part and part.strip()]
+    return sentences if sentences else [plain]
+
+
+def _cap_alignment_sentence(text: str, max_chars: int = TRANSLATION_ALIGNMENT_MAX_SENTENCE_CHARS) -> str:
+    cleaned = " ".join((text or "").strip().split())
+    if len(cleaned) <= max_chars:
+        return cleaned
+    return cleaned[:max_chars].rstrip()
+
+
+def _join_sentence_window_for_alignment(sentences: list[str], start_index: int, end_index: int) -> str:
+    if not sentences:
+        return ""
+    safe_start = max(0, min(start_index, len(sentences) - 1))
+    safe_end = max(safe_start, min(end_index, len(sentences) - 1))
+    return " ".join(item for item in sentences[safe_start : safe_end + 1] if item).strip()
+
+
+def build_chapter_sentence_alignment(
+    source_text: str,
+    translated_text: str,
+    *,
+    source_chunks: Optional[list[str]] = None,
+    translated_chunks: Optional[list[str]] = None,
+) -> dict[str, Any]:
+    safe_source_chunks = source_chunks or chunk_translation_source_text(source_text)
+    if translated_chunks is not None:
+        safe_translated_chunks = translated_chunks
+    else:
+        safe_translated_chunks = split_text_into_chunk_count(translated_text, len(safe_source_chunks))
+
+    chunk_count = max(len(safe_source_chunks), len(safe_translated_chunks))
+    entries: list[dict[str, Any]] = []
+    source_sentence_total = 0
+    translated_sentence_total = 0
+
+    for chunk_index in range(chunk_count):
+        source_chunk = safe_source_chunks[chunk_index] if chunk_index < len(safe_source_chunks) else ""
+        translated_chunk = safe_translated_chunks[chunk_index] if chunk_index < len(safe_translated_chunks) else ""
+        source_sentences = _split_sentences_for_alignment(source_chunk)
+        translated_sentences = _split_sentences_for_alignment(translated_chunk)
+
+        source_count = len(source_sentences)
+        translated_count = len(translated_sentences)
+        if source_count == 0 or translated_count == 0:
+            source_sentence_total += source_count
+            translated_sentence_total += translated_count
+            continue
+
+        source_offset = source_sentence_total
+        translated_offset = translated_sentence_total
+
+        for translated_local_index, translated_sentence in enumerate(translated_sentences):
+            source_start_local = int((translated_local_index * source_count) / translated_count)
+            source_end_local = int(((translated_local_index + 1) * source_count) / translated_count) - 1
+            source_end_local = min(source_count - 1, max(source_start_local, source_end_local))
+            source_excerpt = _join_sentence_window_for_alignment(
+                source_sentences,
+                source_start_local,
+                source_end_local,
+            )
+            if not source_excerpt:
+                continue
+            entries.append(
+                {
+                    "translated_index": translated_offset + translated_local_index,
+                    "source_start": source_offset + source_start_local,
+                    "source_end": source_offset + source_end_local,
+                    "translated_excerpt": _cap_alignment_sentence(translated_sentence),
+                    "source_excerpt": _cap_alignment_sentence(source_excerpt),
+                    "chunk_index": chunk_index,
+                }
+            )
+
+        source_sentence_total += source_count
+        translated_sentence_total += translated_count
+
+    return {
+        "version": TRANSLATION_ALIGNMENT_VERSION,
+        "strategy": "chunk_proportional_sentence_map",
+        "source_locale": DEFAULT_LOCALE,
+        "chunk_count": chunk_count,
+        "source_sentence_count": source_sentence_total,
+        "translated_sentence_count": translated_sentence_total,
+        "entries": entries,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
 
 def parse_multilocale_translation_payload(
     raw_text: str,
@@ -965,7 +1086,7 @@ async def translate_chapter_payloads_with_ai(
     source_locale: str,
     target_locales: list[str],
     context_label: str,
-) -> dict[str, dict[str, str]]:
+) -> dict[str, dict[str, Any]]:
     target_locales = build_target_translation_locales(target_locales)
     if not target_locales:
         return {}
@@ -1022,6 +1143,14 @@ async def translate_chapter_payloads_with_ai(
             "content": "\n\n".join(
                 part for part in translated_payloads[locale]["content_parts"] if part
             ).strip(),
+            "sentence_alignment": build_chapter_sentence_alignment(
+                source_text=content,
+                translated_text="\n\n".join(
+                    part for part in translated_payloads[locale]["content_parts"] if part
+                ).strip(),
+                source_chunks=content_chunks,
+                translated_chunks=translated_payloads[locale]["content_parts"],
+            ),
         }
         for locale in target_locales
     }
@@ -1034,7 +1163,7 @@ async def refine_chapter_translation_with_ai(
     current_title: str,
     current_content: str,
     context_label: str,
-) -> dict[str, str]:
+) -> dict[str, Any]:
     glossary_prompt = build_glossary_prompt()
     schema = {
         "type": "object",
@@ -1091,15 +1220,23 @@ async def refine_chapter_translation_with_ai(
             status_code=502,
             detail=f"Missing refined chapter payload for locale {normalize_locale(target_locale)}",
         )
+    refined_content = "\n\n".join(part for part in refined_content_parts if part).strip()
     return {
         "title": refined_title.strip(),
-        "content": "\n\n".join(part for part in refined_content_parts if part).strip(),
+        "content": refined_content,
+        "sentence_alignment": build_chapter_sentence_alignment(
+            source_text=source_content,
+            translated_text=refined_content,
+            source_chunks=source_chunks,
+            translated_chunks=refined_content_parts,
+        ),
     }
 
 async def upsert_chapter_translations(chapter_row: dict, title: str, content: str, locales: list[str]) -> dict:
     target_locales = build_target_translation_locales(locales)
     if not target_locales:
         return {"translated_locales": [], "failed_translations": []}
+    supports_alignment = chapter_translation_alignment_supported()
 
     def build_failed_translation_row(
         locale: str,
@@ -1109,7 +1246,7 @@ async def upsert_chapter_translations(chapter_row: dict, title: str, content: st
         failure_time: str,
     ) -> dict:
         current_row = existing_row or {}
-        return {
+        payload = {
             "chapter_id": chapter_row["id"],
             "locale": locale,
             # Postgres checks NOT NULL on the INSERT half of upsert before conflict handling.
@@ -1123,12 +1260,18 @@ async def upsert_chapter_translations(chapter_row: dict, title: str, content: st
             "last_error": error_detail,
             "attempt_count": attempt_counts[locale],
         }
+        if supports_alignment:
+            payload["sentence_alignment"] = current_row.get("sentence_alignment")
+        return payload
 
     content_hash = build_content_hash(content)
     now_iso = datetime.now(timezone.utc).isoformat()
+    existing_select_fields = "locale, attempt_count, title, content, summary, translated_at"
+    if supports_alignment:
+        existing_select_fields += ", sentence_alignment"
     existing_resp = (
         supabase.table("chapter_translations")
-        .select("locale, attempt_count, title, content, summary, translated_at")
+        .select(existing_select_fields)
         .eq("chapter_id", chapter_row["id"])
         .in_("locale", target_locales)
         .execute()
@@ -1145,21 +1288,24 @@ async def upsert_chapter_translations(chapter_row: dict, title: str, content: st
 
     for locale in target_locales:
         existing_row = existing_rows.get(locale) or {}
+        payload = {
+            "chapter_id": chapter_row["id"],
+            "locale": locale,
+            "title": existing_row.get("title") or "",
+            "content": existing_row.get("content") or "",
+            "summary": existing_row.get("summary"),
+            "translation_status": "in_progress",
+            "translation_source": "ai",
+            "translated_at": existing_row.get("translated_at"),
+            "content_hash": content_hash,
+            "last_error": None,
+            "attempt_count": attempt_counts[locale],
+            "updated_at": now_iso,
+        }
+        if supports_alignment:
+            payload["sentence_alignment"] = existing_row.get("sentence_alignment")
         supabase.table("chapter_translations").upsert(
-            {
-                "chapter_id": chapter_row["id"],
-                "locale": locale,
-                "title": existing_row.get("title") or "",
-                "content": existing_row.get("content") or "",
-                "summary": existing_row.get("summary"),
-                "translation_status": "in_progress",
-                "translation_source": "ai",
-                "translated_at": existing_row.get("translated_at"),
-                "content_hash": content_hash,
-                "last_error": None,
-                "attempt_count": attempt_counts[locale],
-                "updated_at": now_iso,
-            },
+            payload,
             on_conflict="chapter_id,locale",
         ).execute()
 
@@ -1205,6 +1351,7 @@ async def upsert_chapter_translations(chapter_row: dict, title: str, content: st
         locale_payload = translated_payloads.get(locale) or {}
         translated_title = str(locale_payload.get("title") or "").strip()
         translated_content = str(locale_payload.get("content") or "").strip()
+        sentence_alignment = locale_payload.get("sentence_alignment")
         if not translated_title or not translated_content:
             detail = f"Missing translated chapter payload for locale {locale}"
             supabase.table("chapter_translations").upsert(
@@ -1219,21 +1366,24 @@ async def upsert_chapter_translations(chapter_row: dict, title: str, content: st
             failed_translations.append({"locale": locale, "status_code": 502, "detail": detail})
             continue
 
+        payload = {
+            "chapter_id": chapter_row["id"],
+            "locale": locale,
+            "title": translated_title,
+            "content": translated_content,
+            "summary": translated_content[:280],
+            "translation_status": "published",
+            "translation_source": "ai",
+            "translated_at": translated_at,
+            "content_hash": content_hash,
+            "last_error": None,
+            "attempt_count": attempt_counts[locale],
+            "updated_at": translated_at,
+        }
+        if supports_alignment:
+            payload["sentence_alignment"] = sentence_alignment
         supabase.table("chapter_translations").upsert(
-            {
-                "chapter_id": chapter_row["id"],
-                "locale": locale,
-                "title": translated_title,
-                "content": translated_content,
-                "summary": translated_content[:280],
-                "translation_status": "published",
-                "translation_source": "ai",
-                "translated_at": translated_at,
-                "content_hash": content_hash,
-                "last_error": None,
-                "attempt_count": attempt_counts[locale],
-                "updated_at": translated_at,
-            },
+            payload,
             on_conflict="chapter_id,locale",
         ).execute()
         translated_locales.append(locale)
@@ -1247,10 +1397,14 @@ async def improve_chapter_translations(chapter_row: dict, title: str, content: s
     target_locales = build_target_translation_locales(locales)
     if not target_locales:
         return {"translated_locales": [], "failed_translations": []}
+    supports_alignment = chapter_translation_alignment_supported()
 
+    existing_select_fields = "locale, attempt_count, title, content, summary, translated_at"
+    if supports_alignment:
+        existing_select_fields += ", sentence_alignment"
     existing_resp = (
         supabase.table("chapter_translations")
-        .select("locale, attempt_count, title, content, summary, translated_at")
+        .select(existing_select_fields)
         .eq("chapter_id", chapter_row["id"])
         .in_("locale", target_locales)
         .execute()
@@ -1281,21 +1435,24 @@ async def improve_chapter_translations(chapter_row: dict, title: str, content: s
             )
             continue
 
+        in_progress_payload = {
+            "chapter_id": chapter_row["id"],
+            "locale": locale,
+            "title": current_title,
+            "content": current_content,
+            "summary": existing_row.get("summary"),
+            "translation_status": "in_progress",
+            "translation_source": "ai_refine",
+            "translated_at": existing_row.get("translated_at"),
+            "content_hash": content_hash,
+            "last_error": None,
+            "attempt_count": attempt_count,
+            "updated_at": translated_at,
+        }
+        if supports_alignment:
+            in_progress_payload["sentence_alignment"] = existing_row.get("sentence_alignment")
         supabase.table("chapter_translations").upsert(
-            {
-                "chapter_id": chapter_row["id"],
-                "locale": locale,
-                "title": current_title,
-                "content": current_content,
-                "summary": existing_row.get("summary"),
-                "translation_status": "in_progress",
-                "translation_source": "ai_refine",
-                "translated_at": existing_row.get("translated_at"),
-                "content_hash": content_hash,
-                "last_error": None,
-                "attempt_count": attempt_count,
-                "updated_at": translated_at,
-            },
+            in_progress_payload,
             on_conflict="chapter_id,locale",
         ).execute()
 
@@ -1314,39 +1471,45 @@ async def improve_chapter_translations(chapter_row: dict, title: str, content: s
             if not improved_title or not improved_content:
                 raise ValueError(f"Missing refined chapter payload for locale {locale}")
 
+            success_payload = {
+                "chapter_id": chapter_row["id"],
+                "locale": locale,
+                "title": improved_title,
+                "content": improved_content,
+                "summary": improved_content[:280],
+                "translation_status": "published",
+                "translation_source": "ai_refine",
+                "translated_at": translated_at,
+                "content_hash": content_hash,
+                "last_error": None,
+                "attempt_count": attempt_count,
+                "updated_at": translated_at,
+            }
+            if supports_alignment:
+                success_payload["sentence_alignment"] = improved_payload.get("sentence_alignment")
             supabase.table("chapter_translations").upsert(
-                {
-                    "chapter_id": chapter_row["id"],
-                    "locale": locale,
-                    "title": improved_title,
-                    "content": improved_content,
-                    "summary": improved_content[:280],
-                    "translation_status": "published",
-                    "translation_source": "ai_refine",
-                    "translated_at": translated_at,
-                    "content_hash": content_hash,
-                    "last_error": None,
-                    "attempt_count": attempt_count,
-                    "updated_at": translated_at,
-                },
+                success_payload,
                 on_conflict="chapter_id,locale",
             ).execute()
             translated_locales.append(locale)
         except HTTPException as exc:
+            failed_payload = {
+                "chapter_id": chapter_row["id"],
+                "locale": locale,
+                "title": current_title,
+                "content": current_content,
+                "summary": existing_row.get("summary"),
+                "translation_status": "failed",
+                "translation_source": "ai_refine",
+                "content_hash": content_hash,
+                "updated_at": translated_at,
+                "last_error": str(exc.detail),
+                "attempt_count": attempt_count,
+            }
+            if supports_alignment:
+                failed_payload["sentence_alignment"] = existing_row.get("sentence_alignment")
             supabase.table("chapter_translations").upsert(
-                {
-                    "chapter_id": chapter_row["id"],
-                    "locale": locale,
-                    "title": current_title,
-                    "content": current_content,
-                    "summary": existing_row.get("summary"),
-                    "translation_status": "failed",
-                    "translation_source": "ai_refine",
-                    "content_hash": content_hash,
-                    "updated_at": translated_at,
-                    "last_error": str(exc.detail),
-                    "attempt_count": attempt_count,
-                },
+                failed_payload,
                 on_conflict="chapter_id,locale",
             ).execute()
             failed_translations.append(
@@ -1357,20 +1520,23 @@ async def improve_chapter_translations(chapter_row: dict, title: str, content: s
                 }
             )
         except Exception as exc:
+            failed_payload = {
+                "chapter_id": chapter_row["id"],
+                "locale": locale,
+                "title": current_title,
+                "content": current_content,
+                "summary": existing_row.get("summary"),
+                "translation_status": "failed",
+                "translation_source": "ai_refine",
+                "content_hash": content_hash,
+                "updated_at": translated_at,
+                "last_error": str(exc),
+                "attempt_count": attempt_count,
+            }
+            if supports_alignment:
+                failed_payload["sentence_alignment"] = existing_row.get("sentence_alignment")
             supabase.table("chapter_translations").upsert(
-                {
-                    "chapter_id": chapter_row["id"],
-                    "locale": locale,
-                    "title": current_title,
-                    "content": current_content,
-                    "summary": existing_row.get("summary"),
-                    "translation_status": "failed",
-                    "translation_source": "ai_refine",
-                    "content_hash": content_hash,
-                    "updated_at": translated_at,
-                    "last_error": str(exc),
-                    "attempt_count": attempt_count,
-                },
+                failed_payload,
                 on_conflict="chapter_id,locale",
             ).execute()
             failed_translations.append(

@@ -242,6 +242,14 @@ def _get_resolve_chapter_translation():
     return resolve_chapter_translation
 
 
+def _get_build_chapter_sentence_alignment():
+    try:
+        from main import build_chapter_sentence_alignment
+    except ImportError:
+        from backend.main import build_chapter_sentence_alignment
+    return build_chapter_sentence_alignment
+
+
 def _extract_bearer_token(authorization: Optional[str]) -> Optional[str]:
     if not authorization:
         return None
@@ -435,6 +443,84 @@ def _selected_sentence_window_size(selected_text: str) -> int:
     if len(normalized_selected) >= 120:
         return 2
     return 1
+
+
+def _extract_sentence_alignment_entries(raw_alignment: Any) -> list[dict[str, str]]:
+    if not isinstance(raw_alignment, dict):
+        return []
+    raw_entries = raw_alignment.get("entries")
+    if not isinstance(raw_entries, list):
+        return []
+
+    entries: list[dict[str, str]] = []
+    for item in raw_entries:
+        if not isinstance(item, dict):
+            continue
+        translated_excerpt = _normalize_sentence(str(item.get("translated_excerpt") or ""), max_length=800) or ""
+        source_excerpt = _normalize_sentence(str(item.get("source_excerpt") or ""), max_length=800) or ""
+        if not translated_excerpt or not source_excerpt:
+            continue
+        entries.append(
+            {
+                "translated_excerpt": translated_excerpt,
+                "source_excerpt": source_excerpt,
+            }
+        )
+    return entries
+
+
+def _resolve_source_reference_from_alignment(
+    entries: list[dict[str, str]],
+    selected_text: str,
+    context_sentence: Optional[str],
+) -> Optional[dict[str, Any]]:
+    if not entries:
+        return None
+    translated_candidates = [item["translated_excerpt"] for item in entries]
+    best_index, best_score = _find_best_matching_block(translated_candidates, selected_text, context_sentence)
+    if best_index is None or best_score < 0.32:
+        return None
+
+    sentence_mode_requested = _should_match_sentence(selected_text, context_sentence)
+    selected_window_size = _selected_sentence_window_size(selected_text)
+    match_mode: Literal["sentence", "paragraph"] = "paragraph"
+    window_size = min(max(1, selected_window_size), 4)
+    if sentence_mode_requested and best_score >= 0.5:
+        match_mode = "sentence"
+        window_size = 1
+
+    window_end = min(len(entries), best_index + window_size)
+    window_entries = entries[best_index:window_end]
+    translated_excerpt = " ".join(item["translated_excerpt"] for item in window_entries).strip()
+    source_excerpt = " ".join(item["source_excerpt"] for item in window_entries).strip()
+    if not translated_excerpt or not source_excerpt:
+        return None
+
+    translated_excerpt = _cap_excerpt(
+        translated_excerpt,
+        max_sentences=1 if match_mode == "sentence" else 3,
+        max_chars=320 if match_mode == "sentence" else 620,
+    )
+    source_excerpt = _cap_excerpt(
+        source_excerpt,
+        max_sentences=1 if match_mode == "sentence" else 3,
+        max_chars=320 if match_mode == "sentence" else 620,
+    )
+    confidence = _build_source_reference_confidence(
+        match_mode,
+        best_score,
+        best_score if match_mode == "sentence" else 0.0,
+        translated_excerpt,
+        source_excerpt,
+    )
+    return {
+        "translated_excerpt": translated_excerpt,
+        "source_excerpt": source_excerpt,
+        "match_mode": match_mode,
+        "paragraph_index": best_index,
+        "confidence": confidence,
+        "score": best_score,
+    }
 
 
 def _should_match_sentence(selected_text: str, context_sentence: Optional[str]) -> bool:
@@ -1023,6 +1109,7 @@ async def source_reference(body: ReaderSourceReferenceRequest):
     supabase = _get_supabase()
     fetch_r2_content = _get_fetch_r2_content()
     resolve_chapter_translation = _get_resolve_chapter_translation()
+    build_chapter_sentence_alignment = _get_build_chapter_sentence_alignment()
 
     chapter_result = (
         supabase.table("chapters")
@@ -1037,9 +1124,39 @@ async def source_reference(body: ReaderSourceReferenceRequest):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy chương để đối chiếu.")
 
     translation = resolve_chapter_translation(chapter_row["id"], locale)
+    alignment_entries = _extract_sentence_alignment_entries(
+        translation.get("sentence_alignment") if isinstance(translation, dict) else None
+    )
     if not translation or not translation.get("content"):
         _log_reader_event("warning", "source_reference_translation_missing", locale=locale, chapter_id=body.chapter_id)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chương này chưa có bản dịch để đối chiếu.")
+
+    alignment_match = _resolve_source_reference_from_alignment(
+        alignment_entries,
+        selected_text,
+        context_sentence,
+    )
+    if alignment_match:
+        _log_reader_event(
+            "info",
+            "source_reference_alignment_hit",
+            locale=locale,
+            chapter_id=body.chapter_id,
+            paragraph_index=alignment_match["paragraph_index"],
+            score=round(float(alignment_match["score"]), 3),
+            match_mode=alignment_match["match_mode"],
+            confidence=alignment_match["confidence"],
+        )
+        return ReaderSourceReferenceResponse(
+            locale=locale,
+            selected_text=selected_text,
+            translated_excerpt=alignment_match["translated_excerpt"],
+            source_excerpt=alignment_match["source_excerpt"],
+            paragraph_index=alignment_match["paragraph_index"],
+            match_mode=alignment_match["match_mode"],
+            confidence=alignment_match["confidence"],
+            source="rule_based",
+        )
 
     try:
         source_content = fetch_r2_content(chapter_row["content_url"])
@@ -1052,6 +1169,44 @@ async def source_reference(body: ReaderSourceReferenceRequest):
             detail=str(exc),
         )
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Không tải được bản gốc tiếng Việt.")
+
+    if not alignment_entries:
+        try:
+            generated_alignment = build_chapter_sentence_alignment(
+                source_text=source_content,
+                translated_text=str(translation.get("content") or ""),
+            )
+            alignment_entries = _extract_sentence_alignment_entries(generated_alignment)
+        except Exception:
+            alignment_entries = []
+
+    if alignment_entries:
+        generated_alignment_match = _resolve_source_reference_from_alignment(
+            alignment_entries,
+            selected_text,
+            context_sentence,
+        )
+        if generated_alignment_match:
+            _log_reader_event(
+                "info",
+                "source_reference_alignment_generated_hit",
+                locale=locale,
+                chapter_id=body.chapter_id,
+                paragraph_index=generated_alignment_match["paragraph_index"],
+                score=round(float(generated_alignment_match["score"]), 3),
+                match_mode=generated_alignment_match["match_mode"],
+                confidence=generated_alignment_match["confidence"],
+            )
+            return ReaderSourceReferenceResponse(
+                locale=locale,
+                selected_text=selected_text,
+                translated_excerpt=generated_alignment_match["translated_excerpt"],
+                source_excerpt=generated_alignment_match["source_excerpt"],
+                paragraph_index=generated_alignment_match["paragraph_index"],
+                match_mode=generated_alignment_match["match_mode"],
+                confidence=generated_alignment_match["confidence"],
+                source="rule_based",
+            )
 
     translated_blocks = _split_text_blocks(translation.get("content"))
     source_blocks = _split_text_blocks(source_content)

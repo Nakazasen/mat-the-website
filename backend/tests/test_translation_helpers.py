@@ -48,6 +48,33 @@ def test_parse_json_like_payload_raises_useful_error_for_invalid_json():
     assert "Snippet:" in str(exc_info.value)
 
 
+def test_build_chapter_sentence_alignment_preserves_sentence_order():
+    source_chunks = [
+        "S1. S2.",
+        "S3. S4.",
+    ]
+    translated_chunks = [
+        "T1. T2.",
+        "T3. T4.",
+    ]
+    payload = main.build_chapter_sentence_alignment(
+        source_text="\n\n".join(source_chunks),
+        translated_text="\n\n".join(translated_chunks),
+        source_chunks=source_chunks,
+        translated_chunks=translated_chunks,
+    )
+
+    assert payload["version"] == main.TRANSLATION_ALIGNMENT_VERSION
+    assert payload["chunk_count"] == 2
+    assert payload["source_sentence_count"] == 4
+    assert payload["translated_sentence_count"] == 4
+    assert len(payload["entries"]) == 4
+    assert payload["entries"][0]["translated_excerpt"] == "T1."
+    assert payload["entries"][0]["source_excerpt"] == "S1."
+    assert payload["entries"][3]["translated_excerpt"] == "T4."
+    assert payload["entries"][3]["source_excerpt"] == "S4."
+
+
 @pytest.mark.asyncio
 async def test_translate_chapter_payload_with_ai_uses_structured_flow(monkeypatch):
     async def fake_translate_chapter_payloads_with_ai(**kwargs):

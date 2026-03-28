@@ -8,6 +8,7 @@ create table if not exists chapter_translations (
     translation_status text not null default 'draft',
     translation_source text not null default 'ai',
     translated_at timestamptz,
+    sentence_alignment jsonb,
     content_hash text not null,
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now(),
