@@ -45,8 +45,9 @@ export function renderRichKaraoke(
                         ref={(el) => onRef && onRef(idx, el)}
                         className={`transition-all duration-300 rounded-sm ${activeChunkIndex === idx
                             ? "bg-toxic-green-DEFAULT text-black ring-2 ring-toxic-green-DEFAULT/80 shadow-[0_0_20px_rgba(57,255,20,0.6)] font-bold scale-[1.02] inline-block px-1"
-                            : "!text-reader-text"
+                            : ""
                             }`}
+                        style={activeChunkIndex === idx ? undefined : { color: "var(--reader-text)" }}
                     >
                         {slice}
                     </span>
@@ -62,7 +63,11 @@ export function renderRichKaraoke(
             }
 
             if (textOffset < text.length) {
-                elements.push(<span key={`${path}-rem`}>{text.substring(textOffset)}</span>);
+                elements.push(
+                    <span key={`${path}-rem`} style={{ color: "var(--reader-text)" }}>
+                        {text.substring(textOffset)}
+                    </span>
+                );
             }
 
             return <React.Fragment key={`text-${path}`}>{elements}</React.Fragment>;
