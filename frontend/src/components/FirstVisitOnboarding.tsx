@@ -113,8 +113,8 @@ export default function FirstVisitOnboarding() {
     }
 
     return (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-            <div className="w-full max-w-2xl overflow-hidden rounded-3xl border border-toxic-green-DEFAULT/20 bg-ash-950/95 shadow-[0_25px_80px_rgba(0,0,0,0.55)]">
+        <div className="fixed inset-0 z-[90] flex items-start justify-center overflow-y-auto bg-black/70 p-3 pt-6 backdrop-blur-sm sm:items-center sm:p-4">
+            <div className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-toxic-green-DEFAULT/20 bg-ash-950/95 shadow-[0_25px_80px_rgba(0,0,0,0.55)] sm:max-h-[calc(100dvh-2rem)]">
                 <div className="flex items-start justify-between border-b border-ash-800/80 px-5 py-5 sm:px-7">
                     <div className="min-w-0">
                         <div className="flex items-center gap-2 text-toxic-green-DEFAULT">
@@ -134,7 +134,8 @@ export default function FirstVisitOnboarding() {
                     </button>
                 </div>
 
-                <div className="grid gap-0 md:grid-cols-[0.95fr_1.05fr]">
+                <div className="overflow-y-auto overscroll-contain">
+                    <div className="grid gap-0 md:grid-cols-[0.95fr_1.05fr]">
                     <div className="border-b border-ash-800/70 p-5 md:border-b-0 md:border-r md:p-7">
                         <div className="flex items-center gap-2 text-toxic-green-DEFAULT">
                             <Languages size={15} />
@@ -197,6 +198,7 @@ export default function FirstVisitOnboarding() {
                             </button>
                         </div>
                     </div>
+                </div>
                 </div>
             </div>
         </div>
