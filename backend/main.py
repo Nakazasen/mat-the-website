@@ -538,9 +538,9 @@ def parse_json_like_payload(raw_text: str) -> dict:
         repaired = escape_json_string_control_chars(cleaned)
         try:
             return json.loads(repaired)
-        except json.JSONDecodeError:
-            # Final attempt: try to extract anything between brackets
-            return {}
+        except json.JSONDecodeError as exc:
+            snippet = repaired[:240].replace("\n", "\\n")
+            raise ValueError(f"Could not parse JSON payload: {exc}. Snippet: {snippet}")
 
 async def generate_structured_translation_payload(
     system_instruction: str,
@@ -873,101 +873,25 @@ async def translate_chapter_payload_with_ai(
     target_locale: str,
     context_label: str,
 ) -> dict:
-    _active_model, model_catalog, api_keys = await resolve_ai_settings_for_translation()
-    if not api_keys:
-        raise HTTPException(status_code=503, detail="AI translation is not configured")
-
-    glossary_prompt = build_glossary_prompt()
-    prompt = build_chapter_translation_prompt(
+    translated_payloads = await translate_chapter_payloads_with_ai(
         title=title,
         content=content,
         source_locale=source_locale,
-        target_locale=target_locale,
+        target_locales=[target_locale],
         context_label=context_label,
-        glossary_prompt=glossary_prompt,
     )
-
-    payload = {
-        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-        "generationConfig": {"maxOutputTokens": 8192, "temperature": 0.3},
-    }
-
-    def parse_translation_payload(raw_text: str) -> dict:
-        parsed = parse_json_like_payload(raw_text)
-        translated_title = str(parsed.get("title") or "").strip()
-        translated_content = str(parsed.get("content") or "").strip()
-        if not translated_title or not translated_content:
-            raise ValueError("Missing title/content in JSON payload")
-        return {
-            "title": translated_title,
-            "content": translated_content,
-        }
-
-    last_error: Optional[HTTPException] = None
-    attempts: list[dict] = []
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        for key_index, api_key in enumerate(api_keys, start=1):
-            for model_name in model_catalog:
-                await throttle_translation_request(model_name, api_key)
-                gemini_url = (
-                    "https://generativelanguage.googleapis.com/v1beta/models/"
-                    f"{model_name}:generateContent?key={api_key}"
-                )
-                response = await client.post(gemini_url, json=payload)
-                if response.is_success:
-                    data = response.json()
-                    try:
-                        raw_text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
-                        return parse_translation_payload(raw_text)
-                    except Exception as exc:
-                        last_error = HTTPException(
-                            status_code=502,
-                            detail=f"Model {model_name}: invalid chapter translation payload: {exc}",
-                        )
-                        attempts.append(
-                            {
-                                "key_index": key_index,
-                                "model": model_name,
-                                "status_code": 502,
-                                "message": f"invalid chapter translation payload: {exc}",
-                            }
-                        )
-                        continue
-
-                last_error = HTTPException(
-                    status_code=response.status_code,
-                    detail=f"Model {model_name}: Translation API error: {response.text}",
-                )
-                attempts.append(
-                    {
-                        "key_index": key_index,
-                        "model": model_name,
-                        "status_code": response.status_code,
-                        "message": response.text,
-                    }
-                )
-                if not is_translation_retryable(last_error):
-                    raise HTTPException(
-                        status_code=last_error.status_code,
-                        detail=build_translation_failure_detail(
-                            attempts,
-                            len(api_keys),
-                            len(model_catalog),
-                            str(last_error.detail),
-                        ),
-                    )
-
-    if last_error:
+    locale_payload = translated_payloads.get(normalize_locale(target_locale)) or {}
+    translated_title = str(locale_payload.get("title") or "").strip()
+    translated_content = str(locale_payload.get("content") or "").strip()
+    if not translated_title or not translated_content:
         raise HTTPException(
-            status_code=last_error.status_code,
-            detail=build_translation_failure_detail(
-                attempts,
-                len(api_keys),
-                len(model_catalog),
-                str(last_error.detail),
-            ),
+            status_code=502,
+            detail=f"Missing structured chapter translation payload for locale {normalize_locale(target_locale)}",
         )
-    raise HTTPException(status_code=502, detail="Không có mô hình dịch chương khả dụng")
+    return {
+        "title": translated_title,
+        "content": translated_content,
+    }
 
 async def translate_chapter_payloads_with_ai(
     title: str,
@@ -1169,7 +1093,6 @@ async def upsert_chapter_translations(chapter_row: dict, title: str, content: st
 
     return {
         "translated_locales": translated_locales,
-        "failed_translations": failed_translations,
         "failed_translations": failed_translations,
     }
 
