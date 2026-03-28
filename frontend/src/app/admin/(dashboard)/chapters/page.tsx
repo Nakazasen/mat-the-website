@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { getFreshAdminAccessToken } from '@/lib/admin-session';
 import {
     AlertTriangle,
     ArrowRight,
@@ -163,6 +164,12 @@ export default function AdminChaptersPage() {
         });
     }, [router]);
 
+    const resolveAdminToken = useCallback(async () => {
+        const freshToken = await getFreshAdminAccessToken();
+        setToken(freshToken);
+        return freshToken;
+    }, []);
+
     const fetchChapters = useCallback(async (page: number) => {
         setLoading(true);
         setError(null);
@@ -193,7 +200,8 @@ export default function AdminChaptersPage() {
             : chapters.map((chapter) => chapter.chapter_number);
         if (chapterNumbers.length === 0) return;
         try {
-            const result = await getAdminChapterTranslationStatuses(chapterNumbers, token);
+            const freshToken = await resolveAdminToken();
+            const result = await getAdminChapterTranslationStatuses(chapterNumbers, freshToken);
             setTranslationStatusMap((prev) => {
                 const nextMap = { ...prev };
                 for (const item of result.statuses || []) {
@@ -204,7 +212,7 @@ export default function AdminChaptersPage() {
         } catch {
             // Keep the page usable even if status summary fails.
         }
-    }, [chapters, token]);
+    }, [chapters, resolveAdminToken, token]);
 
     useEffect(() => {
         refreshTranslationStatuses();
@@ -235,9 +243,10 @@ export default function AdminChaptersPage() {
 
         setDeletingId(chapterNumber);
         try {
+            const freshToken = await resolveAdminToken();
             const res = await fetch(`${API_BASE_URL}/api/admin/chapters/${chapterNumber}`, {
                 method: 'DELETE',
-                headers: { Authorization: `Bearer ${token}` },
+                headers: { Authorization: `Bearer ${freshToken}` },
             });
             if (!res.ok) {
                 const data = await res.json();
@@ -256,7 +265,8 @@ export default function AdminChaptersPage() {
         setTranslatingId(chapterNumber);
         setActionNotice(null);
         try {
-            const result = await translateAdminChapter(chapterNumber, token);
+            const freshToken = await resolveAdminToken();
+            const result = await translateAdminChapter(chapterNumber, freshToken);
             setActionNotice(buildSingleTranslateNotice(chapterNumber, result));
             await refreshTranslationStatuses([chapterNumber]);
         } catch (err: any) {
@@ -288,13 +298,14 @@ export default function AdminChaptersPage() {
         setActionNotice(null);
 
         try {
+            const freshToken = await resolveAdminToken();
             const result = await translateAdminChaptersBatch(
                 {
                     start_chapter: startChapter,
                     end_chapter: endChapter,
                     only_missing: batchOnlyMissing,
                 },
-                token,
+                freshToken,
             );
             setBatchResult(
                 `Đã xử lý ${startChapter}-${endChapter}. Dịch mới: ${result.translated_count}, bỏ qua: ${result.skipped_count}, lỗi: ${result.failed_count}.`
@@ -335,13 +346,14 @@ export default function AdminChaptersPage() {
         try {
             for (let start = 1; start <= total; start += blockSize) {
                 const end = Math.min(start + blockSize - 1, total);
+                const freshToken = await resolveAdminToken();
                 const result = await translateAdminChaptersBatch(
                     {
                         start_chapter: start,
                         end_chapter: end,
                         only_missing: true,
                     },
-                    token,
+                    freshToken,
                 );
 
                 translated += result.translated_count;

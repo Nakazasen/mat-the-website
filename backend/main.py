@@ -2621,6 +2621,8 @@ class AdminNovelUpdate(BaseModel):
     ai_model_catalog: Optional[list[str]] = None
     ai_api_key: Optional[str] = None
     ai_api_keys: Optional[list[str]] = None
+    append_ai_api_keys: Optional[list[str]] = None
+    remove_ai_key_indexes: Optional[list[int]] = None
 
 @app.get("/api/novel", response_model=NovelSettings)
 
@@ -2793,7 +2795,14 @@ async def admin_update_novel(
 
         data["description"] = sanitize_html(data.get("description")) or ""
 
-    ai_fields = {"ai_model_name", "ai_model_catalog", "ai_api_key", "ai_api_keys"}
+    ai_fields = {
+        "ai_model_name",
+        "ai_model_catalog",
+        "ai_api_key",
+        "ai_api_keys",
+        "append_ai_api_keys",
+        "remove_ai_key_indexes",
+    }
     if any(field in data for field in ai_fields) and user.get("role") != "superadmin":
         raise HTTPException(
             status_code=403,
@@ -2811,6 +2820,38 @@ async def admin_update_novel(
         data["ai_api_keys"] = normalized_keys
         if normalized_keys:
             data["ai_api_key"] = normalized_keys[0]
+        else:
+            data["ai_api_key"] = None
+
+    if "append_ai_api_keys" in data or "remove_ai_key_indexes" in data:
+        existing_settings_resp = (
+            supabase.table("novel_settings")
+            .select("ai_api_key, ai_api_keys")
+            .eq("id", 1)
+            .single()
+            .execute()
+        )
+        existing_settings = existing_settings_resp.data or {}
+        current_keys = normalize_api_key_catalog(
+            existing_settings.get("ai_api_keys"),
+            existing_settings.get("ai_api_key") or "",
+        )
+        remove_indexes = sorted(
+            {
+                int(index)
+                for index in (data.get("remove_ai_key_indexes") or [])
+                if isinstance(index, int) or (isinstance(index, str) and str(index).isdigit())
+            }
+        )
+        remaining_keys = [
+            item for index, item in enumerate(current_keys) if index not in remove_indexes
+        ]
+        appended_keys = normalize_api_key_catalog(data.get("append_ai_api_keys"), "")
+        merged_keys = list(dict.fromkeys([*remaining_keys, *appended_keys]))
+        data["ai_api_keys"] = merged_keys
+        data["ai_api_key"] = merged_keys[0] if merged_keys else None
+        data.pop("append_ai_api_keys", None)
+        data.pop("remove_ai_key_indexes", None)
 
     # Update novel settings (ID 1)
     # Do not return raw API keys to the admin frontend.

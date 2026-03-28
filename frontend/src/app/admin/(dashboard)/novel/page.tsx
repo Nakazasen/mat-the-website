@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase-admin';
+import { getFreshAdminAccessToken } from '@/lib/admin-session';
 import {
     getNovelSettings,
     NovelSettings,
@@ -15,7 +16,7 @@ import {
     OracleHealthStatus,
     resetAdminOracleRateLimit,
 } from '@/lib/api';
-import { Save, AlertTriangle, CheckCircle2, Loader2, BookOpen, User, FileText, Image as ImageIcon, Tag, Upload, ShieldAlert, Bot, FlaskConical, Plus, Play, Wand2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Save, AlertTriangle, CheckCircle2, Loader2, BookOpen, User, FileText, Image as ImageIcon, Tag, Upload, ShieldAlert, Bot, FlaskConical, Plus, Play, Wand2, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import RichTextEditor from '@/components/Editor';
 
 const DEFAULT_AI_MODEL = 'gemini-3-flash-preview';
@@ -31,7 +32,27 @@ const DEFAULT_AI_MODELS = [
     'gemini-2.5-flash',
     'gemini-2.5-flash-lite',
 ];
-const AI_KEY_SLOTS = 3;
+type ApiKeyRow = {
+    id: string;
+    kind: 'existing' | 'new';
+    value: string;
+    originalIndex?: number;
+};
+
+function buildApiKeyRows(savedCount: number): ApiKeyRow[] {
+    const rows: ApiKeyRow[] = Array.from({ length: savedCount }, (_, index) => ({
+        id: `existing-${index}`,
+        kind: 'existing',
+        value: '',
+        originalIndex: index,
+    }));
+    rows.push({
+        id: `new-${Date.now()}`,
+        kind: 'new',
+        value: '',
+    });
+    return rows;
+}
 
 export default function AdminNovelPage() {
     const router = useRouter();
@@ -58,8 +79,7 @@ export default function AdminNovelPage() {
     const [token, setToken] = useState<string | null>(null);
     const [userRole, setUserRole] = useState<string>('editor');
     const [aiModelName, setAiModelName] = useState(DEFAULT_AI_MODEL);
-    const [aiApiKeyInput, setAiApiKeyInput] = useState('');
-    const [aiApiKeysInputs, setAiApiKeysInputs] = useState<string[]>(Array.from({ length: AI_KEY_SLOTS }, () => ''));
+    const [aiApiKeyRows, setAiApiKeyRows] = useState<ApiKeyRow[]>(buildApiKeyRows(0));
     const [customModelInput, setCustomModelInput] = useState('');
     const [modelCatalog, setModelCatalog] = useState<string[]>(DEFAULT_AI_MODELS);
     const [playgroundPrompt, setPlaygroundPrompt] = useState('Tra loi ngan gon bang tieng Viet: xac nhan model dang hoat dong va san sang phan hoi.');
@@ -98,6 +118,7 @@ export default function AdminNovelPage() {
                 setAiModelName(data.ai_model_name || DEFAULT_AI_MODEL);
                 setModelCatalog(Array.from(new Set([...(data.ai_model_catalog || []), ...DEFAULT_AI_MODELS])));
                 setPlaygroundChapter(Math.max(data.max_chapter || 1, 1));
+                setAiApiKeyRows(buildApiKeyRows(data.ai_api_keys_count || 0));
             } catch {
                 setError('Không thể tải dữ liệu cấu hình hiện tại.');
             } finally {
@@ -117,7 +138,15 @@ export default function AdminNovelPage() {
         setSuccess(false);
 
         try {
-            const payload: Partial<NovelSettings> & { ai_api_key?: string; ai_api_keys?: string[] } = {
+            const freshToken = await getFreshAdminAccessToken();
+            setToken(freshToken);
+
+            const payload: Partial<NovelSettings> & {
+                ai_api_key?: string;
+                ai_api_keys?: string[];
+                append_ai_api_keys?: string[];
+                remove_ai_key_indexes?: number[];
+            } = {
                 title: settings.title,
                 author: settings.author,
                 description: settings.description,
@@ -130,22 +159,37 @@ export default function AdminNovelPage() {
             if (userRole === 'superadmin') {
                 payload.ai_model_name = aiModelName.trim() || DEFAULT_AI_MODEL;
                 payload.ai_model_catalog = Array.from(new Set(modelCatalog.map((model) => model.trim()).filter(Boolean)));
-                const normalizedKeys = aiApiKeysInputs.map((item) => item.trim()).filter(Boolean);
-                if (normalizedKeys.length > 0) {
-                    payload.ai_api_keys = normalizedKeys;
-                    payload.ai_api_key = normalizedKeys[0];
+                const newKeys = aiApiKeyRows
+                    .filter((row) => row.kind === 'new')
+                    .map((row) => row.value.trim())
+                    .filter(Boolean);
+                const keptExistingIndexes = aiApiKeyRows
+                    .filter((row) => row.kind === 'existing')
+                    .map((row) => row.originalIndex)
+                    .filter((index): index is number => typeof index === 'number');
+                const removedExistingIndexes = Array.from(
+                    { length: settings.ai_api_keys_count || 0 },
+                    (_, index) => index,
+                ).filter((index) => !keptExistingIndexes.includes(index));
+
+                if (newKeys.length > 0) {
+                    payload.append_ai_api_keys = newKeys;
+                }
+                if (removedExistingIndexes.length > 0) {
+                    payload.remove_ai_key_indexes = removedExistingIndexes;
                 }
             }
 
-            await updateNovelSettings(payload, token);
+            const response = await updateNovelSettings(payload, freshToken);
+            const nextKeyCount = response.data.ai_api_keys_count ?? settings.ai_api_keys_count ?? 0;
             setSuccess(true);
-            setAiApiKeysInputs(Array.from({ length: AI_KEY_SLOTS }, () => ''));
+            setAiApiKeyRows(buildApiKeyRows(nextKeyCount));
             setSettings((prev) => ({
                 ...prev,
-                has_ai_key: prev.has_ai_key || Boolean(payload.ai_api_key),
-                ai_api_keys_count: payload.ai_api_keys?.length || prev.ai_api_keys_count,
-                ai_model_name: payload.ai_model_name || prev.ai_model_name,
-                ai_model_catalog: payload.ai_model_catalog || prev.ai_model_catalog,
+                has_ai_key: response.data.has_ai_key ?? prev.has_ai_key,
+                ai_api_keys_count: nextKeyCount,
+                ai_model_name: response.data.ai_model_name || prev.ai_model_name,
+                ai_model_catalog: response.data.ai_model_catalog || prev.ai_model_catalog,
             }));
             setTimeout(() => setSuccess(false), 3000);
         } catch (err: any) {
@@ -198,6 +242,28 @@ export default function AdminNovelPage() {
         });
     };
 
+    const addApiKeyRow = () => {
+        setAiApiKeyRows((current) => ([
+            ...current,
+            {
+                id: `new-${Date.now()}-${current.length}`,
+                kind: 'new',
+                value: '',
+            },
+        ]));
+    };
+
+    const updateApiKeyRowValue = (id: string, value: string) => {
+        setAiApiKeyRows((current) => current.map((row) => (row.id === id ? { ...row, value } : row)));
+    };
+
+    const removeApiKeyRow = (id: string) => {
+        setAiApiKeyRows((current) => {
+            const next = current.filter((row) => row.id !== id);
+            return next.length > 0 ? next : buildApiKeyRows(0);
+        });
+    };
+
     const runPlayground = async (models: string[]) => {
         if (!token) return;
         const dedupedModels = Array.from(new Set(models.map((model) => model.trim()).filter(Boolean)));
@@ -210,12 +276,14 @@ export default function AdminNovelPage() {
         setPlaygroundError(null);
 
         try {
+            const freshToken = await getFreshAdminAccessToken();
+            setToken(freshToken);
             const response = await runAdminAiPlayground({
                 models: dedupedModels,
                 prompt: playgroundPrompt,
                 chapter_progress: playgroundChapter,
                 api_key: playgroundApiKey.trim() || undefined,
-            }, token);
+            }, freshToken);
             setPlaygroundResults(response.results);
         } catch (err: any) {
             setPlaygroundError(err?.message || 'Không thể chạy AI playground.');
@@ -229,7 +297,9 @@ export default function AdminNovelPage() {
         setOracleHealthLoading(true);
         setOracleAdminMessage(null);
         try {
-            const response = await getAdminOracleHealth(token);
+            const freshToken = await getFreshAdminAccessToken();
+            setToken(freshToken);
+            const response = await getAdminOracleHealth(freshToken);
             setOracleHealth(response);
         } catch (err: any) {
             setOracleAdminMessage(err?.message || 'Không thể kiểm tra Oracle health.');
@@ -243,7 +313,9 @@ export default function AdminNovelPage() {
         setOracleResetLoading(true);
         setOracleAdminMessage(null);
         try {
-            const response = await resetAdminOracleRateLimit(token);
+            const freshToken = await getFreshAdminAccessToken();
+            setToken(freshToken);
+            const response = await resetAdminOracleRateLimit(freshToken);
             setOracleAdminMessage(`${response.detail} Deleted rows: ${response.deleted_rows}.`);
         } catch (err: any) {
             setOracleAdminMessage(err?.message || 'Không thể reset Oracle rate limit.');
@@ -467,32 +539,42 @@ export default function AdminNovelPage() {
                                         placeholder={DEFAULT_AI_MODEL}
                                     />
                                     <div className="mt-2 space-y-2">
-                                        {Array.from({ length: AI_KEY_SLOTS }, (_, index) => (
-                                            <input
-                                                key={`ai-key-slot-${index}`}
-                                                type="password"
-                                                value={aiApiKeysInputs[index] || ''}
-                                                onChange={(e) => setAiApiKeysInputs((current) => current.map((item, itemIndex) => itemIndex === index ? e.target.value : item))}
-                                                className="w-full bg-black border border-gray-800 rounded px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:border-green-500"
-                                                placeholder={index < (settings.ai_api_keys_count || 0) ? `Đã lưu key project ${index + 1}` : `Nhập API key project ${index + 1}`}
-                                            />
+                                        {aiApiKeyRows.map((row, index) => (
+                                            <div key={row.id} className="flex items-center gap-2">
+                                                <input
+                                                    type="password"
+                                                    value={row.kind === 'new' ? row.value : ''}
+                                                    onChange={(e) => row.kind === 'new' && updateApiKeyRowValue(row.id, e.target.value)}
+                                                    readOnly={row.kind === 'existing'}
+                                                    className="w-full bg-black border border-gray-800 rounded px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:border-green-500 read-only:text-gray-500"
+                                                    placeholder={
+                                                        row.kind === 'existing'
+                                                            ? `Đã lưu key project ${index + 1} (ẩn hoàn toàn)`
+                                                            : `Nhập API key project mới ${index + 1}`
+                                                    }
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeApiKeyRow(row.id)}
+                                                    className="inline-flex items-center justify-center rounded border border-red-900/40 px-3 py-2.5 text-red-300 hover:border-red-500 hover:text-red-200"
+                                                    title={row.kind === 'existing' ? 'Xóa dòng key đã lưu này' : 'Bỏ dòng key mới này'}
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            </div>
                                         ))}
                                     </div>
+                                    <button
+                                        type="button"
+                                        onClick={addApiKeyRow}
+                                        className="inline-flex items-center gap-2 rounded border border-gray-700 px-4 py-2 text-xs font-mono text-gray-300 hover:border-green-500 hover:text-green-300"
+                                    >
+                                        <Plus size={14} />
+                                        THÊM DÒNG KEY
+                                    </button>
                                     <p className="text-xs text-gray-500">
                                         Đang lưu trên server: {settings.ai_api_keys_count || 0} key. Backend sẽ xoay từng tổ hợp <span className="font-mono text-gray-300">key x model</span> theo thứ tự ưu tiên.
                                     </p>
-                                </div>
-                                <div className="hidden">
-                                    <label className="text-[11px] font-mono text-gray-500 uppercase tracking-widest">
-                                        API Key {settings.has_ai_key ? '(đã cấu hình)' : '(chưa có)'}
-                                    </label>
-                                    <input
-                                        type="password"
-                                        value={aiApiKeyInput}
-                                        onChange={(e) => setAiApiKeyInput(e.target.value)}
-                                        className="hidden"
-                                        placeholder="Nhập API key mới để ghi đè"
-                                    />
                                 </div>
                             </div>
 

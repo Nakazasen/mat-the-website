@@ -206,6 +206,27 @@ export interface AdminOracleResetResponse {
     detail: string;
 }
 
+export interface AdminNovelSettingsUpdateResponse {
+    message: string;
+    data: {
+        id: number;
+        title?: string;
+        author?: string;
+        status?: string;
+        ai_model_name?: string;
+        ai_model_catalog?: string[];
+        has_ai_key?: boolean;
+        ai_api_keys_count?: number;
+    };
+}
+
+function buildAdminAuthErrorMessage(res: Response, detail?: string): string {
+    if (res.status === 401) {
+        return "Phiên đăng nhập admin đã hết hạn. Hãy tải lại trang hoặc đăng nhập lại.";
+    }
+    return detail || "Admin request failed";
+}
+
 // Fetch general novel settings (Title, Author, Desc etc)
 export async function getNovelSettings(locale?: Locale): Promise<NovelSettings> {
     const params = new URLSearchParams();
@@ -224,7 +245,7 @@ export async function getNovelSettings(locale?: Locale): Promise<NovelSettings> 
 export async function updateNovelSettings(
     data: Partial<NovelSettings>,
     token: string
-): Promise<any> {
+): Promise<AdminNovelSettingsUpdateResponse> {
     const res = await fetch(`${API_BASE_URL}/api/admin/novel`, {
         method: "PUT",
         headers: {
@@ -233,11 +254,11 @@ export async function updateNovelSettings(
         },
         body: JSON.stringify(data)
     });
+    const payload = await readJsonSafely<AdminNovelSettingsUpdateResponse>(res) as AdminNovelSettingsUpdateResponse;
     if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || "Failed to update novel settings");
+        throw new Error(buildAdminAuthErrorMessage(res, (payload as { detail?: string })?.detail || "Failed to update novel settings"));
     }
-    return res.json();
+    return payload;
 }
 
 export async function runAdminAiPlayground(
@@ -297,7 +318,7 @@ export async function translateAdminChapter(chapterNumber: number, token: string
     const payload = await readJsonSafely<AdminChapterTranslateResult>(res) as AdminChapterTranslateResult;
     if (!res.ok) {
         const errorMessage =
-            (payload as { detail?: string })?.detail ||
+            buildAdminAuthErrorMessage(res, (payload as { detail?: string })?.detail) ||
             buildFailureDetails(payload.failed_translations, "Failed to translate chapter");
         throw new Error(errorMessage);
     }
@@ -326,7 +347,7 @@ export async function translateAdminChaptersBatch(
     });
     const payload = await res.json();
     if (!res.ok) {
-        throw new Error(payload.detail || "Failed to batch translate chapters");
+        throw new Error(buildAdminAuthErrorMessage(res, payload.detail || "Failed to batch translate chapters"));
     }
     return payload;
 }
