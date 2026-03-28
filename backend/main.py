@@ -4943,6 +4943,8 @@ async def get_wiki_entries(
 
     limit: int = Query(50, ge=1, le=200, description="Số lượng mỗi trang"),
 
+    locale: str = Query(DEFAULT_LOCALE, description="Requested locale"),
+
 ):
 
     """Lấy danh sách tất cả wiki entries, có thể lọc theo category hoặc tìm kiếm."""
@@ -4994,6 +4996,8 @@ async def get_wiki_entries(
             entry["summary"] = sanitize_html(entry.get("summary")) if entry.get("summary") is not None else None
 
             entry["content"] = sanitize_html(entry.get("content")) if entry.get("content") is not None else None
+
+            apply_wiki_translation(entry, normalize_locale(locale))
 
         return {
 

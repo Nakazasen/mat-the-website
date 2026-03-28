@@ -58,8 +58,7 @@ export default function CharacterTooltip({
     useEffect(() => () => clearHideTimer(), []);
 
     const fetchCharacter = useCallback(async () => {
-        if (fetchedRef.current || isLoading) return;
-        fetchedRef.current = true;
+        if ((fetchedRef.current && character) || isLoading) return;
         setIsLoading(true);
         try {
             const params = new URLSearchParams({
@@ -69,12 +68,16 @@ export default function CharacterTooltip({
             });
             const response = await fetch(`/api/wiki/character?${params.toString()}`);
             if (response.ok) {
-                setCharacter(await response.json());
+                const payload = await response.json();
+                setCharacter(payload);
+                if (payload) {
+                    fetchedRef.current = true;
+                }
             }
         } finally {
             setIsLoading(false);
         }
-    }, [chapterProgress, isLoading, locale, name]);
+    }, [chapterProgress, character, isLoading, locale, name]);
 
     const updateTooltipPosition = useCallback(() => {
         if (!triggerRef.current || typeof window === "undefined") return;
