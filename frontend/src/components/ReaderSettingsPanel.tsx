@@ -1,7 +1,7 @@
 "use client";
 
 import { useTheme } from "@/context/ThemeContext";
-import { Moon, Sun, Coffee, Settings, Flame, Zap, ZapOff } from "lucide-react";
+import { Moon, Sun, Coffee, Settings } from "lucide-react";
 import { useState } from "react";
 
 interface ReaderSettingsPanelProps {
@@ -15,7 +15,7 @@ export default function ReaderSettingsPanel({
     readingProgress = 0,
     className = ""
 }: ReaderSettingsPanelProps) {
-    const { theme, setTheme, fontSize, setFontSize, fontFamily, setFontFamily, isAnimated, setIsAnimated } = useTheme();
+    const { theme, setTheme, fontSize, setFontSize, fontFamily, setFontFamily } = useTheme();
     const [showSettings, setShowSettings] = useState(false);
     
     // Debug log to confirm component is rendering with expected data
@@ -42,8 +42,7 @@ export default function ReaderSettingsPanel({
                                     {[
                                         { id: 'dark', icon: Moon, label: 'TỐI' },
                                         { id: 'light', icon: Sun, label: 'SÁNG' },
-                                        { id: 'sepia', icon: Coffee, label: 'VÀNG' },
-                                        { id: 'hazard', icon: Flame, label: 'NGUY HIỂM' }
+                                        { id: 'sepia', icon: Coffee, label: 'VÀNG' }
                                     ].map((t) => (
                                         <button
                                             key={t.id}
@@ -97,25 +96,6 @@ export default function ReaderSettingsPanel({
                                         className="w-8 h-8 flex items-center justify-center border border-reader-border text-reader-text hover:border-reader-accent hover:text-reader-accent transition-colors rounded text-sm font-mono"
                                     >
                                         +
-                                    </button>
-                                </div>
-                            </div>
-                            
-                            {/* Animation */}
-                            <div className="flex items-center gap-3">
-                                <span className="text-reader-muted text-[10px] font-mono tracking-widest uppercase w-16">HIỆU ỨNG</span>
-                                <div className="flex bg-reader-accent/5 p-1 rounded border border-reader-border">
-                                    <button
-                                        onClick={() => setIsAnimated(true)}
-                                        className={`flex items-center gap-2 px-4 py-1.5 text-[10px] font-mono tracking-widest rounded transition-all ${isAnimated ? "bg-reader-accent text-black" : "text-reader-muted hover:text-reader-text"}`}
-                                    >
-                                        <Zap size={12} /> BẬT
-                                    </button>
-                                    <button
-                                        onClick={() => setIsAnimated(false)}
-                                        className={`flex items-center gap-2 px-4 py-1.5 text-[10px] font-mono tracking-widest rounded transition-all ${!isAnimated ? "bg-reader-accent text-black" : "text-reader-muted hover:text-reader-text"}`}
-                                    >
-                                        <ZapOff size={12} /> TẮT
                                     </button>
                                 </div>
                             </div>

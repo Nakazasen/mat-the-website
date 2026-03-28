@@ -3,7 +3,6 @@ import { Analytics } from "@vercel/analytics/react";
 
 import "./globals.css";
 
-import DynamicBackground from "@/components/DynamicBackground";
 import FirstVisitOnboarding from "@/components/FirstVisitOnboarding";
 import { LocaleProvider } from "@/context/LocaleContext";
 import { NovelProvider } from "@/context/NovelContext";
@@ -99,7 +98,6 @@ export default async function RootLayout({
             </head>
             <body className="bg-ash-dark min-h-screen antialiased" suppressHydrationWarning>
                 <ThemeProvider>
-                    <DynamicBackground />
                     <LocaleProvider locale={locale}>
                         <NovelProvider>
                             <FirstVisitOnboarding />

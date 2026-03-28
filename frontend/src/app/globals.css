@@ -47,15 +47,6 @@
   --reader-card-bg: #ede1c5;
 }
 
-[data-theme='hazard'] {
-  --reader-bg: #020502;
-  --reader-text: #e0ffd6;
-  --reader-accent: #39FF14;
-  --reader-muted: #1f6110;
-  --reader-border: rgba(57, 255, 20, 0.4);
-  --reader-card-bg: rgba(5, 18, 5, 0.7);
-}
-
 /* === GLOBAL RESET & BASE === */
 * {
   box-sizing: border-box;

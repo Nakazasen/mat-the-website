@@ -60,9 +60,9 @@ async def full_localize():
     # 4. Localize Chapters (Only missing ones for Chapters 1-100 to start)
     # The user mentioned chapters 33-814 are untranslated.
     # We'll batch them gradually to avoid massive token consumption in one go.
-    print("\n--- 4. LOCALIZING CHAPTERS (Batch 33-816) ---")
+    print("\n--- 4. LOCALIZING CHAPTERS (Batch 33-100) ---")
     start_ch = 33
-    end_ch = 816 # Process all remaining chapters
+    end_ch = 50 # Small batch first to verify stability
     
     for ch_num in range(start_ch, end_ch + 1):
         print(f"Translating Chapter {ch_num}...")

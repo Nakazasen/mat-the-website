@@ -44,9 +44,7 @@ export function renderRichKaraoke(
                         key={`${path}-${idx}-${textOffset}`}
                         ref={(el) => onRef && onRef(idx, el)}
                         className={`transition-all duration-300 rounded-sm ${activeChunkIndex === idx
-                            ? theme === 'dark'
-                                ? "bg-toxic-green-DEFAULT/40 text-white shadow-[0_0_25px_rgba(0,255,159,0.4)] ring-1 ring-toxic-green-DEFAULT/50 scale-[1.02] inline-block"
-                                : "bg-toxic-green-DEFAULT/50 text-black ring-1 ring-toxic-green-DEFAULT/60 scale-[1.02] inline-block"
+                            ? "bg-toxic-green-DEFAULT text-black ring-2 ring-toxic-green-DEFAULT/80 shadow-[0_0_20px_rgba(57,255,20,0.6)] font-bold scale-[1.02] inline-block px-1"
                             : ""
                             }`}
                     >

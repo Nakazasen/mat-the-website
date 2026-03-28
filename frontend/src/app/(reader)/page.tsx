@@ -3,6 +3,7 @@ import Link from "next/link";
 import { AlertTriangle, BookOpen, ChevronRight, Skull, Zap } from "lucide-react";
 
 import ContinueButton from "@/components/ContinueButton";
+import HeroBackground from "@/components/HeroBackground";
 import {
     getHomepageSettings,
     getLatestChapters,
@@ -86,18 +87,17 @@ export default async function HomePage() {
     return (
         <div className="min-h-screen bg-ash-dark">
             <section className="relative flex min-h-[90vh] items-end overflow-hidden">
-                <div className="absolute inset-0">
-                    <Image
-                        src={novel.cover_url || "/hero-bg.png"}
-                        alt={novel.title}
-                        fill
-                        priority
-                        className="object-cover object-center"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-ash-950/60 to-ash-950" />
-                    <div className="absolute inset-0 bg-gradient-to-r from-ash-950/80 via-transparent to-ash-950/50" />
-                    <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-ash-dark to-transparent" />
-                </div>
+                <HeroBackground 
+                    images={[
+                        "/themes/theme-1.png", 
+                        "/themes/theme-2.png", 
+                        "/themes/theme-3.png", 
+                        "/themes/theme-4.png", 
+                        "/themes/theme-5.png"
+                    ]}
+                    fallbackImage={novel.cover_url || "/hero-bg.png"}
+                    title={novel.title}
+                />
 
                 <div
                     className="pointer-events-none absolute inset-0"
