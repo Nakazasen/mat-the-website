@@ -262,7 +262,7 @@ export default function AdminChaptersPage() {
     const handleClearFailureLogs = useCallback(() => {
         setBatchFailureDetails([]);
         setQualityBatchFailureDetails([]);
-        setFailureLogNotice('Da xoa log loi.');
+        setFailureLogNotice('Đã xóa log lỗi');
         window.setTimeout(() => setFailureLogNotice(null), 2000);
     }, []);
 
@@ -1005,7 +1005,7 @@ export default function AdminChaptersPage() {
                                 onClick={handleClearFailureLogs}
                                 className="inline-flex items-center justify-center rounded border border-red-900/60 px-2.5 py-1 text-[11px] font-mono text-red-100 hover:bg-red-900/40"
                             >
-                                XOA LOG LOI
+                                XÓA LOG LỖI
                             </button>
                         </div>
                         <div className="mt-2 space-y-2">
@@ -1034,7 +1034,7 @@ export default function AdminChaptersPage() {
                                 onClick={handleClearFailureLogs}
                                 className="inline-flex items-center justify-center rounded border border-red-900/60 px-2.5 py-1 text-[11px] font-mono text-red-100 hover:bg-red-900/40"
                             >
-                                XOA LOG LOI
+                                XÓA LOG LỖI
                             </button>
                         </div>
                         <div className="mt-2 space-y-2">
