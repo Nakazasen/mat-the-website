@@ -16,11 +16,13 @@ import {
 import { useLocale } from '@/context/LocaleContext';
 import type { Locale } from '@/lib/i18n/config';
 import {
+    getReaderSourceReference,
     lookupReaderTerm,
     requestReaderSentenceTts,
     saveReaderSentence,
     saveReaderVocab,
     type ReaderLookupResponse,
+    type ReaderSourceReferenceResponse,
 } from '@/lib/reader-learning';
 import {
     buildExternalDictionaryUrl,
@@ -128,6 +130,9 @@ export default function ReaderQuickLookup({
     const [audioPanelHeight, setAudioPanelHeight] = useState(0);
     const [isDesktop, setIsDesktop] = useState(false);
     const [showGuide, setShowGuide] = useState(false);
+    const [sourceReferenceLoading, setSourceReferenceLoading] = useState(false);
+    const [sourceReferenceError, setSourceReferenceError] = useState<string | null>(null);
+    const [sourceReference, setSourceReference] = useState<ReaderSourceReferenceResponse | null>(null);
 
     const externalDictionaryUrl = useMemo(() => {
         if (lookupResult?.external_links?.[0]?.url) return lookupResult.external_links[0].url;
@@ -163,6 +168,8 @@ export default function ReaderQuickLookup({
         setSaveMessage(null);
         setSaveError(null);
         setAudioError(null);
+        setSourceReference(null);
+        setSourceReferenceError(null);
         stopSentenceAudio();
     }, [stopSentenceAudio]);
 
@@ -391,6 +398,26 @@ export default function ReaderQuickLookup({
             setAudioLoading(false);
         }
     }, [audioLoading, chapterId, selectedSentence, sourceLocale]);
+
+    const handleLoadSourceReference = useCallback(async () => {
+        if (sourceLocale === 'vi' || !chapterId || !selectedText || sourceReferenceLoading) return;
+
+        setSourceReferenceLoading(true);
+        setSourceReferenceError(null);
+        try {
+            const payload = await getReaderSourceReference({
+                locale: sourceLocale,
+                selected_text: selectedText,
+                context_sentence: selectedSentence || undefined,
+                chapter_id: chapterId,
+            });
+            setSourceReference(payload);
+        } catch (error: unknown) {
+            setSourceReferenceError((error as Error)?.message || 'Không tìm được đoạn gốc tiếng Việt tương ứng.');
+        } finally {
+            setSourceReferenceLoading(false);
+        }
+    }, [chapterId, selectedSentence, selectedText, sourceLocale, sourceReferenceLoading]);
 
     useEffect(() => {
         const audio = audioRef.current;
@@ -729,6 +756,33 @@ export default function ReaderQuickLookup({
                                     </div>
                                 )}
 
+                                {sourceReferenceError && (
+                                    <div className="rounded-xl border border-red-900/40 bg-red-950/20 px-3 py-3 text-sm text-red-200">
+                                        {sourceReferenceError}
+                                    </div>
+                                )}
+
+                                {sourceReference && (
+                                    <div className="rounded-xl border border-emerald-900/40 bg-emerald-950/15 px-3 py-3 text-sm text-emerald-50">
+                                        <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-emerald-300">
+                                            Đối chiếu bản gốc tiếng Việt
+                                        </div>
+                                        {sourceReference.translated_excerpt && (
+                                            <div className="mt-3 rounded-lg border border-ash-800 bg-black/20 px-3 py-2 text-xs leading-6 text-ash-300">
+                                                {sourceReference.translated_excerpt}
+                                            </div>
+                                        )}
+                                        <div className="mt-3 whitespace-pre-wrap leading-7 text-emerald-50">
+                                            {sourceReference.source_excerpt}
+                                        </div>
+                                        {typeof sourceReference.paragraph_index === 'number' && (
+                                            <div className="mt-3 text-[10px] font-mono uppercase tracking-[0.2em] text-emerald-400">
+                                                Đoạn #{sourceReference.paragraph_index + 1}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
                                 {saveMessage && (
                                     <div className="rounded-xl border border-green-900/40 bg-green-950/20 px-3 py-3 text-sm text-green-200">
                                         {saveMessage}
@@ -755,6 +809,18 @@ export default function ReaderQuickLookup({
                                         <Search size={12} />
                                         {dictionary.lookup.action}
                                     </button>
+
+                                    {sourceLocale !== 'vi' && (
+                                        <button
+                                            type="button"
+                                            onClick={handleLoadSourceReference}
+                                            disabled={!selectedText || !chapterId || sourceReferenceLoading}
+                                            className="inline-flex items-center gap-2 rounded-lg border border-emerald-700/40 px-3 py-2 text-[11px] font-mono text-emerald-300 hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                                        >
+                                            {sourceReferenceLoading ? <Loader2 size={12} className="animate-spin" /> : <BookOpenText size={12} />}
+                                            Gốc VI
+                                        </button>
+                                    )}
 
                                     <button
                                         type="button"

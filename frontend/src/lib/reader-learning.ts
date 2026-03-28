@@ -46,6 +46,23 @@ export interface ReaderSentenceInsightResponse {
     source: ReaderLookupSource;
 }
 
+export interface ReaderSourceReferenceRequest {
+    locale: Locale;
+    selected_text: string;
+    context_sentence?: string;
+    chapter_id: number;
+}
+
+export interface ReaderSourceReferenceResponse {
+    locale: Locale;
+    source_locale: "vi";
+    selected_text: string;
+    translated_excerpt?: string | null;
+    source_excerpt: string;
+    paragraph_index?: number | null;
+    source: ReaderLookupSource;
+}
+
 export type ReaderGrammarHintCategory =
     | "grammar"
     | "structure"
@@ -224,6 +241,13 @@ export function lookupReaderTerm(data: ReaderLookupRequest): Promise<ReaderLooku
 
 export function getReaderSentenceInsight(data: ReaderSentenceInsightRequest): Promise<ReaderSentenceInsightResponse> {
     return readerRequest<ReaderSentenceInsightResponse>("/sentence-insight", {
+        method: "POST",
+        body: JSON.stringify(data),
+    });
+}
+
+export function getReaderSourceReference(data: ReaderSourceReferenceRequest): Promise<ReaderSourceReferenceResponse> {
+    return readerRequest<ReaderSourceReferenceResponse>("/source-reference", {
         method: "POST",
         body: JSON.stringify(data),
     });

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import html
 import hashlib
 import logging
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Any, Literal, Optional
 from urllib.parse import quote
@@ -150,6 +152,23 @@ class ReaderSentenceInsightResponse(BaseModel):
     source: LookupSource
 
 
+class ReaderSourceReferenceRequest(BaseModel):
+    locale: str = "vi"
+    selected_text: str = Field(..., min_length=1, max_length=1200)
+    context_sentence: Optional[str] = Field(default=None, max_length=2000)
+    chapter_id: int = Field(..., ge=1)
+
+
+class ReaderSourceReferenceResponse(BaseModel):
+    locale: str
+    source_locale: str = "vi"
+    selected_text: str
+    translated_excerpt: Optional[str] = None
+    source_excerpt: str
+    paragraph_index: Optional[int] = None
+    source: LookupSource
+
+
 class ReaderLearningStatsResponse(BaseModel):
     saved_vocab_count: int
     saved_sentence_count: int
@@ -204,6 +223,22 @@ def _get_build_rule_based_lookup():
     return build_rule_based_lookup
 
 
+def _get_fetch_r2_content():
+    try:
+        from main import fetch_r2_content
+    except ImportError:
+        from backend.main import fetch_r2_content
+    return fetch_r2_content
+
+
+def _get_resolve_chapter_translation():
+    try:
+        from main import resolve_chapter_translation
+    except ImportError:
+        from backend.main import resolve_chapter_translation
+    return resolve_chapter_translation
+
+
 def _extract_bearer_token(authorization: Optional[str]) -> Optional[str]:
     if not authorization:
         return None
@@ -223,6 +258,69 @@ def _normalize_sentence(text: Optional[str], max_length: int = 1200) -> Optional
     if not normalized:
         return None
     return normalized[:max_length]
+
+
+def _strip_html_to_text(text: Optional[str]) -> str:
+    if not text:
+        return ""
+    normalized = re.sub(r"(?i)<br\s*/?>", "\n", text)
+    normalized = re.sub(r"(?i)</p\s*>", "\n\n", normalized)
+    normalized = re.sub(r"(?i)</div\s*>", "\n\n", normalized)
+    normalized = re.sub(r"<[^>]+>", "", normalized)
+    normalized = html.unescape(normalized)
+    normalized = normalized.replace("\r\n", "\n").replace("\r", "\n")
+    return normalized.strip()
+
+
+def _split_text_blocks(text: Optional[str]) -> list[str]:
+    plain_text = _strip_html_to_text(text)
+    if not plain_text:
+        return []
+    blocks = [block.strip() for block in re.split(r"\n\s*\n+", plain_text) if block.strip()]
+    if blocks:
+        return blocks
+    return [line.strip() for line in plain_text.split("\n") if line.strip()]
+
+
+def _normalize_match_text(text: Optional[str]) -> str:
+    normalized = _strip_html_to_text(text).lower()
+    normalized = re.sub(r"\s+", " ", normalized)
+    normalized = re.sub(r"[^\w\s\u00C0-\u024F\u3040-\u30ff\u3400-\u9fff]", "", normalized)
+    return normalized.strip()
+
+
+def _overlap_score(query: str, candidate: str) -> float:
+    if not query or not candidate:
+        return 0.0
+    if query in candidate:
+        return 1.0 + (len(query) / max(len(candidate), 1))
+
+    query_tokens = [token for token in query.split(" ") if token]
+    if not query_tokens:
+        return 0.0
+    hits = sum(1 for token in query_tokens if token in candidate)
+    if hits == 0:
+        return 0.0
+    return hits / len(query_tokens)
+
+
+def _find_best_matching_block(translated_blocks: list[str], selected_text: str, context_sentence: Optional[str]) -> tuple[Optional[int], float]:
+    normalized_selected = _normalize_match_text(selected_text)
+    normalized_context = _normalize_match_text(context_sentence)
+    best_index: Optional[int] = None
+    best_score = 0.0
+
+    for index, block in enumerate(translated_blocks):
+        normalized_block = _normalize_match_text(block)
+        score = max(
+            _overlap_score(normalized_selected, normalized_block),
+            _overlap_score(normalized_context, normalized_block),
+        )
+        if score > best_score:
+            best_score = score
+            best_index = index
+
+    return best_index, best_score
 
 
 def _context_hash(context_sentence: Optional[str]) -> str:
@@ -771,6 +869,99 @@ async def sentence_insight(body: ReaderSentenceInsightRequest):
         source=response.source,
     )
     return response
+
+
+@router.post("/source-reference", response_model=ReaderSourceReferenceResponse)
+async def source_reference(body: ReaderSourceReferenceRequest):
+    locale = _normalize_locale(body.locale)
+    selected_text = _normalize_sentence(body.selected_text, max_length=1200)
+    context_sentence = _normalize_sentence(body.context_sentence, max_length=2000)
+
+    if not selected_text:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="selected_text không được để trống.")
+
+    if locale == "vi":
+        return ReaderSourceReferenceResponse(
+            locale=locale,
+            selected_text=selected_text,
+            translated_excerpt=context_sentence or selected_text,
+            source_excerpt=context_sentence or selected_text,
+            paragraph_index=None,
+            source="rule_based",
+        )
+
+    supabase = _get_supabase()
+    fetch_r2_content = _get_fetch_r2_content()
+    resolve_chapter_translation = _get_resolve_chapter_translation()
+
+    chapter_result = (
+        supabase.table("chapters")
+        .select("id, chapter_number, content_url")
+        .eq("id", body.chapter_id)
+        .limit(1)
+        .execute()
+    )
+    chapter_row = dict(chapter_result.data[0]) if chapter_result.data else None
+    if not chapter_row:
+        _log_reader_event("warning", "source_reference_chapter_missing", locale=locale, chapter_id=body.chapter_id)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy chương để đối chiếu.")
+
+    translation = resolve_chapter_translation(chapter_row["id"], locale)
+    if not translation or not translation.get("content"):
+        _log_reader_event("warning", "source_reference_translation_missing", locale=locale, chapter_id=body.chapter_id)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chương này chưa có bản dịch để đối chiếu.")
+
+    try:
+        source_content = fetch_r2_content(chapter_row["content_url"])
+    except Exception as exc:
+        _log_reader_event(
+            "error",
+            "source_reference_source_fetch_failed",
+            locale=locale,
+            chapter_id=body.chapter_id,
+            detail=str(exc),
+        )
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Không tải được bản gốc tiếng Việt.")
+
+    translated_blocks = _split_text_blocks(translation.get("content"))
+    source_blocks = _split_text_blocks(source_content)
+
+    if not translated_blocks or not source_blocks:
+        _log_reader_event("warning", "source_reference_empty_blocks", locale=locale, chapter_id=body.chapter_id)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không đủ dữ liệu để đối chiếu đoạn gốc.")
+
+    best_index, best_score = _find_best_matching_block(translated_blocks, selected_text, context_sentence)
+    if best_index is None or best_score < 0.22:
+        _log_reader_event(
+            "warning",
+            "source_reference_no_match",
+            locale=locale,
+            chapter_id=body.chapter_id,
+            selected=_preview_text(selected_text),
+            context=_preview_text(context_sentence),
+        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chưa tìm được đoạn gốc tiếng Việt tương ứng.")
+
+    source_index = min(best_index, max(len(source_blocks) - 1, 0))
+    translated_excerpt = translated_blocks[best_index].strip()
+    source_excerpt = source_blocks[source_index].strip()
+
+    _log_reader_event(
+        "info",
+        "source_reference_success",
+        locale=locale,
+        chapter_id=body.chapter_id,
+        paragraph_index=source_index,
+        score=round(best_score, 3),
+    )
+    return ReaderSourceReferenceResponse(
+        locale=locale,
+        selected_text=selected_text,
+        translated_excerpt=translated_excerpt,
+        source_excerpt=source_excerpt,
+        paragraph_index=source_index,
+        source="rule_based",
+    )
 
 
 @router.post("/save-vocab", response_model=ReaderSavedVocabItem)
