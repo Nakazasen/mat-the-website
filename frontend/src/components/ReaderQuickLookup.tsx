@@ -171,6 +171,53 @@ export default function ReaderQuickLookup({
         clearBrowserSelection();
     }, [clearBrowserSelection, hideToolbar, resetLookupState]);
 
+    const showSelectionRequiredError = useCallback(() => {
+        setPanelOpen(true);
+        hideToolbar();
+        setLookupLoading(false);
+        setLookupResult(null);
+        setLookupError('Hãy bôi đen một từ hoặc cụm trước khi tra.');
+        setSaveMessage(null);
+        setSaveError(null);
+        setAudioError(null);
+    }, [hideToolbar]);
+
+    const captureCurrentSelection = useCallback(() => {
+        const container = containerRef.current;
+        if (!container) return null;
+
+        const selection = window.getSelection();
+        if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+            return null;
+        }
+
+        const range = selection.getRangeAt(0);
+        const anchorNode = range.commonAncestorContainer;
+        const anchorElement = anchorNode.nodeType === Node.ELEMENT_NODE
+            ? (anchorNode as HTMLElement)
+            : anchorNode.parentElement;
+
+        if (!anchorElement || !container.contains(anchorElement)) {
+            return null;
+        }
+
+        const normalizedText = normalizeSelectionText(selection.toString());
+        if (!normalizedText) {
+            return null;
+        }
+
+        const rect = range.getBoundingClientRect();
+        if (!rect.width && !rect.height) {
+            return null;
+        }
+
+        return {
+            normalizedText,
+            sentence: findSelectionSentence(anchorElement, normalizedText),
+            rect,
+        };
+    }, [containerRef]);
+
     const runLookup = useCallback(async (textOverride?: string, sentenceOverride?: string) => {
         const query = normalizeSelectionText(textOverride || selectedText);
         const contextSentence = sentenceOverride ?? selectedSentence;
@@ -220,42 +267,12 @@ export default function ReaderQuickLookup({
     ]);
 
     const readCurrentSelection = useCallback((triggerLookup = false) => {
-        const container = containerRef.current;
-        if (!container) {
+        const snapshot = captureCurrentSelection();
+        if (!snapshot) {
             hideToolbar();
             return;
         }
-
-        const selection = window.getSelection();
-        if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
-            hideToolbar();
-            return;
-        }
-
-        const range = selection.getRangeAt(0);
-        const anchorNode = range.commonAncestorContainer;
-        const anchorElement = anchorNode.nodeType === Node.ELEMENT_NODE
-            ? (anchorNode as HTMLElement)
-            : anchorNode.parentElement;
-
-        if (!anchorElement || !container.contains(anchorElement)) {
-            hideToolbar();
-            return;
-        }
-
-        const normalizedText = normalizeSelectionText(selection.toString());
-        if (!normalizedText) {
-            hideToolbar();
-            return;
-        }
-
-        const rect = range.getBoundingClientRect();
-        if (!rect.width && !rect.height) {
-            hideToolbar();
-            return;
-        }
-
-        const sentence = findSelectionSentence(anchorElement, normalizedText);
+        const { normalizedText, sentence, rect } = snapshot;
 
         setSelectedText((prev) => {
             if (prev !== normalizedText) {
@@ -273,7 +290,7 @@ export default function ReaderQuickLookup({
                 void runLookup(normalizedText, sentence);
             }, 0);
         }
-    }, [containerRef, hideToolbar, resetLookupState, runLookup]);
+    }, [captureCurrentSelection, hideToolbar, resetLookupState, runLookup]);
 
     const handleSaveVocab = useCallback(async () => {
         if (!selectedText || saveVocabLoading) return;
@@ -431,6 +448,34 @@ export default function ReaderQuickLookup({
             closeLookupPanel();
         };
 
+        const handleLookupRequest = () => {
+            const snapshot = captureCurrentSelection();
+            if (!snapshot) {
+                if (selectedText) {
+                    void runLookup(selectedText, selectedSentence);
+                    return;
+                }
+                showSelectionRequiredError();
+                return;
+            }
+
+            const { normalizedText, sentence, rect } = snapshot;
+            setSelectedText((prev) => {
+                if (prev !== normalizedText) {
+                    resetLookupState();
+                }
+                return normalizedText;
+            });
+            setSelectedSentence(sentence);
+            setToolbarPosition({
+                top: Math.max(12, rect.top + window.scrollY - 52),
+                left: rect.left + window.scrollX + rect.width / 2,
+            });
+            window.setTimeout(() => {
+                void runLookup(normalizedText, sentence);
+            }, 0);
+        };
+
         document.addEventListener('mouseup', handlePointerUp);
         document.addEventListener('touchend', handlePointerUp);
         document.addEventListener('mousedown', handlePointerDown);
@@ -438,6 +483,7 @@ export default function ReaderQuickLookup({
         document.addEventListener('keyup', handleKeyUp);
         window.addEventListener('scroll', handleScroll, { passive: true });
         window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('reader-open-lookup-from-selection', handleLookupRequest as EventListener);
 
         return () => {
             document.removeEventListener('mouseup', handlePointerUp);
@@ -447,8 +493,20 @@ export default function ReaderQuickLookup({
             document.removeEventListener('keyup', handleKeyUp);
             window.removeEventListener('scroll', handleScroll);
             window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('reader-open-lookup-from-selection', handleLookupRequest as EventListener);
         };
-    }, [closeLookupPanel, hideToolbar, panelOpen, readCurrentSelection, runLookup]);
+    }, [
+        captureCurrentSelection,
+        closeLookupPanel,
+        hideToolbar,
+        panelOpen,
+        readCurrentSelection,
+        resetLookupState,
+        runLookup,
+        selectedSentence,
+        selectedText,
+        showSelectionRequiredError,
+    ]);
 
     useEffect(() => {
         const handleAudioState = (event: Event) => {

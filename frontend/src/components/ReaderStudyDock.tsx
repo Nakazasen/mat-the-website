@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { BookMarked, GraduationCap, Languages, Loader2, Quote, RefreshCcw, Sparkles, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { BookMarked, GraduationCap, Languages, Loader2, Quote, RefreshCcw, Search, Sparkles, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
 
 import { useLocale } from "@/context/LocaleContext";
 import { getReaderLearningStats, type ReaderLearningStatsResponse } from "@/lib/reader-learning";
@@ -53,6 +53,44 @@ function LookupTips() {
                 <div>3. Sau khi đã chọn chữ, nhấn <span className="font-mono text-cyan-200">Alt+L</span>.</div>
             </div>
         </div>
+    );
+}
+
+function triggerLookupFromSelection() {
+    window.dispatchEvent(new CustomEvent("reader-open-lookup-from-selection"));
+}
+
+function LookupActionButton({ onAfterTrigger }: { onAfterTrigger?: () => void }) {
+    const handleMouseDown = useCallback((event: ReactMouseEvent<HTMLButtonElement>) => {
+        event.preventDefault();
+        triggerLookupFromSelection();
+        onAfterTrigger?.();
+    }, [onAfterTrigger]);
+
+    const handleTouchStart = useCallback(() => {
+        triggerLookupFromSelection();
+        onAfterTrigger?.();
+    }, [onAfterTrigger]);
+
+    const handleKeyDown = useCallback((event: ReactKeyboardEvent<HTMLButtonElement>) => {
+        if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            triggerLookupFromSelection();
+            onAfterTrigger?.();
+        }
+    }, [onAfterTrigger]);
+
+    return (
+        <button
+            type="button"
+            onMouseDown={handleMouseDown}
+            onTouchStart={handleTouchStart}
+            onKeyDown={handleKeyDown}
+            className="mx-3 mt-3 inline-flex items-center justify-center gap-2 rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-sm text-cyan-200 hover:border-cyan-400 hover:bg-cyan-500/15"
+        >
+            <Search size={14} />
+            Tra từ đang chọn
+        </button>
     );
 }
 
@@ -164,6 +202,7 @@ export default function ReaderStudyDock() {
                     </div>
 
                     <LookupTips />
+                    <LookupActionButton />
                     <StudyLinks />
                 </div>
             </div>
@@ -214,6 +253,7 @@ export default function ReaderStudyDock() {
                                 <StudyStats loading={loading} error={error} stats={stats} />
                             </div>
                             <LookupTips />
+                            <LookupActionButton onAfterTrigger={() => setMobileOpen(false)} />
                             <StudyLinks onNavigate={() => setMobileOpen(false)} />
                         </div>
                     </div>
