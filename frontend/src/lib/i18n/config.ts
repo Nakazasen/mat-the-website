@@ -8,7 +8,7 @@ export const LOCALE_COOKIE = "mt_locale";
 export const LOCALE_LABELS: Record<Locale, string> = {
     vi: "VI",
     en: "EN",
-    "zh-CN": "简中",
+    "zh-CN": "中文",
     ja: "日本語",
 };
 

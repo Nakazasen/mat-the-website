@@ -3,6 +3,7 @@ import { Analytics } from "@vercel/analytics/react";
 
 import "./globals.css";
 
+import FirstVisitOnboarding from "@/components/FirstVisitOnboarding";
 import { LocaleProvider } from "@/context/LocaleContext";
 import { NovelProvider } from "@/context/NovelContext";
 import { ThemeProvider } from "@/context/ThemeContext";
@@ -99,6 +100,7 @@ export default async function RootLayout({
                 <ThemeProvider>
                     <LocaleProvider locale={locale}>
                         <NovelProvider>
+                            <FirstVisitOnboarding />
                             {children}
                         </NovelProvider>
                     </LocaleProvider>
