@@ -2,7 +2,7 @@
   "meta": {
     "schema_version": "1.1.0",
     "awf_version": "4.0.2",
-    "last_updated": "2026-03-28T06:45:00+07:00"
+    "last_updated": "2026-03-28T09:35:00+07:00"
   },
   "project": {
     "name": "Mat The - Sinh Hoa Nguy Co",
@@ -11,7 +11,9 @@
     "repo": "https://github.com/Nakazasen/mat-the-website",
     "status": "active",
     "rules": [
-      "Luôn push code mới nhất lên GitHub và rebuild Vercel/Render sau bất cứ thay đổi nào."
+      "Luon push code moi nhat len GitHub va kich hoat lai deploy Vercel/Render sau khi chot thay doi can phat hanh.",
+      "Khong duoc dung Set-Content, Out-File hoac lenh ghi file tuong tu de sua source code hien co, dac biet voi file lon hoac file co Unicode. Chi duoc sua bang apply_patch de tranh mojibake va loi encoding.",
+      "Neu nghi ngo file vua bi mojibake hoac encoding drift sau thao tac ghi file, phai dung ngay, doi chieu voi git HEAD va khoi phuc file sach truoc khi tiep tuc sua."
     ]
   },
   "tech_stack": {
@@ -25,26 +27,31 @@
       "framework": "FastAPI (Python)",
       "deployment": "Render.com",
       "url": "https://mat-the-website.onrender.com",
-      "note": "Oracle production debugging requires checking the live Render commit rollout rather than assuming GitHub push is already active."
+      "note": "Oracle/translation production debugging phai doi chieu endpoint live va commit deploy, khong duoc gia dinh push GitHub da len server."
     },
     "database": {
       "provider": "Supabase (PostgreSQL)",
       "critical_tables": [
-        "novel_settings",
+        "chapters",
+        "chapter_translations",
+        "wiki_entries",
+        "wiki_entry_translations",
+        "homepage_settings",
+        "homepage_settings_translations",
+        "guide_pages",
         "oracle_cache",
         "oracle_rate_limits",
-        "wiki_entries",
-        "profiles",
-        "chapters"
+        "profiles"
       ]
     },
     "storage": "Cloudflare R2"
   },
   "current_focus": {
-    "area": "HUD Localization & Admin UX Responsiveness",
-    "summary": "Implemented 4-locale support for SystemHUD, refactored Admin Chapters table for mobile card-view, and fixed dictionary exports for better tool compatibility. Latest work ensures the system remains premium and accessible across all languages and devices.",
+    "area": "Translation Reliability + Reader Study UX",
+    "summary": "Session nay tap trung vao do on dinh cua AI translation va trai nghiem hoc ngoai ngu khi doc truyen. Da quet du lieu production, retranslate chon loc chapter translations bi sai locale, fix tan goc loi batch chapter title not-null khi ghi trang thai failed, them tra tu nhanh trong trang doc, va them audio floating controls cung hotkeys.",
     "latest_commits": [
-      "0f939fd7fd99fb6ec67bd879fb42d45c8f5f3d07"
+      "7324117e2b8c6a93fe047db14d4d9f09a6277c52",
+      "e538635c48ac4ffee3d4bedf4707529aa9f40553"
     ]
   },
   "knowledge_items": {
@@ -63,29 +70,37 @@
       },
       {
         "title": "Floating reader controls need adaptive placement",
-        "detail": "Fixed-corner placement is fragile on mobile; draggable triggers and minimized diagnostics reduce control overlap."
+        "detail": "Fixed-corner placement is fragile on mobile; draggable or floating controls need overlap checks with existing reader HUD."
       },
       {
         "title": "Translation success can fail on JSON parsing even with HTTP 200",
-        "detail": "Gemini may return JSON wrapped in fences, include control characters, or produce malformed strings. Translation pipelines now need payload cleaning and parse-retry across models."
+        "detail": "Gemini may return JSON wrapped in fences, include control characters, or produce malformed strings. Structured schema flow is safer than free-form JSON parsing."
       },
       {
-        "title": "Batch translation progress is durable only at published-row boundaries",
-        "detail": "When only_missing=true, reruns skip locales already published. Failed/incomplete locales are retried, so network interruptions usually cost time rather than losing completed work."
+        "title": "Postgres upsert still checks NOT NULL before conflict resolution",
+        "detail": "Trong chapter_translations, neu nhanh failed upsert khong truyen title/content, Postgres van no null value violates not-null constraint du row cu da ton tai."
       },
       {
-        "title": "Wiki translations were read-only before 2026-03-27",
-        "detail": "The repo already had wiki_entry_translations lookup, but no AI generation pipeline or admin controls until this session."
+        "title": "Mojibake va wrong-locale la hai loai loi khac nhau",
+        "detail": "Production scan cho thay DB khong bi mojibake hang loat. Van de thuc te la mot so chapter translations cho en/zh-CN/ja van chua tieng Viet hoac sai locale."
       },
       {
-        "title": "Browser Auto-translate can break Next.js Hydration",
-        "detail": "Browser-level translation (e.g. Chrome Google Translate) can modify the DOM before Next.js hydration, causing UI crashes. Use translate=\"no\" on critical test or UI components if needed, or ensure dynamic labels handle mismatch gracefully."
+        "title": "Reader lookup tot nhat la in-page contextual lookup",
+        "detail": "Cho nguoi hoc ngoai ngu qua truyen, UX tot nhat la boi den tu/cum, mo panel tra nhanh ngay trong trang, giai nghia ngan gon theo ngu canh, roi moi mo tu dien ngoai neu can."
+      },
+      {
+        "title": "Audio controls o dau bai la khong du",
+        "detail": "Nguoi dung thuong doc sau xuong duoi trang, nen can mini-controller noi va hotkeys de play/pause/replay ma khong can keo len dau trang."
+      },
+      {
+        "title": "Khong sua file source bang Set-Content tren Windows",
+        "detail": "Set-Content/Out-File co the lam lech encoding, them BOM hoac gay mojibake tren file lon nhieu Unicode. Quy tac cua repo nay la chi dung apply_patch cho sua source hien co."
       }
     ]
   },
   "git": {
     "github_user": "Nakazasen",
     "default_branch": "main",
-    "latest_pushed_commit": "0f939fd7fd99fb6ec67bd879fb42d45c8f5f3d07"
+    "latest_pushed_commit": "e538635c48ac4ffee3d4bedf4707529aa9f40553"
   }
 }
