@@ -196,6 +196,52 @@ def test_resolve_source_reference_from_alignment_rejects_partial_paragraph_match
     assert result is None
 
 
+def test_should_match_sentence_rejects_multi_sentence_selection():
+    assert (
+        reader_learning._should_match_sentence(
+            "その濁った瞳には、正気のかけらもなかった。 この光景を見て、ハン・フォンの頭の中に、二文字の単語が自然と浮かび上がった。",
+            "その濁った瞳には、正気のかけらもなかった。 この光景を見て、ハン・フォンの頭の中に、二文字の単語が自然と浮かび上がった。",
+        )
+        is False
+    )
+
+
+def test_resolve_source_reference_from_alignment_maps_multi_sentence_selection_as_paragraph():
+    entries = [
+        {
+            "translated_excerpt": "その濁った瞳には、正気のかけらもなかった。",
+            "source_excerpt": "Đôi mắt đục ngầu ấy không còn chút tỉnh táo nào.",
+        },
+        {
+            "translated_excerpt": "この光景を見て、ハン・フォンの頭の中に、二文字の単語が自然と浮かび上がった。",
+            "source_excerpt": "Nhìn cảnh tượng này, trong đầu Hàn Phong tự nhiên hiện lên một từ có hai chữ.",
+        },
+        {
+            "translated_excerpt": "それはゾンビだった。",
+            "source_excerpt": "Đó là zombie.",
+        },
+    ]
+
+    selected_text = (
+        "その濁った瞳には、正気のかけらもなかった。 "
+        "この光景を見て、ハン・フォンの頭の中に、二文字の単語が自然と浮かび上がった。"
+    )
+    result = reader_learning._resolve_source_reference_from_alignment(
+        entries,
+        selected_text=selected_text,
+        context_sentence=selected_text,
+        context_block=selected_text,
+    )
+
+    assert result is not None
+    assert result["match_mode"] == "paragraph"
+    assert result["translated_excerpt"] == selected_text
+    assert result["source_excerpt"] == (
+        "Đôi mắt đục ngầu ấy không còn chút tỉnh táo nào. "
+        "Nhìn cảnh tượng này, trong đầu Hàn Phong tự nhiên hiện lên một từ có hai chữ."
+    )
+
+
 def test_resolve_source_reference_from_alignment_prefers_exact_sentence_over_context_window():
     entries = [
         {

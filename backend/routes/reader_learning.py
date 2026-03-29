@@ -737,6 +737,11 @@ def _source_reference_structure_is_reliable(source_text: Optional[str], translat
 
 
 def _should_match_sentence(selected_text: str, context_sentence: Optional[str]) -> bool:
+    if len(_split_sentences(selected_text)) != 1:
+        return False
+    if context_sentence and len(_split_sentences(context_sentence)) != 1:
+        return False
+
     normalized_selected = _normalize_match_text(selected_text)
     normalized_context = _normalize_match_text(context_sentence)
     if not normalized_selected or not normalized_context:
