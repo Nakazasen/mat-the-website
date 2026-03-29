@@ -492,6 +492,70 @@ def _context_excerpt_coverage_score(context_block: Optional[str], translated_exc
     return _overlap_score(normalized_context, normalized_excerpt)
 
 
+def _selected_excerpt_coverage_score(selected_text: Optional[str], translated_excerpt: Optional[str]) -> float:
+    normalized_selected = _normalize_match_text(selected_text)
+    normalized_excerpt = _normalize_match_text(translated_excerpt)
+    if not normalized_selected or not normalized_excerpt:
+        return 0.0
+    return _overlap_score(normalized_selected, normalized_excerpt)
+
+
+def _find_alignment_sentence_candidate(
+    entries: list[dict[str, Any]],
+    selected_text: str,
+    context_sentence: Optional[str],
+    context_window: Optional[dict[str, Any]],
+) -> Optional[dict[str, Any]]:
+    normalized_selected = _normalize_match_text(selected_text)
+    normalized_context = _normalize_match_text(context_sentence)
+    if not entries or not normalized_selected:
+        return None
+
+    window_start = int(context_window["start_index"]) if context_window else 0
+    window_end = window_start + int(context_window["window_size"]) if context_window else 0
+    candidates: list[dict[str, Any]] = []
+
+    for index, item in enumerate(entries):
+        translated_excerpt = str(item.get("translated_excerpt") or "")
+        normalized_excerpt = _normalize_match_text(translated_excerpt)
+        if not normalized_excerpt:
+            continue
+        selected_score = _overlap_score(normalized_selected, normalized_excerpt)
+        context_score = _overlap_score(normalized_context, normalized_excerpt) if normalized_context else 0.0
+        exact_match = normalized_selected in normalized_excerpt or normalized_excerpt in normalized_selected
+        in_context_window = bool(context_window) and window_start <= index < window_end
+        if exact_match or selected_score >= 0.5 or (in_context_window and context_score >= 0.5):
+            candidates.append(
+                {
+                    "index": index,
+                    "selected_score": selected_score,
+                    "context_score": context_score,
+                    "exact_match": exact_match,
+                    "in_context_window": in_context_window,
+                    "translated_excerpt": translated_excerpt,
+                }
+            )
+
+    if not candidates:
+        return None
+
+    exact_candidates = [candidate for candidate in candidates if candidate["exact_match"]]
+    if exact_candidates:
+        candidates = exact_candidates
+
+    candidates.sort(
+        key=lambda candidate: (
+            0 if candidate["exact_match"] else 1,
+            0 if candidate["in_context_window"] else 1,
+            -float(candidate["selected_score"]),
+            -float(candidate["context_score"]),
+            abs(len(_normalize_match_text(candidate["translated_excerpt"])) - len(normalized_selected)),
+            int(candidate["index"]),
+        )
+    )
+    return candidates[0]
+
+
 def _resolve_alignment_context_window(
     entries: list[dict[str, Any]],
     context_block: Optional[str],
@@ -554,11 +618,16 @@ def _resolve_source_reference_from_alignment(
     window_size = min(max(1, selected_window_size), 4)
     window_start = search_offset
     if sentence_mode_requested:
-        if best_local_index is None or best_score < 0.5:
+        sentence_candidate = _find_alignment_sentence_candidate(entries, selected_text, context_sentence, context_window)
+        if sentence_candidate:
+            best_score = float(sentence_candidate["selected_score"])
+            window_start = int(sentence_candidate["index"])
+        elif best_local_index is None or best_score < 0.5:
             return None
+        else:
+            window_start = search_offset + best_local_index
         match_mode = "sentence"
         window_size = 1
-        window_start = search_offset + best_local_index
     elif best_local_index is not None and best_score >= 0.32:
         window_start = search_offset + best_local_index
     elif context_window and paragraph_score >= 0.55:
@@ -582,6 +651,10 @@ def _resolve_source_reference_from_alignment(
         max_sentences=1 if match_mode == "sentence" else 3,
         max_chars=320 if match_mode == "sentence" else 620,
     )
+    if match_mode == "sentence":
+        coverage_score = _selected_excerpt_coverage_score(selected_text, translated_excerpt)
+        if coverage_score < 0.88:
+            return None
     if match_mode == "paragraph" and context_block:
         coverage_score = _context_excerpt_coverage_score(context_block, translated_excerpt)
         if coverage_score < 0.78:

@@ -194,6 +194,57 @@ def test_resolve_source_reference_from_alignment_rejects_partial_paragraph_match
     assert result is None
 
 
+def test_resolve_source_reference_from_alignment_prefers_exact_sentence_over_context_window():
+    entries = [
+        {
+            "translated_excerpt": "ハン・フォンはこの膿が流れる顔の持ち主を知っていた。",
+            "source_excerpt": "Hàn Phong biết chủ nhân của khuôn mặt chảy mủ này.",
+        },
+        {
+            "translated_excerpt": "そこには同僚のリュウ・チンがいた。",
+            "source_excerpt": "Ở đó có đồng nghiệp Lưu Chinh.",
+        },
+        {
+            "translated_excerpt": "この光景を見て、ハン・フォンの頭の中に、二文字の単語が自然と浮かび上がった。",
+            "source_excerpt": "Nhìn cảnh tượng này, trong đầu Hàn Phong tự nhiên hiện lên một từ gồm hai chữ.",
+        },
+    ]
+
+    result = reader_learning._resolve_source_reference_from_alignment(
+        entries,
+        selected_text="この光景を見て、ハン・フォンの頭の中に、二文字の単語が自然と浮かび上がった。",
+        context_sentence="この光景を見て、ハン・フォンの頭の中に、二文字の単語が自然と浮かび上がった。",
+        context_block="ハン・フォンはこの膿が流れる顔の持ち主を知っていた。 そこには同僚のリュウ・チンがいた。",
+    )
+
+    assert result is not None
+    assert result["match_mode"] == "sentence"
+    assert result["translated_excerpt"] == "この光景を見て、ハン・フォンの頭の中に、二文字の単語が自然と浮かび上がった。"
+    assert result["source_excerpt"] == "Nhìn cảnh tượng này, trong đầu Hàn Phong tự nhiên hiện lên một từ gồm hai chữ."
+
+
+def test_resolve_source_reference_from_alignment_rejects_wrong_sentence_when_selected_not_covered():
+    entries = [
+        {
+            "translated_excerpt": "ハン・フォンはこの膿が流れる顔の持ち主を知っていた。",
+            "source_excerpt": "Hàn Phong biết chủ nhân của khuôn mặt chảy mủ này.",
+        },
+        {
+            "translated_excerpt": "そこには同僚のリュウ・チンがいた。",
+            "source_excerpt": "Ở đó có đồng nghiệp Lưu Chinh.",
+        },
+    ]
+
+    result = reader_learning._resolve_source_reference_from_alignment(
+        entries,
+        selected_text="この光景を見て、ハン・フォンの頭の中に、二文字の単語が自然と浮かび上がった。",
+        context_sentence="この光景を見て、ハン・フォンの頭の中に、二文字の単語が自然と浮かび上がった。",
+        context_block="ハン・フォンはこの膿が流れる顔の持ち主を知っていた。 そこには同僚のリュウ・チンがいた。",
+    )
+
+    assert result is None
+
+
 def test_source_reference_structure_is_reliable_rejects_large_sentence_drift():
     source_text = "Cau mot. Cau hai. Cau ba. Cau bon."
     translated_text = (

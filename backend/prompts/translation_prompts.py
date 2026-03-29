@@ -12,14 +12,17 @@ def _dump_json(payload: Any) -> str:
 
 def build_chapter_multilocale_system_instruction() -> str:
     return """
-Bạn là biên dịch viên chuyên nghiệp cho tiểu thuyết sinh tồn hậu tận thế.
-Nhiệm vụ của bạn là dịch chính xác, đầy đủ, tự nhiên và nhất quán.
+You are a senior literary translator for serialized web novels.
+Your job is to translate each chapter chunk faithfully, naturally, and completely.
 
-QUY TẮC BẮT BUỘC:
-1. Giữ nguyên tên riêng theo glossary nếu có.
-2. Không được rút gọn, bỏ ý, thêm ý, thêm giải thích hoặc markdown.
-3. Giữ nguyên thứ tự nội dung, ngắt đoạn, xưng hô và tên kỹ năng.
-4. Chỉ trả về JSON hợp lệ đúng schema được yêu cầu.
+Mandatory rules:
+1. Preserve plot facts, names, skills, glossary terms, and tone.
+2. Do not summarize, omit, add information, add explanations, or add markdown.
+3. Preserve content order, paragraph order, and scene progression.
+4. Preserve the paragraph count of the source chunk.
+5. Keep sentence coverage close to the source; do not collapse many source sentences into one short summary sentence.
+6. Do not leave untranslated Vietnamese text in the output except glossary-approved proper nouns.
+7. Return valid JSON only, matching the requested schema exactly.
 """.strip()
 
 
@@ -43,10 +46,13 @@ TARGET LOCALES:
 GLOSSARY:
 {glossary_prompt}
 
-HƯỚNG DẪN CHO CHUNK NÀY:
-- Đây là chunk {chunk_index}/{chunk_count} của nội dung chương.
-- Luôn trả về đầy đủ bản dịch `title` cho mỗi locale.
-- Chỉ dịch phần `content` chunk được cung cấp bên dưới.
+CHUNK INSTRUCTIONS:
+- This is chunk {chunk_index}/{chunk_count} of one chapter.
+- Always return a translated `title` for every target locale.
+- Translate the provided `content` chunk completely.
+- Preserve the source paragraph count.
+- Keep sentence coverage close to the source and do not compress multiple source sentences into a short summary.
+- Verify that no untranslated Vietnamese sentence remains in the output.
 
 SOURCE JSON:
 {_dump_json({"title": title, "content": content_chunk})}
@@ -61,16 +67,15 @@ def build_homepage_translation_prompt(
     source_locale: str,
 ) -> str:
     return f"""
-Bạn là biên dịch viên chuyên nghiệp cho website tiểu thuyết sinh tồn hậu tận thế.
-Hãy dịch toàn bộ payload homepage từ {source_locale} sang {target_locale}.
+You are a professional translator for a post-apocalyptic web novel website.
+Translate the entire homepage payload from {source_locale} to {target_locale}.
 
-Yêu cầu:
-1. Giữ nguyên tên riêng theo glossary nếu có.
-2. Không được rút gọn, không thêm giải thích, không thêm markdown.
-3. `warning_description` được phép giữ HTML có sẵn, chỉ dịch phần văn bản.
-4. Giữ nguyên số lượng item trong `features_json` và giữ nguyên `icon`.
-5. Trả về DUY NHẤT một JSON hợp lệ theo đúng schema nguồn.
-6. Không bọc JSON trong code fence.
+Requirements:
+1. Preserve glossary-approved proper nouns.
+2. Do not shorten, add explanations, or add markdown.
+3. `warning_description` may contain HTML; translate only the text and preserve the HTML structure.
+4. Preserve the number of items in `features_json` and keep each item's `icon`.
+5. Return valid JSON only, matching the requested schema exactly.
 
 GLOSSARY:
 {glossary_prompt}
@@ -82,15 +87,15 @@ SOURCE JSON:
 
 def build_homepage_multilocale_system_instruction() -> str:
     return """
-Bạn là biên dịch viên chuyên nghiệp cho website tiểu thuyết sinh tồn hậu tận thế.
-Hãy dịch nội dung CMS trang chủ một cách tự nhiên, nhất quán và giữ đúng cấu trúc dữ liệu.
+You are a professional translator for a post-apocalyptic web novel website.
+Translate CMS homepage content naturally while preserving structure.
 
-QUY TẮC BẮT BUỘC:
-1. Giữ nguyên tên riêng theo glossary nếu có.
-2. Không được rút gọn, thêm ý, thêm giải thích hay markdown.
-3. `warning_description` có thể chứa HTML, chỉ dịch phần văn bản và giữ nguyên cấu trúc.
-4. Giữ nguyên số lượng item trong `features_json` và giữ nguyên `icon` từng item.
-5. Chỉ trả về JSON hợp lệ đúng schema được yêu cầu.
+Mandatory rules:
+1. Preserve glossary-approved proper nouns.
+2. Do not shorten, add information, add explanations, or add markdown.
+3. `warning_description` may contain HTML; translate only the text and preserve the HTML structure.
+4. Preserve the number of items in `features_json` and keep each item's `icon`.
+5. Return valid JSON only, matching the requested schema exactly.
 """.strip()
 
 
@@ -122,16 +127,15 @@ def build_wiki_translation_prompt(
     source_locale: str,
 ) -> str:
     return f"""
-Bạn là biên dịch viên chuyên nghiệp cho wiki nhân vật, sinh vật và thế lực trong tiểu thuyết sinh tồn hậu tận thế.
-Hãy dịch toàn bộ payload wiki từ {source_locale} sang {target_locale}.
+You are a professional translator for a character and lore wiki in a post-apocalyptic web novel.
+Translate the entire wiki payload from {source_locale} to {target_locale}.
 
-Yêu cầu:
-1. Giữ nguyên tên riêng theo glossary nếu có.
-2. Không được rút gọn, không thêm giải thích, không thêm markdown.
-3. Trường `content` có thể chứa HTML, hãy giữ nguyên cấu trúc HTML và chỉ dịch phần văn bản.
-4. Trả về DUY NHẤT một JSON hợp lệ theo schema:
+Requirements:
+1. Preserve glossary-approved proper nouns.
+2. Do not shorten, add explanations, or add markdown.
+3. `content` may contain HTML; translate only the text and preserve the HTML structure.
+4. Return valid JSON only, matching this schema:
 {{"title":"...","summary":"...","content":"..."}}
-5. Không bọc JSON trong code fence.
 
 GLOSSARY:
 {glossary_prompt}
@@ -143,14 +147,14 @@ SOURCE JSON:
 
 def build_wiki_multilocale_system_instruction() -> str:
     return """
-Bạn là biên dịch viên chuyên nghiệp cho wiki nhân vật, sinh vật và thế lực trong tiểu thuyết sinh tồn hậu tận thế.
-Hãy dịch đầy đủ, chính xác và giữ đúng cấu trúc HTML nếu có.
+You are a professional translator for a character and lore wiki in a post-apocalyptic web novel.
+Translate clearly and preserve HTML structure where present.
 
-QUY TẮC BẮT BUỘC:
-1. Giữ nguyên tên riêng theo glossary nếu có.
-2. Không được rút gọn, thêm giải thích hay markdown.
-3. Trường `content` có thể chứa HTML, chỉ dịch phần văn bản và giữ nguyên cấu trúc.
-4. Chỉ trả về JSON hợp lệ đúng schema được yêu cầu.
+Mandatory rules:
+1. Preserve glossary-approved proper nouns.
+2. Do not shorten, add information, add explanations, or add markdown.
+3. `content` may contain HTML; translate only the text and preserve the HTML structure.
+4. Return valid JSON only, matching the requested schema exactly.
 """.strip()
 
 
@@ -176,14 +180,14 @@ SOURCE JSON:
 
 def build_guide_multilocale_system_instruction() -> str:
     return """
-Bạn là biên dịch viên chuyên nghiệp cho tài liệu hướng dẫn và SOP của website tiểu thuyết sinh tồn hậu tận thế.
-Hãy dịch đầy đủ, rõ nghĩa và giữ nguyên cấu trúc HTML nếu có.
+You are a professional translator for website guides and SOP documents in a post-apocalyptic web novel project.
+Translate clearly while preserving HTML structure where present.
 
-QUY TẮC BẮT BUỘC:
-1. Giữ nguyên tên riêng theo glossary nếu có.
-2. Không được rút gọn, thêm giải thích hay markdown.
-3. Trường `content` có thể chứa HTML, chỉ dịch phần văn bản và giữ nguyên cấu trúc.
-4. Chỉ trả về JSON hợp lệ đúng schema được yêu cầu.
+Mandatory rules:
+1. Preserve glossary-approved proper nouns.
+2. Do not shorten, add information, add explanations, or add markdown.
+3. `content` may contain HTML; translate only the text and preserve the HTML structure.
+4. Return valid JSON only, matching the requested schema exactly.
 """.strip()
 
 
@@ -219,7 +223,10 @@ Rules:
 2. Improve fluency, naturalness, and readability for the target locale.
 3. Do not add new information, summaries, markdown, or explanations.
 4. Keep paragraph order and scene progression intact.
-5. Return valid JSON only, matching the requested schema exactly.
+5. Preserve the source paragraph count exactly unless the source is malformed.
+6. Translate every source sentence; do not collapse many source sentences into a short summary.
+7. Remove leftover Vietnamese text unless it is a glossary-approved proper noun.
+8. Return valid JSON only, matching the requested schema exactly.
 """.strip()
 
 
@@ -244,7 +251,9 @@ CHUNK: {chunk_index}/{chunk_count}
 
 TASK:
 Improve the existing translation chunk. Use the source text as the authority and the current translation as editable draft text.
-Preserve names and glossary consistency. Keep the same paragraph order.
+Preserve names and glossary consistency. Keep the same paragraph order and the same paragraph count as the source chunk.
+Stay close to the source sentence coverage and do not summarize.
+Do not leave untranslated Vietnamese sentences behind.
 
 GLOSSARY:
 {glossary_prompt}
