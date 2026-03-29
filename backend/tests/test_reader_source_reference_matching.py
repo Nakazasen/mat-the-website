@@ -126,6 +126,7 @@ def test_extract_sentence_alignment_entries_filters_invalid_payload():
     assert len(entries) == 1
     assert entries[0]["translated_excerpt"] == "Alpha sentence."
     assert entries[0]["source_excerpt"] == "Cau alpha."
+    assert entries[0]["translated_index"] is None
 
 
 def test_resolve_source_reference_from_alignment_prefers_sentence_match():
@@ -239,6 +240,28 @@ def test_resolve_source_reference_from_alignment_maps_multi_sentence_selection_a
     assert result["source_excerpt"] == (
         "Đôi mắt đục ngầu ấy không còn chút tỉnh táo nào. "
         "Nhìn cảnh tượng này, trong đầu Hàn Phong tự nhiên hiện lên một từ có hai chữ."
+    )
+
+
+def test_join_alignment_window_deduplicates_overlapping_source_segments():
+    entries = [
+        {
+            "translated_excerpt": "時計を見ると午後4時。",
+            "source_excerpt": "Nhìn thời gian trên đồng hồ, 4h chiều, Hàn Phong đem điện thoại ném vào túi quần, đứng lên vươn vai một cái.",
+        },
+        {
+            "translated_excerpt": "ハン・フォンは携帯電話をズボンのポケットに放り込み、立ち上がって伸びをした。",
+            "source_excerpt": "Nhìn thời gian trên đồng hồ, 4h chiều, Hàn Phong đem điện thoại ném vào túi quần, đứng lên vươn vai một cái.",
+        },
+        {
+            "translated_excerpt": "体力は12分の10まで回復し、知力も10分の9に戻っていた。",
+            "source_excerpt": "Thể lực hồi phục tới 10/12, trí lực cũng hoàn trả về 9/10, xem ra giấc ngủ ngắn đúng là phục hồi rất tốt.",
+        },
+    ]
+
+    assert reader_learning._join_alignment_window(entries, 0, 3, "source_excerpt") == (
+        "Nhìn thời gian trên đồng hồ, 4h chiều, Hàn Phong đem điện thoại ném vào túi quần, đứng lên vươn vai một cái. "
+        "Thể lực hồi phục tới 10/12, trí lực cũng hoàn trả về 9/10, xem ra giấc ngủ ngắn đúng là phục hồi rất tốt."
     )
 
 

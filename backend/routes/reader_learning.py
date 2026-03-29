@@ -466,6 +466,9 @@ def _extract_sentence_alignment_entries(raw_alignment: Any) -> list[dict[str, An
                 "translated_excerpt": translated_excerpt,
                 "source_excerpt": source_excerpt,
                 "chunk_index": int(item.get("chunk_index") or 0) if str(item.get("chunk_index") or "").isdigit() else None,
+                "translated_index": int(item.get("translated_index") or 0) if str(item.get("translated_index") or "").isdigit() else None,
+                "source_start": int(item.get("source_start") or 0) if str(item.get("source_start") or "").isdigit() else None,
+                "source_end": int(item.get("source_end") or 0) if str(item.get("source_end") or "").isdigit() else None,
             }
         )
     return entries
@@ -509,17 +512,48 @@ def _alignment_needs_regeneration(
     return False
 
 
+def _merge_excerpt_segments(segments: list[str]) -> str:
+    merged: list[str] = []
+    for raw_segment in segments:
+        segment = str(raw_segment or "").strip()
+        if not segment:
+            continue
+        if not merged:
+            merged.append(segment)
+            continue
+
+        previous = merged[-1]
+        if segment == previous:
+            continue
+
+        overlap = 0
+        max_overlap = min(len(previous), len(segment))
+        for size in range(max_overlap, 0, -1):
+            if previous.endswith(segment[:size]):
+                overlap = size
+                break
+
+        if overlap >= max(12, len(segment) // 4):
+            merged[-1] = previous + segment[overlap:]
+        else:
+            merged.append(segment)
+
+    return " ".join(merged).strip()
+
+
 def _join_alignment_window(entries: list[dict[str, Any]], start_index: int, count: int, field_name: str) -> str:
     if not entries:
         return ""
     safe_start = max(0, min(start_index, len(entries) - 1))
     safe_count = max(1, count)
     safe_end = min(len(entries), safe_start + safe_count)
-    return " ".join(
-        str(item.get(field_name) or "").strip()
-        for item in entries[safe_start:safe_end]
-        if str(item.get(field_name) or "").strip()
-    ).strip()
+    return _merge_excerpt_segments(
+        [
+            str(item.get(field_name) or "").strip()
+            for item in entries[safe_start:safe_end]
+            if str(item.get(field_name) or "").strip()
+        ]
+    )
 
 
 def _context_excerpt_coverage_score(context_block: Optional[str], translated_excerpt: Optional[str]) -> float:
