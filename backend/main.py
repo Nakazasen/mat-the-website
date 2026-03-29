@@ -211,7 +211,7 @@ MODEL_MIN_INTERVAL_SECONDS = {
 TRANSLATION_MAX_OUTPUT_TOKENS = 65536
 TRANSLATION_MULTI_LOCALE_MAX_SOURCE_CHARS = 4000
 TRANSLATION_ALIGNMENT_MAX_SENTENCE_CHARS = 360
-TRANSLATION_ALIGNMENT_VERSION = 1
+TRANSLATION_ALIGNMENT_VERSION = 2
 TRANSLATION_PUBLISH_MIN_SENTENCE_RATIO = 0.67
 TRANSLATION_PUBLISH_MAX_SENTENCE_RATIO = 1.5
 TRANSLATION_PUBLISH_MAX_BLOCK_DELTA = 8
@@ -432,7 +432,7 @@ def _split_sentences_for_alignment(text: Optional[str]) -> list[str]:
     plain = _strip_html_for_alignment(text)
     if not plain:
         return []
-    parts = re.split(r"(?<=[.!?。！？；;])\s+|\n+", plain)
+    parts = re.split(r"(?<=[。！？])|(?<=[.!?])\s+|\n+", plain)
     sentences = [" ".join(part.strip().split()) for part in parts if part and part.strip()]
     return sentences if sentences else [plain]
 
@@ -515,6 +515,8 @@ def build_chapter_sentence_alignment(
         "version": TRANSLATION_ALIGNMENT_VERSION,
         "strategy": "chunk_proportional_sentence_map",
         "source_locale": DEFAULT_LOCALE,
+        "source_content_hash": build_content_hash(_strip_html_for_alignment(source_text)),
+        "translated_content_hash": build_content_hash(_strip_html_for_alignment(translated_text)),
         "chunk_count": chunk_count,
         "source_sentence_count": source_sentence_total,
         "translated_sentence_count": translated_sentence_total,

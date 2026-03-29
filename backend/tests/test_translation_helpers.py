@@ -75,6 +75,28 @@ def test_build_chapter_sentence_alignment_preserves_sentence_order():
     assert payload["entries"][3]["source_excerpt"] == "S4."
 
 
+def test_build_chapter_sentence_alignment_splits_contiguous_japanese_sentences():
+    payload = main.build_chapter_sentence_alignment(
+        source_text="Câu 1. Câu 2.",
+        translated_text="文1。文2。",
+    )
+
+    assert payload["translated_sentence_count"] == 2
+    assert len(payload["entries"]) == 2
+    assert payload["entries"][0]["translated_excerpt"] == "文1。"
+    assert payload["entries"][1]["translated_excerpt"] == "文2。"
+
+
+def test_build_chapter_sentence_alignment_includes_content_hashes():
+    payload = main.build_chapter_sentence_alignment(
+        source_text="Câu 1. Câu 2.",
+        translated_text="Sentence 1. Sentence 2.",
+    )
+
+    assert payload["source_content_hash"] == main.build_content_hash("Câu 1. Câu 2.")
+    assert payload["translated_content_hash"] == main.build_content_hash("Sentence 1. Sentence 2.")
+
+
 def test_build_translation_publish_gate_report_flags_unreliable_structure():
     source_text = "Source sentence one is long enough. Source sentence two is long enough."
     translated_text = (

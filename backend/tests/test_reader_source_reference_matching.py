@@ -1,3 +1,5 @@
+import pytest
+
 from backend.routes import reader_learning
 
 
@@ -243,6 +245,142 @@ def test_resolve_source_reference_from_alignment_rejects_wrong_sentence_when_sel
     )
 
     assert result is None
+
+
+def test_alignment_needs_regeneration_when_version_or_hash_is_stale():
+    current_version = reader_learning._get_translation_alignment_version()
+    fresh_alignment = {
+        "version": current_version,
+        "source_content_hash": reader_learning._alignment_content_hash("Câu 1."),
+        "translated_content_hash": reader_learning._alignment_content_hash("文1。"),
+    }
+
+    assert reader_learning._alignment_needs_regeneration(
+        fresh_alignment,
+        source_text="Câu 1.",
+        translated_text="文1。",
+    ) is False
+    assert reader_learning._alignment_needs_regeneration(
+        {
+            **fresh_alignment,
+            "version": current_version - 1,
+        },
+        source_text="Câu 1.",
+        translated_text="文1。",
+    ) is True
+    assert reader_learning._alignment_needs_regeneration(
+        {
+            **fresh_alignment,
+            "translated_content_hash": "outdated",
+        },
+        source_text="Câu 1.",
+        translated_text="文1。",
+    ) is True
+
+
+@pytest.mark.asyncio
+async def test_source_reference_regenerates_stale_alignment_for_japanese_selection(monkeypatch):
+    class FakeExecuteResult:
+        def __init__(self, data):
+            self.data = data
+
+    class FakeQuery:
+        def __init__(self, table_name, store):
+            self.table_name = table_name
+            self.store = store
+            self.filters = {}
+            self.update_payload = None
+
+        def select(self, _fields):
+            return self
+
+        def eq(self, key, value):
+            self.filters[key] = value
+            return self
+
+        def limit(self, _value):
+            return self
+
+        def update(self, payload):
+            self.update_payload = payload
+            return self
+
+        def execute(self):
+            if self.table_name == "chapters":
+                return FakeExecuteResult([{"id": 77, "chapter_number": 77, "content_url": "https://example.com/ch77.txt"}])
+            if self.table_name == "chapter_translations" and self.update_payload is not None:
+                self.store.append({"filters": dict(self.filters), "payload": dict(self.update_payload)})
+                return FakeExecuteResult([{"id": 701}])
+            return FakeExecuteResult([])
+
+    class FakeSupabase:
+        def __init__(self):
+            self.updates = []
+
+        def table(self, table_name):
+            return FakeQuery(table_name, self.updates)
+
+    source_text = "Câu mở đầu. Nhìn cảnh tượng này, trong đầu Hàn Phong tự nhiên hiện lên một từ có hai chữ. Câu kết."
+    translated_text = "導入文。 この光景を見て、ハン・フォンの頭の中に、二文字の単語が自然と浮かび上がった。 結び。"
+    stale_alignment = {
+        "version": 1,
+        "entries": [
+            {
+                "translated_excerpt": "ハン・フォンはこの膿が流れる顔の持ち主を知っていた。",
+                "source_excerpt": "Hàn Phong biết chủ nhân của khuôn mặt chảy mủ này.",
+            }
+        ],
+    }
+    generated_alignment = {
+        "version": reader_learning._get_translation_alignment_version(),
+        "source_content_hash": reader_learning._alignment_content_hash(source_text),
+        "translated_content_hash": reader_learning._alignment_content_hash(translated_text),
+        "entries": [
+            {"translated_excerpt": "導入文。", "source_excerpt": "Câu mở đầu."},
+            {
+                "translated_excerpt": "この光景を見て、ハン・フォンの頭の中に、二文字の単語が自然と浮かび上がった。",
+                "source_excerpt": "Nhìn cảnh tượng này, trong đầu Hàn Phong tự nhiên hiện lên một từ có hai chữ.",
+            },
+            {"translated_excerpt": "結び。", "source_excerpt": "Câu kết."},
+        ],
+    }
+
+    fake_supabase = FakeSupabase()
+    monkeypatch.setattr(reader_learning, "_get_supabase", lambda: fake_supabase)
+    monkeypatch.setattr(reader_learning, "_get_fetch_r2_content", lambda: (lambda _url: source_text))
+    monkeypatch.setattr(
+        reader_learning,
+        "_get_resolve_chapter_translation",
+        lambda: (
+            lambda _chapter_id, _locale: {
+                "id": 701,
+                "chapter_id": 77,
+                "locale": "ja",
+                "content": translated_text,
+                "sentence_alignment": stale_alignment,
+            }
+        ),
+    )
+    monkeypatch.setattr(
+        reader_learning,
+        "_get_build_chapter_sentence_alignment",
+        lambda: (lambda **_kwargs: generated_alignment),
+    )
+
+    payload = reader_learning.ReaderSourceReferenceRequest(
+        locale="ja",
+        chapter_id=77,
+        selected_text="この光景を見て、ハン・フォンの頭の中に、二文字の単語が自然と浮かび上がった。",
+        context_sentence="この光景を見て、ハン・フォンの頭の中に、二文字の単語が自然と浮かび上がった。",
+        context_block=translated_text,
+    )
+
+    result = await reader_learning.source_reference(payload)
+
+    assert result.translated_excerpt == "この光景を見て、ハン・フォンの頭の中に、二文字の単語が自然と浮かび上がった。"
+    assert result.source_excerpt == "Nhìn cảnh tượng này, trong đầu Hàn Phong tự nhiên hiện lên một từ có hai chữ."
+    assert fake_supabase.updates
+    assert fake_supabase.updates[-1]["payload"]["sentence_alignment"] == generated_alignment
 
 
 def test_source_reference_structure_is_reliable_rejects_large_sentence_drift():

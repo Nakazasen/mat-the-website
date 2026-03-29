@@ -471,6 +471,44 @@ def _extract_sentence_alignment_entries(raw_alignment: Any) -> list[dict[str, An
     return entries
 
 
+def _get_translation_alignment_version() -> int:
+    try:
+        from main import TRANSLATION_ALIGNMENT_VERSION
+    except ImportError:
+        from backend.main import TRANSLATION_ALIGNMENT_VERSION
+    return int(TRANSLATION_ALIGNMENT_VERSION)
+
+
+def _alignment_content_hash(text: Optional[str]) -> str:
+    build_content_hash = _get_build_content_hash()
+    return build_content_hash(_strip_html_to_text(text) or "")
+
+
+def _alignment_needs_regeneration(
+    raw_alignment: Any,
+    *,
+    source_text: str,
+    translated_text: str,
+) -> bool:
+    if not isinstance(raw_alignment, dict):
+        return True
+
+    if int(raw_alignment.get("version") or 0) < _get_translation_alignment_version():
+        return True
+
+    expected_source_hash = _alignment_content_hash(source_text)
+    expected_translated_hash = _alignment_content_hash(translated_text)
+    stored_source_hash = str(raw_alignment.get("source_content_hash") or "").strip()
+    stored_translated_hash = str(raw_alignment.get("translated_content_hash") or "").strip()
+
+    if stored_source_hash != expected_source_hash:
+        return True
+    if stored_translated_hash != expected_translated_hash:
+        return True
+
+    return False
+
+
 def _join_alignment_window(entries: list[dict[str, Any]], start_index: int, count: int, field_name: str) -> str:
     if not entries:
         return ""
@@ -738,6 +776,31 @@ def _log_reader_event(level: str, event: str, **context: Any) -> None:
         if value is not None and value != ""
     }
     log_method("reader_learning %s %s", event, safe_context)
+
+
+def _persist_sentence_alignment(
+    supabase: Any,
+    translation_row: dict[str, Any],
+    alignment_payload: dict[str, Any],
+) -> None:
+    translation_id = translation_row.get("id")
+    if not translation_id:
+        return
+    try:
+        (
+            supabase.table("chapter_translations")
+            .update({"sentence_alignment": alignment_payload})
+            .eq("id", translation_id)
+            .execute()
+        )
+    except Exception as exc:
+        _log_reader_event(
+            "warning",
+            "source_reference_alignment_persist_failed",
+            chapter_id=translation_row.get("chapter_id"),
+            locale=translation_row.get("locale"),
+            detail=str(exc),
+        )
 
 
 def _build_external_links(locale: str, term: str) -> list[ReaderExternalLink]:
@@ -1300,40 +1363,10 @@ async def source_reference(body: ReaderSourceReferenceRequest):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy chương để đối chiếu.")
 
     translation = resolve_chapter_translation(chapter_row["id"], locale)
-    alignment_entries = _extract_sentence_alignment_entries(
-        translation.get("sentence_alignment") if isinstance(translation, dict) else None
-    )
     if not translation or not translation.get("content"):
         _log_reader_event("warning", "source_reference_translation_missing", locale=locale, chapter_id=body.chapter_id)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chương này chưa có bản dịch để đối chiếu.")
-
-    alignment_match = _resolve_source_reference_from_alignment(
-        alignment_entries,
-        selected_text,
-        context_sentence,
-        context_block,
-    )
-    if alignment_match:
-        _log_reader_event(
-            "info",
-            "source_reference_alignment_hit",
-            locale=locale,
-            chapter_id=body.chapter_id,
-            paragraph_index=alignment_match["paragraph_index"],
-            score=round(float(alignment_match["score"]), 3),
-            match_mode=alignment_match["match_mode"],
-            confidence=alignment_match["confidence"],
-        )
-        return ReaderSourceReferenceResponse(
-            locale=locale,
-            selected_text=selected_text,
-            translated_excerpt=alignment_match["translated_excerpt"],
-            source_excerpt=alignment_match["source_excerpt"],
-            paragraph_index=alignment_match["paragraph_index"],
-            match_mode=alignment_match["match_mode"],
-            confidence=alignment_match["confidence"],
-            source="rule_based",
-        )
+    translated_content = str(translation.get("content") or "")
 
     try:
         source_content = fetch_r2_content(chapter_row["content_url"])
@@ -1349,22 +1382,62 @@ async def source_reference(body: ReaderSourceReferenceRequest):
 
     structure_is_reliable = _source_reference_structure_is_reliable(
         source_content,
-        str(translation.get("content") or ""),
+        translated_content,
     )
-
-    if not alignment_entries:
-        try:
-            generated_alignment = build_chapter_sentence_alignment(
-                source_text=source_content,
-                translated_text=str(translation.get("content") or ""),
-            )
-            alignment_entries = _extract_sentence_alignment_entries(generated_alignment)
-        except Exception:
-            alignment_entries = []
+    raw_alignment = translation.get("sentence_alignment") if isinstance(translation, dict) else None
+    alignment_is_stale = _alignment_needs_regeneration(
+        raw_alignment,
+        source_text=source_content,
+        translated_text=translated_content,
+    )
+    alignment_entries = [] if alignment_is_stale else _extract_sentence_alignment_entries(raw_alignment)
 
     if alignment_entries:
-        generated_alignment_match = _resolve_source_reference_from_alignment(
+        alignment_match = _resolve_source_reference_from_alignment(
             alignment_entries,
+            selected_text,
+            context_sentence,
+            context_block,
+        )
+        if alignment_match:
+            _log_reader_event(
+                "info",
+                "source_reference_alignment_hit",
+                locale=locale,
+                chapter_id=body.chapter_id,
+                paragraph_index=alignment_match["paragraph_index"],
+                score=round(float(alignment_match["score"]), 3),
+                match_mode=alignment_match["match_mode"],
+                confidence=alignment_match["confidence"],
+            )
+            return ReaderSourceReferenceResponse(
+                locale=locale,
+                selected_text=selected_text,
+                translated_excerpt=alignment_match["translated_excerpt"],
+                source_excerpt=alignment_match["source_excerpt"],
+                paragraph_index=alignment_match["paragraph_index"],
+                match_mode=alignment_match["match_mode"],
+                confidence=alignment_match["confidence"],
+                source="rule_based",
+            )
+
+    generated_alignment: Optional[dict[str, Any]] = None
+    generated_alignment_entries: list[dict[str, Any]] = []
+    try:
+        generated_alignment = build_chapter_sentence_alignment(
+            source_text=source_content,
+            translated_text=translated_content,
+        )
+        generated_alignment_entries = _extract_sentence_alignment_entries(generated_alignment)
+    except Exception:
+        generated_alignment = None
+        generated_alignment_entries = []
+
+    if generated_alignment and generated_alignment_entries:
+        if alignment_is_stale or not alignment_entries:
+            _persist_sentence_alignment(supabase, translation, generated_alignment)
+        generated_alignment_match = _resolve_source_reference_from_alignment(
+            generated_alignment_entries,
             selected_text,
             context_sentence,
             context_block,
@@ -1379,6 +1452,7 @@ async def source_reference(body: ReaderSourceReferenceRequest):
                 score=round(float(generated_alignment_match["score"]), 3),
                 match_mode=generated_alignment_match["match_mode"],
                 confidence=generated_alignment_match["confidence"],
+                regenerated=alignment_is_stale or not alignment_entries,
             )
             return ReaderSourceReferenceResponse(
                 locale=locale,
@@ -1460,13 +1534,25 @@ async def source_reference(body: ReaderSourceReferenceRequest):
         aligned_source_excerpt = _join_sentence_window(source_sentences, mapped_sentence_index, selected_window_size)
         if aligned_source_excerpt:
             source_excerpt = aligned_source_excerpt
+        candidate_translated_excerpt = translated_sentences[sentence_index].strip()
+        selected_coverage = _selected_excerpt_coverage_score(selected_text, candidate_translated_excerpt)
 
-        if _should_match_sentence(selected_text, context_sentence) and sentence_score >= 0.35:
+        if _should_match_sentence(selected_text, context_sentence) and sentence_score >= 0.35 and selected_coverage >= 0.88:
             match_mode = "sentence"
-            translated_excerpt = translated_sentences[sentence_index].strip()
+            translated_excerpt = candidate_translated_excerpt
             source_excerpt = _join_sentence_window(source_sentences, mapped_sentence_index, 1) or source_excerpt
-        elif sentence_score >= 0.2:
+        elif sentence_score >= 0.2 and selected_coverage >= 0.72:
             translated_excerpt = selected_text.strip()
+        elif _should_match_sentence(selected_text, context_sentence):
+            _log_reader_event(
+                "warning",
+                "source_reference_sentence_fallback_rejected",
+                locale=locale,
+                chapter_id=body.chapter_id,
+                sentence_score=round(sentence_score, 3),
+                coverage_score=round(selected_coverage, 3),
+            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chưa tìm được đoạn gốc tiếng Việt tương ứng.")
 
     source_excerpt = _cap_excerpt(
         source_excerpt,
