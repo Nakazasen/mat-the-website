@@ -157,6 +157,7 @@ class ReaderSourceReferenceRequest(BaseModel):
     locale: str = "vi"
     selected_text: str = Field(..., min_length=1, max_length=1200)
     context_sentence: Optional[str] = Field(default=None, max_length=2000)
+    context_block: Optional[str] = Field(default=None, max_length=4000)
     chapter_id: int = Field(..., ge=1)
 
 
@@ -445,14 +446,14 @@ def _selected_sentence_window_size(selected_text: str) -> int:
     return 1
 
 
-def _extract_sentence_alignment_entries(raw_alignment: Any) -> list[dict[str, str]]:
+def _extract_sentence_alignment_entries(raw_alignment: Any) -> list[dict[str, Any]]:
     if not isinstance(raw_alignment, dict):
         return []
     raw_entries = raw_alignment.get("entries")
     if not isinstance(raw_entries, list):
         return []
 
-    entries: list[dict[str, str]] = []
+    entries: list[dict[str, Any]] = []
     for item in raw_entries:
         if not isinstance(item, dict):
             continue
@@ -464,35 +465,110 @@ def _extract_sentence_alignment_entries(raw_alignment: Any) -> list[dict[str, st
             {
                 "translated_excerpt": translated_excerpt,
                 "source_excerpt": source_excerpt,
+                "chunk_index": int(item.get("chunk_index") or 0) if str(item.get("chunk_index") or "").isdigit() else None,
             }
         )
     return entries
 
 
+def _join_alignment_window(entries: list[dict[str, Any]], start_index: int, count: int, field_name: str) -> str:
+    if not entries:
+        return ""
+    safe_start = max(0, min(start_index, len(entries) - 1))
+    safe_count = max(1, count)
+    safe_end = min(len(entries), safe_start + safe_count)
+    return " ".join(
+        str(item.get(field_name) or "").strip()
+        for item in entries[safe_start:safe_end]
+        if str(item.get(field_name) or "").strip()
+    ).strip()
+
+
+def _context_excerpt_coverage_score(context_block: Optional[str], translated_excerpt: Optional[str]) -> float:
+    normalized_context = _normalize_match_text(context_block)
+    normalized_excerpt = _normalize_match_text(translated_excerpt)
+    if not normalized_context or not normalized_excerpt:
+        return 0.0
+    return _overlap_score(normalized_context, normalized_excerpt)
+
+
+def _resolve_alignment_context_window(
+    entries: list[dict[str, Any]],
+    context_block: Optional[str],
+) -> Optional[dict[str, Any]]:
+    normalized_context = _normalize_match_text(context_block)
+    if not entries or not normalized_context:
+        return None
+
+    preferred_window = min(max(len(_split_sentences(context_block)), 1), 6)
+    window_sizes = sorted(
+        {
+            max(1, preferred_window - 1),
+            preferred_window,
+            min(6, preferred_window + 1),
+        }
+    )
+    best_match: Optional[dict[str, Any]] = None
+
+    for window_size in window_sizes:
+        if window_size <= 0 or window_size > len(entries):
+            continue
+        for start_index in range(0, len(entries) - window_size + 1):
+            translated_window = _join_alignment_window(entries, start_index, window_size, "translated_excerpt")
+            score = _overlap_score(normalized_context, _normalize_match_text(translated_window))
+            if best_match is None or score > float(best_match["score"]):
+                best_match = {
+                    "start_index": start_index,
+                    "window_size": window_size,
+                    "score": score,
+                }
+
+    if not best_match or float(best_match["score"]) < 0.5:
+        return None
+    return best_match
+
+
 def _resolve_source_reference_from_alignment(
-    entries: list[dict[str, str]],
+    entries: list[dict[str, Any]],
     selected_text: str,
     context_sentence: Optional[str],
+    context_block: Optional[str] = None,
 ) -> Optional[dict[str, Any]]:
     if not entries:
-        return None
-    translated_candidates = [item["translated_excerpt"] for item in entries]
-    best_index, best_score = _find_best_matching_block(translated_candidates, selected_text, context_sentence)
-    if best_index is None or best_score < 0.32:
         return None
 
     sentence_mode_requested = _should_match_sentence(selected_text, context_sentence)
     selected_window_size = _selected_sentence_window_size(selected_text)
+    context_window = _resolve_alignment_context_window(entries, context_block)
+    search_offset = 0
+    search_entries = entries
+    paragraph_score = 0.0
+    if context_window:
+        search_offset = int(context_window["start_index"])
+        search_entries = entries[search_offset : search_offset + int(context_window["window_size"])]
+        paragraph_score = float(context_window["score"])
+
+    translated_candidates = [str(item["translated_excerpt"]) for item in search_entries]
+    best_local_index, best_score = _find_best_matching_block(translated_candidates, selected_text, context_sentence)
     match_mode: Literal["sentence", "paragraph"] = "paragraph"
     window_size = min(max(1, selected_window_size), 4)
-    if sentence_mode_requested and best_score >= 0.5:
+    window_start = search_offset
+    if sentence_mode_requested:
+        if best_local_index is None or best_score < 0.5:
+            return None
         match_mode = "sentence"
         window_size = 1
+        window_start = search_offset + best_local_index
+    elif best_local_index is not None and best_score >= 0.32:
+        window_start = search_offset + best_local_index
+    elif context_window and paragraph_score >= 0.55:
+        window_start = int(context_window["start_index"])
+        window_size = int(context_window["window_size"])
+    else:
+        return None
 
-    window_end = min(len(entries), best_index + window_size)
-    window_entries = entries[best_index:window_end]
-    translated_excerpt = " ".join(item["translated_excerpt"] for item in window_entries).strip()
-    source_excerpt = " ".join(item["source_excerpt"] for item in window_entries).strip()
+    translated_excerpt = _join_alignment_window(entries, window_start, window_size, "translated_excerpt")
+    source_excerpt = _join_alignment_window(entries, window_start, window_size, "source_excerpt")
     if not translated_excerpt or not source_excerpt:
         return None
 
@@ -506,9 +582,15 @@ def _resolve_source_reference_from_alignment(
         max_sentences=1 if match_mode == "sentence" else 3,
         max_chars=320 if match_mode == "sentence" else 620,
     )
+    if match_mode == "paragraph" and context_block:
+        coverage_score = _context_excerpt_coverage_score(context_block, translated_excerpt)
+        if coverage_score < 0.78:
+            return None
+
+    block_score = max(best_score, paragraph_score)
     confidence = _build_source_reference_confidence(
         match_mode,
-        best_score,
+        block_score,
         best_score if match_mode == "sentence" else 0.0,
         translated_excerpt,
         source_excerpt,
@@ -517,10 +599,30 @@ def _resolve_source_reference_from_alignment(
         "translated_excerpt": translated_excerpt,
         "source_excerpt": source_excerpt,
         "match_mode": match_mode,
-        "paragraph_index": best_index,
+        "paragraph_index": window_start,
         "confidence": confidence,
-        "score": best_score,
+        "score": block_score,
     }
+
+
+def _filtered_sentence_count(text: Optional[str]) -> int:
+    return len(
+        [
+            sentence
+            for sentence in _split_sentences(text)
+            if len(_normalize_match_text(sentence)) >= 6
+        ]
+    )
+
+
+def _source_reference_structure_is_reliable(source_text: Optional[str], translated_text: Optional[str]) -> bool:
+    source_count = _filtered_sentence_count(source_text)
+    translated_count = _filtered_sentence_count(translated_text)
+    if source_count == 0 or translated_count == 0:
+        return False
+
+    ratio = translated_count / max(source_count, 1)
+    return 0.67 <= ratio <= 1.5
 
 
 def _should_match_sentence(selected_text: str, context_sentence: Optional[str]) -> bool:
@@ -1089,6 +1191,7 @@ async def source_reference(body: ReaderSourceReferenceRequest):
     locale = _normalize_locale(body.locale)
     selected_text = _normalize_sentence(body.selected_text, max_length=1200)
     context_sentence = _normalize_sentence(body.context_sentence, max_length=2000)
+    context_block = _normalize_sentence(body.context_block, max_length=4000)
 
     if not selected_text:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="selected_text không được để trống.")
@@ -1135,6 +1238,7 @@ async def source_reference(body: ReaderSourceReferenceRequest):
         alignment_entries,
         selected_text,
         context_sentence,
+        context_block,
     )
     if alignment_match:
         _log_reader_event(
@@ -1170,6 +1274,11 @@ async def source_reference(body: ReaderSourceReferenceRequest):
         )
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Không tải được bản gốc tiếng Việt.")
 
+    structure_is_reliable = _source_reference_structure_is_reliable(
+        source_content,
+        str(translation.get("content") or ""),
+    )
+
     if not alignment_entries:
         try:
             generated_alignment = build_chapter_sentence_alignment(
@@ -1185,6 +1294,7 @@ async def source_reference(body: ReaderSourceReferenceRequest):
             alignment_entries,
             selected_text,
             context_sentence,
+            context_block,
         )
         if generated_alignment_match:
             _log_reader_event(
@@ -1215,8 +1325,23 @@ async def source_reference(body: ReaderSourceReferenceRequest):
         _log_reader_event("warning", "source_reference_empty_blocks", locale=locale, chapter_id=body.chapter_id)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không đủ dữ liệu để đối chiếu đoạn gốc.")
 
-    best_index, best_score = _find_best_matching_block(translated_blocks, selected_text, context_sentence)
-    if best_index is None or best_score < 0.22:
+    if not structure_is_reliable:
+        _log_reader_event(
+            "warning",
+            "source_reference_unreliable_structure",
+            locale=locale,
+            chapter_id=body.chapter_id,
+            source_sentence_count=_filtered_sentence_count(source_content),
+            translated_sentence_count=_filtered_sentence_count(str(translation.get("content") or "")),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Bản dịch chương này đang lệch cấu trúc nên chưa thể đối chiếu Gốc VI ổn định.",
+        )
+
+    block_query = context_block or context_sentence or selected_text
+    best_index, best_score = _find_best_matching_block(translated_blocks, block_query, selected_text)
+    if best_index is None or best_score < (0.5 if context_block else 0.35):
         _log_reader_event(
             "warning",
             "source_reference_no_match",
@@ -1227,11 +1352,21 @@ async def source_reference(body: ReaderSourceReferenceRequest):
         )
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chưa tìm được đoạn gốc tiếng Việt tương ứng.")
 
-    source_index = _map_source_block_index_by_relative_position(
-        translated_blocks,
-        source_blocks,
-        best_index,
-    )
+    if abs(len(translated_blocks) - len(source_blocks)) > 2:
+        _log_reader_event(
+            "warning",
+            "source_reference_block_count_mismatch",
+            locale=locale,
+            chapter_id=body.chapter_id,
+            translated_blocks=len(translated_blocks),
+            source_blocks=len(source_blocks),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Chưa thể đối chiếu ổn định cho đoạn này. Hãy thử bôi đen gọn hơn.",
+        )
+
+    source_index = min(best_index, max(len(source_blocks) - 1, 0))
     translated_excerpt = selected_text.strip()
     source_excerpt = source_blocks[source_index].strip()
     match_mode: Literal["sentence", "paragraph"] = "paragraph"

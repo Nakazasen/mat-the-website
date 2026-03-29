@@ -50,6 +50,7 @@ export interface ReaderSourceReferenceRequest {
     locale: Locale;
     selected_text: string;
     context_sentence?: string;
+    context_block?: string;
     chapter_id: number;
 }
 
@@ -207,7 +208,24 @@ async function getReaderAccessToken(): Promise<string | null> {
 
 async function readResponseJson<T>(response: Response): Promise<T> {
     const text = await response.text();
-    return (text ? JSON.parse(text) : {}) as T;
+    if (!text) {
+        return {} as T;
+    }
+    try {
+        return JSON.parse(text) as T;
+    } catch {
+        throw new Error("Phản hồi máy chủ không hợp lệ.");
+    }
+}
+
+function isRetryableNetworkError(error: unknown): boolean {
+    return error instanceof Error && (error.name === "TypeError" || error.message === "Failed to fetch");
+}
+
+function delay(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+        window.setTimeout(resolve, ms);
+    });
 }
 
 async function readerRequest<T>(path: string, init: RequestInit = {}, requireAuth = false): Promise<T> {
@@ -248,11 +266,36 @@ export function getReaderSentenceInsight(data: ReaderSentenceInsightRequest): Pr
     });
 }
 
-export function getReaderSourceReference(data: ReaderSourceReferenceRequest): Promise<ReaderSourceReferenceResponse> {
-    return readerRequest<ReaderSourceReferenceResponse>("/source-reference", {
-        method: "POST",
-        body: JSON.stringify(data),
-    });
+export async function getReaderSourceReference(data: ReaderSourceReferenceRequest): Promise<ReaderSourceReferenceResponse> {
+    const maxAttempts = 2;
+    let lastError: unknown = null;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        try {
+            return await readerRequest<ReaderSourceReferenceResponse>("/source-reference", {
+                method: "POST",
+                body: JSON.stringify(data),
+            });
+        } catch (error: unknown) {
+            lastError = error;
+            if (attempt + 1 < maxAttempts && isRetryableNetworkError(error)) {
+                await delay(500 * (attempt + 1));
+                continue;
+            }
+            if (error instanceof Error && error.message === "Failed to fetch") {
+                throw new Error("Không kết nối được tới máy chủ học tập. Hãy thử lại sau vài giây.");
+            }
+            if (error instanceof Error) {
+                throw error;
+            }
+            throw new Error("Không kết nối được tới máy chủ học tập. Hãy thử lại sau vài giây.");
+        }
+    }
+
+    if (lastError instanceof Error) {
+        throw lastError;
+    }
+    throw new Error("Không kết nối được tới máy chủ học tập. Hãy thử lại sau vài giây.");
 }
 
 export function getReaderGrammarHints(data: ReaderGrammarHintsRequest): Promise<ReaderGrammarHintsResponse> {

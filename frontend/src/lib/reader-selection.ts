@@ -71,6 +71,22 @@ export function findSelectionSentence(anchorElement: HTMLElement | null, selecte
     return selectedText;
 }
 
+export function findSelectionBlockText(anchorElement: HTMLElement | null, selectedText: string): string {
+    const candidates = [
+        anchorElement?.closest("p, li, blockquote, dd, dt, h1, h2, h3, h4, h5, h6"),
+        anchorElement?.closest("[data-karaoke-index]"),
+        anchorElement?.closest("div"),
+        anchorElement,
+    ].filter(Boolean) as HTMLElement[];
+
+    for (const candidate of candidates) {
+        const blockText = normalizeContextText(candidate.innerText || candidate.textContent || "");
+        if (blockText) return blockText.slice(0, 4000);
+    }
+
+    return normalizeSelectionText(selectedText, 4000);
+}
+
 function getBlockElementFromTarget(container: HTMLElement, target: EventTarget | null): HTMLElement | null {
     if (!(target instanceof HTMLElement)) return null;
     const block = target.closest(BLOCK_SELECTOR) as HTMLElement | null;

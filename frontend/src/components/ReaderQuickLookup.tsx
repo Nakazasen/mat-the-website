@@ -29,6 +29,7 @@ import {
 } from '@/lib/reader-learning';
 import {
     buildExternalDictionaryUrl,
+    findSelectionBlockText,
     findSelectionSentence,
     normalizeSelectionText,
     shouldIgnoreSelectionTarget,
@@ -174,6 +175,7 @@ export default function ReaderQuickLookup({
 
     const [selectedText, setSelectedText] = useState('');
     const [selectedSentence, setSelectedSentence] = useState('');
+    const [selectedBlockText, setSelectedBlockText] = useState('');
     const [toolbarPosition, setToolbarPosition] = useState<{ top: number; left: number } | null>(null);
     const [panelOpen, setPanelOpen] = useState(false);
     const [lookupResult, setLookupResult] = useState<ReaderLookupResponse | null>(null);
@@ -253,6 +255,7 @@ export default function ReaderQuickLookup({
         setPanelOpen(false);
         setSelectedText('');
         setSelectedSentence('');
+        setSelectedBlockText('');
         setLastLookupKey('');
         resetLookupState();
         clearBrowserSelection();
@@ -316,6 +319,7 @@ export default function ReaderQuickLookup({
         return {
             normalizedText,
             sentence: findSelectionSentence(anchorElement, normalizedText),
+            blockText: findSelectionBlockText(anchorElement, normalizedText),
             rect,
         };
     }, [containerRef]);
@@ -374,7 +378,7 @@ export default function ReaderQuickLookup({
             hideToolbar();
             return;
         }
-        const { normalizedText, sentence, rect } = snapshot;
+        const { normalizedText, sentence, blockText, rect } = snapshot;
 
         setSelectedText((prev) => {
             if (prev !== normalizedText) {
@@ -383,6 +387,7 @@ export default function ReaderQuickLookup({
             return normalizedText;
         });
         setSelectedSentence(sentence);
+        setSelectedBlockText(blockText);
         setToolbarPosition({
             top: Math.max(12, rect.top + window.scrollY - 52),
             left: rect.left + window.scrollX + rect.width / 2,
@@ -489,9 +494,14 @@ export default function ReaderQuickLookup({
         }
     }, [audioLoading, chapterId, selectedSentence, sourceLocale]);
 
-    const handleLoadSourceReference = useCallback(async (textOverride?: string, sentenceOverride?: string) => {
+    const handleLoadSourceReference = useCallback(async (
+        textOverride?: string,
+        sentenceOverride?: string,
+        blockTextOverride?: string,
+    ) => {
         const sourceText = normalizeSelectionText(textOverride || selectedText);
         const sourceSentence = sentenceOverride ?? selectedSentence;
+        const sourceBlock = blockTextOverride ?? selectedBlockText;
         if (sourceLocale === 'vi' || !chapterId || !sourceText || sourceReferenceLoading) return;
 
         setSourceReferenceLoading(true);
@@ -501,6 +511,7 @@ export default function ReaderQuickLookup({
                 locale: sourceLocale,
                 selected_text: sourceText,
                 context_sentence: sourceSentence || undefined,
+                context_block: sourceBlock || undefined,
                 chapter_id: chapterId,
             });
             setSourceReference(payload);
@@ -509,7 +520,7 @@ export default function ReaderQuickLookup({
         } finally {
             setSourceReferenceLoading(false);
         }
-    }, [chapterId, selectedSentence, selectedText, sourceLocale, sourceReferenceLoading]);
+    }, [chapterId, selectedBlockText, selectedSentence, selectedText, sourceLocale, sourceReferenceLoading]);
 
     const openSourceReferencePanel = useCallback(() => {
         if (!selectedText || !chapterId || sourceLocale === 'vi') return;
@@ -522,8 +533,8 @@ export default function ReaderQuickLookup({
         setSaveMessage(null);
         setSaveError(null);
         setAudioError(null);
-        void handleLoadSourceReference(selectedText, selectedSentence);
-    }, [chapterId, handleLoadSourceReference, hideToolbar, isDesktop, selectedText, sourceLocale]);
+        void handleLoadSourceReference(selectedText, selectedSentence, selectedBlockText);
+    }, [chapterId, handleLoadSourceReference, hideToolbar, isDesktop, selectedBlockText, selectedText, sourceLocale]);
 
     const renderDiffText = useCallback(
         (value: { before: string; changed: string; after: string }, tone: 'cyan' | 'emerald') => (
@@ -621,7 +632,7 @@ export default function ReaderQuickLookup({
                 return;
             }
 
-            const { normalizedText, sentence, rect } = snapshot;
+            const { normalizedText, sentence, blockText, rect } = snapshot;
             setSelectedText((prev) => {
                 if (prev !== normalizedText) {
                     resetLookupState();
@@ -629,6 +640,7 @@ export default function ReaderQuickLookup({
                 return normalizedText;
             });
             setSelectedSentence(sentence);
+            setSelectedBlockText(blockText);
             setToolbarPosition({
                 top: Math.max(12, rect.top + window.scrollY - 52),
                 left: rect.left + window.scrollX + rect.width / 2,
@@ -649,7 +661,7 @@ export default function ReaderQuickLookup({
                 return;
             }
 
-            const { normalizedText, sentence, rect } = snapshot;
+            const { normalizedText, sentence, blockText, rect } = snapshot;
             setSelectedText((prev) => {
                 if (prev !== normalizedText) {
                     resetLookupState();
@@ -657,6 +669,7 @@ export default function ReaderQuickLookup({
                 return normalizedText;
             });
             setSelectedSentence(sentence);
+            setSelectedBlockText(blockText);
             setToolbarPosition({
                 top: Math.max(12, rect.top + window.scrollY - 52),
                 left: rect.left + window.scrollX + rect.width / 2,
@@ -667,7 +680,7 @@ export default function ReaderQuickLookup({
                 if (isDesktop) {
                     setPanelExpanded(true);
                 }
-                void handleLoadSourceReference(normalizedText, sentence);
+                void handleLoadSourceReference(normalizedText, sentence, blockText);
             }, 0);
         };
 
