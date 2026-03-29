@@ -121,69 +121,69 @@ export default async function HomePage() {
                     }}
                 />
 
-                <div className="relative z-10 mx-auto max-w-7xl px-6 py-14 sm:py-18 lg:py-24">
-                    <div className="grid items-center gap-10 lg:grid-cols-[minmax(0,0.95fr)_minmax(460px,1.05fr)]">
+                <div className="relative z-10 mx-auto max-w-7xl px-5 py-10 sm:px-6 sm:py-14 lg:py-24">
+                    <div className="grid items-center gap-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(540px,1.1fr)] lg:gap-12 xl:grid-cols-[minmax(0,0.88fr)_minmax(620px,1.12fr)]">
                         <div className="max-w-3xl">
-                            <div className="mb-5 flex flex-wrap gap-3">
-                                <div className="inline-flex items-center gap-2 rounded-full border border-blood-red-DEFAULT/35 bg-blood-red-DEFAULT/10 px-4 py-2">
+                            <div className="mb-4 flex flex-wrap gap-2.5 sm:mb-5 sm:gap-3">
+                                <div className="inline-flex items-center gap-2 rounded-full border border-blood-red-DEFAULT/35 bg-blood-red-DEFAULT/10 px-3 py-1.5 sm:px-4 sm:py-2">
                                     <Skull size={12} className="text-blood-red-bright" />
-                                    <span className="font-mono text-[11px] uppercase tracking-[0.28em] text-blood-red-bright">
+                                    <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-blood-red-bright sm:text-[11px] sm:tracking-[0.28em]">
                                         {novel.status} / {novel.max_chapter || "?"} {dictionary.home.chapters}
                                     </span>
                                 </div>
-                                <div className="inline-flex items-center gap-2 rounded-full border border-toxic-green-DEFAULT/25 bg-black/35 px-4 py-2">
-                                    <span className="font-mono text-[11px] uppercase tracking-[0.28em] text-ash-400">{dictionary.home.author}</span>
-                                    <span className="font-biohazard text-sm uppercase tracking-[0.18em] text-toxic-green-bright">{novel.author}</span>
+                                <div className="inline-flex items-center gap-2 rounded-full border border-toxic-green-DEFAULT/25 bg-black/35 px-3 py-1.5 sm:px-4 sm:py-2">
+                                    <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-ash-400 sm:text-[11px] sm:tracking-[0.28em]">{dictionary.home.author}</span>
+                                    <span className="font-biohazard text-xs uppercase tracking-[0.14em] text-toxic-green-bright sm:text-sm sm:tracking-[0.18em]">{novel.author}</span>
                                 </div>
                             </div>
 
-                            <h1 className="font-biohazard text-6xl leading-none text-toxic-glow animate-flicker sm:text-7xl md:text-8xl lg:text-[6.5rem]">
+                            <h1 className="font-biohazard text-5xl leading-[0.92] text-toxic-glow animate-flicker sm:text-7xl md:text-8xl lg:text-[7rem] xl:text-[7.6rem]">
                                 {primary}
                             </h1>
                             {secondary ? (
-                                <h2 className="mt-3 font-biohazard text-2xl tracking-[0.15em] text-ash-200 sm:text-3xl md:text-4xl">{secondary}</h2>
+                                <h2 className="mt-2 font-biohazard text-xl tracking-[0.12em] text-ash-200 sm:mt-3 sm:text-3xl sm:tracking-[0.15em] md:text-4xl">{secondary}</h2>
                             ) : null}
 
-                            <div className="mt-8 flex items-center gap-4">
+                            <div className="mt-6 flex items-center gap-3 sm:mt-8 sm:gap-4">
                                 <div className="h-px flex-1 bg-gradient-to-r from-toxic-green-DEFAULT/50 to-transparent" />
-                                <span className="font-mono text-sm uppercase tracking-[0.32em] text-toxic-green-DEFAULT">Bio-Scan</span>
-                                <div className="h-px w-16 bg-toxic-green-DEFAULT/30" />
+                                <span className="font-mono text-[11px] uppercase tracking-[0.24em] text-toxic-green-DEFAULT sm:text-sm sm:tracking-[0.32em]">Bio-Scan</span>
+                                <div className="h-px w-10 bg-toxic-green-DEFAULT/30 sm:w-16" />
                             </div>
 
                             <div
-                                className="rich-text-home mt-8 max-w-2xl font-reading text-base leading-8 text-ash-100 sm:text-lg"
+                                className="rich-text-home mt-6 max-w-2xl font-reading text-[15px] leading-7 text-ash-100 sm:mt-8 sm:text-lg sm:leading-8"
                                 dangerouslySetInnerHTML={{ __html: novel.description }}
                             />
 
                             {homeSettings.is_fallback && locale !== "vi" ? (
-                                <div className="mt-5 inline-flex items-center rounded-full border border-toxic-green-DEFAULT/20 bg-toxic-green-DEFAULT/5 px-4 py-2 font-mono text-[11px] uppercase tracking-[0.28em] text-toxic-green-DEFAULT">
+                                <div className="mt-4 inline-flex items-center rounded-full border border-toxic-green-DEFAULT/20 bg-toxic-green-DEFAULT/5 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-toxic-green-DEFAULT sm:mt-5 sm:px-4 sm:py-2 sm:text-[11px] sm:tracking-[0.28em]">
                                     {dictionary.common.fallbackVietnamese}
                                 </div>
                             ) : null}
 
-                            <div className="mt-8 flex flex-wrap gap-4">
-                                <Link href={localizedFirstChapterPath} className="btn-fixed-blood inline-flex items-center gap-2 px-6 py-3 text-base">
+                            <div className="mt-7 flex flex-wrap gap-3 sm:mt-8 sm:gap-4">
+                                <Link href={localizedFirstChapterPath} className="btn-fixed-blood inline-flex items-center gap-2 px-5 py-3 text-sm sm:px-6 sm:text-base">
                                     <BookOpen size={16} />
                                     <span>{dictionary.home.readFirst}</span>
                                 </Link>
                                 <ContinueButton fixedDark />
-                                <Link href={localizedChapterListPath} className="btn-fixed-dark inline-flex items-center gap-2 px-6 py-3 text-base">
+                                <Link href={localizedChapterListPath} className="btn-fixed-dark inline-flex items-center gap-2 px-5 py-3 text-sm sm:px-6 sm:text-base">
                                     <span>{dictionary.home.viewContents}</span>
                                     <ChevronRight size={14} />
                                 </Link>
                             </div>
 
-                            <div className="mt-10 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                            <div className="mt-7 grid grid-cols-2 gap-3 sm:mt-10 xl:grid-cols-4">
                                 {heroStats.map(({ label, value }) => (
-                                    <div key={label} className="rounded-2xl border border-white/10 bg-black/30 p-4 backdrop-blur">
+                                    <div key={label} className="rounded-2xl border border-white/10 bg-black/26 p-3.5 backdrop-blur sm:p-4">
                                         <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-ash-500">{label}</div>
-                                        <div className="mt-2 line-clamp-2 font-biohazard text-2xl leading-tight text-toxic-green-DEFAULT">{value}</div>
+                                        <div className="mt-2 line-clamp-2 font-biohazard text-xl leading-tight text-toxic-green-DEFAULT sm:text-2xl">{value}</div>
                                     </div>
                                 ))}
                             </div>
                         </div>
 
-                        <div className="lg:pl-6">
+                        <div className="lg:-mr-8 lg:pl-2 xl:-mr-14 xl:pl-4">
                             <HomepageHeroVideo
                                 title={novel.author}
                                 src="/media/han-phong-mystical-explosion.mp4"
@@ -194,10 +194,10 @@ export default async function HomePage() {
                 </div>
             </section>
 
-            <section className="px-6 py-14 sm:py-16 lg:py-20">
+            <section className="px-5 py-12 sm:px-6 sm:py-16 lg:py-20">
                 <div className="mx-auto max-w-7xl">
                     <div className="grid gap-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-                        <div className="rounded-[28px] border border-white/10 bg-black/30 p-7 backdrop-blur">
+                        <div className="rounded-[26px] border border-white/10 bg-black/30 p-5 backdrop-blur sm:p-7">
                             <div className="mb-5 flex items-start gap-3">
                                 <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-toxic-green-DEFAULT/20 bg-toxic-green-DEFAULT/10">
                                     <AlertTriangle size={18} className="text-toxic-green-DEFAULT" />
@@ -210,7 +210,7 @@ export default async function HomePage() {
                                 </div>
                             </div>
 
-                            <h2 className="font-biohazard text-3xl tracking-[0.06em] text-worn-white sm:text-4xl">{homeSettings.warning_headline}</h2>
+                            <h2 className="font-biohazard text-[1.9rem] tracking-[0.05em] text-worn-white sm:text-4xl">{homeSettings.warning_headline}</h2>
                             <div
                                 className="rich-text-home mt-5 font-reading text-sm leading-7 text-ash-200 sm:text-base"
                                 dangerouslySetInnerHTML={{ __html: homeSettings.warning_description }}
@@ -234,7 +234,7 @@ export default async function HomePage() {
                                 {homeSettings.features_json.map((feature, index) => (
                                     <div
                                         key={`${feature.title}-${index}`}
-                                        className="rounded-[24px] border border-white/10 bg-black/25 p-5 backdrop-blur transition hover:border-toxic-green-DEFAULT/30 hover:bg-black/35"
+                                        className="rounded-[24px] border border-white/10 bg-black/25 p-4 backdrop-blur transition hover:border-toxic-green-DEFAULT/30 hover:bg-black/35 sm:p-5"
                                     >
                                         <div className="flex items-start gap-4">
                                             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-toxic-green-DEFAULT/15 bg-toxic-green-DEFAULT/8 text-xl">
@@ -253,7 +253,7 @@ export default async function HomePage() {
                 </div>
             </section>
 
-            <section className="border-y border-white/6 bg-black/20 px-6 py-14 sm:py-16">
+            <section className="border-y border-white/6 bg-black/20 px-5 py-12 sm:px-6 sm:py-16">
                 <div className="mx-auto max-w-7xl">
                     <div className="mb-8 flex items-end justify-between gap-4">
                         <div>
@@ -274,13 +274,13 @@ export default async function HomePage() {
                                 <Link
                                     key={chapter.id}
                                     href={withLocalePath(locale, `/chapters/${chapter.chapter_number}`)}
-                                    className="rounded-[24px] border border-white/10 bg-black/30 p-5 backdrop-blur transition hover:border-toxic-green-DEFAULT/30 hover:bg-black/40"
+                                    className="rounded-[24px] border border-white/10 bg-black/30 p-4 backdrop-blur transition hover:border-toxic-green-DEFAULT/30 hover:bg-black/40 sm:p-5"
                                     style={{ animationDelay: `${index * 0.05}s` }}
                                 >
                                     <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-toxic-green-DEFAULT">
                                         {dictionary.reader.chapter} {chapter.chapter_number}
                                     </div>
-                                    <div className="mt-3 line-clamp-2 font-biohazard text-2xl leading-tight tracking-[0.05em] text-worn-white">{chapter.title}</div>
+                                    <div className="mt-3 line-clamp-2 font-biohazard text-[1.65rem] leading-tight tracking-[0.04em] text-worn-white sm:text-2xl">{chapter.title}</div>
                                     <div className="mt-5 flex items-center justify-between gap-3">
                                         <div className="font-mono text-[10px] uppercase tracking-[0.24em] text-ash-500">
                                             {new Date(chapter.created_at).toLocaleDateString(LOCALE_LANG[locale])}
@@ -293,7 +293,7 @@ export default async function HomePage() {
                     ) : (
                         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                             {Array.from({ length: 8 }).map((_, index) => (
-                                <div key={index} className="rounded-[24px] border border-white/10 bg-black/25 p-5 backdrop-blur animate-pulse">
+                                <div key={index} className="rounded-[24px] border border-white/10 bg-black/25 p-4 backdrop-blur animate-pulse sm:p-5">
                                     <div className="h-3 w-20 rounded bg-ash-800" />
                                     <div className="mt-4 h-6 w-full rounded bg-ash-800" />
                                     <div className="mt-2 h-6 w-3/4 rounded bg-ash-800" />
@@ -303,9 +303,9 @@ export default async function HomePage() {
                         </div>
                     )}
 
-                    <div className="mt-12 flex flex-col items-center gap-4 text-center">
+                    <div className="mt-10 flex flex-col items-center gap-4 text-center sm:mt-12">
                         <ContinueButton fixedDark />
-                        <Link href={localizedFirstChapterPath} className="btn-fixed-blood inline-flex items-center gap-2 px-8 py-3 text-base">
+                        <Link href={localizedFirstChapterPath} className="btn-fixed-blood inline-flex items-center gap-2 px-7 py-3 text-sm sm:px-8 sm:text-base">
                             <Zap size={16} />
                             <span>{dictionary.home.startNow}</span>
                         </Link>
