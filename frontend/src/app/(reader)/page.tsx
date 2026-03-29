@@ -113,6 +113,7 @@ export default async function HomePage() {
                 />
 
                 <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(57,255,20,0.05),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(139,0,0,0.12),transparent_26%),linear-gradient(180deg,rgba(0,0,0,0.48),rgba(0,0,0,0.82))]" />
+                <div className="pointer-events-none absolute inset-0 [box-shadow:inset_0_0_160px_rgba(0,0,0,0.34)] sm:[box-shadow:inset_0_0_220px_rgba(0,0,0,0.38)]" />
                 <div
                     className="pointer-events-none absolute inset-0"
                     style={{
@@ -166,8 +167,14 @@ export default async function HomePage() {
                                     <BookOpen size={16} />
                                     <span>{dictionary.home.readFirst}</span>
                                 </Link>
-                                <ContinueButton fixedDark />
-                                <Link href={localizedChapterListPath} className="btn-fixed-dark inline-flex items-center gap-2 px-5 py-3 text-sm sm:px-6 sm:text-base">
+                                <ContinueButton
+                                    fixedDark
+                                    className="!border-white/12 !bg-black/30 !text-ash-200/80 hover:!border-white/18 hover:!bg-black/52 hover:!text-white"
+                                />
+                                <Link
+                                    href={localizedChapterListPath}
+                                    className="btn-fixed-dark inline-flex items-center gap-2 px-5 py-3 text-sm !border-white/12 !bg-black/30 !text-ash-200/80 hover:!border-white/18 hover:!bg-black/52 hover:!text-white sm:px-6 sm:text-base"
+                                >
                                     <span>{dictionary.home.viewContents}</span>
                                     <ChevronRight size={14} />
                                 </Link>
@@ -299,7 +306,10 @@ export default async function HomePage() {
                     )}
 
                     <div className="mt-10 flex flex-col items-center gap-4 text-center sm:mt-12">
-                        <ContinueButton fixedDark />
+                        <ContinueButton
+                            fixedDark
+                            className="!border-white/12 !bg-black/30 !text-ash-200/80 hover:!border-white/18 hover:!bg-black/52 hover:!text-white"
+                        />
                         <Link href={localizedFirstChapterPath} className="btn-fixed-blood inline-flex items-center gap-2 px-7 py-3 text-sm sm:px-8 sm:text-base">
                             <Zap size={16} />
                             <span>{dictionary.home.startNow}</span>

@@ -6,7 +6,7 @@ import { Zap } from "lucide-react";
 
 import { useLocale } from "@/context/LocaleContext";
 
-export default function ContinueButton({ fixedDark }: { fixedDark?: boolean }) {
+export default function ContinueButton({ fixedDark, className = "" }: { fixedDark?: boolean; className?: string }) {
     const { dictionary, localizePath } = useLocale();
     const [history, setHistory] = useState<{ chapter: string; title: string } | null>(null);
 
@@ -23,7 +23,7 @@ export default function ContinueButton({ fixedDark }: { fixedDark?: boolean }) {
     return (
         <Link
             href={localizePath(`/chapters/${history.chapter}`)}
-            className={`${fixedDark ? "btn-fixed-dark" : "btn-toxic"} flex items-center gap-2 px-6 py-3 text-base animate-pulse-slow`}
+            className={`${fixedDark ? "btn-fixed-dark" : "btn-toxic"} ${className} flex items-center gap-2 px-6 py-3 text-base animate-pulse-slow`}
         >
             <Zap size={16} fill="currentColor" />
             <span className="max-w-[200px] truncate sm:max-w-none">
