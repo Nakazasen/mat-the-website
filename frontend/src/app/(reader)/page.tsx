@@ -112,7 +112,7 @@ export default async function HomePage() {
                     title={novel.title}
                 />
 
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(57,255,20,0.08),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(139,0,0,0.18),transparent_28%),linear-gradient(180deg,rgba(0,0,0,0.38),rgba(0,0,0,0.72))]" />
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(57,255,20,0.05),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(139,0,0,0.12),transparent_26%),linear-gradient(180deg,rgba(0,0,0,0.48),rgba(0,0,0,0.82))]" />
                 <div
                     className="pointer-events-none absolute inset-0"
                     style={{
@@ -173,11 +173,11 @@ export default async function HomePage() {
                                 </Link>
                             </div>
 
-                            <div className="mt-7 grid grid-cols-2 gap-3 sm:mt-10 xl:grid-cols-4">
+                            <div className="mt-7 grid grid-cols-2 gap-3 sm:mt-10 xl:grid-cols-[minmax(0,0.72fr)_minmax(0,1.18fr)_minmax(0,1.08fr)_minmax(0,0.94fr)]">
                                 {heroStats.map(({ label, value }) => (
-                                    <div key={label} className="rounded-2xl border border-white/10 bg-black/26 p-3.5 backdrop-blur sm:p-4">
-                                        <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-ash-500">{label}</div>
-                                        <div className="mt-2 line-clamp-2 font-biohazard text-xl leading-tight text-toxic-green-DEFAULT sm:text-2xl">{value}</div>
+                                    <div key={label} className="rounded-[22px] border border-white/8 bg-black/38 p-3.5 backdrop-blur-md sm:p-4">
+                                        <div className="font-mono text-[10px] uppercase tracking-[0.24em] text-ash-500">{label}</div>
+                                        <div className="mt-2 break-words font-biohazard text-xl leading-tight text-toxic-green-DEFAULT sm:text-[1.9rem]">{value}</div>
                                     </div>
                                 ))}
                             </div>
@@ -197,7 +197,7 @@ export default async function HomePage() {
             <section className="px-5 py-12 sm:px-6 sm:py-16 lg:py-20">
                 <div className="mx-auto max-w-7xl">
                     <div className="grid gap-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-                        <div className="rounded-[26px] border border-white/10 bg-black/30 p-5 backdrop-blur sm:p-7">
+                        <div className="rounded-[26px] border border-white/8 bg-black/38 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.28)] backdrop-blur-md sm:p-7">
                             <div className="mb-5 flex items-start gap-3">
                                 <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-toxic-green-DEFAULT/20 bg-toxic-green-DEFAULT/10">
                                     <AlertTriangle size={18} className="text-toxic-green-DEFAULT" />
@@ -210,7 +210,7 @@ export default async function HomePage() {
                                 </div>
                             </div>
 
-                            <h2 className="font-biohazard text-[1.9rem] tracking-[0.05em] text-worn-white sm:text-4xl">{homeSettings.warning_headline}</h2>
+                            <h2 className="font-biohazard text-[1.9rem] tracking-[0.04em] text-worn-white sm:text-4xl">{homeSettings.warning_headline}</h2>
                             <div
                                 className="rich-text-home mt-5 font-reading text-sm leading-7 text-ash-200 sm:text-base"
                                 dangerouslySetInnerHTML={{ __html: homeSettings.warning_description }}
@@ -222,19 +222,14 @@ export default async function HomePage() {
                                 <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-toxic-green-DEFAULT/20 bg-toxic-green-DEFAULT/10">
                                     <Shield size={18} className="text-toxic-green-DEFAULT" />
                                 </div>
-                                <div>
-                                    <div className="font-mono text-[11px] uppercase tracking-[0.32em] text-toxic-green-DEFAULT">
-                                        {homeSettings.features_title}
-                                    </div>
-                                    <div className="mt-1 font-reading text-sm text-ash-400">Giữ nguyên nội dung thật, chỉ đổi bố cục cho sạch và dễ nhìn hơn.</div>
-                                </div>
+                                <div className="font-mono text-[11px] uppercase tracking-[0.32em] text-toxic-green-DEFAULT">{homeSettings.features_title}</div>
                             </div>
 
                             <div className="grid gap-4 md:grid-cols-2">
                                 {homeSettings.features_json.map((feature, index) => (
                                     <div
                                         key={`${feature.title}-${index}`}
-                                        className="rounded-[24px] border border-white/10 bg-black/25 p-4 backdrop-blur transition hover:border-toxic-green-DEFAULT/30 hover:bg-black/35 sm:p-5"
+                                        className="rounded-[24px] border border-white/8 bg-black/34 p-4 backdrop-blur-md transition hover:border-toxic-green-DEFAULT/22 hover:bg-black/42 sm:p-5"
                                     >
                                         <div className="flex items-start gap-4">
                                             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-toxic-green-DEFAULT/15 bg-toxic-green-DEFAULT/8 text-xl">
@@ -253,7 +248,7 @@ export default async function HomePage() {
                 </div>
             </section>
 
-            <section className="border-y border-white/6 bg-black/20 px-5 py-12 sm:px-6 sm:py-16">
+            <section className="border-y border-white/6 bg-black/24 px-5 py-12 sm:px-6 sm:py-16">
                 <div className="mx-auto max-w-7xl">
                     <div className="mb-8 flex items-end justify-between gap-4">
                         <div>
@@ -274,7 +269,7 @@ export default async function HomePage() {
                                 <Link
                                     key={chapter.id}
                                     href={withLocalePath(locale, `/chapters/${chapter.chapter_number}`)}
-                                    className="rounded-[24px] border border-white/10 bg-black/30 p-4 backdrop-blur transition hover:border-toxic-green-DEFAULT/30 hover:bg-black/40 sm:p-5"
+                                    className="rounded-[24px] border border-white/8 bg-black/34 p-4 backdrop-blur-md transition hover:border-toxic-green-DEFAULT/22 hover:bg-black/42 sm:p-5"
                                     style={{ animationDelay: `${index * 0.05}s` }}
                                 >
                                     <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-toxic-green-DEFAULT">
@@ -293,7 +288,7 @@ export default async function HomePage() {
                     ) : (
                         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                             {Array.from({ length: 8 }).map((_, index) => (
-                                <div key={index} className="rounded-[24px] border border-white/10 bg-black/25 p-4 backdrop-blur animate-pulse sm:p-5">
+                                <div key={index} className="rounded-[24px] border border-white/8 bg-black/30 p-4 backdrop-blur-md animate-pulse sm:p-5">
                                     <div className="h-3 w-20 rounded bg-ash-800" />
                                     <div className="mt-4 h-6 w-full rounded bg-ash-800" />
                                     <div className="mt-2 h-6 w-3/4 rounded bg-ash-800" />
