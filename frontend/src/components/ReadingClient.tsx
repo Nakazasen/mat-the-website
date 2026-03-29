@@ -39,6 +39,8 @@ interface WikiCharacterEntry {
     tags?: string[];
 }
 
+const DESKTOP_STUDY_DOCK_LAYOUT_EVENT = "reader-study-dock-layout";
+
 function shouldIgnoreNavigationHotkeys(target: EventTarget | null): boolean {
     if (!(target instanceof HTMLElement)) return false;
     return Boolean(target.closest('input, textarea, select, button, a, [contenteditable="true"]'));
@@ -65,6 +67,7 @@ export default function ReadingClient({
     const [isMounted, setIsMounted] = useState(false);
     const [isBookmarked, setIsBookmarked] = useState(false);
     const [isBookmarkLoading, setIsBookmarkLoading] = useState(false);
+    const [desktopStudyDockOffset, setDesktopStudyDockOffset] = useState(0);
 
     const contentRef = useRef<HTMLDivElement>(null);
     const activeChunkRef = useRef<HTMLElement | null>(null);
@@ -72,6 +75,16 @@ export default function ReadingClient({
 
     useEffect(() => {
         setIsMounted(true);
+    }, []);
+
+    useEffect(() => {
+        const handleStudyDockLayout = (event: Event) => {
+            const detail = (event as CustomEvent<{ open?: boolean; offset?: number }>).detail;
+            setDesktopStudyDockOffset(detail?.open ? Math.max(0, detail?.offset || 0) : 0);
+        };
+
+        window.addEventListener(DESKTOP_STUDY_DOCK_LAYOUT_EVENT, handleStudyDockLayout as EventListener);
+        return () => window.removeEventListener(DESKTOP_STUDY_DOCK_LAYOUT_EVENT, handleStudyDockLayout as EventListener);
     }, []);
 
     const sanitizedContent = useMemo(() => sanitizeHtmlClient(content), [content]);
@@ -361,7 +374,11 @@ export default function ReadingClient({
                 <ReaderSettingsPanel showReadingProgress={true} readingProgress={readingProgress} className="fixed bottom-10 right-10 z-[60]" />
             </div>
 
-            <div className="max-w-[800px] mx-auto px-6 sm:px-10 py-10">
+            <div
+                className="mx-auto max-w-[1280px] transition-[padding] duration-300"
+                style={{ paddingLeft: desktopStudyDockOffset > 0 ? `${desktopStudyDockOffset}px` : undefined }}
+            >
+                <div className="max-w-[800px] mx-auto px-6 sm:px-10 py-10">
                 <div className="mb-10 text-center">
                     <div className="font-mono text-xs text-toxic-green-DEFAULT tracking-[0.3em] mb-3">
                         {dictionary.reader.chapter.toUpperCase()} {chapterNumber} / {totalChapters}
@@ -515,6 +532,8 @@ export default function ReadingClient({
                         </>
                     )}
                 </div>
+            </div>
+
             </div>
 
             <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden pb-safe">
