@@ -182,36 +182,11 @@ export default async function HomePage() {
                         </div>
 
                         <div className="relative lg:pb-4">
-                            <div className="mb-4 flex items-center gap-3">
-                                <div className="h-px flex-1 bg-gradient-to-r from-transparent to-toxic-green-DEFAULT/35" />
-                                <span className="font-mono text-[11px] uppercase tracking-[0.35em] text-toxic-green-DEFAULT">
-                                    Han Phong // Intro Feed
-                                </span>
-                            </div>
                             <HomepageHeroVideo
                                 title="Hàn Phong"
-                                subtitle="Video giới thiệu nhân vật chính được ghim ngay trong hero để tạo điểm nhấn cinematic cho trang chủ."
                                 src="/media/han-phong-mystical-explosion.mp4"
                                 poster="/media/han-phong-mystical-explosion-poster.jpg"
                             />
-                            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                                <div className="rounded-2xl border border-toxic-green-DEFAULT/15 bg-black/35 px-4 py-3">
-                                    <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-toxic-green-DEFAULT">
-                                        Trailer Logic
-                                    </div>
-                                    <div className="mt-2 font-reading text-sm leading-relaxed text-ash-300">
-                                        Một video hero là đủ mạnh để nâng tầm giao diện mà không làm loãng trọng tâm đọc truyện.
-                                    </div>
-                                </div>
-                                <div className="rounded-2xl border border-blood-red-DEFAULT/15 bg-black/35 px-4 py-3">
-                                    <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-blood-red-bright">
-                                        Best Use
-                                    </div>
-                                    <div className="mt-2 font-reading text-sm leading-relaxed text-ash-300">
-                                        Nếu sau này có video thứ hai, nên để ở section riêng phía dưới như “World / Faction trailer”, không phát song song trong hero.
-                                    </div>
-                                </div>
-                            </div>
                         </div>
                     </div>
                 </div>
