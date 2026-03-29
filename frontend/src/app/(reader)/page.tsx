@@ -4,6 +4,7 @@ import { AlertTriangle, BookOpen, ChevronRight, Skull, Zap } from "lucide-react"
 
 import ContinueButton from "@/components/ContinueButton";
 import HeroBackground from "@/components/HeroBackground";
+import HomepageHeroVideo from "@/components/HomepageHeroVideo";
 import {
     getHomepageSettings,
     getLatestChapters,
@@ -108,7 +109,8 @@ export default async function HomePage() {
                 />
 
                 <div className="relative z-10 mx-auto w-full max-w-7xl px-6 pb-20">
-                    <div className="max-w-3xl">
+                    <div className="grid items-end gap-10 lg:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)] lg:gap-14">
+                        <div className="max-w-3xl">
                         <div className="mb-6 flex flex-wrap items-center gap-2">
                             <div className="inline-flex items-center gap-2 rounded border border-blood-red-DEFAULT/40 bg-blood-red-DEFAULT/10 px-3 py-1.5">
                                 <Skull size={12} className="text-blood-red-bright" />
@@ -176,6 +178,40 @@ export default async function HomePage() {
                                     <div className="font-mono text-xs uppercase tracking-widest text-ash-500">{label}</div>
                                 </div>
                             ))}
+                        </div>
+                        </div>
+
+                        <div className="relative lg:pb-4">
+                            <div className="mb-4 flex items-center gap-3">
+                                <div className="h-px flex-1 bg-gradient-to-r from-transparent to-toxic-green-DEFAULT/35" />
+                                <span className="font-mono text-[11px] uppercase tracking-[0.35em] text-toxic-green-DEFAULT">
+                                    Han Phong // Intro Feed
+                                </span>
+                            </div>
+                            <HomepageHeroVideo
+                                title="Hàn Phong"
+                                subtitle="Video giới thiệu nhân vật chính được ghim ngay trong hero để tạo điểm nhấn cinematic cho trang chủ."
+                                src="/media/han-phong-mystical-explosion.mp4"
+                                poster="/media/han-phong-mystical-explosion-poster.jpg"
+                            />
+                            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                                <div className="rounded-2xl border border-toxic-green-DEFAULT/15 bg-black/35 px-4 py-3">
+                                    <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-toxic-green-DEFAULT">
+                                        Trailer Logic
+                                    </div>
+                                    <div className="mt-2 font-reading text-sm leading-relaxed text-ash-300">
+                                        Một video hero là đủ mạnh để nâng tầm giao diện mà không làm loãng trọng tâm đọc truyện.
+                                    </div>
+                                </div>
+                                <div className="rounded-2xl border border-blood-red-DEFAULT/15 bg-black/35 px-4 py-3">
+                                    <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-blood-red-bright">
+                                        Best Use
+                                    </div>
+                                    <div className="mt-2 font-reading text-sm leading-relaxed text-ash-300">
+                                        Nếu sau này có video thứ hai, nên để ở section riêng phía dưới như “World / Faction trailer”, không phát song song trong hero.
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
