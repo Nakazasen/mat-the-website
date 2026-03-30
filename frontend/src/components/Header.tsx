@@ -27,7 +27,7 @@ import ReaderSettingsPanel from "./ReaderSettingsPanel";
 
 export default function Header() {
     const { novel } = useNovel();
-    const { dictionary, localizePath } = useLocale();
+    const { locale, dictionary, localizePath } = useLocale();
     const [scrolled, setScrolled] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
     const [user, setUser] = useState<SupabaseUser | null>(null);
@@ -86,6 +86,17 @@ export default function Header() {
         { href: "/chapters/1", label: dictionary.common.readNow, icon: BookOpen, highlight: true },
     ];
 
+    const isEastAsianLocale = locale === "ja" || locale === "zh-CN";
+    const brandClassName = isEastAsianLocale
+        ? "font-biohazard text-[1.36rem] leading-none text-ash-100 tracking-[0.04em]"
+        : "font-biohazard text-[1.45rem] leading-none text-ash-100 tracking-[0.08em]";
+    const desktopNavClassName = isEastAsianLocale
+        ? "group relative flex items-center gap-2 rounded-full px-3 py-2 text-[0.92rem] font-biohazard tracking-[0.03em] text-ash-300 transition-colors hover:bg-white/4 hover:text-white"
+        : "group relative flex items-center gap-2 rounded-full px-3.5 py-2 text-sm font-biohazard tracking-[0.08em] text-ash-300 transition-colors hover:bg-white/4 hover:text-white";
+    const mobileNavClassName = isEastAsianLocale
+        ? "flex items-center gap-3 px-4 py-3 font-biohazard tracking-[0.04em] text-[1.02rem] transition-colors"
+        : "flex items-center gap-3 px-4 py-3 font-biohazard tracking-widest text-base transition-colors";
+
     return (
         <>
             <header
@@ -103,7 +114,7 @@ export default function Header() {
                                 <span className="absolute -inset-1 rounded-full bg-toxic-green-DEFAULT/8 blur-sm group-hover:bg-toxic-green-DEFAULT/15 transition-all" />
                             </div>
                             <div className="hidden sm:block">
-                                <div className="font-biohazard text-[1.45rem] leading-none text-ash-100 tracking-[0.08em]">
+                                <div className={brandClassName}>
                                     {dictionary.footer.heading}
                                 </div>
                                 <div className="font-mono text-[9px] text-ash-500 tracking-[0.28em] uppercase">
@@ -127,7 +138,7 @@ export default function Header() {
                                     <Link
                                         key={href}
                                         href={localizePath(href)}
-                                        className="group relative flex items-center gap-2 rounded-full px-3.5 py-2 text-sm font-biohazard tracking-[0.08em] text-ash-300 transition-colors hover:bg-white/4 hover:text-white"
+                                        className={desktopNavClassName}
                                     >
                                         <Icon size={13} />
                                         {label}
@@ -203,7 +214,7 @@ export default function Header() {
                                     key={href}
                                     href={localizePath(href)}
                                     onClick={() => setMenuOpen(false)}
-                                    className={`flex items-center gap-3 px-4 py-3 font-biohazard tracking-widest text-base transition-colors ${
+                                    className={`${mobileNavClassName} ${
                                         highlight
                                             ? "rounded-2xl border border-blood-red-bright/35 bg-blood-red-DEFAULT/92 text-white shadow-[0_14px_34px_rgba(139,0,0,0.2)]"
                                             : "rounded-2xl border border-white/8 bg-white/[0.03] text-ash-300 hover:border-white/12 hover:bg-white/5 hover:text-white"

@@ -41,6 +41,8 @@ function splitNovelTitle(title: string) {
 export default async function HomePage() {
     const locale = await getCurrentLocale();
     const dictionary = getDictionary(locale);
+    const isEastAsianLocale = locale === "ja" || locale === "zh-CN";
+    const isEnglishLocale = locale === "en";
 
     let latestChapters: Chapter[] = [];
     let novel: NovelSettings = {
@@ -97,6 +99,24 @@ export default async function HomePage() {
         { label: dictionary.home.status, value: novel.status },
     ];
 
+    const heroTitleClassName = isEastAsianLocale
+        ? "homepage-hero-title font-biohazard text-[4.1rem] leading-[0.96] animate-flicker sm:text-[5.4rem] md:text-[6.4rem] lg:text-[6.7rem] xl:text-[7.2rem]"
+        : isEnglishLocale
+          ? "homepage-hero-title font-biohazard text-5xl leading-[0.94] animate-flicker sm:text-[5.8rem] md:text-[6.6rem] lg:text-[6.8rem] xl:text-[7.2rem]"
+          : "homepage-hero-title font-biohazard text-5xl leading-[0.92] animate-flicker sm:text-7xl md:text-8xl lg:text-[7rem] xl:text-[7.6rem]";
+
+    const heroSubtitleClassName = isEastAsianLocale
+        ? "mt-2 font-biohazard text-lg tracking-[0.06em] text-ash-200 sm:mt-3 sm:text-[1.7rem] md:text-[2rem]"
+        : isEnglishLocale
+          ? "mt-2 font-biohazard text-xl tracking-[0.1em] text-ash-200 sm:mt-3 sm:text-[1.9rem] md:text-[2.35rem]"
+          : "mt-2 font-biohazard text-xl tracking-[0.12em] text-ash-200 sm:mt-3 sm:text-3xl sm:tracking-[0.15em] md:text-4xl";
+
+    const chapterCardTitleClassName = isEastAsianLocale
+        ? "mt-4 line-clamp-3 font-biohazard text-[1.45rem] leading-[1.08] tracking-[0.03em] text-worn-white sm:text-[1.75rem]"
+        : isEnglishLocale
+          ? "mt-4 line-clamp-3 font-biohazard text-[1.55rem] leading-[1.06] tracking-[0.035em] text-worn-white sm:text-[1.9rem]"
+          : "mt-4 line-clamp-3 font-biohazard text-[1.58rem] leading-[1.04] tracking-[0.04em] text-worn-white sm:text-[1.95rem]";
+
     return (
         <div className="min-h-screen bg-ash-dark text-worn-white">
             <section className="relative overflow-hidden border-b border-toxic-green-DEFAULT/10">
@@ -138,11 +158,11 @@ export default async function HomePage() {
                                 </div>
                             </div>
 
-                            <h1 className="homepage-hero-title font-biohazard text-5xl leading-[0.92] animate-flicker sm:text-7xl md:text-8xl lg:text-[7rem] xl:text-[7.6rem]">
+                            <h1 className={heroTitleClassName}>
                                 {primary}
                             </h1>
                             {secondary ? (
-                                <h2 className="mt-2 font-biohazard text-xl tracking-[0.12em] text-ash-200 sm:mt-3 sm:text-3xl sm:tracking-[0.15em] md:text-4xl">{secondary}</h2>
+                                <h2 className={heroSubtitleClassName}>{secondary}</h2>
                             ) : null}
 
                             <div className="mt-6 flex items-center gap-3 sm:mt-8 sm:gap-4">
@@ -276,18 +296,26 @@ export default async function HomePage() {
                                 <Link
                                     key={chapter.id}
                                     href={withLocalePath(locale, `/chapters/${chapter.chapter_number}`)}
-                                    className="rounded-[24px] border border-white/8 bg-black/34 p-4 backdrop-blur-md transition hover:border-toxic-green-DEFAULT/22 hover:bg-black/42 sm:p-5"
+                                    className="group relative overflow-hidden rounded-[26px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(0,0,0,0.26))] p-4 backdrop-blur-md transition duration-300 hover:-translate-y-0.5 hover:border-white/14 hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(0,0,0,0.34))] hover:shadow-[0_22px_55px_rgba(0,0,0,0.28)] sm:p-5"
                                     style={{ animationDelay: `${index * 0.05}s` }}
                                 >
-                                    <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-toxic-green-DEFAULT">
-                                        {dictionary.reader.chapter} {chapter.chapter_number}
-                                    </div>
-                                    <div className="mt-3 line-clamp-2 font-biohazard text-[1.65rem] leading-tight tracking-[0.04em] text-worn-white sm:text-2xl">{chapter.title}</div>
-                                    <div className="mt-5 flex items-center justify-between gap-3">
-                                        <div className="font-mono text-[10px] uppercase tracking-[0.24em] text-ash-500">
+                                    <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(140deg,rgba(57,255,20,0.04),transparent_28%,transparent_72%,rgba(255,255,255,0.03))] opacity-70 transition-opacity duration-300 group-hover:opacity-100" />
+                                    <div className="relative z-10 flex items-start justify-between gap-3">
+                                        <div className="rounded-full border border-white/10 bg-black/28 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.24em] text-toxic-green-DEFAULT">
+                                            {dictionary.reader.chapter} {chapter.chapter_number}
+                                        </div>
+                                        <div className="rounded-full border border-white/8 bg-black/22 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-ash-500">
                                             {new Date(chapter.created_at).toLocaleDateString(LOCALE_LANG[locale])}
                                         </div>
-                                        <ChevronRight size={14} className="shrink-0 text-ash-500" />
+                                    </div>
+                                    <div className="relative z-10 mt-5">
+                                        <div className={chapterCardTitleClassName}>{chapter.title}</div>
+                                    </div>
+                                    <div className="relative z-10 mt-6 flex items-center justify-between gap-3 border-t border-white/8 pt-4">
+                                        <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-ash-500">
+                                            {dictionary.home.latestUpdated}
+                                        </div>
+                                        <ChevronRight size={14} className="shrink-0 text-ash-500 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:text-white" />
                                     </div>
                                 </Link>
                             ))}
