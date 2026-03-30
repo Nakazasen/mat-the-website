@@ -99,6 +99,13 @@ export default async function HomePage() {
         { label: dictionary.home.status, value: novel.status },
     ];
 
+    const heroMobilePrimaryStats = [
+        { label: dictionary.home.chapters, value: `${novel.max_chapter || "?"}` },
+        { label: dictionary.home.status, value: novel.status },
+    ];
+
+    const heroMobileMeta = [novel.author, novel.genres.join(" • ")].filter(Boolean).join(" • ");
+
     const heroTitleClassName = isEastAsianLocale
         ? "homepage-hero-title font-biohazard text-[4.1rem] leading-[0.96] animate-flicker sm:text-[5.4rem] md:text-[6.4rem] lg:text-[6.7rem] xl:text-[7.2rem]"
         : isEnglishLocale
@@ -237,7 +244,21 @@ export default async function HomePage() {
                                 </Link>
                             </div>
 
-                            <div className="mt-7 grid grid-cols-2 gap-3 sm:mt-10 xl:grid-cols-[minmax(0,0.72fr)_minmax(0,1.18fr)_minmax(0,1.08fr)_minmax(0,0.94fr)]">
+                            <div className="mt-7 sm:hidden">
+                                <div className="grid grid-cols-2 gap-3">
+                                    {heroMobilePrimaryStats.map(({ label, value }) => (
+                                        <div key={label} className="rounded-[20px] border border-white/8 bg-black/34 p-3 backdrop-blur-md">
+                                            <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ash-500">{label}</div>
+                                            <div className="mt-1.5 break-words font-biohazard text-[1.15rem] leading-tight text-toxic-green-DEFAULT">{value}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="mt-3 rounded-[18px] border border-white/6 bg-black/26 px-3 py-2.5 font-mono text-[10px] uppercase tracking-[0.16em] text-ash-400">
+                                    {heroMobileMeta}
+                                </div>
+                            </div>
+
+                            <div className="mt-7 hidden grid-cols-2 gap-3 sm:mt-10 sm:grid xl:grid-cols-[minmax(0,0.72fr)_minmax(0,1.18fr)_minmax(0,1.08fr)_minmax(0,0.94fr)]">
                                 {heroStats.map(({ label, value }) => (
                                     <div key={label} className="rounded-[22px] border border-white/8 bg-black/38 p-3.5 backdrop-blur-md sm:p-4">
                                         <div className="font-mono text-[10px] uppercase tracking-[0.24em] text-ash-500">{label}</div>
