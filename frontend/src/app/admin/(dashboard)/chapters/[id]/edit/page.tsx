@@ -260,6 +260,34 @@ export default function EditChapterPage() {
                         </div>
                     </div>
 
+                    {bgmUrl.trim() && (
+                        <div className="rounded-lg border border-gray-800 bg-[#0b0b0b] p-4 space-y-3">
+                            <div className="flex items-center justify-between gap-3">
+                                <div>
+                                    <p className="text-xs font-mono tracking-[0.28em] text-gray-500">BGM PREVIEW</p>
+                                    <p className="mt-1 text-sm text-gray-200">{bgmTitle.trim() || 'Chưa đặt tiêu đề BGM'}</p>
+                                </div>
+                                <a
+                                    href={bgmUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-[11px] font-mono tracking-[0.2em] text-gray-400 transition-colors hover:text-white"
+                                >
+                                    MỞ FILE
+                                </a>
+                            </div>
+                            <audio
+                                key={bgmUrl}
+                                controls
+                                preload="none"
+                                src={bgmUrl}
+                                className="w-full h-11 rounded-md"
+                            >
+                                Trình duyệt không hỗ trợ phát audio preview.
+                            </audio>
+                        </div>
+                    )}
+
                     <div>
                         <label className="block text-xs font-mono text-gray-500 mb-2 tracking-widest uppercase">Tiêu đề chương</label>
                         <input
