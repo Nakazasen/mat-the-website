@@ -136,10 +136,10 @@ export default async function HomePage() {
           : "max-w-[20ch]";
 
     const heroDescriptionClassName = isEastAsianLocale
-        ? "rich-text-home mt-6 max-w-[31rem] font-reading text-[15px] leading-7 text-ash-100 sm:mt-8 sm:text-[1.02rem] sm:leading-8"
+        ? "rich-text-home mt-6 max-w-[33rem] font-reading text-[15px] leading-[1.85] text-ash-100 sm:mt-8 sm:text-[1.02rem] sm:leading-[1.95]"
         : isEnglishLocale
-          ? "rich-text-home mt-6 max-w-[37rem] font-reading text-[15px] leading-7 text-ash-100 sm:mt-8 sm:text-lg sm:leading-8"
-          : "rich-text-home mt-6 max-w-[40rem] font-reading text-[15px] leading-7 text-ash-100 sm:mt-8 sm:text-lg sm:leading-8";
+          ? "rich-text-home mt-6 max-w-[36rem] font-reading text-[15px] leading-[1.9] text-ash-100 sm:mt-8 sm:text-lg sm:leading-[2.05]"
+          : "rich-text-home mt-6 max-w-[38rem] font-reading text-[15px] leading-[1.92] text-ash-100 sm:mt-8 sm:text-lg sm:leading-[2.08]";
 
     return (
         <div className="min-h-screen bg-ash-dark text-worn-white">
@@ -247,10 +247,12 @@ export default async function HomePage() {
 
             <section className="homepage-section-soft px-5 py-12 sm:px-6 sm:py-16 lg:py-[5.8rem]">
                 <div className="mx-auto max-w-7xl">
-                    <div className="grid gap-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-                        <div className="rounded-[26px] border border-white/8 bg-black/38 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.28)] backdrop-blur-md sm:p-7">
-                            <div className="mb-5 flex items-start gap-3">
-                                <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-toxic-green-DEFAULT/20 bg-toxic-green-DEFAULT/10">
+                    <div className="grid gap-7 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:gap-8">
+                        <div className="relative overflow-hidden rounded-[28px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(0,0,0,0.34))] p-5 shadow-[0_26px_84px_rgba(0,0,0,0.3)] backdrop-blur-md sm:p-7">
+                            <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-toxic-green-DEFAULT/20 to-transparent" />
+
+                            <div className="mb-5 flex items-start gap-3 sm:mb-6">
+                                <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-toxic-green-DEFAULT/20 bg-black/45 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
                                     <AlertTriangle size={18} className="text-toxic-green-DEFAULT" />
                                 </div>
                                 <div>
@@ -263,14 +265,14 @@ export default async function HomePage() {
 
                             <h2 className="font-biohazard text-[1.9rem] tracking-[0.04em] text-worn-white sm:text-4xl">{homeSettings.warning_headline}</h2>
                             <div
-                                className="rich-text-home mt-5 font-reading text-sm leading-7 text-ash-200 sm:text-base"
+                                className="rich-text-home mt-5 max-w-[42rem] font-reading text-sm leading-[1.95] text-ash-200 sm:mt-6 sm:text-base sm:leading-[2]"
                                 dangerouslySetInnerHTML={{ __html: homeSettings.warning_description }}
                             />
                         </div>
 
                         <div>
-                            <div className="mb-5 flex items-center gap-3">
-                                <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-toxic-green-DEFAULT/20 bg-toxic-green-DEFAULT/10">
+                            <div className="mb-5 flex items-center gap-3 sm:mb-6">
+                                <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-toxic-green-DEFAULT/20 bg-black/45 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
                                     <Shield size={18} className="text-toxic-green-DEFAULT" />
                                 </div>
                                 <div className="font-mono text-[11px] uppercase tracking-[0.32em] text-toxic-green-DEFAULT">{homeSettings.features_title}</div>
@@ -280,15 +282,17 @@ export default async function HomePage() {
                                 {homeSettings.features_json.map((feature, index) => (
                                     <div
                                         key={`${feature.title}-${index}`}
-                                        className="rounded-[24px] border border-white/8 bg-black/34 p-4 backdrop-blur-md transition hover:border-toxic-green-DEFAULT/22 hover:bg-black/42 sm:p-5"
+                                        className="group relative overflow-hidden rounded-[24px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(0,0,0,0.28))] p-4 backdrop-blur-md transition duration-300 hover:-translate-y-0.5 hover:border-white/14 hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(0,0,0,0.36))] sm:p-5"
                                     >
+                                        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-0 transition duration-300 group-hover:opacity-100" />
                                         <div className="flex items-start gap-4">
-                                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-toxic-green-DEFAULT/15 bg-toxic-green-DEFAULT/8 text-xl">
+                                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-toxic-green-DEFAULT/15 bg-black/46 text-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
                                                 {feature.icon}
                                             </div>
                                             <div>
-                                                <div className="font-biohazard text-xl tracking-[0.06em] text-worn-white">{feature.title}</div>
-                                                <div className="mt-2 text-sm leading-7 text-ash-300">{feature.desc}</div>
+                                                <div className="font-mono text-[10px] uppercase tracking-[0.24em] text-ash-500">Feature {String(index + 1).padStart(2, "0")}</div>
+                                                <div className="mt-2 font-biohazard text-xl tracking-[0.06em] text-worn-white">{feature.title}</div>
+                                                <div className="mt-2 text-sm leading-[1.9] text-ash-300">{feature.desc}</div>
                                             </div>
                                         </div>
                                     </div>
