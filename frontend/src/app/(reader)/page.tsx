@@ -281,7 +281,72 @@ export default async function HomePage() {
 
             <section className="homepage-section-soft px-5 py-12 sm:px-6 sm:py-16 lg:py-[5.8rem]">
                 <div className="mx-auto max-w-7xl">
-                    <div className="grid gap-7 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:gap-8">
+                    <div className="space-y-3 sm:hidden">
+                        <details
+                            open
+                            className="group overflow-hidden rounded-[24px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(0,0,0,0.32))] backdrop-blur-md"
+                        >
+                            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-toxic-green-DEFAULT/20 bg-black/45 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+                                        <AlertTriangle size={16} className="text-toxic-green-DEFAULT" />
+                                    </div>
+                                    <div>
+                                        <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-toxic-green-DEFAULT">{homeSettings.warning_title}</div>
+                                        <div className="mt-1 font-biohazard text-[1.05rem] tracking-[0.04em] text-worn-white">{homeSettings.warning_headline}</div>
+                                    </div>
+                                </div>
+                                <ChevronRight size={16} className="shrink-0 text-ash-500 transition duration-300 group-open:rotate-90 group-open:text-white" />
+                            </summary>
+                            <div className="border-t border-white/8 px-4 pb-4 pt-3">
+                                <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ash-500">{homeSettings.warning_subtitle}</div>
+                                <div
+                                    className="rich-text-home mt-3 text-sm leading-[1.85] text-ash-200"
+                                    dangerouslySetInnerHTML={{ __html: homeSettings.warning_description }}
+                                />
+                            </div>
+                        </details>
+
+                        <details
+                            className="group overflow-hidden rounded-[24px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(0,0,0,0.28))] backdrop-blur-md"
+                        >
+                            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-toxic-green-DEFAULT/20 bg-black/45 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+                                        <Shield size={16} className="text-toxic-green-DEFAULT" />
+                                    </div>
+                                    <div>
+                                        <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-toxic-green-DEFAULT">{homeSettings.features_title}</div>
+                                        <div className="mt-1 font-mono text-[9px] uppercase tracking-[0.2em] text-ash-500">{homeSettings.features_json.length} modules</div>
+                                    </div>
+                                </div>
+                                <ChevronRight size={16} className="shrink-0 text-ash-500 transition duration-300 group-open:rotate-90 group-open:text-white" />
+                            </summary>
+                            <div className="border-t border-white/8 p-4">
+                                <div className="space-y-3">
+                                    {homeSettings.features_json.map((feature, index) => (
+                                        <div
+                                            key={`${feature.title}-${index}`}
+                                            className="rounded-[20px] border border-white/8 bg-black/24 p-3.5"
+                                        >
+                                            <div className="flex items-start gap-3">
+                                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-toxic-green-DEFAULT/15 bg-black/46 text-lg shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+                                                    {feature.icon}
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-ash-500">Feature {String(index + 1).padStart(2, "0")}</div>
+                                                    <div className="mt-1.5 font-biohazard text-[1.08rem] tracking-[0.05em] text-worn-white">{feature.title}</div>
+                                                    <div className="mt-1.5 text-sm leading-[1.75] text-ash-300">{feature.desc}</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </details>
+                    </div>
+
+                    <div className="hidden gap-7 sm:grid lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:gap-8">
                         <div className="relative overflow-hidden rounded-[28px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(0,0,0,0.34))] p-5 shadow-[0_26px_84px_rgba(0,0,0,0.3)] backdrop-blur-md sm:p-7">
                             <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-toxic-green-DEFAULT/20 to-transparent" />
 
