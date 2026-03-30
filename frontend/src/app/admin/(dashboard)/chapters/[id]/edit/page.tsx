@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { AlertTriangle, ArrowLeft, CheckCircle2, Languages, Save } from 'lucide-react';
 
 import RichTextEditor from '@/components/Editor';
-import { translateAdminChapter, type AdminChapterTranslateResult, type TranslationFailure } from '@/lib/api';
+import { translateAdminChapter, uploadAudioR2, type AdminChapterTranslateResult, type TranslationFailure } from '@/lib/api';
 import { createAdminClient } from '@/lib/supabase-admin';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
@@ -42,6 +42,7 @@ export default function EditChapterPage() {
     const [isSideStory, setIsSideStory] = useState(false);
     const [bgmUrl, setBgmUrl] = useState('');
     const [bgmTitle, setBgmTitle] = useState('');
+    const [uploadingBgm, setUploadingBgm] = useState(false);
     const [loading, setLoading] = useState(false);
     const [initialLoading, setInitialLoading] = useState(true);
     const [translating, setTranslating] = useState(false);
@@ -209,6 +210,7 @@ export default function EditChapterPage() {
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div>
                             <label className="block text-xs font-mono text-gray-500 mb-2 tracking-widest uppercase">BGM URL</label>
+                            <div className="flex gap-2">
                             <input
                                 type="text"
                                 value={bgmUrl}
@@ -216,6 +218,34 @@ export default function EditChapterPage() {
                                 placeholder="/media/chapter-bgm.mp3 hoặc https://..."
                                 className="w-full bg-[#0a0a0a] border border-gray-700 rounded-md px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:border-green-500 transition-colors"
                             />
+                            <label className={`inline-flex shrink-0 cursor-pointer items-center justify-center rounded-md border border-gray-700 px-3 py-2 text-xs font-mono text-gray-300 transition-colors hover:border-green-500 hover:text-white ${uploadingBgm ? 'pointer-events-none opacity-50' : ''}`}>
+                                {uploadingBgm ? 'ĐANG TẢI...' : 'UPLOAD'}
+                                <input
+                                    type="file"
+                                    accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/ogg,audio/webm,audio/mp4,audio/x-m4a,audio/aac,.mp3,.wav,.ogg,.webm,.m4a,.aac"
+                                    className="hidden"
+                                    onChange={async (event) => {
+                                        const file = event.target.files?.[0];
+                                        if (!file || !token) return;
+                                        try {
+                                            setUploadingBgm(true);
+                                            setError('');
+                                            const url = await uploadAudioR2(file, token);
+                                            setBgmUrl(url);
+                                            if (!bgmTitle.trim()) {
+                                                const fallbackTitle = file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
+                                                setBgmTitle(fallbackTitle);
+                                            }
+                                        } catch (err: any) {
+                                            setError(err.message || 'Lỗi tải audio BGM');
+                                        } finally {
+                                            setUploadingBgm(false);
+                                            event.target.value = '';
+                                        }
+                                    }}
+                                />
+                            </label>
+                            </div>
                             <p className="mt-1 text-[11px] text-gray-500">Chỉ dùng URL public. Path local máy tính sẽ không phát được trên production.</p>
                         </div>
                         <div>

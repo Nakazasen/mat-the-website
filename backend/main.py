@@ -4958,6 +4958,67 @@ async def admin_update_comment(
 
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.post("/api/upload/audio", summary="Upload audio lén Cloudflare R2 (Admin)")
+async def upload_audio(
+    file: UploadFile = File(...),
+    authorization: Optional[str] = Header(None)
+):
+    """Upload audio BGM phục vụ reader. Yêu cầu quyền Admin."""
+
+    await verify_admin(authorization)
+
+    if not r2_client:
+        raise HTTPException(status_code=500, detail="Cấu hình Cloudflare R2 chưa hoàn chỉnh")
+
+    try:
+        import uuid
+        from datetime import datetime
+        from fastapi.concurrency import run_in_threadpool
+
+        valid_types = [
+            "audio/mpeg",
+            "audio/mp3",
+            "audio/wav",
+            "audio/x-wav",
+            "audio/ogg",
+            "audio/webm",
+            "audio/mp4",
+            "audio/x-m4a",
+            "audio/aac",
+        ]
+
+        if file.content_type not in valid_types:
+            raise HTTPException(status_code=400, detail="Chỉ hỗ trợ file audio MP3, WAV, OGG, WEBM, M4A hoặc AAC")
+
+        contents = await file.read()
+        max_size = 25 * 1024 * 1024
+        if len(contents) > max_size:
+            raise HTTPException(status_code=400, detail="File audio quá lớn. Giới hạn hiện tại là 25MB")
+
+        ext = file.filename.split('.')[-1].lower() if file.filename and '.' in file.filename else 'mp3'
+        date_str = datetime.now().strftime("%Y%m%d")
+        unique_id = str(uuid.uuid4())[:8]
+        safe_name = slugify(file.filename.rsplit('.', 1)[0] if file.filename else f"bgm-{unique_id}") or f"bgm-{unique_id}"
+        filename = f"bgm/{date_str}_{unique_id}_{safe_name}.{ext}"
+
+        await run_in_threadpool(
+            r2_client.put_object,
+            Bucket=R2_BUCKET,
+            Key=filename,
+            Body=contents,
+            ContentType=file.content_type
+        )
+
+        base_url = R2_PUBLIC_URL.rstrip('/')
+        public_url = f"{base_url}/{filename}"
+        return {"url": public_url, "size": len(contents)}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi upload audio: {str(e)}")
+
 @app.delete("/api/admin/comments/{comment_id}", summary="[Admin] Xóa bình luận")
 
 async def admin_delete_comment(

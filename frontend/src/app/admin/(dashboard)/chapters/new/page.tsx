@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createAdminClient } from '@/lib/supabase-admin';
 import { ArrowLeft, Save, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { uploadAudioR2 } from '@/lib/api';
 import RichTextEditor from '@/components/Editor';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
@@ -17,6 +18,7 @@ export default function NewChapterPage() {
     const [isSideStory, setIsSideStory] = useState(false);
     const [bgmUrl, setBgmUrl] = useState('');
     const [bgmTitle, setBgmTitle] = useState('');
+    const [uploadingBgm, setUploadingBgm] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
@@ -145,13 +147,42 @@ export default function NewChapterPage() {
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
                         <label className="block text-xs font-mono text-gray-500 mb-1 tracking-widest">BGM URL</label>
-                        <input
-                            type="text"
-                            value={bgmUrl}
-                            onChange={(e) => setBgmUrl(e.target.value)}
-                            className="w-full bg-[#0a0a0a] border border-gray-700 rounded px-3 py-2 text-gray-200 text-sm focus:outline-none focus:border-green-500 transition-colors"
-                            placeholder="/media/chapter-bgm.mp3 hoặc https://..."
-                        />
+                        <div className="flex gap-2">
+                            <input
+                                type="text"
+                                value={bgmUrl}
+                                onChange={(e) => setBgmUrl(e.target.value)}
+                                className="w-full bg-[#0a0a0a] border border-gray-700 rounded px-3 py-2 text-gray-200 text-sm focus:outline-none focus:border-green-500 transition-colors"
+                                placeholder="/media/chapter-bgm.mp3 hoặc https://..."
+                            />
+                            <label className={`inline-flex shrink-0 cursor-pointer items-center justify-center rounded border border-gray-700 px-3 py-2 text-xs font-mono text-gray-300 transition-colors hover:border-green-500 hover:text-white ${uploadingBgm ? "pointer-events-none opacity-50" : ""}`}>
+                                {uploadingBgm ? 'ĐANG TẢI...' : 'UPLOAD'}
+                                <input
+                                    type="file"
+                                    accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/ogg,audio/webm,audio/mp4,audio/x-m4a,audio/aac,.mp3,.wav,.ogg,.webm,.m4a,.aac"
+                                    className="hidden"
+                                    onChange={async (e) => {
+                                        const file = e.target.files?.[0];
+                                        if (!file || !token) return;
+                                        try {
+                                            setUploadingBgm(true);
+                                            const url = await uploadAudioR2(file, token);
+                                            setBgmUrl(url);
+                                            if (!bgmTitle.trim()) {
+                                                const fallbackTitle = file.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim();
+                                                setBgmTitle(fallbackTitle);
+                                            }
+                                            setSuccess(false);
+                                        } catch (err: any) {
+                                            setError(err.message || 'Lỗi tải audio BGM');
+                                        } finally {
+                                            setUploadingBgm(false);
+                                            e.target.value = '';
+                                        }
+                                    }}
+                                />
+                            </label>
+                        </div>
                         <p className="mt-1 text-[11px] text-gray-500">Dùng URL public. Đường dẫn local Windows sẽ không phát được trên web.</p>
                     </div>
                     <div>
