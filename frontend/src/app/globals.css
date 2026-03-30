@@ -137,6 +137,43 @@ body::before {
     0 0 22px rgba(57, 255, 20, 0.14);
 }
 
+.homepage-copy-block {
+  animation: homepage-fade-up 0.65s ease-out both;
+}
+
+.homepage-video-shell {
+  animation: homepage-fade-up 0.75s ease-out both;
+}
+
+.homepage-video-shell > * {
+  animation: homepage-soft-float 11s ease-in-out infinite;
+}
+
+.homepage-section-soft {
+  animation: homepage-fade-up 0.7s ease-out both;
+}
+
+.homepage-chapter-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg,
+      transparent 0%,
+      transparent 42%,
+      rgba(255, 255, 255, 0.05) 50%,
+      transparent 58%,
+      transparent 100%);
+  opacity: 0;
+  transform: translateX(-10%);
+  transition: opacity 0.28s ease, transform 0.34s ease;
+  pointer-events: none;
+}
+
+.homepage-chapter-card:hover::after {
+  opacity: 1;
+  transform: translateX(10%);
+}
+
 .text-blood-glow {
   color: #cc0000;
   text-shadow:
@@ -469,6 +506,18 @@ body::before {
   }
 }
 
+@keyframes homepage-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @keyframes float {
 
   0%,
@@ -478,6 +527,18 @@ body::before {
 
   50% {
     transform: translateY(-12px);
+  }
+}
+
+@keyframes homepage-soft-float {
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-4px);
   }
 }
 

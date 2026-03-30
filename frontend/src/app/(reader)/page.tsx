@@ -117,6 +117,30 @@ export default async function HomePage() {
           ? "mt-4 line-clamp-3 font-biohazard text-[1.55rem] leading-[1.06] tracking-[0.035em] text-worn-white sm:text-[1.9rem]"
           : "mt-4 line-clamp-3 font-biohazard text-[1.58rem] leading-[1.04] tracking-[0.04em] text-worn-white sm:text-[1.95rem]";
 
+    const heroTextWrapClassName = isEastAsianLocale
+        ? "max-w-[34rem] lg:max-w-[31rem] xl:max-w-[33rem]"
+        : isEnglishLocale
+          ? "max-w-[40rem] lg:max-w-[35rem] xl:max-w-[37rem]"
+          : "max-w-[42rem] lg:max-w-[38rem] xl:max-w-[40rem]";
+
+    const heroTitleWidthClassName = isEastAsianLocale
+        ? "max-w-[8.5ch]"
+        : isEnglishLocale
+          ? "max-w-[10.5ch]"
+          : "max-w-[11.5ch]";
+
+    const heroSubtitleWidthClassName = isEastAsianLocale
+        ? "max-w-[16ch]"
+        : isEnglishLocale
+          ? "max-w-[18ch]"
+          : "max-w-[20ch]";
+
+    const heroDescriptionClassName = isEastAsianLocale
+        ? "rich-text-home mt-6 max-w-[31rem] font-reading text-[15px] leading-7 text-ash-100 sm:mt-8 sm:text-[1.02rem] sm:leading-8"
+        : isEnglishLocale
+          ? "rich-text-home mt-6 max-w-[37rem] font-reading text-[15px] leading-7 text-ash-100 sm:mt-8 sm:text-lg sm:leading-8"
+          : "rich-text-home mt-6 max-w-[40rem] font-reading text-[15px] leading-7 text-ash-100 sm:mt-8 sm:text-lg sm:leading-8";
+
     return (
         <div className="min-h-screen bg-ash-dark text-worn-white">
             <section className="relative overflow-hidden border-b border-toxic-green-DEFAULT/10">
@@ -144,7 +168,7 @@ export default async function HomePage() {
 
                 <div className="relative z-10 mx-auto max-w-7xl px-5 py-10 sm:px-6 sm:py-14 lg:py-24">
                     <div className="grid items-center gap-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(540px,1.1fr)] lg:gap-[3.6rem] xl:grid-cols-[minmax(0,0.88fr)_minmax(620px,1.12fr)] xl:gap-[4.1rem]">
-                        <div className="max-w-3xl">
+                        <div className={`homepage-copy-block max-w-3xl ${heroTextWrapClassName}`}>
                             <div className="mb-4 flex flex-wrap gap-2.5 sm:mb-5 sm:gap-3">
                                 <div className="inline-flex items-center gap-2 rounded-full border border-blood-red-DEFAULT/35 bg-blood-red-DEFAULT/10 px-3 py-1.5 sm:px-4 sm:py-2">
                                     <Skull size={12} className="text-blood-red-bright" />
@@ -158,11 +182,11 @@ export default async function HomePage() {
                                 </div>
                             </div>
 
-                            <h1 className={heroTitleClassName}>
+                            <h1 className={`${heroTitleClassName} ${heroTitleWidthClassName}`}>
                                 {primary}
                             </h1>
                             {secondary ? (
-                                <h2 className={heroSubtitleClassName}>{secondary}</h2>
+                                <h2 className={`${heroSubtitleClassName} ${heroSubtitleWidthClassName}`}>{secondary}</h2>
                             ) : null}
 
                             <div className="mt-6 flex items-center gap-3 sm:mt-8 sm:gap-4">
@@ -172,7 +196,7 @@ export default async function HomePage() {
                             </div>
 
                             <div
-                                className="rich-text-home mt-6 max-w-2xl font-reading text-[15px] leading-7 text-ash-100 sm:mt-8 sm:text-lg sm:leading-8"
+                                className={heroDescriptionClassName}
                                 dangerouslySetInnerHTML={{ __html: novel.description }}
                             />
 
@@ -210,7 +234,7 @@ export default async function HomePage() {
                             </div>
                         </div>
 
-                        <div className="lg:pl-4 xl:pl-7">
+                        <div className="homepage-video-shell lg:pl-4 xl:pl-7">
                             <HomepageHeroVideo
                                 title={novel.author}
                                 src="/media/han-phong-mystical-explosion.mp4"
@@ -221,7 +245,7 @@ export default async function HomePage() {
                 </div>
             </section>
 
-            <section className="px-5 py-12 sm:px-6 sm:py-16 lg:py-20">
+            <section className="homepage-section-soft px-5 py-12 sm:px-6 sm:py-16 lg:py-[5.8rem]">
                 <div className="mx-auto max-w-7xl">
                     <div className="grid gap-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
                         <div className="rounded-[26px] border border-white/8 bg-black/38 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.28)] backdrop-blur-md sm:p-7">
@@ -275,7 +299,7 @@ export default async function HomePage() {
                 </div>
             </section>
 
-            <section className="border-y border-white/6 bg-black/24 px-5 py-12 sm:px-6 sm:py-16">
+            <section className="homepage-section-soft border-y border-white/6 bg-black/24 px-5 py-12 sm:px-6 sm:py-16 lg:py-[5.9rem]">
                 <div className="mx-auto max-w-7xl">
                     <div className="mb-8 flex items-end justify-between gap-4">
                         <div>
@@ -296,7 +320,7 @@ export default async function HomePage() {
                                 <Link
                                     key={chapter.id}
                                     href={withLocalePath(locale, `/chapters/${chapter.chapter_number}`)}
-                                    className="group relative overflow-hidden rounded-[26px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(0,0,0,0.26))] p-4 backdrop-blur-md transition duration-300 hover:-translate-y-0.5 hover:border-white/14 hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(0,0,0,0.34))] hover:shadow-[0_22px_55px_rgba(0,0,0,0.28)] sm:p-5"
+                                    className="homepage-chapter-card group relative overflow-hidden rounded-[26px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(0,0,0,0.26))] p-4 backdrop-blur-md transition duration-300 hover:-translate-y-0.5 hover:border-white/14 hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(0,0,0,0.34))] hover:shadow-[0_22px_55px_rgba(0,0,0,0.28)] sm:p-5"
                                     style={{ animationDelay: `${index * 0.05}s` }}
                                 >
                                     <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(140deg,rgba(57,255,20,0.04),transparent_28%,transparent_72%,rgba(255,255,255,0.03))] opacity-70 transition-opacity duration-300 group-hover:opacity-100" />
