@@ -204,14 +204,28 @@ export default function NewChapterPage() {
                                 <p className="text-xs font-mono tracking-[0.28em] text-gray-500">BGM PREVIEW</p>
                                 <p className="mt-1 text-sm text-gray-200">{bgmTitle.trim() || 'Chưa đặt tiêu đề BGM'}</p>
                             </div>
-                            <a
-                                href={bgmUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-[11px] font-mono tracking-[0.2em] text-gray-400 transition-colors hover:text-white"
-                            >
-                                MỞ FILE
-                            </a>
+                            <div className="flex items-center gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setBgmUrl('');
+                                        setBgmTitle('');
+                                        setSuccess(false);
+                                        setError(null);
+                                    }}
+                                    className="text-[11px] font-mono tracking-[0.2em] text-red-400 transition-colors hover:text-red-300"
+                                >
+                                    XÓA BGM
+                                </button>
+                                <a
+                                    href={bgmUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-[11px] font-mono tracking-[0.2em] text-gray-400 transition-colors hover:text-white"
+                                >
+                                    MỞ FILE
+                                </a>
+                            </div>
                         </div>
                         <audio
                             key={bgmUrl}
