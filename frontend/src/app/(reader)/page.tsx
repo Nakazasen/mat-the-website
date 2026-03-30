@@ -206,7 +206,20 @@ export default async function HomePage() {
                                 </div>
                             ) : null}
 
-                            <div className="mt-7 flex flex-wrap gap-3 sm:mt-8 sm:gap-4">
+                            <div className="mt-7 grid gap-3 sm:hidden">
+                                <Link href={localizedFirstChapterPath} className="btn-fixed-blood inline-flex w-full items-center justify-center gap-2 px-5 py-3 text-sm">
+                                    <BookOpen size={16} />
+                                    <span>{dictionary.home.readFirst}</span>
+                                </Link>
+                                <ContinueButton
+                                    fixedDark
+                                    fallbackPath="/chapters"
+                                    fallbackLabel={dictionary.home.viewContents}
+                                    className="!w-full !justify-center !border-white/12 !bg-black/30 !text-ash-200/80 hover:!border-white/18 hover:!bg-black/52 hover:!text-white"
+                                />
+                            </div>
+
+                            <div className="mt-7 hidden flex-wrap gap-3 sm:mt-8 sm:flex sm:gap-4">
                                 <Link href={localizedFirstChapterPath} className="btn-fixed-blood inline-flex items-center gap-2 px-5 py-3 text-sm sm:px-6 sm:text-base">
                                     <BookOpen size={16} />
                                     <span>{dictionary.home.readFirst}</span>
