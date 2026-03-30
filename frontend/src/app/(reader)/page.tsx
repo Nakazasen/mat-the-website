@@ -112,10 +112,10 @@ export default async function HomePage() {
           : "mt-2 font-biohazard text-xl tracking-[0.12em] text-ash-200 sm:mt-3 sm:text-3xl sm:tracking-[0.15em] md:text-4xl";
 
     const chapterCardTitleClassName = isEastAsianLocale
-        ? "mt-4 line-clamp-3 font-biohazard text-[1.45rem] leading-[1.08] tracking-[0.03em] text-worn-white sm:text-[1.75rem]"
+        ? "mt-3 line-clamp-3 font-biohazard text-[1.22rem] leading-[1.1] tracking-[0.03em] text-worn-white sm:mt-4 sm:text-[1.75rem] sm:leading-[1.08]"
         : isEnglishLocale
-          ? "mt-4 line-clamp-3 font-biohazard text-[1.55rem] leading-[1.06] tracking-[0.035em] text-worn-white sm:text-[1.9rem]"
-          : "mt-4 line-clamp-3 font-biohazard text-[1.58rem] leading-[1.04] tracking-[0.04em] text-worn-white sm:text-[1.95rem]";
+          ? "mt-3 line-clamp-3 font-biohazard text-[1.28rem] leading-[1.08] tracking-[0.035em] text-worn-white sm:mt-4 sm:text-[1.9rem] sm:leading-[1.06]"
+          : "mt-3 line-clamp-3 font-biohazard text-[1.3rem] leading-[1.06] tracking-[0.04em] text-worn-white sm:mt-4 sm:text-[1.95rem] sm:leading-[1.04]";
 
     const heroTextWrapClassName = isEastAsianLocale
         ? "max-w-[34rem] lg:max-w-[31rem] xl:max-w-[33rem]"
@@ -319,28 +319,28 @@ export default async function HomePage() {
                     </div>
 
                     {latestChapters.length > 0 ? (
-                        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                        <div className="homepage-chapter-rail -mx-5 flex snap-x snap-mandatory gap-3 overflow-x-auto px-5 pb-2 md:mx-0 md:grid md:gap-4 md:overflow-visible md:px-0 md:pb-0 md:[grid-template-columns:repeat(2,minmax(0,1fr))] xl:[grid-template-columns:repeat(4,minmax(0,1fr))]">
                             {latestChapters.map((chapter, index) => (
                                 <Link
                                     key={chapter.id}
                                     href={withLocalePath(locale, `/chapters/${chapter.chapter_number}`)}
-                                    className="homepage-chapter-card group relative overflow-hidden rounded-[26px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(0,0,0,0.26))] p-4 backdrop-blur-md transition duration-300 hover:-translate-y-0.5 hover:border-white/14 hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(0,0,0,0.34))] hover:shadow-[0_22px_55px_rgba(0,0,0,0.28)] sm:p-5"
+                                    className="homepage-chapter-card group relative min-w-[82vw] snap-start overflow-hidden rounded-[24px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(0,0,0,0.26))] p-3.5 backdrop-blur-md transition duration-300 hover:-translate-y-0.5 hover:border-white/14 hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(0,0,0,0.34))] hover:shadow-[0_22px_55px_rgba(0,0,0,0.28)] sm:min-w-[27rem] sm:rounded-[26px] sm:p-5 md:min-w-0"
                                     style={{ animationDelay: `${index * 0.05}s` }}
                                 >
                                     <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(140deg,rgba(57,255,20,0.04),transparent_28%,transparent_72%,rgba(255,255,255,0.03))] opacity-70 transition-opacity duration-300 group-hover:opacity-100" />
                                     <div className="relative z-10 flex items-start justify-between gap-3">
-                                        <div className="rounded-full border border-white/10 bg-black/28 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.24em] text-toxic-green-DEFAULT">
+                                        <div className="rounded-full border border-white/10 bg-black/28 px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.2em] text-toxic-green-DEFAULT sm:px-3 sm:text-[10px] sm:tracking-[0.24em]">
                                             {dictionary.reader.chapter} {chapter.chapter_number}
                                         </div>
-                                        <div className="rounded-full border border-white/8 bg-black/22 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-ash-500">
+                                        <div className="rounded-full border border-white/8 bg-black/22 px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.12em] text-ash-500 sm:px-3 sm:text-[10px] sm:tracking-[0.18em]">
                                             {new Date(chapter.created_at).toLocaleDateString(LOCALE_LANG[locale])}
                                         </div>
                                     </div>
-                                    <div className="relative z-10 mt-5">
+                                    <div className="relative z-10 mt-4 sm:mt-5">
                                         <div className={chapterCardTitleClassName}>{chapter.title}</div>
                                     </div>
-                                    <div className="relative z-10 mt-6 flex items-center justify-between gap-3 border-t border-white/8 pt-4">
-                                        <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-ash-500">
+                                    <div className="relative z-10 mt-5 flex items-center justify-between gap-3 border-t border-white/8 pt-3.5 sm:mt-6 sm:pt-4">
+                                        <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-ash-500 sm:text-[10px] sm:tracking-[0.2em]">
                                             {dictionary.home.latestUpdated}
                                         </div>
                                         <ChevronRight size={14} className="shrink-0 text-ash-500 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:text-white" />
@@ -349,13 +349,13 @@ export default async function HomePage() {
                             ))}
                         </div>
                     ) : (
-                        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                        <div className="homepage-chapter-rail -mx-5 flex gap-3 overflow-x-auto px-5 pb-2 md:mx-0 md:grid md:gap-4 md:overflow-visible md:px-0 md:pb-0 md:[grid-template-columns:repeat(2,minmax(0,1fr))] xl:[grid-template-columns:repeat(4,minmax(0,1fr))]">
                             {Array.from({ length: 8 }).map((_, index) => (
-                                <div key={index} className="rounded-[24px] border border-white/8 bg-black/30 p-4 backdrop-blur-md animate-pulse sm:p-5">
+                                <div key={index} className="min-w-[82vw] rounded-[22px] border border-white/8 bg-black/30 p-3.5 backdrop-blur-md animate-pulse sm:min-w-[27rem] sm:rounded-[24px] sm:p-5 md:min-w-0">
                                     <div className="h-3 w-20 rounded bg-ash-800" />
-                                    <div className="mt-4 h-6 w-full rounded bg-ash-800" />
+                                    <div className="mt-3 h-5 w-full rounded bg-ash-800 sm:mt-4 sm:h-6" />
                                     <div className="mt-2 h-6 w-3/4 rounded bg-ash-800" />
-                                    <div className="mt-6 h-3 w-24 rounded bg-ash-800" />
+                                    <div className="mt-5 h-3 w-24 rounded bg-ash-800 sm:mt-6" />
                                 </div>
                             ))}
                         </div>

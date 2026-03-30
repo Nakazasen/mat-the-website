@@ -153,6 +153,14 @@ body::before {
   animation: homepage-fade-up 0.7s ease-out both;
 }
 
+.homepage-chapter-rail {
+  scrollbar-width: none;
+}
+
+.homepage-chapter-rail::-webkit-scrollbar {
+  display: none;
+}
+
 .homepage-chapter-card::after {
   content: '';
   position: absolute;
