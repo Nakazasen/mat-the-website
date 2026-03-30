@@ -39,6 +39,8 @@ export interface Chapter {
     content_url: string; // Cloudflare R2 public URL
     created_at: string;
     word_count?: number;
+    bgm_url?: string | null;
+    bgm_title?: string | null;
     requested_locale?: Locale;
     resolved_locale?: Locale;
     is_fallback?: boolean;

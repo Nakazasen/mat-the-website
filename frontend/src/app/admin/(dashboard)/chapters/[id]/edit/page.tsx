@@ -40,6 +40,8 @@ export default function EditChapterPage() {
     const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
     const [isSideStory, setIsSideStory] = useState(false);
+    const [bgmUrl, setBgmUrl] = useState('');
+    const [bgmTitle, setBgmTitle] = useState('');
     const [loading, setLoading] = useState(false);
     const [initialLoading, setInitialLoading] = useState(true);
     const [translating, setTranslating] = useState(false);
@@ -74,6 +76,8 @@ export default function EditChapterPage() {
                 const meta = await metaRes.json();
                 setTitle(meta.title || `Chương ${chapterNumber}`);
                 setIsSideStory(meta.is_side_story || false);
+                setBgmUrl(meta.bgm_url || '');
+                setBgmTitle(meta.bgm_title || '');
 
                 const contentRes = await fetch(`${API_BASE_URL}/api/admin/chapters/${chapterNumber}/content`, {
                     headers: { Authorization: `Bearer ${session.access_token}` },
@@ -123,6 +127,8 @@ export default function EditChapterPage() {
                     title: title.trim(),
                     content: content.trim(),
                     is_side_story: isSideStory,
+                    bgm_url: bgmUrl.trim() || null,
+                    bgm_title: bgmTitle.trim() || null,
                 }),
             });
 
@@ -200,6 +206,30 @@ export default function EditChapterPage() {
 
             <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="bg-[#0f0f0f] border border-gray-800 rounded-lg p-6 space-y-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div>
+                            <label className="block text-xs font-mono text-gray-500 mb-2 tracking-widest uppercase">BGM URL</label>
+                            <input
+                                type="text"
+                                value={bgmUrl}
+                                onChange={(event) => setBgmUrl(event.target.value)}
+                                placeholder="/media/chapter-bgm.mp3 hoặc https://..."
+                                className="w-full bg-[#0a0a0a] border border-gray-700 rounded-md px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:border-green-500 transition-colors"
+                            />
+                            <p className="mt-1 text-[11px] text-gray-500">Chỉ dùng URL public. Path local máy tính sẽ không phát được trên production.</p>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-mono text-gray-500 mb-2 tracking-widest uppercase">BGM title</label>
+                            <input
+                                type="text"
+                                value={bgmTitle}
+                                onChange={(event) => setBgmTitle(event.target.value)}
+                                placeholder="Dark Cello / Ambient Tension"
+                                className="w-full bg-[#0a0a0a] border border-gray-700 rounded-md px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:border-green-500 transition-colors"
+                            />
+                        </div>
+                    </div>
+
                     <div>
                         <label className="block text-xs font-mono text-gray-500 mb-2 tracking-widest uppercase">Tiêu đề chương</label>
                         <input

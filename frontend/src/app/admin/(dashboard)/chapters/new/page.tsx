@@ -15,6 +15,8 @@ export default function NewChapterPage() {
     const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
     const [isSideStory, setIsSideStory] = useState(false);
+    const [bgmUrl, setBgmUrl] = useState('');
+    const [bgmTitle, setBgmTitle] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
@@ -60,6 +62,8 @@ export default function NewChapterPage() {
                     title: title.trim(),
                     content: content.trim(),
                     is_side_story: isSideStory,
+                    bgm_url: bgmUrl.trim() || null,
+                    bgm_title: bgmTitle.trim() || null,
                 }),
             });
 
@@ -136,6 +140,30 @@ export default function NewChapterPage() {
                     <label htmlFor="isSideStory" className="text-sm font-mono text-gray-300 cursor-pointer select-none">
                         📜 Đây là Ngoại Truyện / Hồ sơ phụ (Không làm loạn số mạch truyện chính)
                     </label>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                        <label className="block text-xs font-mono text-gray-500 mb-1 tracking-widest">BGM URL</label>
+                        <input
+                            type="text"
+                            value={bgmUrl}
+                            onChange={(e) => setBgmUrl(e.target.value)}
+                            className="w-full bg-[#0a0a0a] border border-gray-700 rounded px-3 py-2 text-gray-200 text-sm focus:outline-none focus:border-green-500 transition-colors"
+                            placeholder="/media/chapter-bgm.mp3 hoặc https://..."
+                        />
+                        <p className="mt-1 text-[11px] text-gray-500">Dùng URL public. Đường dẫn local Windows sẽ không phát được trên web.</p>
+                    </div>
+                    <div>
+                        <label className="block text-xs font-mono text-gray-500 mb-1 tracking-widest">BGM TITLE</label>
+                        <input
+                            type="text"
+                            value={bgmTitle}
+                            onChange={(e) => setBgmTitle(e.target.value)}
+                            className="w-full bg-[#0a0a0a] border border-gray-700 rounded px-3 py-2 text-gray-200 text-sm focus:outline-none focus:border-green-500 transition-colors"
+                            placeholder="Dark Cello / Ambient Tension"
+                        />
+                    </div>
                 </div>
 
                 <div>

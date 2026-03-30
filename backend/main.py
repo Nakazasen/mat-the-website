@@ -2505,6 +2505,8 @@ class Chapter(BaseModel):
     word_count: Optional[int] = None
     view_count: int = 0
     is_side_story: bool = False
+    bgm_url: Optional[str] = None
+    bgm_title: Optional[str] = None
     requested_locale: str = DEFAULT_LOCALE
     resolved_locale: str = DEFAULT_LOCALE
     is_fallback: bool = False
@@ -2524,6 +2526,55 @@ class ChaptersResponse(BaseModel):
     total_pages: int
 
     max_chapter: int
+
+
+CHAPTERS_HAS_BGM_COLUMNS: Optional[bool] = None
+
+
+def _is_missing_bgm_schema_error(exc: Exception) -> bool:
+    message = str(exc).lower()
+    return (
+        "bgm_url" in message
+        or "bgm_title" in message
+        or "column" in message and ("does not exist" in message or "schema cache" in message)
+    )
+
+
+def chapters_support_bgm() -> bool:
+    global CHAPTERS_HAS_BGM_COLUMNS
+    if CHAPTERS_HAS_BGM_COLUMNS is not None:
+        return CHAPTERS_HAS_BGM_COLUMNS
+
+    try:
+        supabase.table("chapters").select("bgm_url, bgm_title").limit(1).execute()
+        CHAPTERS_HAS_BGM_COLUMNS = True
+    except Exception as exc:
+        if _is_missing_bgm_schema_error(exc):
+            CHAPTERS_HAS_BGM_COLUMNS = False
+        else:
+            raise
+
+    return bool(CHAPTERS_HAS_BGM_COLUMNS)
+
+
+def build_chapter_select_fields() -> str:
+    fields = "id, chapter_number, title, content_url, created_at, word_count, is_side_story"
+    if chapters_support_bgm():
+        fields += ", bgm_url, bgm_title"
+    return fields
+
+
+def normalize_bgm_payload(bgm_url: Optional[str], bgm_title: Optional[str]) -> dict[str, Optional[str]]:
+    normalized_url = str(bgm_url or "").strip() or None
+    normalized_title = str(bgm_title or "").strip() or None
+
+    if not normalized_url:
+        return {"bgm_url": None, "bgm_title": None}
+
+    return {
+        "bgm_url": normalized_url,
+        "bgm_title": normalized_title,
+    }
 
 # ============================================================
 
@@ -2575,7 +2626,7 @@ async def get_chapters(
 
         # Build base query
 
-        query = supabase.table("chapters").select("id, chapter_number, title, content_url, created_at, word_count, is_side_story", count="exact")
+        query = supabase.table("chapters").select(build_chapter_select_fields(), count="exact")
 
         
 
@@ -2689,7 +2740,7 @@ async def get_chapter(
 
             supabase.table("chapters")
 
-            .select("id, chapter_number, title, content_url, created_at, word_count, is_side_story")
+            .select(build_chapter_select_fields())
 
             .eq("chapter_number", chapter_number)
 
@@ -2907,6 +2958,10 @@ class AdminChapterCreate(BaseModel):
 
     is_side_story: bool = False
 
+    bgm_url: Optional[str] = None
+
+    bgm_title: Optional[str] = None
+
 class AdminChapterUpdate(BaseModel):
 
     title: Optional[str] = None
@@ -2914,6 +2969,10 @@ class AdminChapterUpdate(BaseModel):
     content: Optional[str] = None
 
     is_side_story: Optional[bool] = None
+
+    bgm_url: Optional[str] = None
+
+    bgm_title: Optional[str] = None
 
 @app.post("/api/admin/chapters", summary="[Admin] Thêm chương mới")
 
@@ -2967,9 +3026,16 @@ async def admin_create_chapter(
 
     word_count = len(sanitized_content.split())
 
+    bgm_payload = normalize_bgm_payload(body.bgm_url, body.bgm_title)
+    if bgm_payload["bgm_url"] and not chapters_support_bgm():
+        raise HTTPException(
+            status_code=503,
+            detail="Supabase chưa cài schema BGM cho chapters. Hãy chạy scripts/supabase_chapter_bgm.sql trước.",
+        )
+
     # Insert metadata into Supabase
 
-    result = supabase.table("chapters").insert({
+    insert_payload = {
 
         "chapter_number": body.chapter_number,
 
@@ -2981,7 +3047,11 @@ async def admin_create_chapter(
 
         "is_side_story": body.is_side_story,
 
-    }).execute()
+    }
+    if chapters_support_bgm():
+        insert_payload.update(bgm_payload)
+
+    result = supabase.table("chapters").insert(insert_payload).execute()
 
     return {"message": "Thêm chương thành công", "chapter": result.data[0]}
 
@@ -3012,6 +3082,7 @@ async def admin_update_chapter(
     chapter = existing.data
 
     update_data = {}
+    bgm_payload = normalize_bgm_payload(body.bgm_url, body.bgm_title)
 
     # Update content on R2 if provided
 
@@ -3050,6 +3121,15 @@ async def admin_update_chapter(
     if body.is_side_story is not None:
 
         update_data["is_side_story"] = body.is_side_story
+
+    if body.bgm_url is not None or body.bgm_title is not None:
+        if bgm_payload["bgm_url"] and not chapters_support_bgm():
+            raise HTTPException(
+                status_code=503,
+                detail="Supabase chưa cài schema BGM cho chapters. Hãy chạy scripts/supabase_chapter_bgm.sql trước.",
+            )
+        if chapters_support_bgm():
+            update_data.update(bgm_payload)
 
     if update_data:
 

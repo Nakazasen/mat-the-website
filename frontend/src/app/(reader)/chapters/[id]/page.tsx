@@ -79,6 +79,8 @@ export default async function ReadingPage({
             totalChapters={totalChapters}
             resolvedLocale={chapter.resolved_locale}
             isFallback={chapter.is_fallback}
+            bgmUrl={chapter.bgm_url}
+            bgmTitle={chapter.bgm_title}
         />
     );
 }

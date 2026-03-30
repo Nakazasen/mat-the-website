@@ -12,6 +12,7 @@ import { sanitizeHtmlClient } from "@/lib/sanitize-html";
 import { useChapterMeta } from "@/hooks/useChapterMeta";
 
 import AudioPlayer from "./AudioPlayer";
+import ChapterBgmPlayer from "./ChapterBgmPlayer";
 import CommentSection from "./CommentSection";
 import DonateSection from "./DonateSection";
 import LikeButton from "./LikeButton";
@@ -32,6 +33,8 @@ interface ReadingClientProps {
     totalChapters: number;
     resolvedLocale?: string;
     isFallback?: boolean;
+    bgmUrl?: string | null;
+    bgmTitle?: string | null;
 }
 
 interface WikiCharacterEntry {
@@ -56,6 +59,8 @@ export default function ReadingClient({
     totalChapters,
     resolvedLocale,
     isFallback = false,
+    bgmUrl,
+    bgmTitle,
 }: ReadingClientProps) {
     const backendUrl = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
     const { theme, fontSize, fontFamily } = useTheme();
@@ -402,6 +407,13 @@ export default function ReadingClient({
                         onIndexChange={setActiveChunkIndex}
                         locale={(resolvedLocale as any) || locale}
                         resolvedContent={content}
+                    />
+
+                    <ChapterBgmPlayer
+                        chapterNumber={chapterNumber}
+                        locale={(resolvedLocale as any) || locale}
+                        bgmUrl={bgmUrl}
+                        bgmTitle={bgmTitle}
                     />
 
                     <div className="flex items-center justify-center gap-4 mt-8">
