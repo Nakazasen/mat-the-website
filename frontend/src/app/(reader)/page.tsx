@@ -123,7 +123,7 @@ export default async function HomePage() {
                 />
 
                 <div className="relative z-10 mx-auto max-w-7xl px-5 py-10 sm:px-6 sm:py-14 lg:py-24">
-                    <div className="grid items-center gap-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(540px,1.1fr)] lg:gap-12 xl:grid-cols-[minmax(0,0.88fr)_minmax(620px,1.12fr)]">
+                    <div className="grid items-center gap-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(540px,1.1fr)] lg:gap-[3.6rem] xl:grid-cols-[minmax(0,0.88fr)_minmax(620px,1.12fr)] xl:gap-[4.1rem]">
                         <div className="max-w-3xl">
                             <div className="mb-4 flex flex-wrap gap-2.5 sm:mb-5 sm:gap-3">
                                 <div className="inline-flex items-center gap-2 rounded-full border border-blood-red-DEFAULT/35 bg-blood-red-DEFAULT/10 px-3 py-1.5 sm:px-4 sm:py-2">
@@ -138,7 +138,7 @@ export default async function HomePage() {
                                 </div>
                             </div>
 
-                            <h1 className="font-biohazard text-5xl leading-[0.92] text-toxic-glow animate-flicker sm:text-7xl md:text-8xl lg:text-[7rem] xl:text-[7.6rem]">
+                            <h1 className="homepage-hero-title font-biohazard text-5xl leading-[0.92] animate-flicker sm:text-7xl md:text-8xl lg:text-[7rem] xl:text-[7.6rem]">
                                 {primary}
                             </h1>
                             {secondary ? (
@@ -190,7 +190,7 @@ export default async function HomePage() {
                             </div>
                         </div>
 
-                        <div className="lg:-mr-8 lg:pl-2 xl:-mr-14 xl:pl-4">
+                        <div className="lg:pl-4 xl:pl-7">
                             <HomepageHeroVideo
                                 title={novel.author}
                                 src="/media/han-phong-mystical-explosion.mp4"

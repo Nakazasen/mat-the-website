@@ -192,7 +192,8 @@ export default function Header() {
                 </div>
 
                 {menuOpen && (
-                    <div className="md:hidden border-b border-white/8 bg-black/92 backdrop-blur-xl">
+                    <div className="md:hidden border-b border-white/8 bg-black/78 px-3 pb-3 backdrop-blur-xl">
+                        <div className="mt-2 overflow-hidden rounded-[24px] border border-white/10 bg-black/88 shadow-[0_24px_80px_rgba(0,0,0,0.42)]">
                         <div className="px-4 pt-4">
                             <LanguageSwitcher mobile />
                         </div>
@@ -204,8 +205,8 @@ export default function Header() {
                                     onClick={() => setMenuOpen(false)}
                                     className={`flex items-center gap-3 px-4 py-3 font-biohazard tracking-widest text-base transition-colors ${
                                         highlight
-                                            ? "rounded-xl border border-blood-red-bright/40 bg-blood-red-DEFAULT text-white"
-                                            : "rounded-xl border border-white/8 bg-black/30 text-ash-300 hover:border-white/12 hover:bg-white/4 hover:text-white"
+                                            ? "rounded-2xl border border-blood-red-bright/35 bg-blood-red-DEFAULT/92 text-white shadow-[0_14px_34px_rgba(139,0,0,0.2)]"
+                                            : "rounded-2xl border border-white/8 bg-white/[0.03] text-ash-300 hover:border-white/12 hover:bg-white/5 hover:text-white"
                                     }`}
                                 >
                                     <Icon size={16} />
@@ -214,7 +215,7 @@ export default function Header() {
                             ))}
                         </nav>
 
-                        <div className="px-4 py-4 border-t border-ash-800/50">
+                        <div className="border-t border-white/8 px-4 py-4">
                             {user ? (
                                 <div className="flex flex-col gap-3">
                                     <div className="flex items-center gap-3 rounded-xl border border-white/8 bg-black/36 p-3">
@@ -248,9 +249,10 @@ export default function Header() {
                             )}
                         </div>
 
-                        <div className="flex items-center gap-2 px-8 pb-4 text-xs font-mono text-ash-600">
+                        <div className="flex items-center gap-2 px-8 pb-4 text-[11px] font-mono uppercase tracking-[0.2em] text-ash-600">
                             <Zap size={10} className="text-toxic-green-DEFAULT" />
                             <span>{dictionary.common.online} · {novel?.max_chapter || "?"} {dictionary.common.chapters}</span>
+                        </div>
                         </div>
                     </div>
                 )}
