@@ -119,6 +119,100 @@ def test_build_translation_publish_gate_report_flags_unreliable_structure():
     assert report["sentence_ratio"] == 2.0
 
 
+def test_is_translation_retryable_treats_transient_unavailable_as_retryable():
+    exc = HTTPException(status_code=503, detail="This model is currently experiencing high demand. Please try again later.")
+
+    assert main.is_translation_retryable(exc) is True
+
+
+@pytest.mark.asyncio
+async def test_admin_translate_chapters_batch_ignores_empty_numeric_gap(monkeypatch):
+    class FakeExecuteResult:
+        def __init__(self, data):
+            self.data = data
+
+    class FakeQuery:
+        def select(self, _fields):
+            return self
+
+        def gte(self, _key, _value):
+            return self
+
+        def lte(self, _key, _value):
+            return self
+
+        def order(self, _key):
+            return self
+
+        def execute(self):
+            return FakeExecuteResult([])
+
+    class FakeSupabase:
+        def table(self, _table_name):
+            return FakeQuery()
+
+    async def fake_verify_admin(_authorization):
+        return None
+
+    monkeypatch.setattr(main, "supabase", FakeSupabase())
+    monkeypatch.setattr(main, "verify_admin", fake_verify_admin)
+
+    result = await main.admin_translate_chapters_batch(
+        main.AdminBatchTranslateRequest(start_chapter=739, end_chapter=740, only_missing=True),
+        authorization="Bearer test",
+    )
+
+    assert result["message"] == "No chapters found in selected range"
+    assert result["translated_count"] == 0
+    assert result["skipped_count"] == 0
+    assert result["failed_count"] == 0
+    assert result["failed_chapters"] == []
+
+
+@pytest.mark.asyncio
+async def test_admin_improve_quality_batch_ignores_empty_numeric_gap(monkeypatch):
+    class FakeExecuteResult:
+        def __init__(self, data):
+            self.data = data
+
+    class FakeQuery:
+        def select(self, _fields):
+            return self
+
+        def gte(self, _key, _value):
+            return self
+
+        def lte(self, _key, _value):
+            return self
+
+        def order(self, _key):
+            return self
+
+        def execute(self):
+            return FakeExecuteResult([])
+
+    class FakeSupabase:
+        def table(self, _table_name):
+            return FakeQuery()
+
+    async def fake_verify_admin(_authorization):
+        return None
+
+    monkeypatch.setattr(main, "supabase", FakeSupabase())
+    monkeypatch.setattr(main, "verify_admin", fake_verify_admin)
+
+    result = await main.admin_improve_chapters_quality_batch(
+        main.AdminBatchImproveQualityRequest(start_chapter=739, end_chapter=740, only_unrefined=True, force=False),
+        authorization="Bearer test",
+    )
+
+    assert result["message"] == "No chapters found in selected range"
+    assert result["translated_count"] == 0
+    assert result["skipped_count"] == 0
+    assert result["failed_count"] == 0
+    assert result["failed_chapters"] == []
+
+
 @pytest.mark.asyncio
 async def test_translate_chapter_payload_with_ai_uses_structured_flow(monkeypatch):
     async def fake_translate_chapter_payloads_with_ai(**kwargs):

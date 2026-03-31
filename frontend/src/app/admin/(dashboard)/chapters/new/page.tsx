@@ -156,7 +156,7 @@ export default function NewChapterPage() {
                                 placeholder="/media/chapter-bgm.mp3 hoặc https://..."
                             />
                             <label className={`inline-flex shrink-0 cursor-pointer items-center justify-center rounded border border-gray-700 px-3 py-2 text-xs font-mono text-gray-300 transition-colors hover:border-green-500 hover:text-white ${uploadingBgm ? "pointer-events-none opacity-50" : ""}`}>
-                                {uploadingBgm ? 'ĐANG TẢI...' : 'UPLOAD'}
+                                {uploadingBgm ? 'ĐANG TẢI...' : 'CHỌN FILE'}
                                 <input
                                     type="file"
                                     accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/ogg,audio/webm,audio/mp4,audio/x-m4a,audio/aac,.mp3,.wav,.ogg,.webm,.m4a,.aac"
@@ -183,7 +183,7 @@ export default function NewChapterPage() {
                                 />
                             </label>
                         </div>
-                        <p className="mt-1 text-[11px] text-gray-500">Dùng URL public. Đường dẫn local Windows sẽ không phát được trên web.</p>
+                        <p className="mt-1 text-[11px] text-gray-500">Có thể chọn file local bằng nút bên cạnh, hệ thống sẽ upload lên R2 và điền URL public tự động.</p>
                     </div>
                     <div>
                         <label className="block text-xs font-mono text-gray-500 mb-1 tracking-widest">BGM TITLE</label>

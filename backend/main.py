@@ -789,9 +789,13 @@ def is_translation_retryable(exc: HTTPException) -> bool:
     detail = str(exc.detail).lower()
     return (
         exc.status_code == 429
+        or exc.status_code in (500, 502, 503, 504)
         or "resource exhausted" in detail
         or "rate limit" in detail
         or "quota" in detail
+        or "unavailable" in detail
+        or "high demand" in detail
+        or "try again later" in detail
         or exc.status_code in (400, 404, 401, 403)
     )
 
@@ -3321,7 +3325,17 @@ async def admin_translate_chapters_batch(
     )
     chapter_rows = chapters_resp.data or []
     if not chapter_rows:
-        raise HTTPException(status_code=404, detail="No chapters found in selected range")
+        return {
+            "message": "No chapters found in selected range",
+            "range": {"start_chapter": start_chapter, "end_chapter": end_chapter},
+            "only_missing": body.only_missing,
+            "translated_count": 0,
+            "skipped_count": 0,
+            "failed_count": 0,
+            "translated_chapters": [],
+            "skipped_chapters": [],
+            "failed_chapters": [],
+        }
 
     translation_map: dict[int, set[str]] = {}
     if body.only_missing:
@@ -3426,7 +3440,18 @@ async def admin_improve_chapters_quality_batch(
     )
     chapter_rows = chapters_resp.data or []
     if not chapter_rows:
-        raise HTTPException(status_code=404, detail="No chapters found in selected range")
+        return {
+            "message": "No chapters found in selected range",
+            "range": {"start_chapter": start_chapter, "end_chapter": end_chapter},
+            "only_unrefined": body.only_unrefined,
+            "force": body.force,
+            "translated_count": 0,
+            "skipped_count": 0,
+            "failed_count": 0,
+            "translated_chapters": [],
+            "skipped_chapters": [],
+            "failed_chapters": [],
+        }
 
     translation_rows_resp = (
         supabase.table("chapter_translations")

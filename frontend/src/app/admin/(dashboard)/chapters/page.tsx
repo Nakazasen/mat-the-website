@@ -194,6 +194,7 @@ export default function AdminChaptersPage() {
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [totalChapters, setTotalChapters] = useState(0);
+    const [maxChapterNumber, setMaxChapterNumber] = useState(0);
     const limit = 100;
 
     const [searchQuery, setSearchQuery] = useState('');
@@ -230,12 +231,12 @@ export default function AdminChaptersPage() {
         }
 
         const startChapter = Math.max(1, parseInt(batchStart || '1', 10) || 1);
-        const endChapter = Math.max(startChapter, parseInt(batchEnd || `${totalChapters || startChapter}`, 10) || startChapter);
+        const endChapter = Math.max(startChapter, parseInt(batchEnd || `${maxChapterNumber || totalChapters || startChapter}`, 10) || startChapter);
         const nextMessage = formatBatchNetworkError(error, startChapter - 1, endChapter);
         if (nextMessage !== error) {
             setError(nextMessage);
         }
-    }, [error, fullBatchProgress, batchStart, batchEnd, totalChapters]);
+    }, [error, fullBatchProgress, batchStart, batchEnd, maxChapterNumber, totalChapters]);
 
     useEffect(() => {
         const supabase = createAdminClient();
@@ -276,8 +277,9 @@ export default function AdminChaptersPage() {
             setChapters(data.chapters || []);
             setTotalPages(data.total_pages || 1);
             setTotalChapters(data.total || 0);
+            setMaxChapterNumber(Math.max(data.max_chapter || 0, data.total || 0));
             setCurrentPage(page);
-            setBatchEnd((current) => current || String(data.total || data.total_pages || ''));
+            setBatchEnd((current) => current || String(data.max_chapter || data.total || data.total_pages || ''));
         } catch (err: any) {
             setError(err.message);
         } finally {
@@ -326,6 +328,48 @@ export default function AdminChaptersPage() {
             `Đã khôi phục checkpoint nâng chất lượng tới chương ${Math.max(0, checkpoint.nextStart - 1)}/${checkpoint.total}. Bấm tiếp tục để chạy phần còn thiếu.`
         );
     }, []);
+
+    useEffect(() => {
+        if (!maxChapterNumber || !fullBatchCheckpoint?.active || fullBatchCheckpoint.total >= maxChapterNumber) {
+            return;
+        }
+
+        const normalizedCheckpoint = {
+            ...fullBatchCheckpoint,
+            total: maxChapterNumber,
+        };
+        writeFullBatchCheckpoint(normalizedCheckpoint);
+        setFullBatchCheckpoint(normalizedCheckpoint);
+        setFullBatchProgress((current) => (
+            current
+                ? {
+                    ...current,
+                    total: maxChapterNumber,
+                }
+                : current
+        ));
+    }, [fullBatchCheckpoint, maxChapterNumber]);
+
+    useEffect(() => {
+        if (!maxChapterNumber || !qualityBatchCheckpoint?.active || qualityBatchCheckpoint.total >= maxChapterNumber) {
+            return;
+        }
+
+        const normalizedCheckpoint = {
+            ...qualityBatchCheckpoint,
+            total: maxChapterNumber,
+        };
+        writeFullBatchCheckpoint(normalizedCheckpoint, QUALITY_BATCH_CHECKPOINT_KEY);
+        setQualityBatchCheckpoint(normalizedCheckpoint);
+        setQualityBatchProgress((current) => (
+            current
+                ? {
+                    ...current,
+                    total: maxChapterNumber,
+                }
+                : current
+        ));
+    }, [maxChapterNumber, qualityBatchCheckpoint]);
 
     const refreshTranslationStatuses = useCallback(async (targetChapters?: number[]) => {
         if (!token) return;
@@ -467,7 +511,7 @@ export default function AdminChaptersPage() {
         if (!token) return;
 
         const checkpoint = qualityBatchCheckpoint?.active ? qualityBatchCheckpoint : null;
-        const total = Math.max(totalChapters, checkpoint?.total || 0);
+        const total = Math.max(maxChapterNumber, checkpoint?.total || 0, totalChapters);
         const blockSize = Math.min(
             SAFE_BATCH_LIMIT,
             Math.max(1, checkpoint?.blockSize || parseInt(batchBlockSize || '2', 10) || 2),
@@ -584,7 +628,7 @@ export default function AdminChaptersPage() {
         if (!token) return;
 
         const startChapter = Math.max(1, parseInt(batchStart || '1', 10) || 1);
-        const endChapter = Math.max(startChapter, parseInt(batchEnd || `${totalChapters || startChapter}`, 10) || startChapter);
+        const endChapter = Math.max(startChapter, parseInt(batchEnd || `${maxChapterNumber || totalChapters || startChapter}`, 10) || startChapter);
         const selectedCount = endChapter - startChapter + 1;
         if (selectedCount > SAFE_BATCH_LIMIT) {
             setError(`Batch thủ công hiện chỉ nên chạy tối đa ${SAFE_BATCH_LIMIT} chương mỗi lượt. Hãy chia nhỏ khoảng chương.`);
@@ -631,7 +675,7 @@ export default function AdminChaptersPage() {
         if (!token) return;
 
         const checkpoint = fullBatchCheckpoint?.active ? fullBatchCheckpoint : null;
-        const total = Math.max(totalChapters, checkpoint?.total || 0);
+        const total = Math.max(maxChapterNumber, checkpoint?.total || 0, totalChapters);
         const blockSize = Math.min(
             SAFE_BATCH_LIMIT,
             Math.max(1, checkpoint?.blockSize || parseInt(batchBlockSize || '2', 10) || 2),
@@ -862,7 +906,7 @@ export default function AdminChaptersPage() {
                     <div>
                         <p className="font-mono text-xs tracking-widest text-cyan-300 uppercase">Translate All Missing</p>
                         <p className="mt-1 text-xs text-gray-500">
-                            Tự động chạy từ chương 1 đến chương {totalChapters}, chia block nhỏ để hạn chế timeout và dễ theo dõi tiến độ.
+                            Tự động chạy từ chương 1 đến chương {maxChapterNumber || totalChapters}, chia block nhỏ để hạn chế timeout và dễ theo dõi tiến độ.
                         </p>
                         {fullBatchCheckpoint?.active && (
                             <p className="mt-2 text-xs text-cyan-200/90">

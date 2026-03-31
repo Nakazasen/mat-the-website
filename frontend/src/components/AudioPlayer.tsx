@@ -24,10 +24,28 @@ type PlayState = 'stopped' | 'playing' | 'paused';
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'https://mat-the-website.onrender.com').replace(/\/$/, '');
 const AUDIO_FLOATING_STORAGE_KEY = 'reader-audio-floating-position-v1';
+const AUDIO_PLAYBACK_SPEED_STORAGE_KEY = 'reader-audio-playback-speed-v1';
 const AUDIO_FLOATING_WIDTH = 360;
 const AUDIO_FLOATING_MARGIN = 16;
 const MOBILE_PANEL_EVENT = 'reader-learning-mobile-panel';
 const AUDIO_LAYOUT_EVENT = 'reader-audio-layout';
+const AUDIO_SPEED_OPTIONS = [0.75, 1, 1.25, 1.5, 1.75] as const;
+
+function normalizePlaybackSpeed(value: number | null | undefined): number {
+    if (typeof value !== 'number' || Number.isNaN(value)) return 1;
+    return AUDIO_SPEED_OPTIONS.includes(value as typeof AUDIO_SPEED_OPTIONS[number]) ? value : 1;
+}
+
+function readSavedPlaybackSpeed(): number {
+    if (typeof window === 'undefined') return 1;
+    try {
+        const raw = window.localStorage.getItem(AUDIO_PLAYBACK_SPEED_STORAGE_KEY);
+        if (!raw) return 1;
+        return normalizePlaybackSpeed(Number(raw));
+    } catch {
+        return 1;
+    }
+}
 
 function shouldIgnoreAudioHotkeys(target: EventTarget | null): boolean {
     if (!(target instanceof HTMLElement)) return false;
@@ -65,7 +83,7 @@ export default function AudioPlayer({
     const activeLocale = locale ?? contextLocale;
 
     const [playState, setPlayState] = useState<PlayState>('stopped');
-    const [speed, setSpeed] = useState(1);
+    const [speed, setSpeed] = useState(() => readSavedPlaybackSpeed());
     const [isMuted, setIsMuted] = useState(false);
 
     const audioRef = useRef<HTMLAudioElement>(null);
@@ -85,6 +103,15 @@ export default function AudioPlayer({
         speedRef.current = speed;
         if (audioRef.current) {
             audioRef.current.playbackRate = speed;
+        }
+    }, [speed]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        try {
+            window.localStorage.setItem(AUDIO_PLAYBACK_SPEED_STORAGE_KEY, String(speed));
+        } catch {
+            // ignore storage errors
         }
     }, [speed]);
 
@@ -503,7 +530,7 @@ export default function AudioPlayer({
                     <div className="w-px h-8 bg-gray-800" />
 
                     <div className="flex items-center gap-1">
-                        {[0.75, 1, 1.25, 1.5, 1.75].map((s) => (
+                        {AUDIO_SPEED_OPTIONS.map((s) => (
                             <button
                                 key={s}
                                 onClick={() => setSpeed(s)}
@@ -545,31 +572,53 @@ export default function AudioPlayer({
 
             {showCompactMobilePlayer && (
                 <div className="fixed bottom-4 right-4 z-[72] md:hidden">
-                    <div className="flex items-center gap-2 rounded-full border border-toxic-green-DEFAULT/25 bg-[#0d1116]/96 px-3 py-2 text-gray-100 shadow-[0_18px_50px_rgba(0,0,0,0.42)] backdrop-blur">
-                        <button
-                            type="button"
-                            onClick={playState === 'playing' ? pause : resume}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-toxic-green-DEFAULT/35 bg-toxic-green-DEFAULT/10 text-toxic-green-DEFAULT"
-                            aria-label={playState === 'playing' ? dictionary.audio.pause : dictionary.audio.resume}
-                        >
-                            {playState === 'playing' ? <Pause size={14} /> : <Play size={14} />}
-                        </button>
-                        <div className="min-w-0">
-                            <div className="truncate text-[10px] font-mono uppercase tracking-[0.18em] text-toxic-green-DEFAULT">
-                                {dictionary.audio.floatingTitle}
+                    <div className="w-[min(92vw,360px)] rounded-2xl border border-toxic-green-DEFAULT/25 bg-[#0d1116]/96 px-3 py-3 text-gray-100 shadow-[0_18px_50px_rgba(0,0,0,0.42)] backdrop-blur">
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={playState === 'playing' ? pause : resume}
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-toxic-green-DEFAULT/35 bg-toxic-green-DEFAULT/10 text-toxic-green-DEFAULT"
+                                aria-label={playState === 'playing' ? dictionary.audio.pause : dictionary.audio.resume}
+                            >
+                                {playState === 'playing' ? <Pause size={14} /> : <Play size={14} />}
+                            </button>
+                            <div className="min-w-0 flex-1">
+                                <div className="truncate text-[10px] font-mono uppercase tracking-[0.18em] text-toxic-green-DEFAULT">
+                                    {dictionary.audio.floatingTitle}
+                                </div>
+                                <div className="truncate text-[11px] text-gray-300">
+                                    {chunkIndexRef.current + 1}/{Math.max(chunksRef.current.length, 1)}
+                                </div>
                             </div>
-                            <div className="truncate text-[11px] text-gray-300">
-                                {chunkIndexRef.current + 1}/{Math.max(chunksRef.current.length, 1)}
-                            </div>
+                            <button
+                                type="button"
+                                onClick={stop}
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-gray-800 text-gray-400 hover:border-red-500 hover:text-red-400"
+                                aria-label="Stop audio"
+                            >
+                                <Square size={13} fill="currentColor" />
+                            </button>
                         </div>
-                        <button
-                            type="button"
-                            onClick={stop}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-gray-800 text-gray-400 hover:border-red-500 hover:text-red-400"
-                            aria-label="Stop audio"
-                        >
-                            <Square size={13} fill="currentColor" />
-                        </button>
+
+                        <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-gray-800 pt-3">
+                            <span className="mr-1 text-[10px] font-mono uppercase tracking-[0.16em] text-gray-500">
+                                {dictionary.audio.speed}
+                            </span>
+                            {AUDIO_SPEED_OPTIONS.map((option) => (
+                                <button
+                                    key={`compact-speed-${option}`}
+                                    type="button"
+                                    onClick={() => setSpeed(option)}
+                                    className={`rounded-md px-2 py-1 text-[10px] font-mono transition-all ${
+                                        speed === option
+                                            ? 'bg-toxic-green-DEFAULT text-black font-bold'
+                                            : 'border border-gray-800 text-gray-400 hover:border-toxic-green-DEFAULT/40 hover:text-toxic-green-DEFAULT'
+                                    }`}
+                                >
+                                    {option}x
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 </div>
             )}
@@ -656,6 +705,26 @@ export default function AudioPlayer({
                                 {dictionary.audio.skip}
                                 <ChevronRight size={12} />
                             </button>
+                        </div>
+
+                        <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-gray-800 pt-3">
+                            <span className="mr-1 text-[10px] font-mono uppercase tracking-[0.16em] text-gray-500">
+                                {dictionary.audio.speed}
+                            </span>
+                            {AUDIO_SPEED_OPTIONS.map((option) => (
+                                <button
+                                    key={`floating-speed-${option}`}
+                                    type="button"
+                                    onClick={() => setSpeed(option)}
+                                    className={`rounded-md px-2 py-1 text-[10px] font-mono transition-all ${
+                                        speed === option
+                                            ? 'bg-toxic-green-DEFAULT text-black font-bold'
+                                            : 'border border-gray-800 text-gray-400 hover:border-toxic-green-DEFAULT/40 hover:text-toxic-green-DEFAULT'
+                                    }`}
+                                >
+                                    {option}x
+                                </button>
+                            ))}
                         </div>
                     </div>
                 </div>

@@ -66,6 +66,7 @@ export interface Dictionary {
         changeChapter: string;
         keepScreenOn: string;
         floatingTitle: string;
+        speed: string;
         shortcuts: string;
     };
     lookup: {
@@ -226,6 +227,7 @@ export const dictionaries: Record<Locale, Dictionary> = {
             changeChapter: "Chuyển chương",
             keepScreenOn: "Tắt màn hình vẫn nghe được",
             floatingTitle: "Điều khiển audio",
+            speed: "Tốc độ",
             shortcuts: "Phím tắt: Alt+P phát/tạm dừng, Alt+S dừng, Alt+[ lùi đoạn, Alt+] tới đoạn",
         },
         lookup: {
@@ -398,6 +400,7 @@ export const dictionaries: Record<Locale, Dictionary> = {
             changeChapter: "Change chapter",
             keepScreenOn: "Audio keeps playing with the screen off",
             floatingTitle: "Audio controls",
+            speed: "Speed",
             shortcuts: "Shortcuts: Alt+P play/pause, Alt+S stop, Alt+[ previous chunk, Alt+] next chunk",
         },
         lookup: {
@@ -570,6 +573,7 @@ export const dictionaries: Record<Locale, Dictionary> = {
             changeChapter: "切换章节",
             keepScreenOn: "锁屏后仍可继续播放",
             floatingTitle: "音频控制",
+            speed: "速度",
             shortcuts: "快捷键：Alt+P 播放/暂停，Alt+S 停止，Alt+[ 上一段，Alt+] 下一段",
         },
         lookup: {
@@ -742,6 +746,7 @@ export const dictionaries: Record<Locale, Dictionary> = {
             changeChapter: "話を切り替える",
             keepScreenOn: "画面オフでも再生を続けます",
             floatingTitle: "音声コントロール",
+            speed: "再生速度",
             shortcuts: "ショートカット: Alt+P 再生/一時停止, Alt+S 停止, Alt+[ 前の区切り, Alt+] 次の区切り",
         },
         lookup: {
