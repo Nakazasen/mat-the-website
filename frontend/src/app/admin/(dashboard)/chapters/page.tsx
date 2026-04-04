@@ -45,6 +45,11 @@ const FULL_BATCH_RETRY_DELAY_MS = 2500;
 const FULL_BATCH_CHECKPOINT_KEY = 'admin-chapters-full-batch-checkpoint-v1';
 const QUALITY_BATCH_CHECKPOINT_KEY = 'admin-chapters-quality-batch-checkpoint-v1';
 const MANUAL_IMPORT_LOCALES = ['en', 'zh-CN', 'ja'] as const;
+const LOCALE_SAFE_COPY_OPTIONS = [
+    { locale: 'en', label: 'EN ONLY' },
+    { locale: 'zh-CN', label: 'ZH ONLY' },
+    { locale: 'ja', label: 'JA ONLY' },
+] as const;
 
 interface Chapter {
     id: number;
@@ -94,6 +99,7 @@ type ManualImportField = {
 };
 
 type TemplateExportFormat = 'json' | 'csv';
+type TargetLocale = (typeof MANUAL_IMPORT_LOCALES)[number];
 
 type GrokImportPayload = {
     chapter_number: number;
@@ -872,6 +878,26 @@ export default function AdminChaptersPage() {
         2,
     );
 
+    const buildSingleLocaleTemplateJsonOutput = (
+        items: Array<{ chapter_number: number; title: string; content: string }>,
+        locale: TargetLocale,
+    ) => JSON.stringify(
+        items.map((item) => ({
+            instruction: `Translate the Vietnamese source chapter into ${locale}. Preserve full meaning, paragraph order, and completeness. Return valid JSON only and fill the empty title/content fields.`,
+            chapter_number: item.chapter_number,
+            source: {
+                locale: 'vi',
+                title: item.title,
+                content: item.content,
+            },
+            translations: {
+                [locale]: { title: '', content: '' },
+            },
+        })),
+        null,
+        2,
+    );
+
     const buildTemplateCsvOutput = (items: Array<{ chapter_number: number; title: string; content: string }>) => {
         const header = 'chapter_number,locale,source_title,source_content,title,content';
         const rows = items.flatMap((item) => (
@@ -921,6 +947,40 @@ export default function AdminChaptersPage() {
         ].join('\n');
     };
 
+    const buildSingleLocaleGrokPrompt = (
+        format: TemplateExportFormat,
+        chapterCount: number,
+        locale: TargetLocale,
+    ) => {
+        if (format === 'csv') {
+            return [
+                `Translate the Vietnamese source rows into ${locale} only.`,
+                'Return CSV only. Do not return Markdown. Do not wrap in code fences. Do not add explanations.',
+                'Keep the exact same header and the exact same number of rows.',
+                'Input columns are: chapter_number,locale,source_title,source_content,title,content.',
+                'Only fill the last two columns: title and content.',
+                'Do not change chapter_number, locale, source_title, or source_content.',
+                `Translate only rows where locale=${locale}.`,
+                'Preserve full meaning, paragraph order, names, and chapter completeness.',
+                'Content must stay in one CSV field per row, properly quoted.',
+                `The payload contains ${chapterCount} chapter(s), ordered from newest to older chapters.`,
+            ].join('\n');
+        }
+
+        return [
+            `Translate the Vietnamese source chapters into ${locale} only.`,
+            'Return valid JSON only. Do not return Markdown. Do not wrap in code fences. Do not add commentary.',
+            'Keep the JSON structure exactly the same as the input.',
+            'Do not remove keys. Do not rename keys. Do not add extra keys.',
+            `Only fill translations["${locale}"].title and translations["${locale}"].content.`,
+            'Do not change chapter_number, source.locale, source.title, source.content, or instruction.',
+            'Preserve full meaning, paragraph order, names, tone, and completeness.',
+            'Do not summarize. Do not censor. Do not skip paragraphs.',
+            'Each content field must contain the full translated chapter as plain text.',
+            `The payload contains ${chapterCount} chapter(s), ordered from newest to older chapters.`,
+        ].join('\n');
+    };
+
     const buildSingleGrokPrompt = (format: TemplateExportFormat) => buildGrokPrompt(format, 1);
 
     const buildSingleTemplateFromSource = (
@@ -960,6 +1020,24 @@ export default function AdminChaptersPage() {
         ], null, 2);
     };
 
+    const buildSingleLocaleTemplateFromSource = (
+        item: { chapter_number: number; title: string; content: string },
+        locale: TargetLocale,
+    ) => JSON.stringify([
+        {
+            instruction: `Translate the Vietnamese source chapter into ${locale}. Preserve full meaning, paragraph order, and completeness. Return valid JSON only and fill the empty title/content fields.`,
+            chapter_number: item.chapter_number,
+            source: {
+                locale: 'vi',
+                title: item.title,
+                content: item.content,
+            },
+            translations: {
+                [locale]: { title: '', content: '' },
+            },
+        },
+    ], null, 2);
+
     const handleCopyRowForGrokByFormat = async (chapterNumber: number, format: TemplateExportFormat) => {
         if (!token) return;
         setCopyingGrokChapter(chapterNumber);
@@ -983,6 +1061,36 @@ export default function AdminChaptersPage() {
             setActionNotice({
                 tone: 'error',
                 message: `Khong copy duoc ALL FOR GROK (${format.toUpperCase()} ONLY) cho chuong ${chapterNumber}: ${err?.message || 'Clipboard error'}`,
+            });
+        } finally {
+            setCopyingGrokChapter(null);
+            setCopyingGrokFormat(null);
+        }
+    };
+
+    const handleCopyRowForGrokByLocale = async (chapterNumber: number, locale: TargetLocale) => {
+        if (!token) return;
+        setCopyingGrokChapter(chapterNumber);
+        setCopyingGrokFormat('json');
+        try {
+            const freshToken = await resolveAdminToken();
+            const item = await fetchChapterSource(chapterNumber, freshToken);
+            const combined = [
+                'GROK PROMPT',
+                buildSingleLocaleGrokPrompt('json', 1, locale),
+                '',
+                'TEMPLATE',
+                buildSingleLocaleTemplateFromSource(item, locale),
+            ].join('\n');
+            await navigator.clipboard.writeText(combined);
+            setActionNotice({
+                tone: 'success',
+                message: `Da copy SAFE MODE ${locale.toUpperCase()} cho chuong ${chapterNumber}.`,
+            });
+        } catch (err: any) {
+            setActionNotice({
+                tone: 'error',
+                message: `Khong copy duoc SAFE MODE ${locale.toUpperCase()} cho chuong ${chapterNumber}: ${err?.message || 'Clipboard error'}`,
             });
         } finally {
             setCopyingGrokChapter(null);
@@ -1110,6 +1218,35 @@ export default function AdminChaptersPage() {
             setTemplateNotice({
                 tone: 'error',
                 message: `Khong copy duoc ALL FOR GROK (${format.toUpperCase()} ONLY): ${err?.message || 'Clipboard error'}`,
+            });
+        }
+    };
+
+    const handleCopyAllForGrokByLocale = async (locale: TargetLocale) => {
+        if (templateSourceItems.length === 0) {
+            setTemplateNotice({ tone: 'error', message: 'Hay tao template truoc khi copy SAFE MODE theo locale.' });
+            return;
+        }
+
+        const prompt = buildSingleLocaleGrokPrompt('json', templateSourceItems.length, locale);
+        const template = buildSingleLocaleTemplateJsonOutput(templateSourceItems, locale);
+
+        try {
+            await navigator.clipboard.writeText([
+                'GROK PROMPT',
+                prompt,
+                '',
+                'TEMPLATE',
+                template,
+            ].join('\n'));
+            setTemplateNotice({
+                tone: 'success',
+                message: `Da copy SAFE MODE ${locale.toUpperCase()} vao clipboard.`,
+            });
+        } catch (err: any) {
+            setTemplateNotice({
+                tone: 'error',
+                message: `Khong copy duoc SAFE MODE ${locale.toUpperCase()}: ${err?.message || 'Clipboard error'}`,
             });
         }
     };
@@ -1658,8 +1795,23 @@ export default function AdminChaptersPage() {
                                     <ClipboardCopy size={14} />
                                     COPY ALL FOR GROK (CSV ONLY)
                                 </button>
+                                {LOCALE_SAFE_COPY_OPTIONS.map((option) => (
+                                    <button
+                                        key={option.locale}
+                                        type="button"
+                                        onClick={() => handleCopyAllForGrokByLocale(option.locale)}
+                                        disabled={templateSourceItems.length === 0}
+                                        className="inline-flex items-center justify-center gap-2 rounded border border-amber-700/60 px-3 py-2 text-xs font-mono text-amber-300 hover:bg-amber-500/10 disabled:cursor-not-allowed disabled:opacity-40"
+                                    >
+                                        <ClipboardCopy size={14} />
+                                        {option.label}
+                                    </button>
+                                ))}
                             </div>
                         </div>
+                        <p className="mb-3 text-xs text-amber-300/80">
+                            Safe mode cho chapter dai: tach tung locale rieng, dac biet dung `JA ONLY` neu Grok thuong bi dut o ban tieng Nhat.
+                        </p>
                         <textarea
                             value={grokPromptOutput}
                             onChange={(event) => setGrokPromptOutput(event.target.value)}
@@ -2118,6 +2270,17 @@ export default function AdminChaptersPage() {
                                                         <ClipboardCopy size={10} />
                                                         CSV ONLY
                                                     </button>
+                                                    {LOCALE_SAFE_COPY_OPTIONS.map((option) => (
+                                                        <button
+                                                            key={`${chapter.chapter_number}-${option.locale}`}
+                                                            onClick={() => handleCopyRowForGrokByLocale(chapter.chapter_number, option.locale)}
+                                                            disabled={copyingGrokChapter === chapter.chapter_number}
+                                                            className="flex items-center gap-1.5 px-3 py-1.5 border border-amber-700/60 hover:border-amber-500 text-amber-300 hover:text-amber-200 disabled:opacity-50 rounded text-xs font-mono transition-all hover:bg-amber-500/10"
+                                                        >
+                                                            <ClipboardCopy size={10} />
+                                                            {option.label}
+                                                        </button>
+                                                    ))}
                                                     <div className="flex gap-2 w-full sm:w-auto">
                                                         <Link
                                                             href={`/admin/chapters/${chapter.chapter_number}/edit`}

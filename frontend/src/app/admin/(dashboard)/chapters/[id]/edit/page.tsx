@@ -11,6 +11,12 @@ import { createAdminClient } from '@/lib/supabase-admin';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 const MANUAL_IMPORT_LOCALES = ['en', 'zh-CN', 'ja'] as const;
+const LOCALE_SAFE_COPY_OPTIONS = [
+    { locale: 'en', label: 'EN ONLY' },
+    { locale: 'zh-CN', label: 'ZH ONLY' },
+    { locale: 'ja', label: 'JA ONLY' },
+] as const;
+type TargetLocale = (typeof MANUAL_IMPORT_LOCALES)[number];
 
 type GrokImportPayload = {
     chapter_number: number;
@@ -367,6 +373,23 @@ export default function EditChapterPage() {
         2,
     );
 
+    const buildSingleLocaleChapterTemplate = (locale: TargetLocale) => JSON.stringify(
+        {
+            instruction: `Translate the Vietnamese source chapter into ${locale}. Preserve full meaning, paragraph order, and completeness. Return valid JSON only and fill the empty title/content fields.`,
+            chapter_number: chapterNumber,
+            source: {
+                locale: 'vi',
+                title: title.trim(),
+                content: sourceRawContent || content,
+            },
+            translations: {
+                [locale]: { title: '', content: '' },
+            },
+        },
+        null,
+        2,
+    );
+
     const escapeCsvField = (value: string) => `"${String(value || '').replace(/"/g, '""')}"`;
 
     const buildSingleChapterCsvTemplate = () => {
@@ -397,6 +420,18 @@ export default function EditChapterPage() {
         'Do not summarize. Do not censor. Do not skip paragraphs.',
         'Each content field must contain the full translated chapter as plain text.',
         'Use locale-specific output only: en for English, zh-CN for Simplified Chinese, ja for Japanese.',
+    ].join('\n');
+
+    const buildSingleLocaleChapterGrokPrompt = (locale: TargetLocale) => [
+        `Translate the Vietnamese source chapter into ${locale} only.`,
+        'Return valid JSON only. Do not return Markdown. Do not wrap in code fences. Do not add commentary.',
+        'Keep the JSON structure exactly the same as the input.',
+        'Do not remove keys. Do not rename keys. Do not add extra keys.',
+        `Only fill translations["${locale}"].title and translations["${locale}"].content.`,
+        'Do not change chapter_number, source.locale, source.title, source.content, or instruction.',
+        'Preserve full meaning, paragraph order, names, tone, and completeness.',
+        'Do not summarize. Do not censor. Do not skip paragraphs.',
+        'Each content field must contain the full translated chapter as plain text.',
     ].join('\n');
 
     const buildSingleChapterCsvGrokPrompt = () => [
@@ -462,6 +497,23 @@ export default function EditChapterPage() {
             window.setTimeout(() => setGrokPromptNotice(null), 2500);
         } catch (err: any) {
             setGrokPromptNotice(`Khong copy duoc ALL FOR GROK (${format.toUpperCase()} ONLY): ${err?.message || 'Clipboard error'}`);
+        }
+    };
+
+    const handleCopyAllForGrokByLocale = async (locale: TargetLocale) => {
+        try {
+            const combined = [
+                'GROK PROMPT',
+                buildSingleLocaleChapterGrokPrompt(locale),
+                '',
+                'TEMPLATE',
+                buildSingleLocaleChapterTemplate(locale),
+            ].join('\n');
+            await navigator.clipboard.writeText(combined);
+            setGrokPromptNotice(`Da copy SAFE MODE ${locale.toUpperCase()} cho chuong ${chapterNumber}.`);
+            window.setTimeout(() => setGrokPromptNotice(null), 2500);
+        } catch (err: any) {
+            setGrokPromptNotice(`Khong copy duoc SAFE MODE ${locale.toUpperCase()}: ${err?.message || 'Clipboard error'}`);
         }
     };
 
@@ -616,6 +668,17 @@ export default function EditChapterPage() {
                                 <ClipboardCopy size={14} />
                                 COPY ALL FOR GROK (CSV ONLY)
                             </button>
+                            {LOCALE_SAFE_COPY_OPTIONS.map((option) => (
+                                <button
+                                    key={option.locale}
+                                    type="button"
+                                    onClick={() => handleCopyAllForGrokByLocale(option.locale)}
+                                    className="flex items-center gap-2 px-3 py-2 rounded-md border border-amber-700/60 text-amber-300 hover:bg-amber-500/10 hover:border-amber-500 font-mono text-xs"
+                                >
+                                    <ClipboardCopy size={14} />
+                                    {option.label}
+                                </button>
+                            ))}
                             <select
                                 value={manualLocale}
                                 onChange={(event) => setManualLocale(event.target.value as (typeof MANUAL_IMPORT_LOCALES)[number])}
@@ -627,6 +690,10 @@ export default function EditChapterPage() {
                             </select>
                         </div>
                     </div>
+
+                    <p className="text-xs text-amber-300/80">
+                        Safe mode cho chapter dai: tach tung locale rieng. Neu Grok hay bi cat giua chung, uu tien `JA ONLY`.
+                    </p>
 
                     <div>
                         <label className="block text-xs font-mono text-gray-500 mb-2 tracking-widest uppercase">Tiêu đề bản dịch</label>
