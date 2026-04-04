@@ -339,10 +339,16 @@ export default function EditChapterPage() {
 
         try {
             const parsed = extractGrokImportPayload(grokResponseInput, chapterNumber);
+            const nonEmptyTranslations = Object.fromEntries(
+                Object.entries(parsed.translations).filter(([, value]) => value.title.trim() || value.content.trim()),
+            );
+            if (Object.keys(nonEmptyTranslations).length === 0) {
+                throw new Error('Khong tim thay locale nao co du lieu de import.');
+            }
             const result = await importAdminChapterTranslations(
                 chapterNumber,
                 {
-                    translations: parsed.translations,
+                    translations: nonEmptyTranslations,
                 },
                 token,
             );
