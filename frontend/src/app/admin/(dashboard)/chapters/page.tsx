@@ -286,6 +286,8 @@ export default function AdminChaptersPage() {
     const [quickImportRunning, setQuickImportRunning] = useState(false);
     const [batchImportInput, setBatchImportInput] = useState('');
     const [batchImportRunning, setBatchImportRunning] = useState(false);
+    const [copyingGrokChapter, setCopyingGrokChapter] = useState<number | null>(null);
+    const [copyingGrokFormat, setCopyingGrokFormat] = useState<TemplateExportFormat | null>(null);
     const [templateStart, setTemplateStart] = useState('1');
     const [templateEnd, setTemplateEnd] = useState('');
     const [templateFormat, setTemplateFormat] = useState<TemplateExportFormat>('json');
@@ -747,6 +749,75 @@ export default function AdminChaptersPage() {
             'Use locale-specific output only: en for English, zh-CN for Simplified Chinese, ja for Japanese.',
             `The payload contains ${chapterCount} chapter(s), ordered from newest to older chapters.`,
         ].join('\n');
+    };
+
+    const buildSingleGrokPrompt = (format: TemplateExportFormat) => buildGrokPrompt(format, 1);
+
+    const buildSingleTemplateFromSource = (
+        item: { chapter_number: number; title: string; content: string },
+        format: TemplateExportFormat,
+    ) => {
+        if (format === 'csv') {
+            const header = 'chapter_number,locale,source_title,source_content,title,content';
+            const rows = MANUAL_IMPORT_LOCALES.map((locale) => (
+                [
+                    item.chapter_number,
+                    locale,
+                    escapeCsvField(item.title),
+                    escapeCsvField(item.content),
+                    escapeCsvField(''),
+                    escapeCsvField(''),
+                ].join(',')
+            ));
+            return [header, ...rows].join('\n');
+        }
+
+        return JSON.stringify([
+            {
+                instruction: 'Translate the Vietnamese source chapter into en, zh-CN, and ja. Preserve full meaning, paragraph order, and completeness. Return valid JSON only and fill the empty title/content fields.',
+                chapter_number: item.chapter_number,
+                source: {
+                    locale: 'vi',
+                    title: item.title,
+                    content: item.content,
+                },
+                translations: {
+                    en: { title: '', content: '' },
+                    'zh-CN': { title: '', content: '' },
+                    ja: { title: '', content: '' },
+                },
+            },
+        ], null, 2);
+    };
+
+    const handleCopyRowForGrokByFormat = async (chapterNumber: number, format: TemplateExportFormat) => {
+        if (!token) return;
+        setCopyingGrokChapter(chapterNumber);
+        setCopyingGrokFormat(format);
+        try {
+            const freshToken = await resolveAdminToken();
+            const item = await fetchChapterSource(chapterNumber, freshToken);
+            const combined = [
+                'GROK PROMPT',
+                buildSingleGrokPrompt(format),
+                '',
+                'TEMPLATE',
+                buildSingleTemplateFromSource(item, format),
+            ].join('\n');
+            await navigator.clipboard.writeText(combined);
+            setActionNotice({
+                tone: 'success',
+                message: `Da copy ALL FOR GROK (${format.toUpperCase()} ONLY) cho chuong ${chapterNumber}.`,
+            });
+        } catch (err: any) {
+            setActionNotice({
+                tone: 'error',
+                message: `Khong copy duoc ALL FOR GROK (${format.toUpperCase()} ONLY) cho chuong ${chapterNumber}: ${err?.message || 'Clipboard error'}`,
+            });
+        } finally {
+            setCopyingGrokChapter(null);
+            setCopyingGrokFormat(null);
+        }
     };
 
     const handleGenerateTemplate = async () => {
@@ -1809,6 +1880,22 @@ export default function AdminChaptersPage() {
                                                     >
                                                         <ClipboardPenLine size={10} />
                                                         IMPORT NHANH
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleCopyRowForGrokByFormat(chapter.chapter_number, 'json')}
+                                                        disabled={copyingGrokChapter === chapter.chapter_number && copyingGrokFormat === 'json'}
+                                                        className="flex items-center gap-1.5 px-3 py-1.5 border border-cyan-700/60 hover:border-cyan-500 text-cyan-300 hover:text-cyan-200 disabled:opacity-50 rounded text-xs font-mono transition-all hover:bg-cyan-500/10"
+                                                    >
+                                                        <ClipboardCopy size={10} />
+                                                        JSON ONLY
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleCopyRowForGrokByFormat(chapter.chapter_number, 'csv')}
+                                                        disabled={copyingGrokChapter === chapter.chapter_number && copyingGrokFormat === 'csv'}
+                                                        className="flex items-center gap-1.5 px-3 py-1.5 border border-cyan-700/60 hover:border-cyan-500 text-cyan-300 hover:text-cyan-200 disabled:opacity-50 rounded text-xs font-mono transition-all hover:bg-cyan-500/10"
+                                                    >
+                                                        <ClipboardCopy size={10} />
+                                                        CSV ONLY
                                                     </button>
                                                     <div className="flex gap-2 w-full sm:w-auto">
                                                         <Link
