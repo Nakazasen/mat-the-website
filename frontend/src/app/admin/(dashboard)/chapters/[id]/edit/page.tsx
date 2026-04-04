@@ -6,11 +6,143 @@ import Link from 'next/link';
 import { AlertTriangle, ArrowLeft, CheckCircle2, ClipboardCopy, ClipboardPenLine, Languages, Save } from 'lucide-react';
 
 import RichTextEditor from '@/components/Editor';
-import { importAdminChapterTranslation, translateAdminChapter, uploadAudioR2, type AdminChapterTranslateResult, type TranslationFailure } from '@/lib/api';
+import { importAdminChapterTranslation, importAdminChapterTranslations, translateAdminChapter, uploadAudioR2, type AdminChapterTranslateResult, type TranslationFailure } from '@/lib/api';
 import { createAdminClient } from '@/lib/supabase-admin';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 const MANUAL_IMPORT_LOCALES = ['en', 'zh-CN', 'ja'] as const;
+
+type GrokImportPayload = {
+    chapter_number: number;
+    translations: Record<(typeof MANUAL_IMPORT_LOCALES)[number], { title: string; content: string }>;
+};
+
+function stripCodeFences(raw: string): string {
+    const text = raw.trim();
+    if (!text.startsWith('```')) return text;
+    const lines = text.split(/\r?\n/);
+    if (lines.length <= 2) return text.replace(/^```[a-zA-Z0-9_-]*\s*/, '').replace(/```$/, '').trim();
+    const firstLine = lines[0].trim();
+    const lastLine = lines[lines.length - 1].trim();
+    if (firstLine.startsWith('```') && lastLine === '```') {
+        return lines.slice(1, -1).join('\n').trim();
+    }
+    return text;
+}
+
+function parseCsvRow(line: string): string[] {
+    const cells: string[] = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i += 1) {
+        const char = line[i];
+        const next = line[i + 1];
+        if (char === '"' && inQuotes && next === '"') {
+            current += '"';
+            i += 1;
+            continue;
+        }
+        if (char === '"') {
+            inQuotes = !inQuotes;
+            continue;
+        }
+        if (char === ',' && !inQuotes) {
+            cells.push(current);
+            current = '';
+            continue;
+        }
+        current += char;
+    }
+
+    cells.push(current);
+    return cells.map((cell) => cell.trim());
+}
+
+function extractGrokImportPayload(rawInput: string, chapterNumber: number): GrokImportPayload {
+    const text = stripCodeFences(rawInput);
+    if (!text.trim()) {
+        throw new Error('Khong co du lieu Grok de import.');
+    }
+
+    const tryParseJson = (): GrokImportPayload | null => {
+        try {
+            const parsed = JSON.parse(text);
+            const candidates = Array.isArray(parsed) ? parsed : [parsed];
+            for (const candidate of candidates) {
+                if (!candidate || typeof candidate !== 'object') continue;
+                const translations = candidate.translations;
+                if (!translations || typeof translations !== 'object') continue;
+                const responseChapterNumber = Number(candidate.chapter_number || chapterNumber);
+                if (Number.isFinite(responseChapterNumber) && responseChapterNumber !== chapterNumber) {
+                    continue;
+                }
+                const nextPayload = {
+                    chapter_number: responseChapterNumber,
+                    translations: {
+                        en: {
+                            title: String(translations.en?.title || ''),
+                            content: String(translations.en?.content || ''),
+                        },
+                        'zh-CN': {
+                            title: String(translations['zh-CN']?.title || ''),
+                            content: String(translations['zh-CN']?.content || ''),
+                        },
+                        ja: {
+                            title: String(translations.ja?.title || ''),
+                            content: String(translations.ja?.content || ''),
+                        },
+                    },
+                } satisfies GrokImportPayload;
+                return nextPayload;
+            }
+        } catch {
+            // Fall through to CSV parsing.
+        }
+        return null;
+    };
+
+    const jsonPayload = tryParseJson();
+    if (jsonPayload) return jsonPayload;
+
+    const lines = text
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
+    if (lines.length < 2) {
+        throw new Error('Khong nhan ra JSON hoac CSV hop le tu Grok.');
+    }
+
+    const dataLines = lines[0].toLowerCase().includes('chapter_number') ? lines.slice(1) : lines;
+    const translations: GrokImportPayload['translations'] = {
+        en: { title: '', content: '' },
+        'zh-CN': { title: '', content: '' },
+        ja: { title: '', content: '' },
+    };
+
+    for (const line of dataLines) {
+        const cells = parseCsvRow(line);
+        if (cells.length < 6) continue;
+        const rowChapterNumber = Number(cells[0]);
+        const locale = cells[1] as (typeof MANUAL_IMPORT_LOCALES)[number];
+        if (!MANUAL_IMPORT_LOCALES.includes(locale)) continue;
+        if (!Number.isFinite(rowChapterNumber) || rowChapterNumber !== chapterNumber) continue;
+        translations[locale] = {
+            title: cells[4] || '',
+            content: cells[5] || '',
+        };
+    }
+
+    if (
+        !translations.en.title && !translations.en.content
+        && !translations['zh-CN'].title && !translations['zh-CN'].content
+        && !translations.ja.title && !translations.ja.content
+    ) {
+        throw new Error('Khong tim thay dong CSV hop le cho chapter nay.');
+    }
+
+    return { chapter_number: chapterNumber, translations };
+}
 
 function formatTranslationFailures(failures: TranslationFailure[] | undefined): string {
     if (!Array.isArray(failures) || failures.length === 0) {
@@ -57,6 +189,9 @@ export default function EditChapterPage() {
     const [manualContent, setManualContent] = useState('');
     const [importingTranslation, setImportingTranslation] = useState(false);
     const [manualImportNotice, setManualImportNotice] = useState<string | null>(null);
+    const [grokResponseInput, setGrokResponseInput] = useState('');
+    const [grokImporting, setGrokImporting] = useState(false);
+    const [grokImportNotice, setGrokImportNotice] = useState<string | null>(null);
     const [templateNotice, setTemplateNotice] = useState<string | null>(null);
     const [grokPromptNotice, setGrokPromptNotice] = useState<string | null>(null);
 
@@ -188,6 +323,28 @@ export default function EditChapterPage() {
             setManualImportNotice(`Lỗi import bản dịch ${manualLocale} cho chương ${chapterNumber}: ${err?.message || 'Không nhận được thông báo lỗi từ backend.'}`);
         } finally {
             setImportingTranslation(false);
+        }
+    };
+
+    const handleImportGrokResponse = async () => {
+        if (!token) return;
+        setGrokImporting(true);
+        setGrokImportNotice(null);
+
+        try {
+            const parsed = extractGrokImportPayload(grokResponseInput, chapterNumber);
+            const result = await importAdminChapterTranslations(
+                chapterNumber,
+                {
+                    translations: parsed.translations,
+                },
+                token,
+            );
+            setGrokImportNotice(buildTranslateNotice(chapterNumber, result));
+        } catch (err: any) {
+            setGrokImportNotice(`Loi import Grok cho chuong ${chapterNumber}: ${err?.message || 'Khong nhan duoc du lieu hop le.'}`);
+        } finally {
+            setGrokImporting(false);
         }
     };
 
@@ -361,6 +518,13 @@ export default function EditChapterPage() {
                 </div>
             )}
 
+            {grokImportNotice && (
+                <div className="flex items-start gap-2 text-green-100 bg-green-950/20 border border-green-900/40 rounded p-3 text-sm mb-4">
+                    <ClipboardCopy size={14} className="mt-0.5 shrink-0" />
+                    <span className="whitespace-pre-wrap break-words">{grokImportNotice}</span>
+                </div>
+            )}
+
             {templateNotice && (
                 <div className="flex items-start gap-2 text-cyan-100 bg-cyan-950/20 border border-cyan-900/40 rounded p-3 text-sm mb-4">
                     <ClipboardCopy size={14} className="mt-0.5 shrink-0" />
@@ -376,6 +540,33 @@ export default function EditChapterPage() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="bg-[#0f0f0f] border border-green-900/40 rounded-lg p-6 space-y-4">
+                    <div className="flex items-center justify-between gap-4 flex-wrap">
+                        <div>
+                            <h2 className="text-sm font-mono text-green-200 tracking-[0.2em] uppercase">Paste Grok Response</h2>
+                            <p className="mt-1 text-xs text-gray-500">
+                                Dán nguyên JSON hoặc CSV Grok trả về. Hệ thống sẽ tự parse và import 3 locale cho chapter hiện tại.
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={handleImportGrokResponse}
+                            disabled={!token || grokImporting || !grokResponseInput.trim()}
+                            className="flex items-center gap-2 px-4 py-2 rounded-md border border-green-700/60 text-green-300 hover:bg-green-500/10 hover:border-green-500 disabled:opacity-50 font-mono text-xs"
+                        >
+                            <ClipboardCopy size={14} />
+                            {grokImporting ? 'DANG IMPORT...' : 'IMPORT FROM GROK'}
+                        </button>
+                    </div>
+                    <textarea
+                        value={grokResponseInput}
+                        onChange={(event) => setGrokResponseInput(event.target.value)}
+                        rows={14}
+                        className="w-full bg-[#0a0a0a] border border-gray-700 rounded-md px-4 py-3 text-gray-200 text-sm focus:outline-none focus:border-green-500 transition-colors font-mono"
+                        placeholder='Paste JSON hoac CSV Grok tra ve vao day...'
+                    />
+                </div>
+
                 <div className="bg-[#0f0f0f] border border-cyan-900/40 rounded-lg p-6 space-y-4">
                     <div className="flex items-center justify-between gap-4 flex-wrap">
                         <div>
