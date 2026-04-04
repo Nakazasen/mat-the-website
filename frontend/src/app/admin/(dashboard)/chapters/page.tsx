@@ -95,12 +95,140 @@ type ManualImportField = {
 
 type TemplateExportFormat = 'json' | 'csv';
 
+type GrokImportPayload = {
+    chapter_number: number;
+    translations: Record<(typeof MANUAL_IMPORT_LOCALES)[number], { title: string; content: string }>;
+};
+
 function createEmptyManualImportFields(): Record<(typeof MANUAL_IMPORT_LOCALES)[number], ManualImportField> {
     return {
         en: { title: '', content: '' },
         'zh-CN': { title: '', content: '' },
         ja: { title: '', content: '' },
     };
+}
+
+function stripCodeFences(raw: string): string {
+    const text = raw.trim();
+    if (!text.startsWith('```')) return text;
+    const lines = text.split(/\r?\n/);
+    if (lines.length <= 2) {
+        return text.replace(/^```[a-zA-Z0-9_-]*\s*/, '').replace(/```$/, '').trim();
+    }
+    const firstLine = lines[0].trim();
+    const lastLine = lines[lines.length - 1].trim();
+    if (firstLine.startsWith('```') && lastLine === '```') {
+        return lines.slice(1, -1).join('\n').trim();
+    }
+    return text;
+}
+
+function parseCsvRow(line: string): string[] {
+    const cells: string[] = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let index = 0; index < line.length; index += 1) {
+        const char = line[index];
+        const next = line[index + 1];
+
+        if (char === '"' && inQuotes && next === '"') {
+            current += '"';
+            index += 1;
+            continue;
+        }
+
+        if (char === '"') {
+            inQuotes = !inQuotes;
+            continue;
+        }
+
+        if (char === ',' && !inQuotes) {
+            cells.push(current);
+            current = '';
+            continue;
+        }
+
+        current += char;
+    }
+
+    cells.push(current);
+    return cells.map((cell) => cell.trim());
+}
+
+function extractGrokImportPayload(rawInput: string, chapterNumber: number): GrokImportPayload {
+    const text = stripCodeFences(rawInput);
+    if (!text.trim()) {
+        throw new Error('Khong co du lieu Grok de import.');
+    }
+
+    try {
+        const parsed = JSON.parse(text);
+        const candidates = Array.isArray(parsed) ? parsed : [parsed];
+        for (const candidate of candidates) {
+            if (!candidate || typeof candidate !== 'object') continue;
+            const responseChapterNumber = Number((candidate as any).chapter_number || chapterNumber);
+            if (Number.isFinite(responseChapterNumber) && responseChapterNumber !== chapterNumber) continue;
+            const translations = (candidate as any).translations;
+            if (!translations || typeof translations !== 'object') continue;
+
+            return {
+                chapter_number: responseChapterNumber,
+                translations: {
+                    en: {
+                        title: String(translations.en?.title || ''),
+                        content: String(translations.en?.content || ''),
+                    },
+                    'zh-CN': {
+                        title: String(translations['zh-CN']?.title || ''),
+                        content: String(translations['zh-CN']?.content || ''),
+                    },
+                    ja: {
+                        title: String(translations.ja?.title || ''),
+                        content: String(translations.ja?.content || ''),
+                    },
+                },
+            };
+        }
+    } catch {
+        // Fall through to CSV parsing.
+    }
+
+    const lines = text
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
+    if (lines.length < 2) {
+        throw new Error('Khong nhan ra JSON hoac CSV hop le tu Grok.');
+    }
+
+    const dataLines = lines[0].toLowerCase().includes('chapter_number') ? lines.slice(1) : lines;
+    const translations: GrokImportPayload['translations'] = {
+        en: { title: '', content: '' },
+        'zh-CN': { title: '', content: '' },
+        ja: { title: '', content: '' },
+    };
+    let matched = false;
+
+    for (const line of dataLines) {
+        const cells = parseCsvRow(line);
+        if (cells.length < 6) continue;
+        const rowChapterNumber = Number(cells[0]);
+        const locale = cells[1] as (typeof MANUAL_IMPORT_LOCALES)[number];
+        if (!MANUAL_IMPORT_LOCALES.includes(locale)) continue;
+        if (!Number.isFinite(rowChapterNumber) || rowChapterNumber !== chapterNumber) continue;
+        matched = true;
+        translations[locale] = {
+            title: cells[4] || '',
+            content: cells[5] || '',
+        };
+    }
+
+    if (!matched) {
+        throw new Error('Khong tim thay dong JSON/CSV hop le cho chapter nay.');
+    }
+
+    return { chapter_number: chapterNumber, translations };
 }
 
 function parseBatchImportInput(raw: string): Array<{ chapter_number: number; locale: string; title: string; content: string }> {
@@ -286,6 +414,10 @@ export default function AdminChaptersPage() {
     const [quickImportRunning, setQuickImportRunning] = useState(false);
     const [batchImportInput, setBatchImportInput] = useState('');
     const [batchImportRunning, setBatchImportRunning] = useState(false);
+    const [grokImportChapter, setGrokImportChapter] = useState<string>('');
+    const [grokResponseInput, setGrokResponseInput] = useState('');
+    const [grokImportRunning, setGrokImportRunning] = useState(false);
+    const [grokImportNotice, setGrokImportNotice] = useState<string | null>(null);
     const [copyingGrokChapter, setCopyingGrokChapter] = useState<number | null>(null);
     const [copyingGrokFormat, setCopyingGrokFormat] = useState<TemplateExportFormat | null>(null);
     const [templateStart, setTemplateStart] = useState('1');
@@ -627,6 +759,44 @@ export default function AdminChaptersPage() {
             setActionNotice({ tone: 'error', message: `Lỗi import nhanh chương ${chapterNumber}: ${err?.message || 'Không nhận được thông báo lỗi từ backend.'}` });
         } finally {
             setQuickImportRunning(false);
+        }
+    };
+
+    const handleOpenGrokImport = (chapterNumber: number) => {
+        setGrokImportChapter(String(chapterNumber));
+        setGrokResponseInput('');
+        setGrokImportNotice(`Da chon chuong ${chapterNumber} cho Paste Grok Response.`);
+    };
+
+    const handleImportGrokResponse = async () => {
+        if (!token) return;
+        const chapterNumber = parseInt(grokImportChapter || '0', 10);
+        if (!chapterNumber) {
+            setGrokImportNotice('Can nhap chapter number truoc khi import Grok response.');
+            return;
+        }
+        if (!grokResponseInput.trim()) {
+            setGrokImportNotice('Chua co noi dung Grok response de import.');
+            return;
+        }
+
+        setGrokImportRunning(true);
+        setGrokImportNotice(null);
+        setActionNotice(null);
+        try {
+            const parsed = extractGrokImportPayload(grokResponseInput, chapterNumber);
+            const freshToken = await resolveAdminToken();
+            const result = await importAdminChapterTranslations(
+                chapterNumber,
+                { translations: parsed.translations },
+                freshToken,
+            );
+            setGrokImportNotice(buildSingleTranslateNotice(chapterNumber, result).message);
+            await refreshTranslationStatuses([chapterNumber]);
+        } catch (err: any) {
+            setGrokImportNotice(`Loi import Grok cho chuong ${chapterNumber}: ${err?.message || 'Khong nhan duoc du lieu hop le.'}`);
+        } finally {
+            setGrokImportRunning(false);
         }
     };
 
@@ -1501,6 +1671,43 @@ export default function AdminChaptersPage() {
                 </div>
             </div>
 
+            <div className="mb-6 rounded-lg border border-green-900/40 bg-[#0d0d0d] p-4">
+                <div className="flex flex-col gap-4">
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <div>
+                            <p className="font-mono text-xs tracking-widest text-green-300 uppercase">Paste Grok Response</p>
+                            <p className="mt-1 text-xs text-gray-500">Dán nguyên JSON hoặc CSV Grok trả về. Hệ thống sẽ tự parse và import 3 locale cho chapter được chọn.</p>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <input
+                                type="number"
+                                min={1}
+                                value={grokImportChapter}
+                                onChange={(event) => setGrokImportChapter(event.target.value)}
+                                className="bg-black border border-gray-800 rounded px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-green-500 w-full sm:w-40"
+                                placeholder="Chapter"
+                            />
+                            <button
+                                type="button"
+                                onClick={handleImportGrokResponse}
+                                disabled={!token || grokImportRunning || !grokResponseInput.trim()}
+                                className="inline-flex items-center justify-center gap-2 rounded border border-green-700/60 px-4 py-2 text-xs font-mono text-green-300 hover:bg-green-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                {grokImportRunning ? <Loader2 size={14} className="animate-spin" /> : <ClipboardCopy size={14} />}
+                                {grokImportRunning ? 'DANG IMPORT...' : 'IMPORT FROM GROK'}
+                            </button>
+                        </div>
+                    </div>
+                    <textarea
+                        value={grokResponseInput}
+                        onChange={(event) => setGrokResponseInput(event.target.value)}
+                        rows={14}
+                        className="w-full bg-black border border-gray-800 rounded px-3 py-3 text-sm text-gray-200 focus:outline-none focus:border-green-500 font-mono"
+                        placeholder='Paste JSON hoac CSV Grok tra ve vao day...'
+                    />
+                </div>
+            </div>
+
             <div className="mb-6 rounded-lg border border-gray-800 bg-[#0d0d0d] p-4">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                     <div>
@@ -1771,6 +1978,13 @@ export default function AdminChaptersPage() {
                 </div>
             )}
 
+            {grokImportNotice && (
+                <div className="flex items-start gap-2 rounded p-3 text-sm mb-4 border border-green-900/50 bg-green-950/30 text-green-200">
+                    <CheckCircle2 size={14} className="mt-0.5 shrink-0" />
+                    <span className="whitespace-pre-wrap break-words">{grokImportNotice}</span>
+                </div>
+            )}
+
             {templateNotice && (
                 <div
                     className={`flex items-start gap-2 rounded p-3 text-sm mb-4 ${
@@ -1880,6 +2094,13 @@ export default function AdminChaptersPage() {
                                                     >
                                                         <ClipboardPenLine size={10} />
                                                         IMPORT NHANH
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleOpenGrokImport(chapter.chapter_number)}
+                                                        className="flex items-center gap-1.5 px-3 py-1.5 border border-green-700/60 hover:border-green-500 text-green-300 hover:text-green-200 rounded text-xs font-mono transition-all hover:bg-green-500/10"
+                                                    >
+                                                        <ClipboardCopy size={10} />
+                                                        PASTE GROK
                                                     </button>
                                                     <button
                                                         onClick={() => handleCopyRowForGrokByFormat(chapter.chapter_number, 'json')}
