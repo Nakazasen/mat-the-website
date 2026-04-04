@@ -3,13 +3,14 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { AlertTriangle, ArrowLeft, CheckCircle2, Languages, Save } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CheckCircle2, ClipboardCopy, ClipboardPenLine, Languages, Save } from 'lucide-react';
 
 import RichTextEditor from '@/components/Editor';
-import { translateAdminChapter, uploadAudioR2, type AdminChapterTranslateResult, type TranslationFailure } from '@/lib/api';
+import { importAdminChapterTranslation, translateAdminChapter, uploadAudioR2, type AdminChapterTranslateResult, type TranslationFailure } from '@/lib/api';
 import { createAdminClient } from '@/lib/supabase-admin';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
+const MANUAL_IMPORT_LOCALES = ['en', 'zh-CN', 'ja'] as const;
 
 function formatTranslationFailures(failures: TranslationFailure[] | undefined): string {
     if (!Array.isArray(failures) || failures.length === 0) {
@@ -39,6 +40,7 @@ export default function EditChapterPage() {
 
     const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
+    const [sourceRawContent, setSourceRawContent] = useState('');
     const [isSideStory, setIsSideStory] = useState(false);
     const [bgmUrl, setBgmUrl] = useState('');
     const [bgmTitle, setBgmTitle] = useState('');
@@ -50,6 +52,13 @@ export default function EditChapterPage() {
     const [success, setSuccess] = useState(false);
     const [token, setToken] = useState<string | null>(null);
     const [translateNotice, setTranslateNotice] = useState<string | null>(null);
+    const [manualLocale, setManualLocale] = useState<(typeof MANUAL_IMPORT_LOCALES)[number]>('en');
+    const [manualTitle, setManualTitle] = useState('');
+    const [manualContent, setManualContent] = useState('');
+    const [importingTranslation, setImportingTranslation] = useState(false);
+    const [manualImportNotice, setManualImportNotice] = useState<string | null>(null);
+    const [templateNotice, setTemplateNotice] = useState<string | null>(null);
+    const [grokPromptNotice, setGrokPromptNotice] = useState<string | null>(null);
 
     useEffect(() => {
         const supabase = createAdminClient();
@@ -87,6 +96,7 @@ export default function EditChapterPage() {
 
                 if (contentRes.ok) {
                     const text = await contentRes.text();
+                    setSourceRawContent(text || '');
                     const isHtml = text.trim().startsWith('<');
                     if (isHtml) {
                         setContent(text || '<p></p>');
@@ -159,6 +169,145 @@ export default function EditChapterPage() {
         }
     };
 
+    const handleManualImport = async () => {
+        if (!token) return;
+        setImportingTranslation(true);
+        setManualImportNotice(null);
+        try {
+            const result = await importAdminChapterTranslation(
+                chapterNumber,
+                {
+                    locale: manualLocale,
+                    title: manualTitle.trim(),
+                    content: manualContent.trim(),
+                },
+                token,
+            );
+            setManualImportNotice(buildTranslateNotice(chapterNumber, result));
+        } catch (err: any) {
+            setManualImportNotice(`Lỗi import bản dịch ${manualLocale} cho chương ${chapterNumber}: ${err?.message || 'Không nhận được thông báo lỗi từ backend.'}`);
+        } finally {
+            setImportingTranslation(false);
+        }
+    };
+
+    const buildSingleChapterTemplate = () => JSON.stringify(
+        {
+            instruction: 'Translate the Vietnamese source chapter into en, zh-CN, and ja. Preserve full meaning, paragraph order, and completeness. Return valid JSON only and fill the empty title/content fields.',
+            chapter_number: chapterNumber,
+            source: {
+                locale: 'vi',
+                title: title.trim(),
+                content: sourceRawContent || content,
+            },
+            translations: {
+                en: { title: '', content: '' },
+                'zh-CN': { title: '', content: '' },
+                ja: { title: '', content: '' },
+            },
+        },
+        null,
+        2,
+    );
+
+    const escapeCsvField = (value: string) => `"${String(value || '').replace(/"/g, '""')}"`;
+
+    const buildSingleChapterCsvTemplate = () => {
+        const header = 'chapter_number,locale,source_title,source_content,title,content';
+        const sourceTitle = escapeCsvField(title.trim());
+        const sourceContent = escapeCsvField(sourceRawContent || content || '');
+        const rows = MANUAL_IMPORT_LOCALES.map((locale) => (
+            [
+                chapterNumber,
+                locale,
+                sourceTitle,
+                sourceContent,
+                escapeCsvField(''),
+                escapeCsvField(''),
+            ].join(',')
+        ));
+        return [header, ...rows].join('\n');
+    };
+
+    const buildSingleChapterGrokPrompt = () => [
+        'Translate the Vietnamese source chapter into en, zh-CN, and ja.',
+        'Return valid JSON only. Do not return Markdown. Do not wrap in code fences. Do not add commentary.',
+        'Keep the JSON structure exactly the same as the input.',
+        'Do not remove keys. Do not rename keys. Do not add extra keys.',
+        'Only fill translations.en.title, translations.en.content, translations["zh-CN"].title, translations["zh-CN"].content, translations.ja.title, and translations.ja.content.',
+        'Do not change chapter_number, source.locale, source.title, source.content, or instruction.',
+        'Preserve full meaning, paragraph order, names, tone, and completeness.',
+        'Do not summarize. Do not censor. Do not skip paragraphs.',
+        'Each content field must contain the full translated chapter as plain text.',
+        'Use locale-specific output only: en for English, zh-CN for Simplified Chinese, ja for Japanese.',
+    ].join('\n');
+
+    const buildSingleChapterCsvGrokPrompt = () => [
+        'Translate the Vietnamese source rows into the target locale of each row.',
+        'Return CSV only. Do not return Markdown. Do not wrap in code fences. Do not add explanations.',
+        'Keep the exact same header and the exact same number of rows.',
+        'Input columns are: chapter_number,locale,source_title,source_content,title,content.',
+        'Only fill the last two columns: title and content.',
+        'Do not change chapter_number, locale, source_title, or source_content.',
+        'Preserve full meaning, paragraph order, names, and chapter completeness.',
+        'Content must stay in one CSV field per row, properly quoted.',
+        'Use locale-specific output only: en for English, zh-CN for Simplified Chinese, ja for Japanese.',
+    ].join('\n');
+
+    const handleCopyTemplate = async () => {
+        try {
+            await navigator.clipboard.writeText(buildSingleChapterTemplate());
+            setTemplateNotice(`Đã copy template JSON chương ${chapterNumber} cho 3 locale.`);
+            window.setTimeout(() => setTemplateNotice(null), 2500);
+        } catch (err: any) {
+            setTemplateNotice(`Không copy được template: ${err?.message || 'Clipboard error'}`);
+        }
+    };
+
+    const handleCopyGrokPrompt = async () => {
+        try {
+            await navigator.clipboard.writeText(buildSingleChapterGrokPrompt());
+            setGrokPromptNotice(`Da copy prompt Grok cho chuong ${chapterNumber}.`);
+            window.setTimeout(() => setGrokPromptNotice(null), 2500);
+        } catch (err: any) {
+            setGrokPromptNotice(`Khong copy duoc prompt Grok: ${err?.message || 'Clipboard error'}`);
+        }
+    };
+
+    const handleCopyAllForGrok = async () => {
+        try {
+            const combined = [
+                'GROK PROMPT',
+                buildSingleChapterGrokPrompt(),
+                '',
+                'TEMPLATE',
+                buildSingleChapterTemplate(),
+            ].join('\n');
+            await navigator.clipboard.writeText(combined);
+            setGrokPromptNotice(`Da copy ALL FOR GROK cho chuong ${chapterNumber}.`);
+            window.setTimeout(() => setGrokPromptNotice(null), 2500);
+        } catch (err: any) {
+            setGrokPromptNotice(`Khong copy duoc ALL FOR GROK: ${err?.message || 'Clipboard error'}`);
+        }
+    };
+
+    const handleCopyAllForGrokByFormat = async (format: 'json' | 'csv') => {
+        try {
+            const combined = [
+                'GROK PROMPT',
+                format === 'json' ? buildSingleChapterGrokPrompt() : buildSingleChapterCsvGrokPrompt(),
+                '',
+                'TEMPLATE',
+                format === 'json' ? buildSingleChapterTemplate() : buildSingleChapterCsvTemplate(),
+            ].join('\n');
+            await navigator.clipboard.writeText(combined);
+            setGrokPromptNotice(`Da copy ALL FOR GROK (${format.toUpperCase()} ONLY) cho chuong ${chapterNumber}.`);
+            window.setTimeout(() => setGrokPromptNotice(null), 2500);
+        } catch (err: any) {
+            setGrokPromptNotice(`Khong copy duoc ALL FOR GROK (${format.toUpperCase()} ONLY): ${err?.message || 'Clipboard error'}`);
+        }
+    };
+
     if (initialLoading) {
         return <div className="font-mono text-xs text-gray-500 animate-pulse">ĐANG TẢI DỮ LIỆU...</div>;
     }
@@ -205,7 +354,124 @@ export default function EditChapterPage() {
                 </div>
             )}
 
+            {manualImportNotice && (
+                <div className="flex items-start gap-2 text-cyan-100 bg-cyan-950/20 border border-cyan-900/40 rounded p-3 text-sm mb-4">
+                    <ClipboardPenLine size={14} className="mt-0.5 shrink-0" />
+                    <span className="whitespace-pre-wrap break-words">{manualImportNotice}</span>
+                </div>
+            )}
+
+            {templateNotice && (
+                <div className="flex items-start gap-2 text-cyan-100 bg-cyan-950/20 border border-cyan-900/40 rounded p-3 text-sm mb-4">
+                    <ClipboardCopy size={14} className="mt-0.5 shrink-0" />
+                    <span className="whitespace-pre-wrap break-words">{templateNotice}</span>
+                </div>
+            )}
+
+            {grokPromptNotice && (
+                <div className="flex items-start gap-2 text-cyan-100 bg-cyan-950/20 border border-cyan-900/40 rounded p-3 text-sm mb-4">
+                    <ClipboardCopy size={14} className="mt-0.5 shrink-0" />
+                    <span className="whitespace-pre-wrap break-words">{grokPromptNotice}</span>
+                </div>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="bg-[#0f0f0f] border border-cyan-900/40 rounded-lg p-6 space-y-4">
+                    <div className="flex items-center justify-between gap-4 flex-wrap">
+                        <div>
+                            <h2 className="text-sm font-mono text-cyan-200 tracking-[0.2em] uppercase">Import bản dịch thủ công</h2>
+                            <p className="mt-1 text-xs text-gray-500">
+                                Paste bản dịch từ nguồn ngoài như Grok rồi publish qua cùng quality gate đối chiếu với bản VI.
+                            </p>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <button
+                                type="button"
+                                onClick={handleCopyTemplate}
+                                className="flex items-center gap-2 px-3 py-2 rounded-md border border-cyan-700/60 text-cyan-300 hover:bg-cyan-500/10 hover:border-cyan-500 font-mono text-xs"
+                            >
+                                <ClipboardCopy size={14} />
+                                COPY TEMPLATE 3 LOCALE
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleCopyGrokPrompt}
+                                className="flex items-center gap-2 px-3 py-2 rounded-md border border-cyan-700/60 text-cyan-300 hover:bg-cyan-500/10 hover:border-cyan-500 font-mono text-xs"
+                            >
+                                <ClipboardCopy size={14} />
+                                COPY PROMPT GROK
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleCopyAllForGrok}
+                                className="flex items-center gap-2 px-3 py-2 rounded-md border border-cyan-700/60 text-cyan-300 hover:bg-cyan-500/10 hover:border-cyan-500 font-mono text-xs"
+                            >
+                                <ClipboardCopy size={14} />
+                                COPY ALL FOR GROK
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleCopyAllForGrokByFormat('json')}
+                                className="flex items-center gap-2 px-3 py-2 rounded-md border border-cyan-700/60 text-cyan-300 hover:bg-cyan-500/10 hover:border-cyan-500 font-mono text-xs"
+                            >
+                                <ClipboardCopy size={14} />
+                                COPY ALL FOR GROK (JSON ONLY)
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleCopyAllForGrokByFormat('csv')}
+                                className="flex items-center gap-2 px-3 py-2 rounded-md border border-cyan-700/60 text-cyan-300 hover:bg-cyan-500/10 hover:border-cyan-500 font-mono text-xs"
+                            >
+                                <ClipboardCopy size={14} />
+                                COPY ALL FOR GROK (CSV ONLY)
+                            </button>
+                            <select
+                                value={manualLocale}
+                                onChange={(event) => setManualLocale(event.target.value as (typeof MANUAL_IMPORT_LOCALES)[number])}
+                                className="bg-[#0a0a0a] border border-gray-700 rounded-md px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-cyan-500 transition-colors"
+                            >
+                                {MANUAL_IMPORT_LOCALES.map((locale) => (
+                                    <option key={locale} value={locale}>{locale}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-mono text-gray-500 mb-2 tracking-widest uppercase">Tiêu đề bản dịch</label>
+                        <input
+                            type="text"
+                            value={manualTitle}
+                            onChange={(event) => setManualTitle(event.target.value)}
+                            placeholder={`Tiêu đề ${manualLocale}`}
+                            className="w-full bg-[#0a0a0a] border border-gray-700 rounded-md px-4 py-2.5 text-gray-200 text-sm focus:outline-none focus:border-cyan-500 transition-colors"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-mono text-gray-500 mb-2 tracking-widest uppercase">Nội dung bản dịch</label>
+                        <textarea
+                            value={manualContent}
+                            onChange={(event) => setManualContent(event.target.value)}
+                            placeholder={`Paste toàn bộ nội dung locale ${manualLocale} vào đây`}
+                            rows={12}
+                            className="w-full bg-[#0a0a0a] border border-gray-700 rounded-md px-4 py-3 text-gray-200 text-sm focus:outline-none focus:border-cyan-500 transition-colors"
+                        />
+                    </div>
+
+                    <div className="flex justify-end">
+                        <button
+                            type="button"
+                            onClick={handleManualImport}
+                            disabled={!token || importingTranslation || !manualTitle.trim() || !manualContent.trim()}
+                            className="flex items-center gap-2 px-4 py-2 rounded-md border border-cyan-700/60 text-cyan-300 hover:bg-cyan-500/10 hover:border-cyan-500 disabled:opacity-50 font-mono text-xs"
+                        >
+                            <ClipboardPenLine size={14} />
+                            {importingTranslation ? 'ĐANG IMPORT...' : `IMPORT ${manualLocale.toUpperCase()}`}
+                        </button>
+                    </div>
+                </div>
+
                 <div className="bg-[#0f0f0f] border border-gray-800 rounded-lg p-6 space-y-4">
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div>

@@ -348,6 +348,77 @@ export async function improveAdminChapterTranslation(chapterNumber: number, toke
     return payload;
 }
 
+export async function importAdminChapterTranslation(
+    chapterNumber: number,
+    data: { locale: string; title: string; content: string },
+    token: string
+): Promise<AdminChapterTranslateResult> {
+    const res = await fetch(`${API_BASE_URL}/api/admin/chapters/${chapterNumber}/import-translation`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(data),
+    });
+    const payload = await readJsonSafely<AdminChapterTranslateResult>(res) as AdminChapterTranslateResult;
+    if (!res.ok) {
+        const errorMessage =
+            buildAdminAuthErrorMessage(res, (payload as { detail?: string })?.detail) ||
+            buildFailureDetails(payload.failed_translations, "Failed to import chapter translation");
+        throw new Error(errorMessage);
+    }
+    return payload;
+}
+
+export async function importAdminChapterTranslations(
+    chapterNumber: number,
+    data: { translations: Record<string, { title: string; content: string }> },
+    token: string
+): Promise<AdminChapterTranslateResult> {
+    const res = await fetch(`${API_BASE_URL}/api/admin/chapters/${chapterNumber}/import-translations`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(data),
+    });
+    const payload = await readJsonSafely<AdminChapterTranslateResult>(res) as AdminChapterTranslateResult;
+    if (!res.ok) {
+        const errorMessage =
+            buildAdminAuthErrorMessage(res, (payload as { detail?: string })?.detail) ||
+            buildFailureDetails(payload.failed_translations, "Failed to import chapter translations");
+        throw new Error(errorMessage);
+    }
+    return payload;
+}
+
+export async function importAdminChapterTranslationsBatch(
+    data: { items: Array<{ chapter_number: number; locale: string; title: string; content: string }> },
+    token: string
+): Promise<{
+    message: string;
+    translated_count: number;
+    failed_count: number;
+    translated_chapters: Array<{ chapter_number: number; translated_locales: string[] }>;
+    failed_chapters: Array<{ chapter_number: number; detail?: string }>;
+}> {
+    const res = await fetch(`${API_BASE_URL}/api/admin/chapters/import-translations-batch`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(data),
+    });
+    const payload = await res.json();
+    if (!res.ok) {
+        throw new Error(buildAdminAuthErrorMessage(res, payload.detail || "Failed to batch import chapter translations"));
+    }
+    return payload;
+}
+
 export async function translateAdminChaptersBatch(
     data: { start_chapter: number; end_chapter: number; only_missing?: boolean },
     token: string

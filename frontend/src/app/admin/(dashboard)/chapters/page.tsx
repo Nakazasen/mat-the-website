@@ -10,6 +10,8 @@ import {
     CheckCircle2,
     CheckSquare,
     CheckSquare2,
+    ClipboardCopy,
+    ClipboardPenLine,
     ChevronLeft,
     ChevronRight,
     Languages,
@@ -26,6 +28,8 @@ import {
 import { createAdminClient } from '@/lib/supabase-admin';
 import {
     getAdminChapterTranslationStatuses,
+    importAdminChapterTranslations,
+    importAdminChapterTranslationsBatch,
     improveAdminChaptersBatch,
     improveAdminChapterTranslation,
     translateAdminChapter,
@@ -40,6 +44,7 @@ const FULL_BATCH_MAX_RETRIES = 3;
 const FULL_BATCH_RETRY_DELAY_MS = 2500;
 const FULL_BATCH_CHECKPOINT_KEY = 'admin-chapters-full-batch-checkpoint-v1';
 const QUALITY_BATCH_CHECKPOINT_KEY = 'admin-chapters-quality-batch-checkpoint-v1';
+const MANUAL_IMPORT_LOCALES = ['en', 'zh-CN', 'ja'] as const;
 
 interface Chapter {
     id: number;
@@ -82,6 +87,64 @@ type FullBatchCheckpoint = {
     failureDetails: Array<{ chapter_number: number; detail?: string }>;
     updatedAt: string;
 };
+
+type ManualImportField = {
+    title: string;
+    content: string;
+};
+
+type TemplateExportFormat = 'json' | 'csv';
+
+function createEmptyManualImportFields(): Record<(typeof MANUAL_IMPORT_LOCALES)[number], ManualImportField> {
+    return {
+        en: { title: '', content: '' },
+        'zh-CN': { title: '', content: '' },
+        ja: { title: '', content: '' },
+    };
+}
+
+function parseBatchImportInput(raw: string): Array<{ chapter_number: number; locale: string; title: string; content: string }> {
+    const trimmed = raw.trim();
+    if (!trimmed) return [];
+
+    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+            return parsed.map((item) => ({
+                chapter_number: Number(item.chapter_number),
+                locale: String(item.locale || ''),
+                title: String(item.title || ''),
+                content: String(item.content || ''),
+            }));
+        }
+        if (Array.isArray(parsed.items)) {
+            return parsed.items.map((item: any) => ({
+                chapter_number: Number(item.chapter_number),
+                locale: String(item.locale || ''),
+                title: String(item.title || ''),
+                content: String(item.content || ''),
+            }));
+        }
+        throw new Error('JSON import phải là array hoặc object có field items');
+    }
+
+    const lines = trimmed.split(/\r?\n/).filter((line) => line.trim());
+    if (lines.length <= 1) return [];
+    const dataLines = lines[0].toLowerCase().includes('chapter_number') ? lines.slice(1) : lines;
+    return dataLines.map((line) => {
+        const parts = line.split(',').map((item) => item.trim());
+        if (parts.length < 4) {
+            throw new Error('CSV phải có 4 cột: chapter_number,locale,title,content');
+        }
+        const [chapter_number, locale, title, ...contentParts] = parts;
+        return {
+            chapter_number: Number(chapter_number),
+            locale,
+            title,
+            content: contentParts.join(',').trim(),
+        };
+    });
+}
 
 function formatTranslationFailures(failures: TranslationFailure[] | undefined): string {
     if (!Array.isArray(failures) || failures.length === 0) {
@@ -218,6 +281,19 @@ export default function AdminChaptersPage() {
     const [translationStatusMap, setTranslationStatusMap] = useState<Record<number, ChapterTranslationStatus>>({});
     const [actionNotice, setActionNotice] = useState<ActionNotice | null>(null);
     const [failureLogNotice, setFailureLogNotice] = useState<string | null>(null);
+    const [quickImportChapter, setQuickImportChapter] = useState<string>('');
+    const [quickImportFields, setQuickImportFields] = useState<Record<(typeof MANUAL_IMPORT_LOCALES)[number], ManualImportField>>(createEmptyManualImportFields);
+    const [quickImportRunning, setQuickImportRunning] = useState(false);
+    const [batchImportInput, setBatchImportInput] = useState('');
+    const [batchImportRunning, setBatchImportRunning] = useState(false);
+    const [templateStart, setTemplateStart] = useState('1');
+    const [templateEnd, setTemplateEnd] = useState('');
+    const [templateFormat, setTemplateFormat] = useState<TemplateExportFormat>('json');
+    const [templateOutput, setTemplateOutput] = useState('');
+    const [templateSourceItems, setTemplateSourceItems] = useState<Array<{ chapter_number: number; title: string; content: string }>>([]);
+    const [templateRunning, setTemplateRunning] = useState(false);
+    const [templateNotice, setTemplateNotice] = useState<ActionNotice | null>(null);
+    const [grokPromptOutput, setGrokPromptOutput] = useState('');
 
     useEffect(() => {
         if (!error || error !== 'Failed to fetch') return;
@@ -280,6 +356,7 @@ export default function AdminChaptersPage() {
             setMaxChapterNumber(Math.max(data.max_chapter || 0, data.total || 0));
             setCurrentPage(page);
             setBatchEnd((current) => current || String(data.max_chapter || data.total || data.total_pages || ''));
+            setTemplateEnd((current) => current || String(data.max_chapter || data.total || data.total_pages || ''));
         } catch (err: any) {
             setError(err.message);
         } finally {
@@ -496,6 +573,303 @@ export default function AdminChaptersPage() {
             await refreshTranslationStatuses([chapterNumber]);
         } finally {
             setImprovingId(null);
+        }
+    };
+
+    const handleQuickImportFieldChange = (locale: (typeof MANUAL_IMPORT_LOCALES)[number], field: keyof ManualImportField, value: string) => {
+        setQuickImportFields((current) => ({
+            ...current,
+            [locale]: {
+                ...current[locale],
+                [field]: value,
+            },
+        }));
+    };
+
+    const handleOpenQuickImport = (chapterNumber: number) => {
+        setQuickImportChapter(String(chapterNumber));
+        setQuickImportFields(createEmptyManualImportFields());
+        setActionNotice({
+            tone: 'success',
+            message: `Đã chọn chương ${chapterNumber} để import nhanh. Paste 1-3 locale ở khung Manual Import bên dưới.`,
+        });
+    };
+
+    const handleQuickImport = async () => {
+        if (!token) return;
+        const chapterNumber = parseInt(quickImportChapter || '0', 10);
+        if (!chapterNumber) {
+            setActionNotice({ tone: 'error', message: 'Cần nhập số chương để import.' });
+            return;
+        }
+
+        const translations = Object.fromEntries(
+            MANUAL_IMPORT_LOCALES
+                .filter((locale) => quickImportFields[locale].title.trim() && quickImportFields[locale].content.trim())
+                .map((locale) => [locale, { title: quickImportFields[locale].title.trim(), content: quickImportFields[locale].content.trim() }]),
+        );
+
+        if (Object.keys(translations).length === 0) {
+            setActionNotice({ tone: 'error', message: 'Cần ít nhất 1 locale có đủ title và content để import.' });
+            return;
+        }
+
+        setQuickImportRunning(true);
+        setActionNotice(null);
+        try {
+            const freshToken = await resolveAdminToken();
+            const result = await importAdminChapterTranslations(chapterNumber, { translations }, freshToken);
+            setActionNotice(buildSingleTranslateNotice(chapterNumber, result));
+            await refreshTranslationStatuses([chapterNumber]);
+        } catch (err: any) {
+            setActionNotice({ tone: 'error', message: `Lỗi import nhanh chương ${chapterNumber}: ${err?.message || 'Không nhận được thông báo lỗi từ backend.'}` });
+        } finally {
+            setQuickImportRunning(false);
+        }
+    };
+
+    const handleBatchImport = async () => {
+        if (!token) return;
+        setBatchImportRunning(true);
+        setActionNotice(null);
+        try {
+            const items = parseBatchImportInput(batchImportInput).filter((item) => item.chapter_number > 0 && item.locale && item.title && item.content);
+            if (items.length === 0) {
+                throw new Error('Không đọc được item import nào từ JSON/CSV.');
+            }
+            const freshToken = await resolveAdminToken();
+            const result = await importAdminChapterTranslationsBatch({ items }, freshToken);
+            const failedDetails = (result.failed_chapters || []).map((item) => `Chương ${item.chapter_number}: ${item.detail || 'Import failed'}`).join(' | ');
+            setActionNotice({
+                tone: result.failed_count > 0 ? 'error' : 'success',
+                message: result.failed_count > 0
+                    ? `Import batch xong. Thành công: ${result.translated_count}, lỗi: ${result.failed_count}. ${failedDetails}`
+                    : `Import batch thành công ${result.translated_count} chương.`,
+            });
+            await refreshTranslationStatuses();
+        } catch (err: any) {
+            setActionNotice({ tone: 'error', message: `Lỗi import batch: ${err?.message || 'Không nhận được thông báo lỗi từ backend.'}` });
+        } finally {
+            setBatchImportRunning(false);
+        }
+    };
+
+    const fetchChapterSource = useCallback(async (chapterNumber: number, adminToken: string) => {
+        const metaRes = await fetch(`${API_BASE_URL}/api/chapters/${chapterNumber}`, {
+            cache: 'no-store',
+        });
+        if (!metaRes.ok) {
+            throw new Error(`Khong tai duoc metadata chuong ${chapterNumber}.`);
+        }
+
+        const contentRes = await fetch(`${API_BASE_URL}/api/admin/chapters/${chapterNumber}/content`, {
+            headers: { Authorization: `Bearer ${adminToken}` },
+            cache: 'no-store',
+        });
+        if (!contentRes.ok) {
+            throw new Error(`Khong tai duoc noi dung chuong ${chapterNumber}.`);
+        }
+
+        const meta = await metaRes.json();
+        const content = await contentRes.text();
+        return {
+            chapter_number: chapterNumber,
+            title: String(meta.title || `Chuong ${chapterNumber}`),
+            content: content || '',
+        };
+    }, []);
+
+    const escapeCsvField = (value: string) => `"${String(value || '').replace(/"/g, '""')}"`;
+
+    const buildTemplateJsonOutput = (items: Array<{ chapter_number: number; title: string; content: string }>) => JSON.stringify(
+        items.map((item) => ({
+            instruction: 'Translate the Vietnamese source chapter into en, zh-CN, and ja. Preserve full meaning, paragraph order, and completeness. Return valid JSON only and fill the empty title/content fields.',
+            chapter_number: item.chapter_number,
+            source: {
+                locale: 'vi',
+                title: item.title,
+                content: item.content,
+            },
+            translations: {
+                en: { title: '', content: '' },
+                'zh-CN': { title: '', content: '' },
+                ja: { title: '', content: '' },
+            },
+        })),
+        null,
+        2,
+    );
+
+    const buildTemplateCsvOutput = (items: Array<{ chapter_number: number; title: string; content: string }>) => {
+        const header = 'chapter_number,locale,source_title,source_content,title,content';
+        const rows = items.flatMap((item) => (
+            MANUAL_IMPORT_LOCALES.map((locale) => (
+                [
+                    item.chapter_number,
+                    locale,
+                    escapeCsvField(item.title),
+                    escapeCsvField(item.content),
+                    escapeCsvField(''),
+                    escapeCsvField(''),
+                ].join(',')
+            ))
+        ));
+        return [header, ...rows].join('\n');
+    };
+
+    const buildGrokPrompt = (format: TemplateExportFormat, chapterCount: number) => {
+        if (format === 'csv') {
+            return [
+                'Translate the Vietnamese source rows into the target locale of each row.',
+                'Return CSV only. Do not return Markdown. Do not wrap in code fences. Do not add explanations.',
+                'Keep the exact same header and the exact same number of rows.',
+                'Input columns are: chapter_number,locale,source_title,source_content,title,content.',
+                'Only fill the last two columns: title and content.',
+                'Do not change chapter_number, locale, source_title, or source_content.',
+                'Preserve full meaning, paragraph order, names, and chapter completeness.',
+                'Content must stay in one CSV field per row, properly quoted.',
+                'Use locale-specific output only: en for English, zh-CN for Simplified Chinese, ja for Japanese.',
+                'If a source row is empty or malformed, still return the row and fill title/content as best as possible.',
+                `The payload contains ${chapterCount} chapter(s), ordered from newest to older chapters.`,
+            ].join('\n');
+        }
+
+        return [
+            'Translate the Vietnamese source chapters into en, zh-CN, and ja.',
+            'Return valid JSON only. Do not return Markdown. Do not wrap in code fences. Do not add commentary.',
+            'Keep the JSON structure exactly the same as the input.',
+            'Do not remove keys. Do not rename keys. Do not add extra keys.',
+            'Only fill translations.en.title, translations.en.content, translations["zh-CN"].title, translations["zh-CN"].content, translations.ja.title, and translations.ja.content.',
+            'Do not change chapter_number, source.locale, source.title, source.content, or instruction.',
+            'Preserve full meaning, paragraph order, names, tone, and completeness.',
+            'Do not summarize. Do not censor. Do not skip paragraphs.',
+            'Each content field must contain the full translated chapter as plain text.',
+            'Use locale-specific output only: en for English, zh-CN for Simplified Chinese, ja for Japanese.',
+            `The payload contains ${chapterCount} chapter(s), ordered from newest to older chapters.`,
+        ].join('\n');
+    };
+
+    const handleGenerateTemplate = async () => {
+        if (!token) return;
+
+        const start = Math.max(1, parseInt(templateStart || '1', 10) || 1);
+        const maxEnd = maxChapterNumber || totalChapters || start;
+        const end = Math.max(start, parseInt(templateEnd || String(maxEnd), 10) || maxEnd);
+
+        if (start > end) {
+            setTemplateNotice({ tone: 'error', message: 'Khoang export template khong hop le.' });
+            return;
+        }
+
+        setTemplateRunning(true);
+        setTemplateNotice(null);
+        try {
+            const freshToken = await resolveAdminToken();
+            const chapterNumbers = Array.from({ length: end - start + 1 }, (_, index) => start + index).sort((a, b) => b - a);
+            const items = [];
+            for (const chapterNumber of chapterNumbers) {
+                items.push(await fetchChapterSource(chapterNumber, freshToken));
+            }
+            const output = templateFormat === 'json'
+                ? buildTemplateJsonOutput(items)
+                : buildTemplateCsvOutput(items);
+            const promptOutput = buildGrokPrompt(templateFormat, items.length);
+
+            setTemplateSourceItems(items);
+            setTemplateOutput(output);
+            setGrokPromptOutput(promptOutput);
+            setTemplateNotice({
+                tone: 'success',
+                message: `Da tao template ${templateFormat.toUpperCase()} cho ${items.length} chuong, uu tien tu moi nhat den cu hon.`,
+            });
+        } catch (err: any) {
+            setTemplateNotice({
+                tone: 'error',
+                message: `Loi tao template: ${err?.message || 'Khong nhan duoc thong bao loi tu backend.'}`,
+            });
+        } finally {
+            setTemplateRunning(false);
+        }
+    };
+
+    const handleCopyTemplateOutput = async () => {
+        if (!templateOutput.trim()) {
+            setTemplateNotice({ tone: 'error', message: 'Chua co noi dung template de copy.' });
+            return;
+        }
+        try {
+            await navigator.clipboard.writeText(templateOutput);
+            setTemplateNotice({ tone: 'success', message: 'Da copy template vao clipboard.' });
+        } catch (err: any) {
+            setTemplateNotice({ tone: 'error', message: `Khong copy duoc template: ${err?.message || 'Clipboard error'}` });
+        }
+    };
+
+    const handleCopyGrokPrompt = async () => {
+        if (!grokPromptOutput.trim()) {
+            setTemplateNotice({ tone: 'error', message: 'Chua co prompt Grok de copy.' });
+            return;
+        }
+        try {
+            await navigator.clipboard.writeText(grokPromptOutput);
+            setTemplateNotice({ tone: 'success', message: 'Da copy prompt Grok vao clipboard.' });
+        } catch (err: any) {
+            setTemplateNotice({ tone: 'error', message: `Khong copy duoc prompt Grok: ${err?.message || 'Clipboard error'}` });
+        }
+    };
+
+    const handleCopyAllForGrok = async () => {
+        const prompt = grokPromptOutput.trim();
+        const template = templateOutput.trim();
+        if (!prompt || !template) {
+            setTemplateNotice({ tone: 'error', message: 'Can tao du ca prompt va template truoc khi COPY ALL FOR GROK.' });
+            return;
+        }
+
+        const combined = [
+            'GROK PROMPT',
+            prompt,
+            '',
+            'TEMPLATE',
+            template,
+        ].join('\n');
+
+        try {
+            await navigator.clipboard.writeText(combined);
+            setTemplateNotice({ tone: 'success', message: 'Da copy ALL FOR GROK vao clipboard.' });
+        } catch (err: any) {
+            setTemplateNotice({ tone: 'error', message: `Khong copy duoc ALL FOR GROK: ${err?.message || 'Clipboard error'}` });
+        }
+    };
+
+    const handleCopyAllForGrokByFormat = async (format: TemplateExportFormat) => {
+        if (templateSourceItems.length === 0) {
+            setTemplateNotice({ tone: 'error', message: 'Hay tao template truoc khi copy theo format JSON/CSV.' });
+            return;
+        }
+
+        const prompt = buildGrokPrompt(format, templateSourceItems.length);
+        const template = format === 'json'
+            ? buildTemplateJsonOutput(templateSourceItems)
+            : buildTemplateCsvOutput(templateSourceItems);
+
+        try {
+            await navigator.clipboard.writeText([
+                'GROK PROMPT',
+                prompt,
+                '',
+                'TEMPLATE',
+                template,
+            ].join('\n'));
+            setTemplateNotice({
+                tone: 'success',
+                message: `Da copy ALL FOR GROK (${format.toUpperCase()} ONLY) vao clipboard.`,
+            });
+        } catch (err: any) {
+            setTemplateNotice({
+                tone: 'error',
+                message: `Khong copy duoc ALL FOR GROK (${format.toUpperCase()} ONLY): ${err?.message || 'Clipboard error'}`,
+            });
         }
     };
 
@@ -857,6 +1231,205 @@ export default function AdminChaptersPage() {
                 </form>
             </div>
 
+            <div className="mb-6 rounded-lg border border-cyan-900/40 bg-[#0d0d0d] p-4">
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                            <div>
+                                <p className="font-mono text-xs tracking-widest text-cyan-300 uppercase">Manual Import</p>
+                                <p className="mt-1 text-xs text-gray-500">Import nhanh 1 chương với tối đa 3 locale cùng lúc. Nút `Import nhanh` ở từng dòng sẽ điền sẵn số chương.</p>
+                            </div>
+                            <input
+                                type="number"
+                                min={1}
+                                value={quickImportChapter}
+                                onChange={(event) => setQuickImportChapter(event.target.value)}
+                                className="bg-black border border-gray-800 rounded px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-cyan-500 w-full sm:w-40"
+                                placeholder="Chương số"
+                            />
+                        </div>
+                        {MANUAL_IMPORT_LOCALES.map((locale) => (
+                            <div key={locale} className="rounded border border-gray-800 bg-black/20 p-3 space-y-2">
+                                <div className="font-mono text-xs uppercase tracking-widest text-cyan-200">{locale}</div>
+                                <input
+                                    type="text"
+                                    value={quickImportFields[locale].title}
+                                    onChange={(event) => handleQuickImportFieldChange(locale, 'title', event.target.value)}
+                                    className="w-full bg-black border border-gray-800 rounded px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-cyan-500"
+                                    placeholder={`Title ${locale}`}
+                                />
+                                <textarea
+                                    value={quickImportFields[locale].content}
+                                    onChange={(event) => handleQuickImportFieldChange(locale, 'content', event.target.value)}
+                                    rows={5}
+                                    className="w-full bg-black border border-gray-800 rounded px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-cyan-500"
+                                    placeholder={`Paste content ${locale}`}
+                                />
+                            </div>
+                        ))}
+                        <div className="flex justify-end">
+                            <button
+                                type="button"
+                                onClick={handleQuickImport}
+                                disabled={!token || quickImportRunning}
+                                className="inline-flex items-center justify-center gap-2 rounded border border-cyan-700/60 px-4 py-2 text-xs font-mono text-cyan-300 hover:bg-cyan-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                {quickImportRunning ? <Loader2 size={14} className="animate-spin" /> : <ClipboardPenLine size={14} />}
+                                {quickImportRunning ? 'ĐANG IMPORT...' : 'IMPORT 3 LOCALE'}
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="space-y-4">
+                        <div>
+                            <p className="font-mono text-xs tracking-widest text-cyan-300 uppercase">Batch Import JSON / CSV</p>
+                            <p className="mt-1 text-xs text-gray-500">Format JSON: array gồm chapter_number, locale, title, content. CSV: chapter_number,locale,title,content cho mỗi dòng.</p>
+                        </div>
+                        <textarea
+                            value={batchImportInput}
+                            onChange={(event) => setBatchImportInput(event.target.value)}
+                            rows={20}
+                            className="w-full bg-black border border-gray-800 rounded px-3 py-3 text-sm text-gray-200 focus:outline-none focus:border-cyan-500 font-mono"
+                            placeholder='[{"chapter_number":818,"locale":"en","title":"...","content":"..."}]'
+                        />
+                        <div className="flex justify-end">
+                            <button
+                                type="button"
+                                onClick={handleBatchImport}
+                                disabled={!token || batchImportRunning}
+                                className="inline-flex items-center justify-center gap-2 rounded border border-cyan-700/60 px-4 py-2 text-xs font-mono text-cyan-300 hover:bg-cyan-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                {batchImportRunning ? <Loader2 size={14} className="animate-spin" /> : <ClipboardPenLine size={14} />}
+                                {batchImportRunning ? 'ĐANG IMPORT BATCH...' : 'IMPORT HÀNG LOẠT'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="mb-6 rounded-lg border border-cyan-900/40 bg-[#0d0d0d] p-4">
+                <div className="flex flex-col gap-4">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                        <div>
+                            <p className="font-mono text-xs tracking-widest text-cyan-300 uppercase">Export Template Cho Grok</p>
+                            <p className="mt-1 text-xs text-gray-500">
+                                Tao san JSON hoac CSV tu ban VI de ban dem sang Grok. Range se duoc sap xep tu chuong moi nhat ve chuong cu hon.
+                            </p>
+                        </div>
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-4 w-full lg:w-auto">
+                            <input
+                                type="number"
+                                min={1}
+                                value={templateStart}
+                                onChange={(event) => setTemplateStart(event.target.value)}
+                                className="bg-black border border-gray-800 rounded px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-cyan-500"
+                                placeholder="Tu chuong"
+                            />
+                            <input
+                                type="number"
+                                min={1}
+                                value={templateEnd}
+                                onChange={(event) => setTemplateEnd(event.target.value)}
+                                className="bg-black border border-gray-800 rounded px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-cyan-500"
+                                placeholder="Den chuong"
+                            />
+                            <select
+                                value={templateFormat}
+                                onChange={(event) => setTemplateFormat(event.target.value as TemplateExportFormat)}
+                                className="bg-black border border-gray-800 rounded px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-cyan-500"
+                            >
+                                <option value="json">JSON</option>
+                                <option value="csv">CSV</option>
+                            </select>
+                            <button
+                                type="button"
+                                onClick={handleGenerateTemplate}
+                                disabled={!token || templateRunning}
+                                className="inline-flex items-center justify-center gap-2 rounded border border-cyan-700/60 px-4 py-2 text-xs font-mono text-cyan-300 hover:bg-cyan-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                {templateRunning ? <Loader2 size={14} className="animate-spin" /> : <ClipboardCopy size={14} />}
+                                {templateRunning ? 'DANG TAO TEMPLATE...' : 'TAO TEMPLATE'}
+                            </button>
+                        </div>
+                    </div>
+                    <div className="rounded border border-gray-800 bg-black/20 p-3">
+                        <div className="mb-3 flex items-center justify-between gap-3 flex-wrap">
+                            <p className="text-xs text-gray-500">
+                                JSON: moi chapter co source VI va 3 locale rong. CSV: 3 dong moi chapter theo schema import batch.
+                            </p>
+                            <button
+                                type="button"
+                                onClick={handleCopyTemplateOutput}
+                                disabled={!templateOutput.trim()}
+                                className="inline-flex items-center justify-center gap-2 rounded border border-gray-700 px-3 py-2 text-xs font-mono text-gray-300 hover:border-cyan-500 hover:text-cyan-200 disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                                <ClipboardCopy size={14} />
+                                COPY
+                            </button>
+                        </div>
+                        <textarea
+                            value={templateOutput}
+                            onChange={(event) => setTemplateOutput(event.target.value)}
+                            rows={16}
+                            className="w-full bg-black border border-gray-800 rounded px-3 py-3 text-sm text-gray-200 focus:outline-none focus:border-cyan-500 font-mono"
+                            placeholder='[{"chapter_number":818,"source":{"locale":"vi","title":"...","content":"..."},"translations":{"en":{"title":"","content":""},"zh-CN":{"title":"","content":""},"ja":{"title":"","content":""}}}]'
+                        />
+                    </div>
+                    <div className="rounded border border-gray-800 bg-black/20 p-3">
+                        <div className="mb-3 flex items-center justify-between gap-3 flex-wrap">
+                            <p className="text-xs text-gray-500">
+                                Prompt mau cho Grok. Copy prompt nay truoc, sau do dan template o o ben tren de Grok tra ve dung schema.
+                            </p>
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <button
+                                    type="button"
+                                    onClick={handleCopyGrokPrompt}
+                                    disabled={!grokPromptOutput.trim()}
+                                    className="inline-flex items-center justify-center gap-2 rounded border border-gray-700 px-3 py-2 text-xs font-mono text-gray-300 hover:border-cyan-500 hover:text-cyan-200 disabled:cursor-not-allowed disabled:opacity-40"
+                                >
+                                    <ClipboardCopy size={14} />
+                                    COPY PROMPT
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleCopyAllForGrok}
+                                    disabled={!grokPromptOutput.trim() || !templateOutput.trim()}
+                                    className="inline-flex items-center justify-center gap-2 rounded border border-cyan-700/60 px-3 py-2 text-xs font-mono text-cyan-300 hover:bg-cyan-500/10 disabled:cursor-not-allowed disabled:opacity-40"
+                                >
+                                    <ClipboardCopy size={14} />
+                                    COPY ALL FOR GROK
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleCopyAllForGrokByFormat('json')}
+                                    disabled={templateSourceItems.length === 0}
+                                    className="inline-flex items-center justify-center gap-2 rounded border border-cyan-700/60 px-3 py-2 text-xs font-mono text-cyan-300 hover:bg-cyan-500/10 disabled:cursor-not-allowed disabled:opacity-40"
+                                >
+                                    <ClipboardCopy size={14} />
+                                    COPY ALL FOR GROK (JSON ONLY)
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleCopyAllForGrokByFormat('csv')}
+                                    disabled={templateSourceItems.length === 0}
+                                    className="inline-flex items-center justify-center gap-2 rounded border border-cyan-700/60 px-3 py-2 text-xs font-mono text-cyan-300 hover:bg-cyan-500/10 disabled:cursor-not-allowed disabled:opacity-40"
+                                >
+                                    <ClipboardCopy size={14} />
+                                    COPY ALL FOR GROK (CSV ONLY)
+                                </button>
+                            </div>
+                        </div>
+                        <textarea
+                            value={grokPromptOutput}
+                            onChange={(event) => setGrokPromptOutput(event.target.value)}
+                            rows={12}
+                            className="w-full bg-black border border-gray-800 rounded px-3 py-3 text-sm text-gray-200 focus:outline-none focus:border-cyan-500 font-mono"
+                            placeholder="Prompt Grok se duoc tao o day sau khi bam TAO TEMPLATE."
+                        />
+                    </div>
+                </div>
+            </div>
+
             <div className="mb-6 rounded-lg border border-gray-800 bg-[#0d0d0d] p-4">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                     <div>
@@ -1127,6 +1700,21 @@ export default function AdminChaptersPage() {
                 </div>
             )}
 
+            {templateNotice && (
+                <div
+                    className={`flex items-start gap-2 rounded p-3 text-sm mb-4 ${
+                        templateNotice.tone === 'success'
+                            ? 'border border-cyan-900/50 bg-cyan-950/30 text-cyan-200'
+                            : 'border border-red-900/50 bg-red-950/30 text-red-200'
+                    }`}
+                >
+                    {templateNotice.tone === 'success'
+                        ? <CheckCircle2 size={14} className="mt-0.5 shrink-0" />
+                        : <AlertTriangle size={14} className="mt-0.5 shrink-0" />}
+                    <span className="whitespace-pre-wrap break-words">{templateNotice.message}</span>
+                </div>
+            )}
+
             {loading ? (
                 <div className="space-y-2">
                     {Array.from({ length: 15 }).map((_, index) => (
@@ -1214,6 +1802,13 @@ export default function AdminChaptersPage() {
                                                     >
                                                         <Wand2 size={10} />
                                                         {improvingId === chapter.chapter_number ? 'ĐANG REFINE...' : 'NÂNG CHẤT LƯỢNG'}
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleOpenQuickImport(chapter.chapter_number)}
+                                                        className="flex items-center gap-1.5 px-3 py-1.5 border border-cyan-700/60 hover:border-cyan-500 text-cyan-300 hover:text-cyan-200 rounded text-xs font-mono transition-all hover:bg-cyan-500/10"
+                                                    >
+                                                        <ClipboardPenLine size={10} />
+                                                        IMPORT NHANH
                                                     </button>
                                                     <div className="flex gap-2 w-full sm:w-auto">
                                                         <Link

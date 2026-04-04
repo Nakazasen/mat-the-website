@@ -38,6 +38,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--sleep-seconds", type=float, default=1.5)
     parser.add_argument("--retry-sleep-seconds", type=float, default=8.0)
     parser.add_argument("--reset-checkpoint", action="store_true")
+    parser.add_argument("--latest-first", action="store_true", help="Process highest chapter numbers first.")
     return parser.parse_args()
 
 
@@ -84,14 +85,21 @@ def query_translation_rows(chapter_ids: list[int]) -> list[dict[str, Any]]:
 
 
 def build_work_items() -> list[dict[str, Any]]:
-    chapter_rows = (
-        main.supabase.table("chapters")
-        .select("id, chapter_number, title, content_url")
-        .order("chapter_number")
-        .execute()
-        .data
-        or []
-    )
+    chapter_rows = []
+    chunk_size = 1000
+    while True:
+        chunk = (
+            main.supabase.table("chapters")
+            .select("id, chapter_number, title, content_url")
+            .order("chapter_number")
+            .range(len(chapter_rows), len(chapter_rows) + chunk_size - 1)
+            .execute()
+            .data
+            or []
+        )
+        chapter_rows.extend(chunk)
+        if len(chunk) < chunk_size:
+            break
     translation_rows = query_translation_rows([row["id"] for row in chapter_rows])
 
     translation_map: dict[int, dict[str, dict[str, Any]]] = defaultdict(dict)
@@ -101,6 +109,7 @@ def build_work_items() -> list[dict[str, Any]]:
         if chapter_id and locale:
             translation_map[chapter_id][locale] = row
 
+    print(f"DEBUG: Total chapters fetched: {len(chapter_rows)}")
     work_items: list[dict[str, Any]] = []
     for chapter_row in chapter_rows:
         chapter_id = chapter_row["id"]
@@ -120,6 +129,10 @@ def build_work_items() -> list[dict[str, Any]]:
                     "needed_locales": needed_locales,
                 }
             )
+    print(f"DEBUG: Total work items (chapters needing translation): {len(work_items)}")
+    if work_items:
+        print(f"DEBUG: First pending chapter: {work_items[0]['chapter_number']}")
+        print(f"DEBUG: Last pending chapter: {work_items[-1]['chapter_number']}")
     return work_items
 
 
@@ -205,10 +218,11 @@ async def main_async() -> int:
     }
 
     work_items = build_work_items()
+    pending_items = [item for item in work_items if item["chapter_number"] not in completed_numbers]
+    if args.latest_first:
+        pending_items.sort(key=lambda item: int(item["chapter_number"]), reverse=True)
     if args.max_chapters > 0:
-        pending_items = [item for item in work_items if item["chapter_number"] not in completed_numbers][: args.max_chapters]
-    else:
-        pending_items = [item for item in work_items if item["chapter_number"] not in completed_numbers]
+        pending_items = pending_items[: args.max_chapters]
 
     summary = Counter(checkpoint.get("summary") or {})
     print(f"Pending chapters: {len(pending_items)} / {len(work_items)}")

@@ -23,8 +23,8 @@ def test_parse_multilocale_translation_payload_reads_nested_translations():
     {
       "translations": {
         "en": { "title": "Hello", "content": "World" },
-        "zh-CN": { "title": "你好", "content": "世界" },
-        "ja": { "title": "こんにちは", "content": "世界" }
+        "zh-CN": { "title": "Ni Hao", "content": "Shi Jie" },
+        "ja": { "title": "Konnichiwa", "content": "Sekai" }
       }
     }
     """
@@ -32,8 +32,8 @@ def test_parse_multilocale_translation_payload_reads_nested_translations():
     parsed = main.parse_multilocale_translation_payload(payload, ["en", "zh-CN", "ja"], ["title", "content"])
 
     assert parsed["en"]["title"] == "Hello"
-    assert parsed["zh-CN"]["content"] == "世界"
-    assert parsed["ja"]["title"] == "こんにちは"
+    assert parsed["zh-CN"]["content"] == "Shi Jie"
+    assert parsed["ja"]["title"] == "Konnichiwa"
 
 
 def test_build_guide_translation_slug_uses_locale_suffix():
@@ -49,14 +49,9 @@ def test_parse_json_like_payload_raises_useful_error_for_invalid_json():
 
 
 def test_build_chapter_sentence_alignment_preserves_sentence_order():
-    source_chunks = [
-        "S1. S2.",
-        "S3. S4.",
-    ]
-    translated_chunks = [
-        "T1. T2.",
-        "T3. T4.",
-    ]
+    source_chunks = ["S1. S2.", "S3. S4."]
+    translated_chunks = ["T1. T2.", "T3. T4."]
+
     payload = main.build_chapter_sentence_alignment(
         source_text="\n\n".join(source_chunks),
         translated_text="\n\n".join(translated_chunks),
@@ -77,7 +72,7 @@ def test_build_chapter_sentence_alignment_preserves_sentence_order():
 
 def test_build_chapter_sentence_alignment_splits_contiguous_japanese_sentences():
     payload = main.build_chapter_sentence_alignment(
-        source_text="Câu 1. Câu 2.",
+        source_text="Cau 1. Cau 2.",
         translated_text="文1。文2。",
     )
 
@@ -89,11 +84,11 @@ def test_build_chapter_sentence_alignment_splits_contiguous_japanese_sentences()
 
 def test_build_chapter_sentence_alignment_includes_content_hashes():
     payload = main.build_chapter_sentence_alignment(
-        source_text="Câu 1. Câu 2.",
+        source_text="Cau 1. Cau 2.",
         translated_text="Sentence 1. Sentence 2.",
     )
 
-    assert payload["source_content_hash"] == main.build_content_hash("Câu 1. Câu 2.")
+    assert payload["source_content_hash"] == main.build_content_hash("Cau 1. Cau 2.")
     assert payload["translated_content_hash"] == main.build_content_hash("Sentence 1. Sentence 2.")
 
 
@@ -119,10 +114,72 @@ def test_build_translation_publish_gate_report_flags_unreliable_structure():
     assert report["sentence_ratio"] == 2.0
 
 
+def test_translation_locale_mismatch_score_ignores_titlecase_proper_nouns():
+    text = 'Han Phong crossed the Long River and met "Tram Thanh" near Duong Hoanh.'
+
+    assert main._translation_locale_mismatch_score(text, "en") == 0
+
+
+def test_translation_locale_mismatch_score_flags_lowercase_vietnamese_text():
+    text = "Han Phong said anh không được đỡ đầu và cần trở về ngay."
+
+    assert main._translation_locale_mismatch_score(text, "en") > 0
+
+
 def test_is_translation_retryable_treats_transient_unavailable_as_retryable():
     exc = HTTPException(status_code=503, detail="This model is currently experiencing high demand. Please try again later.")
 
     assert main.is_translation_retryable(exc) is True
+
+
+def test_rebalance_translation_blocks_to_source_restores_block_count():
+    source_text = "Doan 1.\n\nDoan 2.\n\nDoan 3."
+    translated_text = "Sentence 1. Sentence 2. Sentence 3."
+
+    rebalanced = main._rebalance_translation_blocks_to_source(source_text, translated_text)
+
+    assert len(main._split_text_blocks_for_translation_quality(rebalanced)) == 3
+
+
+def test_prepare_translation_candidate_for_publish_normalizes_block_delta():
+    source_text = "Doan 1.\n\nDoan 2.\n\nDoan 3."
+    translated_text = "Sentence 1. Sentence 2. Sentence 3."
+
+    prepared = main._prepare_translation_candidate_for_publish(
+        source_text=source_text,
+        translated_text=translated_text,
+        target_locale="en",
+    )
+
+    assert prepared["gate_report"]["block_delta"] == 0
+
+
+@pytest.mark.asyncio
+async def test_repair_chapter_translation_candidate_until_publishable_repairs_failed_gate(monkeypatch):
+    async def fake_refine_chapter_translation_with_ai(**kwargs):
+        assert "quality gate" in (kwargs.get("repair_notes") or "").lower()
+        return {
+            "title": "Fixed title",
+            "content": "Sentence 1.\n\nSentence 2.",
+            "sentence_alignment": main.build_chapter_sentence_alignment(
+                source_text="Doan 1.\n\nDoan 2.",
+                translated_text="Sentence 1.\n\nSentence 2.",
+            ),
+        }
+
+    monkeypatch.setattr(main, "refine_chapter_translation_with_ai", fake_refine_chapter_translation_with_ai)
+
+    result = await main.repair_chapter_translation_candidate_until_publishable(
+        source_title="Chuong 1",
+        source_content="Doan 1.\n\nDoan 2.",
+        chapter_number=1,
+        target_locale="en",
+        candidate_title="Draft",
+        candidate_content="Sentence 1. Sentence 2. Sentence 3. Sentence 4.",
+    )
+
+    assert result["gate_report"]["passed"] is True
+    assert result["title"] == "Fixed title"
 
 
 @pytest.mark.asyncio
@@ -217,12 +274,7 @@ async def test_admin_improve_quality_batch_ignores_empty_numeric_gap(monkeypatch
 async def test_translate_chapter_payload_with_ai_uses_structured_flow(monkeypatch):
     async def fake_translate_chapter_payloads_with_ai(**kwargs):
         assert kwargs["target_locales"] == ["en"]
-        return {
-            "en": {
-                "title": "Hello",
-                "content": "World",
-            }
-        }
+        return {"en": {"title": "Hello", "content": "World"}}
 
     monkeypatch.setattr(main, "translate_chapter_payloads_with_ai", fake_translate_chapter_payloads_with_ai)
 
@@ -247,17 +299,14 @@ async def test_upsert_chapter_translations_failure_upsert_includes_required_text
         def __init__(self, table_name, store):
             self.table_name = table_name
             self.store = store
-            self.filters = {}
 
         def select(self, _fields):
             return self
 
-        def eq(self, key, value):
-            self.filters[key] = value
+        def eq(self, _key, _value):
             return self
 
-        def in_(self, key, value):
-            self.filters[key] = value
+        def in_(self, _key, _value):
             return self
 
         def limit(self, _value):
@@ -301,13 +350,13 @@ async def test_upsert_chapter_translations_failure_upsert_includes_required_text
         for item in fake_supabase.upserts
         if item["table"] == "chapter_translations" and item["payload"].get("translation_status") == "failed"
     ]
-    assert failed_payloads, "Expected failed upsert payload to be recorded"
+    assert failed_payloads
     assert failed_payloads[0]["title"] == ""
     assert failed_payloads[0]["content"] == ""
 
 
 @pytest.mark.asyncio
-async def test_upsert_chapter_translations_quality_gate_blocks_publish(monkeypatch):
+async def test_upsert_chapter_translations_repairs_and_publishes(monkeypatch):
     class FakeExecuteResult:
         def __init__(self, data):
             self.data = data
@@ -316,17 +365,14 @@ async def test_upsert_chapter_translations_quality_gate_blocks_publish(monkeypat
         def __init__(self, table_name, store):
             self.table_name = table_name
             self.store = store
-            self.filters = {}
 
         def select(self, _fields):
             return self
 
-        def eq(self, key, value):
-            self.filters[key] = value
+        def eq(self, _key, _value):
             return self
 
-        def in_(self, key, value):
-            self.filters[key] = value
+        def in_(self, _key, _value):
             return self
 
         def limit(self, _value):
@@ -353,45 +399,52 @@ async def test_upsert_chapter_translations_quality_gate_blocks_publish(monkeypat
     monkeypatch.setattr(main, "CHAPTER_TRANSLATION_ALIGNMENT_SUPPORTED", True)
 
     async def fake_translate_chapter_payloads_with_ai(**_kwargs):
-        source_text = "S1. S2."
-        translated_text = "T1. T2. T3. T4."
         return {
             "en": {
-                "title": "Bad structure",
-                "content": translated_text,
+                "title": "Bad draft",
+                "content": "Sentence 1. Sentence 2. Sentence 3. Sentence 4.",
                 "sentence_alignment": main.build_chapter_sentence_alignment(
-                    source_text=source_text,
-                    translated_text=translated_text,
+                    source_text="Doan 1.\n\nDoan 2.",
+                    translated_text="Sentence 1. Sentence 2. Sentence 3. Sentence 4.",
                 ),
             }
         }
 
+    async def fake_refine_chapter_translation_with_ai(**_kwargs):
+        return {
+            "title": "Fixed draft",
+            "content": "Sentence 1.\n\nSentence 2.",
+            "sentence_alignment": main.build_chapter_sentence_alignment(
+                source_text="Doan 1.\n\nDoan 2.",
+                translated_text="Sentence 1.\n\nSentence 2.",
+            ),
+        }
+
     monkeypatch.setattr(main, "translate_chapter_payloads_with_ai", fake_translate_chapter_payloads_with_ai)
+    monkeypatch.setattr(main, "refine_chapter_translation_with_ai", fake_refine_chapter_translation_with_ai)
 
     result = await main.upsert_chapter_translations(
         chapter_row={"id": 999, "chapter_number": 900, "title": "Chuong 900"},
         title="Chuong 900",
-        content="S1. S2.",
+        content="Doan 1.\n\nDoan 2.",
         locales=["en"],
     )
 
-    assert result["translated_locales"] == []
-    assert result["failed_translations"]
-    assert result["failed_translations"][0]["status_code"] == 422
-    assert "Quality gate blocked publish" in result["failed_translations"][0]["detail"]
+    assert result["translated_locales"] == ["en"]
+    assert result["failed_translations"] == []
 
-    failed_payloads = [
+    published_payloads = [
         item["payload"]
         for item in fake_supabase.upserts
-        if item["table"] == "chapter_translations" and item["payload"].get("translation_status") == "failed"
+        if item["table"] == "chapter_translations" and item["payload"].get("translation_status") == "published"
     ]
-    assert failed_payloads
-    assert failed_payloads[-1]["title"] == "Bad structure"
-    assert failed_payloads[-1]["content"] == "T1. T2. T3. T4."
+    assert published_payloads
+    assert published_payloads[-1]["title"] == "Fixed draft"
+    assert published_payloads[-1]["content"] == "Sentence 1.\n\nSentence 2."
 
 
 @pytest.mark.asyncio
-async def test_improve_chapter_translations_quality_gate_blocks_publish(monkeypatch):
+async def test_import_manual_chapter_translation_publishes_when_gate_passes(monkeypatch):
     class FakeExecuteResult:
         def __init__(self, data):
             self.data = data
@@ -400,17 +453,11 @@ async def test_improve_chapter_translations_quality_gate_blocks_publish(monkeypa
         def __init__(self, table_name, store):
             self.table_name = table_name
             self.store = store
-            self.filters = {}
 
         def select(self, _fields):
             return self
 
-        def eq(self, key, value):
-            self.filters[key] = value
-            return self
-
-        def in_(self, key, value):
-            self.filters[key] = value
+        def eq(self, _key, _value):
             return self
 
         def limit(self, _value):
@@ -418,22 +465,7 @@ async def test_improve_chapter_translations_quality_gate_blocks_publish(monkeypa
 
         def execute(self):
             if self.table_name == "chapter_translations":
-                return FakeExecuteResult(
-                    [
-                        {
-                            "locale": "en",
-                            "attempt_count": 0,
-                            "title": "Current title",
-                            "content": "S1. S2.",
-                            "summary": "S1. S2.",
-                            "translated_at": None,
-                            "sentence_alignment": main.build_chapter_sentence_alignment(
-                                source_text="S1. S2.",
-                                translated_text="S1. S2.",
-                            ),
-                        }
-                    ]
-                )
+                return FakeExecuteResult([])
             return FakeExecuteResult([])
 
         def upsert(self, payload, on_conflict=None):
@@ -451,37 +483,21 @@ async def test_improve_chapter_translations_quality_gate_blocks_publish(monkeypa
     monkeypatch.setattr(main, "supabase", fake_supabase)
     monkeypatch.setattr(main, "CHAPTER_TRANSLATION_ALIGNMENT_SUPPORTED", True)
 
-    async def fake_refine_chapter_translation_with_ai(**_kwargs):
-        source_text = "S1. S2."
-        improved_text = "T1. T2. T3. T4."
-        return {
-            "title": "Improved but blocked",
-            "content": improved_text,
-            "sentence_alignment": main.build_chapter_sentence_alignment(
-                source_text=source_text,
-                translated_text=improved_text,
-            ),
-        }
-
-    monkeypatch.setattr(main, "refine_chapter_translation_with_ai", fake_refine_chapter_translation_with_ai)
-
-    result = await main.improve_chapter_translations(
+    result = await main.import_manual_chapter_translation(
         chapter_row={"id": 999, "chapter_number": 900, "title": "Chuong 900"},
-        title="Chuong 900",
-        content="S1. S2.",
-        locales=["en"],
+        source_title="Chuong 900",
+        source_content="Doan 1.\n\nDoan 2.",
+        locale="en",
+        translated_title="Imported draft",
+        translated_content="Sentence 1.\n\nSentence 2.",
     )
 
-    assert result["translated_locales"] == []
-    assert result["failed_translations"]
-    assert result["failed_translations"][0]["status_code"] == 422
-    assert "Quality gate blocked publish" in result["failed_translations"][0]["detail"]
-
-    failed_payloads = [
+    assert result["translated_locales"] == ["en"]
+    assert result["failed_translations"] == []
+    published_payloads = [
         item["payload"]
         for item in fake_supabase.upserts
-        if item["table"] == "chapter_translations" and item["payload"].get("translation_status") == "failed"
+        if item["table"] == "chapter_translations" and item["payload"].get("translation_status") == "published"
     ]
-    assert failed_payloads
-    assert failed_payloads[-1]["title"] == "Improved but blocked"
-    assert failed_payloads[-1]["content"] == "T1. T2. T3. T4."
+    assert published_payloads
+    assert published_payloads[-1]["translation_source"] == "manual_import"

@@ -183,30 +183,19 @@ TRANSLATION_LOCALE_LABELS = {
 TRANSLATION_GLOSSARY_PATH = os.path.join(current_dir, "translation_glossary.json")
 DEFAULT_TRANSLATION_MODELS = [
     "gemini-2.5-flash-lite",
-    "gemini-3.1-flash-lite-preview",
-    "gemma-3n-1b-it",
-    "gemma-3n-e2b-it",
-    "gemma-3-4b-it",
-    "gemma-3-12b-it",
-    "gemma-3-27b-it",
-    "gemini-3-flash-preview",
     "gemini-2.5-flash",
+    "gemini-3.1-flash-lite-preview",
+    "gemini-3-flash-preview",
 ]
 BULK_TRANSLATION_MODEL_FALLBACK = "gemini-2.5-flash-lite"
 QUALITY_TRANSLATION_MODEL_FALLBACK = "gemini-2.5-flash"
 TRANSLATION_MODEL_FALLBACK = BULK_TRANSLATION_MODEL_FALLBACK
 MODEL_PRIORITY = {model: index for index, model in enumerate(DEFAULT_TRANSLATION_MODELS)}
 MODEL_MIN_INTERVAL_SECONDS = {
-    "gemini-3-flash-preview": 12.5,
-    "gemini-2.5-flash": 12.5,
     "gemini-2.5-flash-lite": 6.5,
+    "gemini-2.5-flash": 12.5,
     "gemini-3.1-flash-lite-preview": 4.5,
-    "gemini-robotics-er-1.5-preview": 6.5,
-    "gemma-3-27b-it": 2.5,
-    "gemma-3-12b-it": 2.5,
-    "gemma-3-4b-it": 2.5,
-    "gemma-3n-e2b-it": 2.5,
-    "gemma-3n-1b-it": 2.5,
+    "gemini-3-flash-preview": 12.5,
 }
 TRANSLATION_MAX_OUTPUT_TOKENS = 65536
 TRANSLATION_MULTI_LOCALE_MAX_SOURCE_CHARS = 4000
@@ -216,6 +205,7 @@ TRANSLATION_PUBLISH_MIN_SENTENCE_RATIO = 0.67
 TRANSLATION_PUBLISH_MAX_SENTENCE_RATIO = 1.5
 TRANSLATION_PUBLISH_MAX_BLOCK_DELTA = 8
 TRANSLATION_PUBLISH_MIN_ALIGNMENT_ENTRIES = 1
+TRANSLATION_REPAIR_MAX_ATTEMPTS = 2
 VIETNAMESE_TEXT_HINTS = set("ăâêôơưđàáảãạằắẳẵặầấẩẫậèéẻẽẹềếểễệìíỉĩịòóỏõọồốổỗộờớởỡợùúủũụừứửữựỳýỷỹỵĂÂÊÔƠƯĐÀÁẢÃẠẰẮẲẴẶẦẤẨẪẬÈÉẺẼẸỀẾỂỄỆÌÍỈĨỊÒÓỎÕỌỒỐỔỖỘỜỚỞỠỢÙÚỦŨỤỪỨỬỮỰỲÝỶỸỴ")
 TRANSLATION_RATE_LIMIT_STATE: dict[str, float] = {}
 TRANSLATION_RATE_LIMIT_LOCK = asyncio.Lock()
@@ -417,6 +407,13 @@ def split_text_into_chunk_count(source_text: str, chunk_count: int) -> list[str]
     return ["\n\n".join(group).strip() for group in groups[:chunk_count]]
 
 
+def _count_paragraphs_for_translation_prompt(text: Optional[str]) -> int:
+    plain = _strip_html_for_alignment(text)
+    if not plain:
+        return 0
+    return len([block for block in re.split(r"\n\s*\n+", plain) if block.strip()])
+
+
 def _strip_html_for_alignment(text: Optional[str]) -> str:
     if not text:
         return ""
@@ -552,8 +549,86 @@ def _split_text_blocks_for_translation_quality(text: Optional[str]) -> list[str]
     return [line.strip() for line in plain_text.split("\n") if line.strip()]
 
 
+def _join_translation_blocks(blocks: list[str]) -> str:
+    return "\n\n".join(block.strip() for block in blocks if block and block.strip()).strip()
+
+
+def _split_block_for_target_count(block: str) -> tuple[str, str]:
+    normalized = (block or "").strip()
+    if not normalized:
+        return "", ""
+
+    sentences = [sentence.strip() for sentence in _split_sentences_for_alignment(normalized) if sentence.strip()]
+    if len(sentences) >= 2:
+        midpoint = max(1, len(sentences) // 2)
+        left = " ".join(sentences[:midpoint]).strip()
+        right = " ".join(sentences[midpoint:]).strip()
+        if left and right:
+            return left, right
+
+    lines = [line.strip() for line in normalized.split("\n") if line.strip()]
+    if len(lines) >= 2:
+        midpoint = max(1, len(lines) // 2)
+        left = "\n".join(lines[:midpoint]).strip()
+        right = "\n".join(lines[midpoint:]).strip()
+        if left and right:
+            return left, right
+
+    midpoint = max(1, len(normalized) // 2)
+    cut = normalized.rfind(" ", 0, midpoint + 1)
+    if cut < max(1, midpoint // 2):
+        cut = midpoint
+    return normalized[:cut].strip(), normalized[cut:].strip()
+
+
+def _rebalance_translation_blocks_to_source(source_text: str, translated_text: str) -> str:
+    source_block_count = len(_split_text_blocks_for_translation_quality(source_text))
+    translated_blocks = _split_text_blocks_for_translation_quality(translated_text)
+    if source_block_count <= 0:
+        return _strip_html_for_alignment(translated_text)
+    if not translated_blocks:
+        return ""
+    if len(translated_blocks) == source_block_count:
+        return _join_translation_blocks(translated_blocks)
+
+    if len(translated_blocks) > source_block_count:
+        merged = split_text_into_chunk_count(_join_translation_blocks(translated_blocks), source_block_count)
+        return _join_translation_blocks(merged)
+
+    adjusted_blocks = translated_blocks[:]
+    while len(adjusted_blocks) < source_block_count:
+        split_index = max(range(len(adjusted_blocks)), key=lambda idx: len(adjusted_blocks[idx]))
+        left, right = _split_block_for_target_count(adjusted_blocks[split_index])
+        if not left or not right or left == adjusted_blocks[split_index] or right == adjusted_blocks[split_index]:
+            break
+        adjusted_blocks = adjusted_blocks[:split_index] + [left, right] + adjusted_blocks[split_index + 1 :]
+
+    if len(adjusted_blocks) < source_block_count:
+        repartitioned = split_text_into_chunk_count(_join_translation_blocks(adjusted_blocks), source_block_count)
+        adjusted_blocks = [block.strip() for block in repartitioned if block.strip()]
+
+    return _join_translation_blocks(adjusted_blocks)
+
+
 def _count_vietnamese_hint_chars(text: Optional[str]) -> int:
     return sum(1 for ch in _strip_html_for_alignment(text) if ch in VIETNAMESE_TEXT_HINTS)
+
+
+def _count_suspect_vietnamese_tokens(text: Optional[str]) -> int:
+    cleaned = _strip_html_for_alignment(text)
+    if not cleaned:
+        return 0
+
+    score = 0
+    for token in re.findall(r"\b[\w\u00C0-\u024FĐđ]+\b", cleaned):
+        if not any(ch in VIETNAMESE_TEXT_HINTS for ch in token):
+            continue
+        if token.isupper():
+            continue
+        if token[:1].isupper():
+            continue
+        score += 1
+    return score
 
 
 def _count_cjk_chars(text: Optional[str]) -> int:
@@ -574,11 +649,14 @@ def _translation_locale_mismatch_score(text: Optional[str], locale: str) -> int:
         return 0
 
     vi_count = _count_vietnamese_hint_chars(cleaned)
+    suspect_vi_tokens = _count_suspect_vietnamese_tokens(cleaned)
     cjk_count = _count_cjk_chars(cleaned)
     kana_count = _count_kana_chars(cleaned)
 
     if locale == "en":
-        if vi_count >= 8:
+        if suspect_vi_tokens >= 4:
+            return suspect_vi_tokens * 8
+        if vi_count >= 60:
             return vi_count
         if cjk_count >= 12:
             return cjk_count
@@ -676,6 +754,50 @@ def _format_translation_publish_gate_error(locale: str, report: dict[str, Any]) 
         "Bản dịch này có nguy cơ làm đối chiếu Gốc VI không ổn định nên chưa được publish."
     )
 
+def _build_translation_repair_notes(locale: str, report: dict[str, Any]) -> str:
+    reasons = ", ".join(report.get("reasons") or []) or "unknown"
+    return (
+        f"Target locale: {normalize_locale(locale)}.\n"
+        f"Current draft failed quality gate for: {reasons}.\n"
+        f"Source sentence count: {report.get('source_sentence_count')}.\n"
+        f"Current sentence count: {report.get('translated_sentence_count')}.\n"
+        f"Current sentence ratio: {report.get('sentence_ratio')}.\n"
+        f"Source paragraph/block count: {report.get('source_block_count')}.\n"
+        f"Current paragraph/block count: {report.get('translated_block_count')}.\n"
+        f"Current block delta: {report.get('block_delta')}.\n"
+        f"Locale mismatch score: {report.get('locale_mismatch_score')}.\n"
+        "Rewrite the draft so it is fully in the target locale, preserves meaning, and keeps paragraph and sentence coverage close to the source."
+    )
+
+
+def _prepare_translation_candidate_for_publish(
+    *,
+    source_text: str,
+    translated_text: str,
+    target_locale: str,
+    source_chunks: Optional[list[str]] = None,
+    translated_chunks: Optional[list[str]] = None,
+) -> dict[str, Any]:
+    normalized_content = _rebalance_translation_blocks_to_source(source_text, translated_text)
+    sentence_alignment = build_chapter_sentence_alignment(
+        source_text=source_text,
+        translated_text=normalized_content,
+        source_chunks=source_chunks,
+        translated_chunks=translated_chunks,
+    )
+    gate_report = _build_translation_publish_gate_report(
+        source_text=source_text,
+        translated_text=normalized_content,
+        target_locale=target_locale,
+        sentence_alignment=sentence_alignment,
+    )
+    return {
+        "content": normalized_content,
+        "sentence_alignment": sentence_alignment,
+        "gate_report": gate_report,
+    }
+
+
 def parse_multilocale_translation_payload(
     raw_text: str,
     target_locales: list[str],
@@ -767,6 +889,7 @@ def normalize_model_catalog(raw_catalog, fallback_model: str) -> list[str]:
         catalog = DEFAULT_TRANSLATION_MODELS.copy()
     else:
         catalog.extend(DEFAULT_TRANSLATION_MODELS)
+    catalog = [item for item in catalog if item.startswith("gemini-")]
     return list(dict.fromkeys(catalog))
 
 def prioritize_model_catalog(catalog: list[str], preferred_model: str) -> list[str]:
@@ -1123,8 +1246,8 @@ async def resolve_ai_settings_for_translation(translation_mode: str = "bulk") ->
                 prioritize_model_catalog(model_catalog, model_name),
                 normalize_api_key_catalog(settings.data.get("ai_api_keys"), api_key),
             )
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"DEBUG: resolve_ai_settings_for_translation error: {str(e)}")
     fallback_key = os.getenv("GEMINI_API_KEY", "")
     fallback_model = QUALITY_TRANSLATION_MODEL_FALLBACK if translation_mode == "quality" else BULK_TRANSLATION_MODEL_FALLBACK
     return (
@@ -1283,6 +1406,8 @@ async def translate_chapter_payloads_with_ai(
             context_label=context_label,
             chunk_index=chunk_index,
             chunk_count=len(content_chunks),
+            source_paragraph_count=_count_paragraphs_for_translation_prompt(content_chunk),
+            source_sentence_count=_filtered_sentence_count_for_translation_quality(content_chunk),
         )
 
         chunk_payload = await generate_structured_translation_payload(
@@ -1329,6 +1454,7 @@ async def refine_chapter_translation_with_ai(
     current_title: str,
     current_content: str,
     context_label: str,
+    repair_notes: Optional[str] = None,
 ) -> dict[str, Any]:
     glossary_prompt = build_glossary_prompt()
     schema = {
@@ -1372,6 +1498,9 @@ async def refine_chapter_translation_with_ai(
                 context_label=context_label,
                 chunk_index=chunk_index,
                 chunk_count=len(source_chunks),
+                source_paragraph_count=_count_paragraphs_for_translation_prompt(source_chunk),
+                source_sentence_count=_filtered_sentence_count_for_translation_quality(source_chunk),
+                repair_notes=repair_notes,
             ),
             response_json_schema=schema,
             parser=parse_refined_payload,
@@ -1396,6 +1525,152 @@ async def refine_chapter_translation_with_ai(
             source_chunks=source_chunks,
             translated_chunks=refined_content_parts,
         ),
+    }
+
+
+async def repair_chapter_translation_candidate_until_publishable(
+    *,
+    source_title: str,
+    source_content: str,
+    chapter_number: int,
+    target_locale: str,
+    candidate_title: str,
+    candidate_content: str,
+    source_chunks: Optional[list[str]] = None,
+) -> dict[str, Any]:
+    prepared = _prepare_translation_candidate_for_publish(
+        source_text=source_content,
+        translated_text=candidate_content,
+        target_locale=target_locale,
+        source_chunks=source_chunks,
+    )
+    if prepared["gate_report"]["passed"]:
+        return {
+            "title": candidate_title.strip(),
+            "content": prepared["content"],
+            "sentence_alignment": prepared["sentence_alignment"],
+            "gate_report": prepared["gate_report"],
+        }
+
+    repaired_title = candidate_title.strip()
+    repaired_content = prepared["content"]
+    gate_report = prepared["gate_report"]
+
+    for attempt_index in range(1, TRANSLATION_REPAIR_MAX_ATTEMPTS + 1):
+        repaired_payload = await refine_chapter_translation_with_ai(
+            source_title=source_title,
+            source_content=source_content,
+            source_locale=DEFAULT_LOCALE,
+            target_locale=target_locale,
+            current_title=repaired_title,
+            current_content=repaired_content,
+            context_label=f"chapter-repair-{chapter_number}-{target_locale}-attempt-{attempt_index}",
+            repair_notes=_build_translation_repair_notes(target_locale, gate_report),
+        )
+        repaired_title = str(repaired_payload.get("title") or repaired_title).strip() or repaired_title
+        repaired_content = str(repaired_payload.get("content") or repaired_content).strip() or repaired_content
+        prepared = _prepare_translation_candidate_for_publish(
+            source_text=source_content,
+            translated_text=repaired_content,
+            target_locale=target_locale,
+            source_chunks=source_chunks,
+        )
+        gate_report = prepared["gate_report"]
+        if gate_report["passed"]:
+            return {
+                "title": repaired_title,
+                "content": prepared["content"],
+                "sentence_alignment": prepared["sentence_alignment"],
+                "gate_report": gate_report,
+            }
+
+    return {
+        "title": repaired_title,
+        "content": prepared["content"],
+        "sentence_alignment": prepared["sentence_alignment"],
+        "gate_report": gate_report,
+    }
+
+
+async def import_manual_chapter_translation(
+    chapter_row: dict,
+    source_title: str,
+    source_content: str,
+    locale: str,
+    translated_title: str,
+    translated_content: str,
+) -> dict[str, Any]:
+    target_locale = normalize_locale(locale)
+    if target_locale == DEFAULT_LOCALE or target_locale not in TRANSLATION_TARGET_LOCALES:
+        raise HTTPException(status_code=400, detail="Unsupported target locale for chapter import")
+
+    clean_title = str(translated_title or "").strip()
+    clean_content = str(translated_content or "").strip()
+    if not clean_title or not clean_content:
+        raise HTTPException(status_code=400, detail="Imported translation title/content must not be empty")
+
+    supports_alignment = chapter_translation_alignment_supported()
+    content_hash = build_content_hash(source_content)
+    translated_at = datetime.now(timezone.utc).isoformat()
+    existing_select_fields = "locale, attempt_count, title, content, summary, translated_at"
+    if supports_alignment:
+        existing_select_fields += ", sentence_alignment"
+    existing_resp = (
+        supabase.table("chapter_translations")
+        .select(existing_select_fields)
+        .eq("chapter_id", chapter_row["id"])
+        .eq("locale", target_locale)
+        .limit(1)
+        .execute()
+    )
+    existing_row = (existing_resp.data or [{}])[0] if existing_resp.data else {}
+    attempt_count = int(existing_row.get("attempt_count") or 0) + 1
+
+    prepared_payload = _prepare_translation_candidate_for_publish(
+        source_text=source_content,
+        translated_text=clean_content,
+        target_locale=target_locale,
+        source_chunks=chunk_translation_source_text(source_content),
+    )
+    gate_report = prepared_payload["gate_report"]
+
+    payload = {
+        "chapter_id": chapter_row["id"],
+        "locale": target_locale,
+        "title": clean_title,
+        "content": prepared_payload["content"],
+        "summary": prepared_payload["content"][:280],
+        "translation_source": "manual_import",
+        "content_hash": content_hash,
+        "updated_at": translated_at,
+        "attempt_count": attempt_count,
+    }
+    if supports_alignment:
+        payload["sentence_alignment"] = prepared_payload["sentence_alignment"]
+
+    if gate_report["passed"]:
+        payload["translation_status"] = "published"
+        payload["translated_at"] = translated_at
+        payload["last_error"] = None
+        supabase.table("chapter_translations").upsert(payload, on_conflict="chapter_id,locale").execute()
+        return {
+            "translated_locales": [target_locale],
+            "failed_translations": [],
+        }
+
+    payload["translation_status"] = "failed"
+    payload["last_error"] = _format_translation_publish_gate_error(target_locale, gate_report)
+    payload["translated_at"] = existing_row.get("translated_at")
+    supabase.table("chapter_translations").upsert(payload, on_conflict="chapter_id,locale").execute()
+    return {
+        "translated_locales": [],
+        "failed_translations": [
+            {
+                "locale": target_locale,
+                "status_code": 422,
+                "detail": payload["last_error"],
+            }
+        ],
     }
 
 async def upsert_chapter_translations(
@@ -1526,11 +1801,11 @@ async def upsert_chapter_translations(
     translated_locales = []
     failed_translations = []
     translated_at = datetime.now(timezone.utc).isoformat()
+    source_chunks = chunk_translation_source_text(content)
     for locale in target_locales:
         locale_payload = translated_payloads.get(locale) or {}
         translated_title = str(locale_payload.get("title") or "").strip()
         translated_content = str(locale_payload.get("content") or "").strip()
-        sentence_alignment = locale_payload.get("sentence_alignment")
         if not translated_title or not translated_content:
             detail = f"Missing translated chapter payload for locale {locale}"
             supabase.table("chapter_translations").upsert(
@@ -1545,12 +1820,19 @@ async def upsert_chapter_translations(
             failed_translations.append({"locale": locale, "status_code": 502, "detail": detail})
             continue
 
-        gate_report = _build_translation_publish_gate_report(
-            source_text=content,
-            translated_text=translated_content,
+        finalized_payload = await repair_chapter_translation_candidate_until_publishable(
+            source_title=title,
+            source_content=content,
+            chapter_number=chapter_row["chapter_number"],
             target_locale=locale,
-            sentence_alignment=sentence_alignment,
+            candidate_title=translated_title,
+            candidate_content=translated_content,
+            source_chunks=source_chunks,
         )
+        translated_title = finalized_payload["title"]
+        translated_content = finalized_payload["content"]
+        sentence_alignment = finalized_payload["sentence_alignment"]
+        gate_report = finalized_payload["gate_report"]
         if not gate_report["passed"]:
             detail = _format_translation_publish_gate_error(locale, gate_report)
             supabase.table("chapter_translations").upsert(
@@ -1621,6 +1903,7 @@ async def improve_chapter_translations(chapter_row: dict, title: str, content: s
     content_hash = build_content_hash(content)
     translated_locales: list[str] = []
     failed_translations: list[dict] = []
+    source_chunks = chunk_translation_source_text(content)
 
     for locale in target_locales:
         existing_row = existing_rows.get(locale) or {}
@@ -1674,12 +1957,18 @@ async def improve_chapter_translations(chapter_row: dict, title: str, content: s
             if not improved_title or not improved_content:
                 raise ValueError(f"Missing refined chapter payload for locale {locale}")
 
-            gate_report = _build_translation_publish_gate_report(
-                source_text=content,
-                translated_text=improved_content,
+            finalized_payload = await repair_chapter_translation_candidate_until_publishable(
+                source_title=title,
+                source_content=content,
+                chapter_number=chapter_row["chapter_number"],
                 target_locale=locale,
-                sentence_alignment=improved_payload.get("sentence_alignment"),
+                candidate_title=improved_title,
+                candidate_content=improved_content,
+                source_chunks=source_chunks,
             )
+            improved_title = finalized_payload["title"]
+            improved_content = finalized_payload["content"]
+            gate_report = finalized_payload["gate_report"]
             if not gate_report["passed"]:
                 detail = _format_translation_publish_gate_error(locale, gate_report)
                 failed_payload = {
@@ -1696,7 +1985,7 @@ async def improve_chapter_translations(chapter_row: dict, title: str, content: s
                     "attempt_count": attempt_count,
                 }
                 if supports_alignment:
-                    failed_payload["sentence_alignment"] = improved_payload.get("sentence_alignment")
+                    failed_payload["sentence_alignment"] = finalized_payload["sentence_alignment"]
                 supabase.table("chapter_translations").upsert(
                     failed_payload,
                     on_conflict="chapter_id,locale",
@@ -1725,7 +2014,7 @@ async def improve_chapter_translations(chapter_row: dict, title: str, content: s
                 "updated_at": translated_at,
             }
             if supports_alignment:
-                success_payload["sentence_alignment"] = improved_payload.get("sentence_alignment")
+                success_payload["sentence_alignment"] = finalized_payload["sentence_alignment"]
             supabase.table("chapter_translations").upsert(
                 success_payload,
                 on_conflict="chapter_id,locale",
@@ -2978,6 +3267,32 @@ class AdminChapterUpdate(BaseModel):
 
     bgm_title: Optional[str] = None
 
+class AdminImportChapterTranslationRequest(BaseModel):
+
+    locale: str
+
+    title: str
+
+    content: str
+
+class AdminImportChapterTranslationsRequest(BaseModel):
+
+    translations: dict[str, dict[str, str]]
+
+class AdminBatchImportChapterTranslationItem(BaseModel):
+
+    chapter_number: int
+
+    locale: str
+
+    title: str
+
+    content: str
+
+class AdminBatchImportChapterTranslationsRequest(BaseModel):
+
+    items: list[AdminBatchImportChapterTranslationItem]
+
 @app.post("/api/admin/chapters", summary="[Admin] Thêm chương mới")
 
 async def admin_create_chapter(
@@ -3291,6 +3606,181 @@ async def admin_improve_chapter_translation_quality(
         "skipped_locales": sorted(set(skipped_locales)),
     }
 
+
+@app.post("/api/admin/chapters/{chapter_number}/import-translation", summary="[Admin] Import manual chapter translation")
+async def admin_import_chapter_translation(
+    chapter_number: int,
+    body: AdminImportChapterTranslationRequest,
+    authorization: Optional[str] = Header(None),
+):
+    await verify_admin(authorization)
+
+    chapter_resp = (
+        supabase.table("chapters")
+        .select("*")
+        .eq("chapter_number", chapter_number)
+        .single()
+        .execute()
+    )
+    if not chapter_resp.data:
+        raise HTTPException(status_code=404, detail="Chapter not found")
+
+    chapter_row = chapter_resp.data
+    source_content = fetch_r2_content(chapter_row["content_url"])
+    result = await import_manual_chapter_translation(
+        chapter_row=chapter_row,
+        source_title=chapter_row["title"],
+        source_content=source_content,
+        locale=body.locale,
+        translated_title=body.title,
+        translated_content=body.content,
+    )
+    return {
+        "message": "Manual chapter translation imported",
+        "chapter_number": chapter_number,
+        "translated_locales": result["translated_locales"],
+        "failed_translations": result["failed_translations"],
+    }
+
+
+@app.post("/api/admin/chapters/{chapter_number}/import-translations", summary="[Admin] Import manual chapter translations for multiple locales")
+async def admin_import_chapter_translations(
+    chapter_number: int,
+    body: AdminImportChapterTranslationsRequest,
+    authorization: Optional[str] = Header(None),
+):
+    await verify_admin(authorization)
+
+    chapter_resp = (
+        supabase.table("chapters")
+        .select("*")
+        .eq("chapter_number", chapter_number)
+        .single()
+        .execute()
+    )
+    if not chapter_resp.data:
+        raise HTTPException(status_code=404, detail="Chapter not found")
+
+    chapter_row = chapter_resp.data
+    source_content = fetch_r2_content(chapter_row["content_url"])
+    translated_locales: list[str] = []
+    failed_translations: list[dict[str, Any]] = []
+
+    for locale, payload in (body.translations or {}).items():
+        if not isinstance(payload, dict):
+            failed_translations.append({"locale": locale, "status_code": 400, "detail": "Invalid payload for locale"})
+            continue
+        result = await import_manual_chapter_translation(
+            chapter_row=chapter_row,
+            source_title=chapter_row["title"],
+            source_content=source_content,
+            locale=locale,
+            translated_title=str(payload.get("title") or ""),
+            translated_content=str(payload.get("content") or ""),
+        )
+        translated_locales.extend(result.get("translated_locales") or [])
+        failed_translations.extend(result.get("failed_translations") or [])
+
+    return {
+        "message": "Manual chapter translations imported",
+        "chapter_number": chapter_number,
+        "translated_locales": sorted(set(translated_locales)),
+        "failed_translations": failed_translations,
+    }
+
+
+@app.post("/api/admin/chapters/import-translations-batch", summary="[Admin] Batch import manual chapter translations")
+async def admin_batch_import_chapter_translations(
+    body: AdminBatchImportChapterTranslationsRequest,
+    authorization: Optional[str] = Header(None),
+):
+    await verify_admin(authorization)
+
+    items = list(body.items or [])
+    if not items:
+        return {
+            "message": "No batch import items provided",
+            "translated_count": 0,
+            "failed_count": 0,
+            "translated_chapters": [],
+            "failed_chapters": [],
+        }
+
+    chapter_numbers = sorted({int(item.chapter_number) for item in items if int(item.chapter_number) > 0})
+    chapter_rows_resp = (
+        supabase.table("chapters")
+        .select("*")
+        .in_("chapter_number", chapter_numbers)
+        .execute()
+    )
+    chapter_map = {
+        int(row["chapter_number"]): row
+        for row in (chapter_rows_resp.data or [])
+        if row.get("chapter_number") is not None
+    }
+    source_content_map: dict[int, str] = {}
+    translated_chapters: list[dict[str, Any]] = []
+    failed_chapters: list[dict[str, Any]] = []
+
+    grouped_items: dict[int, list[AdminBatchImportChapterTranslationItem]] = {}
+    for item in items:
+        grouped_items.setdefault(int(item.chapter_number), []).append(item)
+
+    for chapter_num, chapter_items in grouped_items.items():
+        chapter_row = chapter_map.get(chapter_num)
+        if not chapter_row:
+            failed_chapters.append(
+                {
+                    "chapter_number": chapter_num,
+                    "detail": "Chapter not found",
+                }
+            )
+            continue
+
+        if chapter_num not in source_content_map:
+            source_content_map[chapter_num] = fetch_r2_content(chapter_row["content_url"])
+        source_content = source_content_map[chapter_num]
+
+        chapter_translated_locales: list[str] = []
+        chapter_failures: list[str] = []
+        for item in chapter_items:
+            result = await import_manual_chapter_translation(
+                chapter_row=chapter_row,
+                source_title=chapter_row["title"],
+                source_content=source_content,
+                locale=item.locale,
+                translated_title=item.title,
+                translated_content=item.content,
+            )
+            chapter_translated_locales.extend(result.get("translated_locales") or [])
+            chapter_failures.extend(
+                f"{failure.get('locale')}: {failure.get('detail') or 'Import failed'}"
+                for failure in (result.get("failed_translations") or [])
+            )
+
+        if chapter_translated_locales:
+            translated_chapters.append(
+                {
+                    "chapter_number": chapter_num,
+                    "translated_locales": sorted(set(chapter_translated_locales)),
+                }
+            )
+        if chapter_failures:
+            failed_chapters.append(
+                {
+                    "chapter_number": chapter_num,
+                    "detail": "\n".join(chapter_failures),
+                }
+            )
+
+    return {
+        "message": "Batch manual chapter import completed",
+        "translated_count": len(translated_chapters),
+        "failed_count": len(failed_chapters),
+        "translated_chapters": translated_chapters,
+        "failed_chapters": failed_chapters,
+    }
+
 class AdminBatchTranslateRequest(BaseModel):
     start_chapter: int = 1
     end_chapter: int
@@ -3301,6 +3791,7 @@ class AdminBatchImproveQualityRequest(BaseModel):
     end_chapter: int
     only_unrefined: bool = True
     force: bool = False
+
 
 class AdminChapterStatusRequest(BaseModel):
     chapter_numbers: list[int]

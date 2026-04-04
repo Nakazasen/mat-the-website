@@ -36,6 +36,8 @@ def build_chapter_multilocale_user_prompt(
     context_label: str,
     chunk_index: int,
     chunk_count: int,
+    source_paragraph_count: int,
+    source_sentence_count: int,
 ) -> str:
     return f"""
 CONTEXT: {context_label}
@@ -48,10 +50,15 @@ GLOSSARY:
 
 CHUNK INSTRUCTIONS:
 - This is chunk {chunk_index}/{chunk_count} of one chapter.
+- The source chunk contains exactly {source_paragraph_count} paragraphs.
+- The source chunk contains {source_sentence_count} sentences.
 - Always return a translated `title` for every target locale.
 - Translate the provided `content` chunk completely.
-- Preserve the source paragraph count.
+- Preserve the source paragraph count exactly: output exactly {source_paragraph_count} paragraphs.
+- Do not merge paragraphs. Do not split paragraphs.
+- Preserve paragraph boundaries and delimiter style. If the source is plain text, keep blank-line paragraph breaks. If the source uses HTML block tags, keep one block per source paragraph.
 - Keep sentence coverage close to the source and do not compress multiple source sentences into a short summary.
+- Keep sentence count close to the source. Do not expand one source sentence into many short target sentences unless the language strictly requires it.
 - Verify that no untranslated Vietnamese sentence remains in the output.
 
 SOURCE JSON:
@@ -242,7 +249,11 @@ def build_chapter_refine_user_prompt(
     context_label: str,
     chunk_index: int,
     chunk_count: int,
+    source_paragraph_count: int,
+    source_sentence_count: int,
+    repair_notes: str | None = None,
 ) -> str:
+    repair_notes_block = f"\nQUALITY GATE FEEDBACK:\n{repair_notes.strip()}\n" if repair_notes and repair_notes.strip() else ""
     return f"""
 CONTEXT: {context_label}
 SOURCE LOCALE: {source_locale}
@@ -251,9 +262,15 @@ CHUNK: {chunk_index}/{chunk_count}
 
 TASK:
 Improve the existing translation chunk. Use the source text as the authority and the current translation as editable draft text.
-Preserve names and glossary consistency. Keep the same paragraph order and the same paragraph count as the source chunk.
+The source chunk contains exactly {source_paragraph_count} paragraphs.
+The source chunk contains {source_sentence_count} sentences.
+Preserve names and glossary consistency. Keep the same paragraph order and exactly {source_paragraph_count} paragraphs.
+Do not merge paragraphs. Do not split paragraphs.
+Preserve paragraph boundaries and delimiter style. If the source is plain text, keep blank-line paragraph breaks. If the source uses HTML block tags, keep one block per source paragraph.
 Stay close to the source sentence coverage and do not summarize.
+Keep sentence count close to the source unless the language strictly requires a small difference.
 Do not leave untranslated Vietnamese sentences behind.
+If the current draft violates the quality gate, fix the violation directly instead of paraphrasing around it.{repair_notes_block}
 
 GLOSSARY:
 {glossary_prompt}
