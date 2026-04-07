@@ -96,6 +96,8 @@ export default function Header() {
         window.location.reload();
     };
 
+    const isReadingChapter = pathname.match(/\/chapters\/[^/]+$/) !== null;
+
     const navLinks = [
         { id: "home", href: "/", label: dictionary.common.home, icon: Home },
         { id: "chapters", href: "/chapters", label: dictionary.common.chapters, icon: List },
@@ -105,7 +107,8 @@ export default function Header() {
         { id: "hq", href: "/headquarters", label: dictionary.common.headquarters, icon: Zap },
         { id: "guide", href: "/huong-dan", label: dictionary.common.guide, icon: HelpCircle },
         // Only show dynamic button after mounting to prevent hydration mismatch
-        ...(mounted 
+        // and only if NOT actively viewing a specific chapter
+        ...(mounted && !isReadingChapter
             ? [lastReadChapter
                 ? {
                       id: "header-continue-button",
