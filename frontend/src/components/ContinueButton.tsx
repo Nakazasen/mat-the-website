@@ -34,7 +34,7 @@ export default function ContinueButton({
         return (
             <Link
                 href={localizePath(fallbackPath)}
-                className={`${fixedDark ? "btn-fixed-dark" : "btn-toxic"} ${className} flex items-center justify-center gap-2 px-6 py-3 text-base`}
+                className={`btn-blood ${className} flex items-center justify-center gap-2 px-6 py-3 text-base`}
             >
                 <span className="max-w-[220px] truncate sm:max-w-none">{fallbackLabel}</span>
                 <ChevronRight size={16} />
@@ -45,7 +45,7 @@ export default function ContinueButton({
     return (
         <Link
             href={localizePath(`/chapters/${history.chapter}`)}
-            className={`${fixedDark ? "btn-fixed-dark" : "btn-toxic"} ${className} flex items-center gap-2 px-6 py-3 text-base animate-pulse-slow`}
+            className={`btn-toxic ${className} flex items-center gap-2 px-6 py-3 text-base animate-pulse-slow`}
         >
             <Zap size={16} fill="currentColor" />
             <span className="max-w-[200px] truncate sm:max-w-none">

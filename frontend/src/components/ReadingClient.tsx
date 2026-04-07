@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Bookmark, ChevronLeft, ChevronRight, Facebook, Home, List, Share2 } from "lucide-react";
 
 import { useLocale } from "@/context/LocaleContext";
@@ -65,6 +66,7 @@ export default function ReadingClient({
     const backendUrl = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
     const { theme, fontSize, fontFamily } = useTheme();
     const { locale, dictionary, localizePath } = useLocale();
+    const router = useRouter();
 
     const [readingProgress, setReadingProgress] = useState(0);
     const [activeChunkIndex, setActiveChunkIndex] = useState<number | null>(null);
@@ -276,9 +278,9 @@ export default function ReadingClient({
                 return;
             }
             if (event.key === "ArrowLeft" && prevId) {
-                window.location.href = localizePath(`/chapters/${prevId}`);
+                router.push(localizePath(`/chapters/${prevId}`));
             } else if (event.key === "ArrowRight" && nextId) {
-                window.location.href = localizePath(`/chapters/${nextId}`);
+                router.push(localizePath(`/chapters/${nextId}`));
             }
         };
         window.addEventListener("keydown", handleKey);
@@ -286,7 +288,8 @@ export default function ReadingClient({
     }, [localizePath, nextId, prevId]);
 
     useEffect(() => {
-        localStorage.setItem("lastReadChapter", chapterNumber.toString());
+        const targetChapter = nextId ? nextId.toString() : chapterNumber.toString();
+        localStorage.setItem("lastReadChapter", targetChapter);
         localStorage.setItem("lastReadTitle", chapterTitle);
         localStorage.setItem("lastReadAt", new Date().toISOString());
 

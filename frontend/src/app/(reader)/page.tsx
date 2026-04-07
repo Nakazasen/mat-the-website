@@ -214,26 +214,24 @@ export default async function HomePage() {
                             ) : null}
 
                             <div className="mt-7 grid gap-3 sm:hidden">
-                                <Link href={localizedFirstChapterPath} className="btn-fixed-blood inline-flex w-full items-center justify-center gap-2 px-5 py-3 text-sm">
-                                    <BookOpen size={16} />
-                                    <span>{dictionary.home.readFirst}</span>
-                                </Link>
                                 <ContinueButton
-                                    fixedDark
-                                    fallbackPath="/chapters"
-                                    fallbackLabel={dictionary.home.viewContents}
-                                    className="!w-full !justify-center !border-white/12 !bg-black/30 !text-ash-200/80 hover:!border-white/18 hover:!bg-black/52 hover:!text-white"
+                                    fallbackPath="/chapters/1"
+                                    fallbackLabel={dictionary.common.readNow}
+                                    className="!w-full !justify-center"
                                 />
+                                <Link
+                                    href={localizedChapterListPath}
+                                    className="btn-fixed-dark inline-flex w-full items-center justify-center gap-2 px-5 py-3 text-sm !border-white/12 !bg-black/30 !text-ash-200/80 hover:!border-white/18 hover:!bg-black/52 hover:!text-white"
+                                >
+                                    <span>{dictionary.home.viewContents}</span>
+                                    <ChevronRight size={14} />
+                                </Link>
                             </div>
 
                             <div className="mt-7 hidden flex-wrap gap-3 sm:mt-8 sm:flex sm:gap-4">
-                                <Link href={localizedFirstChapterPath} className="btn-fixed-blood inline-flex items-center gap-2 px-5 py-3 text-sm sm:px-6 sm:text-base">
-                                    <BookOpen size={16} />
-                                    <span>{dictionary.home.readFirst}</span>
-                                </Link>
                                 <ContinueButton
-                                    fixedDark
-                                    className="!border-white/12 !bg-black/30 !text-ash-200/80 hover:!border-white/18 hover:!bg-black/52 hover:!text-white"
+                                    fallbackPath="/chapters/1"
+                                    fallbackLabel={dictionary.common.readNow}
                                 />
                                 <Link
                                     href={localizedChapterListPath}
@@ -462,8 +460,8 @@ export default async function HomePage() {
 
                     <div className="mt-10 flex flex-col items-center gap-4 text-center sm:mt-12">
                         <ContinueButton
-                            fixedDark
-                            className="!border-white/12 !bg-black/30 !text-ash-200/80 hover:!border-white/18 hover:!bg-black/52 hover:!text-white"
+                            fallbackPath="/chapters/1"
+                            fallbackLabel={dictionary.common.readNow}
                         />
                         <Link href={localizedFirstChapterPath} className="btn-fixed-blood inline-flex items-center gap-2 px-7 py-3 text-sm sm:px-8 sm:text-base">
                             <Zap size={16} />
