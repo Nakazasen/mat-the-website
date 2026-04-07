@@ -290,6 +290,9 @@ export default function ReadingClient({
         localStorage.setItem("lastReadTitle", chapterTitle);
         localStorage.setItem("lastReadAt", new Date().toISOString());
 
+        // Dispatch custom event to notify other components (e.g. Header)
+        window.dispatchEvent(new Event("chapter-read-updated"));
+
         const timer = setTimeout(() => {
             try {
                 const historyRaw = localStorage.getItem("readingHistory");

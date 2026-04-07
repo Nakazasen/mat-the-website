@@ -67,10 +67,16 @@ export default function Header() {
     useEffect(() => {
         if (!mounted) return;
         
-        const savedChapter = localStorage.getItem("lastReadChapter");
-        console.log("Header sync - pathname:", pathname, "savedChapter:", savedChapter);
-        setLastReadChapter(savedChapter);
-    }, [pathname, mounted]);
+        const syncChapter = () => {
+            const savedChapter = localStorage.getItem("lastReadChapter");
+            setLastReadChapter(savedChapter);
+        };
+
+        syncChapter();
+
+        window.addEventListener("chapter-read-updated", syncChapter);
+        return () => window.removeEventListener("chapter-read-updated", syncChapter);
+    }, [mounted]);
 
     const handleLogin = async () => {
         const supabase = createAdminClient();
