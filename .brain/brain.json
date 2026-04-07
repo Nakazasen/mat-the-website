@@ -2,7 +2,7 @@
   "meta": {
     "schema_version": "1.1.0",
     "awf_version": "4.0.2",
-    "last_updated": "2026-03-28T09:35:00+07:00"
+    "last_updated": "2026-03-31T23:35:00+07:00"
   },
   "project": {
     "name": "Mat The - Sinh Hoa Nguy Co",
@@ -12,6 +12,7 @@
     "status": "active",
     "rules": [
       "Luon push code moi nhat len GitHub va kich hoat lai deploy Vercel/Render sau khi chot thay doi can phat hanh.",
+      "Voi batch chapter translation, khong duoc gia dinh chapter_number lien tuc; phai uu tien max_chapter va xu ly range trong nhu no-op.",
       "Khong duoc dung Set-Content, Out-File hoac lenh ghi file tuong tu de sua source code hien co, dac biet voi file lon hoac file co Unicode. Chi duoc sua bang apply_patch de tranh mojibake va loi encoding.",
       "Neu nghi ngo file vua bi mojibake hoac encoding drift sau thao tac ghi file, phai dung ngay, doi chieu voi git HEAD va khoi phuc file sach truoc khi tiep tuc sua."
     ]
@@ -47,11 +48,12 @@
     "storage": "Cloudflare R2"
   },
   "current_focus": {
-    "area": "Translation Reliability + Reader Study UX",
-    "summary": "Session nay tap trung vao do on dinh cua AI translation va trai nghiem hoc ngoai ngu khi doc truyen. Da quet du lieu production, retranslate chon loc chapter translations bi sai locale, fix tan goc loi batch chapter title not-null khi ghi trang thai failed, them tra tu nhanh trong trang doc, va them audio floating controls cung hotkeys.",
+    "area": "Batch Translation Recovery + Audio UX + BGM Rollout",
+    "summary": "Session nay tap trung vao fix checkpoint batch translation bi ket do gap chapter 739-740, them worker resumable cho production translation, luu toc do audio qua chapter va them speed controls vao compact mobile panel, dong thoi upload/optimize BGM va gan global cho tat ca chapters.",
     "latest_commits": [
       "7324117e2b8c6a93fe047db14d4d9f09a6277c52",
-      "e538635c48ac4ffee3d4bedf4707529aa9f40553"
+      "e538635c48ac4ffee3d4bedf4707529aa9f40553",
+      "5ce4334"
     ]
   },
   "knowledge_items": {
@@ -93,6 +95,22 @@
         "detail": "Nguoi dung thuong doc sau xuong duoi trang, nen can mini-controller noi va hotkeys de play/pause/replay ma khong can keo len dau trang."
       },
       {
+        "title": "Compact mobile audio player la mot nhanh UI rieng",
+        "detail": "Them speed controls vao floating player lon chua du. Can sua rieng khuc showCompactMobilePlayer trong AudioPlayer.tsx neu muon panel nho mobile co cung tinh nang."
+      },
+      {
+        "title": "Batch translation ket o checkpoint co the la do gap chapter number",
+        "detail": "Trong project nay co gap 739-740. Neu batch resume dua tren chapter_number lien tuc, backend se gap range trong va phai coi no la no-op thay vi 404."
+      },
+      {
+        "title": "BGM local path chi co y nghia tren may local",
+        "detail": "Muon reader production phat duoc nhac nen thi file local Windows phai duoc upload len R2 de co public URL, khong the paste truc tiep C:\\... vao bgm_url."
+      },
+      {
+        "title": "Track BGM dai can trim hoac re-encode truoc khi upload",
+        "detail": "Endpoint upload audio gioi han 25MB. Track 2 tieng vuot gioi han nen can cat ngan va/hoac encode bitrate thap hon, vi du 10 phut 64kbps."
+      },
+      {
         "title": "Khong sua file source bang Set-Content tren Windows",
         "detail": "Set-Content/Out-File co the lam lech encoding, them BOM hoac gay mojibake tren file lon nhieu Unicode. Quy tac cua repo nay la chi dung apply_patch cho sua source hien co."
       }
@@ -101,6 +119,6 @@
   "git": {
     "github_user": "Nakazasen",
     "default_branch": "main",
-    "latest_pushed_commit": "e538635c48ac4ffee3d4bedf4707529aa9f40553"
+    "latest_pushed_commit": "5ce4334"
   }
 }
