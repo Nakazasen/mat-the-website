@@ -24,6 +24,7 @@ import {
 } from "react";
 
 import { useLocale } from "@/context/LocaleContext";
+import { useTheme } from "@/context/ThemeContext";
 import { getReaderLearningStats, type ReaderLearningStatsResponse } from "@/lib/reader-learning";
 
 const DESKTOP_COLLAPSED_STORAGE_KEY = "reader-study-dock-collapsed-v1";
@@ -254,6 +255,7 @@ function StudyStats({
 
 export default function ReaderStudyDock() {
     const { locale } = useLocale();
+    const { isLearningEnabled } = useTheme();
     const desktopButtonRef = useRef<HTMLButtonElement | null>(null);
     const desktopButtonMovedRef = useRef(false);
     const [stats, setStats] = useState<ReaderLearningStatsResponse | null>(null);
@@ -477,6 +479,8 @@ export default function ReaderStudyDock() {
             }));
         };
     }, [desktopCollapsed, desktopPanelWidth, isDesktop]);
+
+    if (!isLearningEnabled) return null;
 
     return (
         <>
