@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { useTheme } from '@/context/ThemeContext';
 import { BookText, BrainCircuit, Loader2, Quote, Search, Square, Volume2, X } from 'lucide-react';
 
 import type { Locale } from '@/lib/i18n/config';
@@ -64,9 +65,11 @@ export default function ReaderSentenceMode({
     containerRef,
     sourceLocale,
 }: ReaderSentenceModeProps) {
+    const { isLearningEnabled } = useTheme();
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const cacheRef = useRef<Map<string, CachedSentenceAnalysis>>(new Map());
     const suppressMobilePanelBroadcastRef = useRef(false);
+
 
     const [sentenceText, setSentenceText] = useState('');
     const [toolbarPosition, setToolbarPosition] = useState<{ top: number; left: number } | null>(null);
@@ -361,6 +364,8 @@ export default function ReaderSentenceMode({
             },
         }));
     }, [isDesktop, panelOpen]);
+
+    if (!isLearningEnabled) return null;
 
     return (
         <>

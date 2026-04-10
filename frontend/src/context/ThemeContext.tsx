@@ -12,6 +12,10 @@ interface ThemeContextType {
     setFontSize: (size: number) => void;
     fontFamily: FontFamily;
     setFontFamily: (font: FontFamily) => void;
+    isAIEnabled: boolean;
+    setIsAIEnabled: (enabled: boolean) => void;
+    isLearningEnabled: boolean;
+    setIsLearningEnabled: (enabled: boolean) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -20,6 +24,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const [theme, setThemeState] = useState<Theme>('dark');
     const [fontSize, setFontSizeState] = useState(18);
     const [fontFamily, setFontFamilyState] = useState<FontFamily>('sans');
+    const [isAIEnabled, setIsAIEnabledState] = useState(true);
+    const [isLearningEnabled, setIsLearningEnabledState] = useState(true);
     const [mounted, setMounted] = useState(false);
 
     // Initialize state from localStorage on mount
@@ -37,6 +43,16 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         const savedFontFamily = localStorage.getItem('reader-font-family') as FontFamily;
         if (savedFontFamily && ['sans', 'serif'].includes(savedFontFamily)) {
             setFontFamilyState(savedFontFamily);
+        }
+
+        const savedAI = localStorage.getItem('reader-ai-enabled');
+        if (savedAI !== null) {
+            setIsAIEnabledState(savedAI === 'true');
+        }
+
+        const savedLearning = localStorage.getItem('reader-learning-enabled');
+        if (savedLearning !== null) {
+            setIsLearningEnabledState(savedLearning === 'true');
         }
 
         setMounted(true);
@@ -57,17 +73,23 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem('reader-theme', theme);
         localStorage.setItem('reader-font-size', fontSize.toString());
         localStorage.setItem('reader-font-family', fontFamily);
-    }, [theme, fontSize, fontFamily, mounted]);
+        localStorage.setItem('reader-ai-enabled', isAIEnabled.toString());
+        localStorage.setItem('reader-learning-enabled', isLearningEnabled.toString());
+    }, [theme, fontSize, fontFamily, isAIEnabled, isLearningEnabled, mounted]);
 
-    const setTheme = (newTheme: Theme) => setThemeState(newTheme);
-    const setFontSize = (size: number) => setFontSizeState(size);
-    const setFontFamily = (font: FontFamily) => setFontFamilyState(font);
+    const setTheme = (t: Theme) => setThemeState(t);
+    const setFontSize = (s: number) => setFontSizeState(s);
+    const setFontFamily = (f: FontFamily) => setFontFamilyState(f);
+    const setIsAIEnabled = (enabled: boolean) => setIsAIEnabledState(enabled);
+    const setIsLearningEnabled = (enabled: boolean) => setIsLearningEnabledState(enabled);
 
     return (
         <ThemeContext.Provider value={{
             theme, setTheme,
             fontSize, setFontSize,
-            fontFamily, setFontFamily
+            fontFamily, setFontFamily,
+            isAIEnabled, setIsAIEnabled,
+            isLearningEnabled, setIsLearningEnabled
         }}>
             {children}
         </ThemeContext.Provider>

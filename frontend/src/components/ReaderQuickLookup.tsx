@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { useTheme } from '@/context/ThemeContext';
 import {
     BookOpenText,
     BookmarkPlus,
@@ -168,6 +169,7 @@ export default function ReaderQuickLookup({
     sourceLocale,
 }: ReaderQuickLookupProps) {
     const { dictionary } = useLocale();
+    const { isLearningEnabled } = useTheme();
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const panelRef = useRef<HTMLDivElement | null>(null);
     const toolbarRef = useRef<HTMLDivElement | null>(null);
@@ -795,6 +797,8 @@ export default function ReaderQuickLookup({
             // ignore localStorage failures
         }
     }, []);
+
+    if (!isLearningEnabled) return null;
 
     return (
         <>

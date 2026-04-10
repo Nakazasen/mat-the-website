@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useLocale } from "@/context/LocaleContext";
+import { useTheme } from "@/context/ThemeContext";
 
 interface Message {
     role: "user" | "oracle";
@@ -75,6 +76,7 @@ export default function OraclePanel({
     defaultOpen = false,
 }: OraclePanelProps) {
     const { dictionary } = useLocale();
+    const { isAIEnabled } = useTheme();
     const [isOpen, setIsOpen] = useState(defaultOpen);
     const [messages, setMessages] = useState<Message[]>([{ role: "oracle", text: dictionary.oracle.readyMessage(chapterProgress) }]);
     const [input, setInput] = useState("");
@@ -86,6 +88,9 @@ export default function OraclePanel({
     const [dragState, setDragState] = useState<{ offsetX: number; offsetY: number } | null>(null);
     const bottomRef = useRef<HTMLDivElement>(null);
     const buttonRef = useRef<HTMLButtonElement>(null);
+
+    // Skip rendering if disabled, but hooks MUST be called
+    // (Early return is moved to end of hooks below)
 
     useEffect(() => {
         const updateViewport = () => {
@@ -141,6 +146,8 @@ export default function OraclePanel({
         const top = Math.max(12, preferredTop);
         return { width, maxHeight, left, top };
     }, [buttonPosition.x, buttonPosition.y, isMobile]);
+
+    if (!isAIEnabled) return null;
 
     const submitQuestion = async (question: string) => {
         const trimmed = question.trim();

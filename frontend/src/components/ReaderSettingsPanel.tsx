@@ -15,7 +15,13 @@ export default function ReaderSettingsPanel({
     readingProgress = 0,
     className = ""
 }: ReaderSettingsPanelProps) {
-    const { theme, setTheme, fontSize, setFontSize, fontFamily, setFontFamily } = useTheme();
+    const {
+        theme, setTheme,
+        fontSize, setFontSize,
+        fontFamily, setFontFamily,
+        isAIEnabled, setIsAIEnabled,
+        isLearningEnabled, setIsLearningEnabled
+    } = useTheme();
     const [showSettings, setShowSettings] = useState(false);
     
     // Debug log to confirm component is rendering with expected data
@@ -96,7 +102,45 @@ export default function ReaderSettingsPanel({
                                         className="w-8 h-8 flex items-center justify-center border border-reader-border text-reader-text hover:border-reader-accent hover:text-reader-accent transition-colors rounded text-sm font-mono"
                                     >
                                         +
-                                    </button>
+                                     </button>
+                                </div>
+                            </div>
+
+                            {/* AI & Learning Toggles */}
+                            <div className="flex flex-col gap-3 pt-4 border-t border-reader-border/30">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-reader-muted text-[10px] font-mono tracking-widest uppercase">HỆ THỐNG AI</span>
+                                    <div className="flex bg-reader-accent/5 p-1 rounded border border-reader-border">
+                                        <button
+                                            onClick={() => setIsAIEnabled(true)}
+                                            className={`px-3 py-1 text-[9px] font-mono tracking-widest rounded transition-all ${isAIEnabled ? "bg-toxic-green-DEFAULT text-black" : "text-reader-muted hover:text-reader-text"}`}
+                                        >
+                                            BẬT
+                                        </button>
+                                        <button
+                                            onClick={() => setIsAIEnabled(false)}
+                                            className={`px-3 py-1 text-[9px] font-mono tracking-widest rounded transition-all ${!isAIEnabled ? "bg-blood-red text-white" : "text-reader-muted hover:text-reader-text"}`}
+                                        >
+                                            TẮT
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span className="text-reader-muted text-[10px] font-mono tracking-widest uppercase">CHẾ ĐỘ HỌC</span>
+                                    <div className="flex bg-reader-accent/5 p-1 rounded border border-reader-border">
+                                        <button
+                                            onClick={() => setIsLearningEnabled(true)}
+                                            className={`px-3 py-1 text-[9px] font-mono tracking-widest rounded transition-all ${isLearningEnabled ? "bg-toxic-green-DEFAULT text-black" : "text-reader-muted hover:text-reader-text"}`}
+                                        >
+                                            BẬT
+                                        </button>
+                                        <button
+                                            onClick={() => setIsLearningEnabled(false)}
+                                            className={`px-3 py-1 text-[9px] font-mono tracking-widest rounded transition-all ${!isLearningEnabled ? "bg-blood-red text-white" : "text-reader-muted hover:text-reader-text"}`}
+                                        >
+                                            TẮT
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
