@@ -52,10 +52,10 @@ const config: Config = {
                 "reader-card-bg": "var(--reader-card-bg)",
             },
             fontFamily: {
-                biohazard: ["Bebas Neue", "Impact", "sans-serif"],
+                biohazard: ["Oswald", "Impact", "sans-serif"],
                 reading: ["Noto Serif", "Georgia", "serif"],
                 mono: ["Courier Prime", "Courier New", "monospace"],
-                ui: ["Inter", "system-ui", "sans-serif"],
+                ui: ["Be Vietnam Pro", "system-ui", "sans-serif"],
             },
             backgroundImage: {
                 "hazard-stripes":

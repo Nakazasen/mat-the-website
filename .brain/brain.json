@@ -2,7 +2,7 @@
   "meta": {
     "schema_version": "1.1.0",
     "awf_version": "4.0.2",
-    "last_updated": "2026-03-31T23:35:00+07:00"
+    "last_updated": "2026-04-08T01:15:00+07:00"
   },
   "project": {
     "name": "Mat The - Sinh Hoa Nguy Co",
@@ -48,8 +48,8 @@
     "storage": "Cloudflare R2"
   },
   "current_focus": {
-    "area": "Batch Translation Recovery + Audio UX + BGM Rollout",
-    "summary": "Session nay tap trung vao fix checkpoint batch translation bi ket do gap chapter 739-740, them worker resumable cho production translation, luu toc do audio qua chapter va them speed controls vao compact mobile panel, dong thoi upload/optimize BGM va gan global cho tat ca chapters.",
+    "area": "Header Navigation UX + Production Deployment Sync",
+    "summary": "Resolved critical navigation loop in Header Continue button. Implemented dynamic 'Đọc ngay' vs 'Đọc tiếp' labels with distinct styling. Fixed hydration mismatches and synchronized reading state across components using custom events. Pushed final verification to main branch.",
     "latest_commits": [
       "7324117e2b8c6a93fe047db14d4d9f09a6277c52",
       "e538635c48ac4ffee3d4bedf4707529aa9f40553",
@@ -113,6 +113,18 @@
       {
         "title": "Khong sua file source bang Set-Content tren Windows",
         "detail": "Set-Content/Out-File co the lam lech encoding, them BOM hoac gay mojibake tren file lon nhieu Unicode. Quy tac cua repo nay la chi dung apply_patch cho sua source hien co."
+      },
+      {
+        "title": "Header dynamic buttons require client-mount hydration sync",
+        "detail": "Nút 'Đọc tiếp' dựa vào localStorage sẽ gây lỗi Hydration Mismatch nếu render ngay phía server. Cần dùng state 'mounted' và useEffect để chỉ hiện nút sau khi đã mount trên client."
+      },
+      {
+        "title": "Event-driven state sync is more stable than pathname polling",
+        "detail": "Thay vì dựa vào pathname của Next.js để update nút Header, dùng custom event 'chapter-read-updated' giúp Header cập nhật tức thì ngay khi ReadingClient lưu progress vào localStorage."
+      },
+      {
+        "title": "Hide navigation shortcuts when already on the target page",
+        "detail": "Để tránh vòng lặp refresh hoặc UX gây nhiễu, các nút định hướng nhanh (như Đọc tiếp) nên chủ động ẩn đi nếu pathname hiện tại đã khớp với context của nút đó (đang ở trang Chapters)."
       }
     ]
   },
