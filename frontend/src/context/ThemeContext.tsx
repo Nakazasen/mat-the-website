@@ -21,7 +21,7 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-    const [theme, setThemeState] = useState<Theme>('dark');
+    const [theme, setThemeState] = useState<Theme>('sepia');
     const [fontSize, setFontSizeState] = useState(18);
     const [fontFamily, setFontFamilyState] = useState<FontFamily>('sans');
     const [isAIEnabled, setIsAIEnabledState] = useState(true);

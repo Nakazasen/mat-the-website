@@ -96,7 +96,8 @@ export default function Header() {
         window.location.reload();
     };
 
-    const isReadingChapter = pathname.match(/\/chapters\/[^/]+$/) !== null;
+    // Robust check for chapter pages, handling locale prefixes and trailing slashes
+    const isReadingChapter = pathname.includes("/chapters/") && !pathname.endsWith("/chapters") && !pathname.endsWith("/chapters/");
 
     const navLinks = [
         { id: "home", href: "/", label: dictionary.common.home, icon: Home },
@@ -113,7 +114,7 @@ export default function Header() {
                 ? {
                       id: "header-continue-button",
                       href: `/chapters/${lastReadChapter}`,
-                      label: dictionary.reader.continueReading,
+                      label: `${dictionary.reader.continueReading} CH.${lastReadChapter}`,
                       icon: BookOpen,
                       highlight: true,
                       isContinue: true,

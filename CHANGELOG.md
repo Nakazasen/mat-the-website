@@ -183,12 +183,18 @@ All notable changes to this project will be documented in this file.
 *Last updated: 2026-03-28 06:45:00*
 
 ---
-## [2026-04-07] - Part 13: Header Navigation State Sync
-### Fixed
-- **Navigation Resets:** Resolved a critical UX issue where the "Đọc tiếp" (Continue Reading) button would sometimes loop or reset the user's progress to Chapter 1.
-- **Hydration / State Synchronization:** 
-   - Replaced fragile pathname-based localStorage syncing in the Header with a robust custom event listener (`chapter-read-updated`).
-   - The `ReadingClient` now explicitly dispatches this event whenever the reading progress shifts.
-   - The Continue Reading button dynamically adapts its UI label ("Đọc ngay" vs "Đọc tiếp") and coloring accurately reflecting real-time state, regardless of whether the user accesses the novel from the main homepage or directly via chapter links.
+## [2026-04-08] - Part 13: Header Navigation State Sync
 
-*Last updated: 2026-04-07 23:55:00*
+### Fixed
+
+- **Navigation Resets:** Resolved a critical UX issue where the "Đọc tiếp" (Continue Reading) button in the Header would sometimes loop, refresh the same page, or reset progress to Chapter 1.
+- **Hydration / State Synchronization:**
+  - Implemented a robust custom event listener (`chapter-read-updated`) to sync `localStorage` changes to the Header in real-time.
+  - Fixed hydration mismatches by ensuring dynamic UI elements only render after client-side mounting.
+
+### UI Logic
+
+- The Header button now dynamically toggles between **"Đọc ngay"** (Read Now - Blood Red) for new users and **"Đọc tiếp"** (Continue Reading - Toxic Green) for returning readers.
+- Added logic to hide the dynamic navigation button when the user is already viewing a chapter to streamline the interface and prevent navigation loops.
+
+*Last updated: 2026-04-08 01:20:00*

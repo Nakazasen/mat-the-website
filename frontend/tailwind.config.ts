@@ -47,6 +47,9 @@ const config: Config = {
                 "reader-bg": "var(--reader-bg)",
                 "reader-text": "var(--reader-text)",
                 "reader-accent": "var(--reader-accent)",
+                "reader-muted": "var(--reader-muted)",
+                "reader-border": "var(--reader-border)",
+                "reader-card-bg": "var(--reader-card-bg)",
             },
             fontFamily: {
                 biohazard: ["Bebas Neue", "Impact", "sans-serif"],

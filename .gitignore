@@ -61,3 +61,11 @@ reports/
 **/*.docx
 **/*.docx#
 ~$*.docx
+
+# Hybrid ABW Runtime State
+raw/*
+processed/*
+.brain/grounding_queue.json
+.brain/knowledge_gaps.json
+.brain/deliberation_runs.jsonl
+.brain/cache/

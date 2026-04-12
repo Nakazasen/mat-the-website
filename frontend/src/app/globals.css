@@ -37,13 +37,13 @@
 
 [data-theme='sepia'] {
   --reader-bg: #f4ecd8;
-  --reader-text: #433422;
+  --reader-text: #2c241a;
   /* Darker brown */
   --reader-accent: #7b3f00;
   /* Richer brown */
-  --reader-muted: #5d4a3a;
+  --reader-muted: #4a3a2a;
   /* Darker muted brown */
-  --reader-border: rgba(121, 85, 72, 0.2);
+  --reader-border: rgba(44, 36, 26, 0.12);
   --reader-card-bg: #ede1c5;
 }
 
