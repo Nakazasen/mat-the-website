@@ -59,9 +59,18 @@ export default async function ReadingPage({
             getNovelSettings(locale),
         ]);
         chapter = chapterData;
-        content = chapter.translated_content || await getChapterContent(chapter.content_url);
         totalChapters = novelData.max_chapter;
-    } catch {
+
+        // Bypassing backend payload limits: Fetch directly from R2 if it's the default locale 
+        // (which always uses R2 as source) or if it's a fallback translation.
+        const isDefaultLocale = chapter.resolved_locale === "vi";
+        if (chapter.is_fallback || isDefaultLocale || !chapter.translated_content) {
+            content = await getChapterContent(chapter.content_url);
+        } else {
+            content = chapter.translated_content;
+        }
+    } catch (error) {
+        console.error("Failed to load chapter:", error);
         notFound();
     }
 
