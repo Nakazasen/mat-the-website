@@ -38,6 +38,7 @@ IGNORED_PATHS = {
     Path("scripts/check_mojibake.py"),
     Path("scripts/scan_and_fix_mojibake.py"),
     Path("status.txt"),
+    Path("backend/batch_translate_log.txt"),
 }
 
 IGNORE_TOKEN = "mojibake-scan: ignore-line"
