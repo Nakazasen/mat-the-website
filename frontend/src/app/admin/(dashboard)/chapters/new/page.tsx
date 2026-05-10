@@ -83,11 +83,22 @@ export default function NewChapterPage() {
 
     return (
         <div className="max-w-3xl">
-            <div className="flex items-center gap-3 mb-6">
-                <Link href="/admin/chapters" className="text-gray-500 hover:text-gray-200 transition-colors">
+            <div className="flex items-center justify-between gap-3 mb-6">
+                <div className="flex items-center gap-3">
+                    <Link href="/admin/chapters" className="text-gray-500 hover:text-gray-200 transition-colors">
                     <ArrowLeft size={16} />
                 </Link>
-                <h1 className="text-lg font-mono text-gray-100 tracking-wide">ĐĂNG CHƯƠNG MỚI</h1>
+                    <h1 className="text-lg font-mono text-gray-100 tracking-wide">ĐĂNG CHƯƠNG MỚI</h1>
+                </div>
+                <button
+                    form="new-chapter-form"
+                    type="submit"
+                    disabled={loading || success}
+                    className="flex items-center gap-2 px-5 py-2 bg-green-600 hover:bg-green-500 disabled:bg-gray-800 disabled:text-gray-600 text-white font-mono text-xs rounded transition-all shadow-lg shadow-green-900/20"
+                >
+                    <Save size={14} />
+                    {loading ? 'ĐANG LƯU...' : 'ĐĂNG CHƯƠNG'}
+                </button>
             </div>
 
             {success && (
@@ -104,7 +115,7 @@ export default function NewChapterPage() {
                 </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form id="new-chapter-form" onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                     <div>
                         <label className="block text-xs font-mono text-gray-500 mb-1 tracking-widest">SỐ CHƯƠNG *</label>

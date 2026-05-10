@@ -537,15 +537,26 @@ export default function EditChapterPage() {
                     <h1 className="text-lg font-mono text-gray-100 tracking-wide">SỬA CHƯƠNG {String(chapterNumber).padStart(3, '0')}</h1>
                 </div>
 
-                <button
-                    type="button"
-                    onClick={handleTranslate}
-                    disabled={!token || translating}
-                    className="flex items-center gap-2 px-4 py-2 rounded-md border border-purple-700/60 text-purple-300 hover:bg-purple-500/10 hover:border-purple-500 disabled:opacity-50 font-mono text-xs"
-                >
-                    <Languages size={14} />
-                    {translating ? 'ĐANG DỊCH 3 NGÔN NGỮ...' : 'DỊCH 3 NGÔN NGỮ'}
-                </button>
+                <div className="flex items-center gap-3">
+                    <button
+                        type="button"
+                        onClick={handleTranslate}
+                        disabled={!token || translating}
+                        className="flex items-center gap-2 px-4 py-2 rounded-md border border-purple-700/60 text-purple-300 hover:bg-purple-500/10 hover:border-purple-500 disabled:opacity-50 font-mono text-xs transition-all"
+                    >
+                        <Languages size={14} />
+                        {translating ? 'ĐANG DỊCH...' : 'DỊCH 3 NGÔN NGỮ'}
+                    </button>
+                    <button
+                        form="edit-chapter-form"
+                        type="submit"
+                        disabled={loading || success}
+                        className="flex items-center gap-2 px-5 py-2 bg-green-600 hover:bg-green-500 disabled:bg-gray-800 disabled:text-gray-600 text-white font-mono text-xs rounded transition-all shadow-lg shadow-green-900/20"
+                    >
+                        <Save size={14} />
+                        {loading ? 'ĐANG LƯU...' : 'LƯU THAY ĐỔI'}
+                    </button>
+                </div>
             </div>
 
             {success && (
@@ -597,7 +608,7 @@ export default function EditChapterPage() {
                 </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form id="edit-chapter-form" onSubmit={handleSubmit} className="space-y-6">
                 <div className="bg-[#0f0f0f] border border-green-900/40 rounded-lg p-6 space-y-4">
                     <div className="flex items-center justify-between gap-4 flex-wrap">
                         <div>
