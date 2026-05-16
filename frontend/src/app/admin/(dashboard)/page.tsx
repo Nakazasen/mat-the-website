@@ -3,6 +3,9 @@ import Link from 'next/link';
 import { getServerAdminClient } from '@/lib/supabase-server';
 import { getChapters, getNovelSettings } from '@/lib/api';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 async function getDashboardData() {
     try {
         const [novel, chaptersResp] = await Promise.all([
