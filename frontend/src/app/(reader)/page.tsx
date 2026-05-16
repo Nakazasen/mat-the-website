@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, BookOpen, ChevronRight, Shield, Skull, Zap } from "lucide-react";
+import { AlertTriangle, BookOpen, ChevronRight, Shield, Skull, Zap, Eye } from "lucide-react";
 
 import ContinueButton from "@/components/ContinueButton";
 import HeroBackground from "@/components/HeroBackground";
@@ -440,7 +440,13 @@ export default async function HomePage() {
                                         <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-ash-500 sm:text-[10px] sm:tracking-[0.2em]">
                                             {dictionary.home.latestUpdated}
                                         </div>
-                                        <ChevronRight size={14} className="shrink-0 text-ash-500 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:text-white" />
+                                        <div className="flex items-center gap-3">
+                                            <div className="flex items-center gap-1 font-mono text-[10px] text-ash-500 group-hover:text-toxic-green-DEFAULT/80 transition-colors">
+                                                <Eye size={12} />
+                                                <span>{chapter.view_count || 0}</span>
+                                            </div>
+                                            <ChevronRight size={14} className="shrink-0 text-ash-500 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:text-white" />
+                                        </div>
                                     </div>
                                 </Link>
                             ))}
