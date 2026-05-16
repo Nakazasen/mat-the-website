@@ -53,13 +53,12 @@ def create_engagement_router(supabase: Client) -> APIRouter:
                         break
                     chapter_id = resp.data["id"]
                     current_views = resp.data.get("view_count") or 0
-                    updated = (
-                        supabase.table("chapters")
-                        .update({"view_count": current_views + 1})
-                        .eq("id", chapter_id)
-                        .eq("view_count", current_views)
-                        .execute()
-                    )
+                    query = supabase.table("chapters").update({"view_count": current_views + 1}).eq("id", chapter_id)
+                    if resp.data.get("view_count") is None:
+                        query = query.is_("view_count", "null")
+                    else:
+                        query = query.eq("view_count", current_views)
+                    updated = query.execute()
                     if updated.data:
                         return {"status": "success", "note": "manual_update"}
             except Exception:
@@ -140,13 +139,12 @@ def create_engagement_router(supabase: Client) -> APIRouter:
 
                 current_likes = resp.data.get("likes_count") or 0
                 chapter_id = resp.data["id"]
-                updated = (
-                    supabase.table("chapters")
-                    .update({"likes_count": current_likes + 1})
-                    .eq("id", chapter_id)
-                    .eq("likes_count", current_likes)
-                    .execute()
-                )
+                query = supabase.table("chapters").update({"likes_count": current_likes + 1}).eq("id", chapter_id)
+                if resp.data.get("likes_count") is None:
+                    query = query.is_("likes_count", "null")
+                else:
+                    query = query.eq("likes_count", current_likes)
+                updated = query.execute()
                 if updated.data:
                     return {"status": "ok", "likes_count": current_likes + 1}
 

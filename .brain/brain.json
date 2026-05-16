@@ -2,7 +2,7 @@
   "meta": {
     "schema_version": "1.1.0",
     "awf_version": "4.0.2",
-    "last_updated": "2026-04-08T01:15:00+07:00"
+    "last_updated": "2026-05-10T09:40:00+07:00"
   },
   "project": {
     "name": "Mat The - Sinh Hoa Nguy Co",
@@ -48,11 +48,10 @@
     "storage": "Cloudflare R2"
   },
   "current_focus": {
-    "area": "Header Navigation UX + Production Deployment Sync",
-    "summary": "Resolved critical navigation loop in Header Continue button. Implemented dynamic 'Đọc ngay' vs 'Đọc tiếp' labels with distinct styling. Fixed hydration mismatches and synchronized reading state across components using custom events. Pushed final verification to main branch.",
+    "area": "Admin Management UX + Submit Efficiency",
+    "summary": "Improved Admin Chapter management by adding duplicate submit buttons at the top of New and Edit pages. Optimized the workflow to eliminate scrolling for long chapter contents. Linked external buttons to forms via IDs. Verified local build integrity.",
     "latest_commits": [
-      "7324117e2b8c6a93fe047db14d4d9f09a6277c52",
-      "e538635c48ac4ffee3d4bedf4707529aa9f40553",
+      "9be9224",
       "5ce4334"
     ]
   },
@@ -125,12 +124,20 @@
       {
         "title": "Hide navigation shortcuts when already on the target page",
         "detail": "Để tránh vòng lặp refresh hoặc UX gây nhiễu, các nút định hướng nhanh (như Đọc tiếp) nên chủ động ẩn đi nếu pathname hiện tại đã khớp với context của nút đó (đang ở trang Chapters)."
+      },
+      {
+        "title": "Top-level submit buttons for long forms",
+        "detail": "Với các trang có nội dung dài (như soạn thảo chương), nút submit ở cuối trang gây bất tiện. Dùng thuộc tính `form='id-form'` cho nút `<button>` đặt ở tiêu đề giúp user lưu nhanh mà không cần scroll."
+      },
+      {
+        "title": "PowerShell git paths with parentheses",
+        "detail": "Khi chạy lệnh git trong PowerShell với đường dẫn chứa ngoặc đơn (ví dụ `(dashboard)`), phải bao quanh đường dẫn bằng dấu ngoặc kép để tránh lỗi CommandNotFoundException."
       }
     ]
   },
   "git": {
     "github_user": "Nakazasen",
     "default_branch": "main",
-    "latest_pushed_commit": "5ce4334"
+    "latest_pushed_commit": "9be9224"
   }
 }

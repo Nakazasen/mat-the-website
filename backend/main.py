@@ -2851,7 +2851,7 @@ def chapters_support_bgm() -> bool:
 
 
 def build_chapter_select_fields() -> str:
-    fields = "id, chapter_number, title, content_url, created_at, word_count, is_side_story"
+    fields = "id, chapter_number, title, content_url, created_at, word_count, view_count, likes_count, is_side_story"
     if chapters_support_bgm():
         fields += ", bgm_url, bgm_title"
     return fields
@@ -4236,9 +4236,9 @@ async def get_novel_settings(locale: str = Query(DEFAULT_LOCALE, description="Re
 
         max_chapter = stats_resp.data[0]["chapter_number"] if stats_resp.data else 0
 
-        total_views = sum(row.get("view_count", 0) for row in stats_resp.data) if stats_resp.data else 0
+        total_views = sum((row.get("view_count") or 0) for row in stats_resp.data) if stats_resp.data else 0
 
-        total_likes = sum(row.get("likes_count", 0) for row in stats_resp.data) if stats_resp.data else 0
+        total_likes = sum((row.get("likes_count") or 0) for row in stats_resp.data) if stats_resp.data else 0
 
         # 2. Fetch novel settings
 

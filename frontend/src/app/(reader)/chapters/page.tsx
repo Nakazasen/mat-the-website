@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight, BookOpen, Search } from "lucide-react";
+import { ChevronRight, BookOpen, Search, Eye } from "lucide-react";
 import { getChapters, getNovelSettings, type Chapter } from "@/lib/api";
 import type { Metadata } from "next";
 import ChapterJump from "@/components/ChapterJump";
@@ -153,10 +153,14 @@ export default async function ChaptersPage({
                                 {/* Divider */}
                                 <div className="w-px h-8 bg-ash-800 group-hover:bg-toxic-green-DEFAULT/30 transition-colors shrink-0" />
                                 {/* Title */}
-                                <div className="flex-1 min-w-0">
+                                <div className="flex-1 min-w-0 flex flex-col justify-center">
                                     <div className="text-ash-300 text-sm font-reading leading-tight group-hover:text-worn-white transition-colors line-clamp-2">
                                         {tab === 'side' && <span className="text-xs mr-2 relative -top-0.5">📜</span>}
                                         {chapter.title}
+                                    </div>
+                                    <div className="flex items-center gap-1 mt-1 text-[10px] font-mono text-ash-500 group-hover:text-toxic-green-DEFAULT/70 transition-colors">
+                                        <Eye size={10} />
+                                        <span>{chapter.view_count || 0}</span>
                                     </div>
                                 </div>
                                 <ChevronRight
