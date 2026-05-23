@@ -16,8 +16,8 @@ export default function NewChapterPage() {
     const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
     const [isSideStory, setIsSideStory] = useState(false);
-    const [bgmUrl, setBgmUrl] = useState('');
-    const [bgmTitle, setBgmTitle] = useState('');
+    const [bgmUrl, setBgmUrl] = useState('https://pub-7b84345562bb41c6acf9cda324d194f8.r2.dev/bgm/20260331_5b1d8133_bgm_817_optimized_64k.mp3');
+    const [bgmTitle, setBgmTitle] = useState('Dark Cello / Ambient Tension');
     const [uploadingBgm, setUploadingBgm] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
