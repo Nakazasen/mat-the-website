@@ -27,14 +27,15 @@ async function getAuthenticatedClient() {
     const cookieStore = await cookies();
     const supabase = createRouteClient(cookieStore);
     const {
-        data: { session },
-    } = await supabase.auth.getSession();
+        data: { user },
+        error
+    } = await supabase.auth.getUser();
 
-    if (!session?.user) {
+    if (error || !user) {
         return { supabase, userId: null as string | null };
     }
 
-    return { supabase, userId: session.user.id };
+    return { supabase, userId: user.id };
 }
 
 export async function GET(request: Request) {

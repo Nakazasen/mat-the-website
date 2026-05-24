@@ -35,12 +35,12 @@ export async function POST(request: Request) {
         );
 
         // Verify user session
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.user) {
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const userId = session.user.id;
+        const userId = user.id;
 
         if (Number.isFinite(chapterId) && Number(chapterId) > 0) {
             const insertResp = await supabase

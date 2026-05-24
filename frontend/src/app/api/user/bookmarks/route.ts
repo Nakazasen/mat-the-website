@@ -22,15 +22,15 @@ export async function GET(request: Request) {
             }
         );
 
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.user) {
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
         const { data, error } = await supabase
             .from('bookmarks')
             .select('*, chapter:chapters(id, chapter_number, title)')
-            .eq('user_id', session.user.id)
+            .eq('user_id', user.id)
             .order('created_at', { ascending: false });
 
         if (error) throw error;
@@ -67,15 +67,15 @@ export async function POST(request: Request) {
             }
         );
 
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.user) {
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
         const { data, error } = await supabase
             .from('bookmarks')
             .insert({
-                user_id: session.user.id,
+                user_id: user.id,
                 chapter_id: chapter_id
             })
             .select()
@@ -121,15 +121,15 @@ export async function DELETE(request: Request) {
             }
         );
 
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.user) {
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
         const { error } = await supabase
             .from('bookmarks')
             .delete()
-            .eq('user_id', session.user.id)
+            .eq('user_id', user.id)
             .eq('chapter_id', chapter_id);
 
         if (error) throw error;

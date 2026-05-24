@@ -22,15 +22,15 @@ export async function GET() {
             }
         );
 
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.user) {
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
         const { data, error } = await supabase
             .from('profiles')
             .select('*')
-            .eq('id', session.user.id)
+            .eq('id', user.id)
             .single();
 
         if (error) throw error;
@@ -42,7 +42,7 @@ export async function GET() {
             const readsResp = await supabase
                 .from('user_chapter_reads')
                 .select('id', { count: 'exact', head: true })
-                .eq('user_id', session.user.id);
+                .eq('user_id', user.id);
             if (!readsResp.error && typeof readsResp.count === 'number') {
                 chaptersRead = Math.max(chaptersRead, readsResp.count);
             }
@@ -54,7 +54,7 @@ export async function GET() {
             const likesResp = await supabase
                 .from('user_chapter_likes')
                 .select('id', { count: 'exact', head: true })
-                .eq('user_id', session.user.id);
+                .eq('user_id', user.id);
             if (!likesResp.error && typeof likesResp.count === 'number') {
                 likesGiven = likesResp.count;
             }
