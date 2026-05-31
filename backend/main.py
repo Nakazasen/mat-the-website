@@ -1104,50 +1104,70 @@ async def generate_structured_translation_payload(
     translation_mode: str = "bulk",
 ) -> T:
     # --- Multi-provider route (Phase 3) ---
-    # Try the ProviderRouter first if any providers are configured.
+    # Try the ProviderRouter first if any providers are configured with retries and exponential backoff
     router_configured = False
-    router_failed = False
+    max_retries = 3
     router_error_details = []
 
-    try:
-        router = get_provider_router()
-        if router._providers:  # At least one provider registered
-            router_configured = True
-            temperature = 0.05 if translation_mode == "quality" else 0.1
-            request = AIRequest(
-                text=user_prompt,
-                mode="translation",
-                system_instruction=system_instruction,
-                response_schema=response_json_schema,
-                max_output_tokens=TRANSLATION_MAX_OUTPUT_TOKENS,
-                temperature=temperature,
-            )
-            config = resolve_ai_provider_config()
-            policy = config.get("translation_policy", {"mode": "waterfall"})
-            result = await router.route(request, policy=policy)
-            if result.status != "success":
+    for attempt in range(1, max_retries + 1):
+        router_failed = False
+        router_error_details = []
+        try:
+            router = get_provider_router()
+            if router._providers:  # At least one provider registered
+                router_configured = True
+                temperature = 0.05 if translation_mode == "quality" else 0.1
+                request = AIRequest(
+                    text=user_prompt,
+                    mode="translation",
+                    system_instruction=system_instruction,
+                    response_schema=response_json_schema,
+                    max_output_tokens=TRANSLATION_MAX_OUTPUT_TOKENS,
+                    temperature=temperature,
+                )
+                config = resolve_ai_provider_config()
+                policy = config.get("translation_policy", {"mode": "waterfall"})
+                result = await router.route(request, policy=policy)
+                
+                if result.status == "success" and result.text:
+                    try:
+                        return parser(result.text)
+                    except Exception as parse_exc:
+                        # If JSON parsing fails, try cleaning
+                        try:
+                            cleaned = parse_json_like_payload(result.text)
+                            raw_text = json.dumps(cleaned, ensure_ascii=False)
+                            return parser(raw_text)
+                        except Exception:
+                            pass
+                        # Log and let it be treated as a parsing error that we might retry or fail on
+                        print(
+                            f"DEBUG: Multi-provider translation parsed failed "
+                            f"({result.provider}/{result.model}): {parse_exc}"
+                        )
+                        router_error_details.append(f"{result.provider} ({result.model}): parse_failure - {parse_exc}")
+                
                 router_failed = True
+                error_class = "unknown_error"
                 for a in result.attempts:
                     if a.get('status') == 'failed':
                         router_error_details.append(f"{a.get('provider')} ({a.get('model')}): {a.get('reason')} - {a.get('message')}")
-            if result.status == "success" and result.text:
-                try:
-                    return parser(result.text)
-                except Exception as parse_exc:
-                    # If JSON parsing fails, try cleaning
-                    try:
-                        cleaned = parse_json_like_payload(result.text)
-                        raw_text = json.dumps(cleaned, ensure_ascii=False)
-                        return parser(raw_text)
-                    except Exception:
-                        pass
-                    # Log but fall through to legacy Gemini
-                    print(
-                        f"DEBUG: Multi-provider translation parsed failed "
-                        f"({result.provider}/{result.model}): {parse_exc}"
-                    )
-    except Exception as router_exc:
-        print(f"DEBUG: Multi-provider translation route error: {router_exc}")
+                        error_class = a.get('reason') or error_class
+                
+                # If error is not transient (e.g. auth failure or invalid model), do not retry
+                if error_class in ("auth_failure", "model_error", "model_unavailable"):
+                    break
+                
+                if attempt < max_retries:
+                    wait_sec = 3 * attempt
+                    print(f"DEBUG: Translation transient failure ({error_class}). Retrying attempt {attempt + 1}/{max_retries} in {wait_sec}s...")
+                    await asyncio.sleep(wait_sec)
+                    continue
+        except Exception as router_exc:
+            print(f"DEBUG: Multi-provider translation route error (attempt {attempt}): {router_exc}")
+            if attempt < max_retries:
+                await asyncio.sleep(3 * attempt)
+                continue
 
     # --- Legacy Gemini direct call completely deleted for legal compliance ---
     err_msg = "Dịch thuật AI thất bại: Tất cả nhà cung cấp đều quá tải hoặc hết hạn ngạch (Rate Limit / Quota Exceeded)."
@@ -1410,37 +1430,70 @@ async def translate_chapter_payloads_with_ai(
     }
     content_chunks = chunk_translation_source_text(content)
 
-    for chunk_index, content_chunk in enumerate(content_chunks, start=1):
-        user_prompt = build_chapter_multilocale_user_prompt(
-            title=title,
-            content_chunk=content_chunk,
-            source_locale=source_locale,
-            locale_prompt=locale_prompt,
-            glossary_prompt=glossary_prompt,
-            context_label=context_label,
-            chunk_index=chunk_index,
-            chunk_count=len(content_chunks),
-            source_paragraph_count=_count_paragraphs_for_translation_prompt(content_chunk),
-            source_sentence_count=_filtered_sentence_count_for_translation_quality(content_chunk),
+    try:
+        for chunk_index, content_chunk in enumerate(content_chunks, start=1):
+            user_prompt = build_chapter_multilocale_user_prompt(
+                title=title,
+                content_chunk=content_chunk,
+                source_locale=source_locale,
+                locale_prompt=locale_prompt,
+                glossary_prompt=glossary_prompt,
+                context_label=context_label,
+                chunk_index=chunk_index,
+                chunk_count=len(content_chunks),
+                source_paragraph_count=_count_paragraphs_for_translation_prompt(content_chunk),
+                source_sentence_count=_filtered_sentence_count_for_translation_quality(content_chunk),
+            )
+
+            chunk_payload = await generate_structured_translation_payload(
+                system_instruction=system_instruction,
+                user_prompt=user_prompt,
+                response_json_schema=schema,
+                parser=lambda raw_text: parse_multilocale_translation_payload(raw_text, target_locales, ["title", "content"]),
+                translation_mode=translation_mode,
+            )
+
+            for locale in target_locales:
+                locale_payload = chunk_payload[locale]
+                translated_title = str(locale_payload.get("title") or "").strip()
+                translated_content = str(locale_payload.get("content") or "").strip()
+                if not translated_title or not translated_content:
+                    raise ValueError(f"Missing chapter title/content for locale {locale}")
+                if not translated_payloads[locale]["title"]:
+                    translated_payloads[locale]["title"] = translated_title
+                translated_payloads[locale]["content_parts"].append(translated_content)
+    except Exception as multilocale_exc:
+        if len(target_locales) <= 1:
+            # Already a single locale request, do not recurse or fallback, just raise
+            raise multilocale_exc
+
+        print(
+            f"DEBUG: Simultaneous multilocale translation failed for {target_locales}: {multilocale_exc}. "
+            f"Falling back to sequential single-locale translation..."
         )
 
-        chunk_payload = await generate_structured_translation_payload(
-            system_instruction=system_instruction,
-            user_prompt=user_prompt,
-            response_json_schema=schema,
-            parser=lambda raw_text: parse_multilocale_translation_payload(raw_text, target_locales, ["title", "content"]),
-            translation_mode=translation_mode,
-        )
-
+        fallback_payloads = {}
         for locale in target_locales:
-            locale_payload = chunk_payload[locale]
-            translated_title = str(locale_payload.get("title") or "").strip()
-            translated_content = str(locale_payload.get("content") or "").strip()
-            if not translated_title or not translated_content:
-                raise ValueError(f"Missing chapter title/content for locale {locale}")
-            if not translated_payloads[locale]["title"]:
-                translated_payloads[locale]["title"] = translated_title
-            translated_payloads[locale]["content_parts"].append(translated_content)
+            try:
+                # Call translate_chapter_payloads_with_ai recursively for ONLY this locale
+                locale_result = await translate_chapter_payloads_with_ai(
+                    title=title,
+                    content=content,
+                    source_locale=source_locale,
+                    target_locales=[locale],
+                    context_label=context_label,
+                    translation_mode=translation_mode,
+                )
+                if locale in locale_result:
+                    fallback_payloads[locale] = locale_result[locale]
+            except Exception as locale_exc:
+                print(f"DEBUG: Single-locale translation failed for {locale}: {locale_exc}")
+
+        # If absolutely all locales failed, raise the original exception so the UI reports the error correctly
+        if not fallback_payloads:
+            raise multilocale_exc
+
+        return fallback_payloads
 
     return {
         locale: {
