@@ -114,6 +114,11 @@ def get_default_provider_profiles() -> dict[str, dict[str, Any]]:
             "api_keys": [],
             "models": [
                 "meta-llama/llama-3.3-70b-instruct:free",
+                "google/gemini-2.5-flash:free",
+                "google/gemini-2.5-pro:free",
+                "deepseek/deepseek-chat:free",
+                "deepseek/deepseek-chat",
+                "deepseek/deepseek-reasoner",
                 "meta-llama/llama-3.2-3b-instruct:free",
             ],
             "timeout": 25,
