@@ -7,6 +7,24 @@ import { BookOpen, Settings, LogOut, BarChart3, Home, LibraryBig, Users, Map as 
 import { createAdminClient } from '@/lib/supabase-admin';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+const navItems = [
+    { href: '/admin', label: 'Dashboard', icon: BarChart3, exact: true },
+    { href: '/admin/homepage', label: 'Trang Chủ', icon: Home },
+    { href: '/admin/chapters', label: 'Chương Truyện', icon: BookOpen },
+    { href: '/admin/novel', label: 'Thông Tin Truyện', icon: Settings },
+    { href: '/admin/comments', label: 'Bình Luận', icon: MessageSquare },
+    { href: '/admin/wiki', label: 'Wiki / Bách Khoa', icon: LibraryBig },
+    { href: '/admin/ai', label: 'Cấu hình AI', icon: Cpu, superadminOnly: true },
+    { href: '/admin/personnel', label: 'Nhân Sự', icon: Users, superadminOnly: true },
+    { href: '/admin/map', label: 'Bản Đồ', icon: MapIcon },
+    { href: '/admin/guide', label: 'Hướng Dẫn & SOP', icon: FileText },
+];
+
+export default function AdminNav() {
+    const pathname = usePathname();
+    const router = useRouter();
+    const [userRole, setUserRole] = useState<string>('editor');
     const [isMobileOpen, setIsMobileOpen] = useState(false);
 
     // Close mobile nav on route change
