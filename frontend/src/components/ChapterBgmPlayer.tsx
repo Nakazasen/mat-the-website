@@ -365,8 +365,8 @@ export default function ChapterBgmPlayer({
             <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                        <Music4 size={14} className="shrink-0 text-toxic-green-DEFAULT animate-pulse" />
-                        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-toxic-green-DEFAULT">{labels.panel}</span>
+                        <Music4 size={14} className="shrink-0 text-toxic-green animate-pulse" />
+                        <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-toxic-green">{labels.panel}</span>
                     </div>
                     <div className="mt-2 truncate font-biohazard text-lg tracking-[0.05em] text-worn-white" title={activeTitle}>
                         {activeTitle}
@@ -380,7 +380,7 @@ export default function ChapterBgmPlayer({
                     <button
                         type="button"
                         onClick={() => void handleTogglePlayback()}
-                        className="inline-flex shrink-0 items-center gap-2 rounded-full border border-toxic-green-DEFAULT/35 bg-toxic-green-DEFAULT/10 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.2em] text-toxic-green-DEFAULT transition hover:bg-toxic-green-DEFAULT/20 active:scale-95 shadow-[0_0_15px_rgba(57,255,20,0.15)]"
+                        className="inline-flex shrink-0 items-center gap-2 rounded-full border border-toxic-green/35 bg-toxic-green/10 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.2em] text-toxic-green transition hover:bg-toxic-green/20 active:scale-95 shadow-[0_0_15px_rgba(57,255,20,0.15)]"
                     >
                         {enabled && isPlaying ? <Pause size={13} /> : <Play size={13} fill="currentColor" />}
                         <span>{enabled && isPlaying ? labels.pause : labels.play}</span>
@@ -398,7 +398,7 @@ export default function ChapterBgmPlayer({
                         onClick={() => setPlayMode(playMode === 'loop' ? 'playlist' : 'loop')}
                         className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-mono uppercase border transition-colors ${
                             playMode === 'playlist'
-                                ? 'border-toxic-green-DEFAULT/30 bg-toxic-green-DEFAULT/5 text-toxic-green-DEFAULT shadow-[0_0_8px_rgba(57,255,20,0.1)]'
+                                ? 'border-toxic-green/30 bg-toxic-green/5 text-toxic-green shadow-[0_0_8px_rgba(57,255,20,0.1)]'
                                 : 'border-ash-800 bg-ash-900/40 text-ash-200 hover:border-ash-700 hover:text-white'
                         }`}
                         title={playMode === 'loop' ? labels.loopSingle : labels.playPlaylist}
@@ -412,7 +412,7 @@ export default function ChapterBgmPlayer({
                 <button
                     type="button"
                     onClick={() => setIsPlaylistExpanded(!isPlaylistExpanded)}
-                    className="inline-flex items-center gap-1 font-mono text-[10px] text-ash-200 hover:text-toxic-green-DEFAULT transition-colors"
+                    className="inline-flex items-center gap-1 font-mono text-[10px] text-ash-200 hover:text-toxic-green transition-colors"
                 >
                     <span>{labels.playlist} ({playlist.length})</span>
                     {isPlaylistExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
@@ -430,19 +430,19 @@ export default function ChapterBgmPlayer({
                                 onClick={() => handleSelectTrack(index)}
                                 className={`flex items-center justify-between px-3 py-2 rounded-lg border cursor-pointer transition-all duration-200 ${
                                     isCurrent
-                                        ? 'bg-toxic-green-DEFAULT/12 border-toxic-green-DEFAULT/35 text-toxic-green-DEFAULT shadow-[0_0_12px_rgba(57,255,20,0.1)]'
-                                        : 'bg-ash-900/40 border-ash-800/40 text-ash-200 hover:bg-ash-900/80 hover:text-toxic-green-DEFAULT hover:border-toxic-green-DEFAULT/25'
+                                        ? 'bg-toxic-green/12 border-toxic-green/35 text-toxic-green shadow-[0_0_12px_rgba(57,255,20,0.1)]'
+                                        : 'bg-ash-900/40 border-ash-800/40 text-ash-200 hover:bg-ash-900/80 hover:text-toxic-green hover:border-toxic-green/25'
                                 }`}
                             >
                                 <div className="flex items-center gap-2 min-w-0">
-                                    <span className={`font-mono text-[9px] ${isCurrent ? 'text-toxic-green-DEFAULT font-bold' : 'text-ash-400'}`}>{index + 1}.</span>
+                                    <span className={`font-mono text-[9px] ${isCurrent ? 'text-toxic-green font-bold' : 'text-ash-400'}`}>{index + 1}.</span>
                                     <span className="font-mono text-[11px] truncate">{track.title}</span>
                                 </div>
                                 <div className="shrink-0 flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-wider pl-2">
                                     {isCurrent && isPlaying ? (
-                                        <span className="w-1.5 h-1.5 bg-toxic-green-DEFAULT rounded-full animate-ping" />
+                                        <span className="w-1.5 h-1.5 bg-toxic-green rounded-full animate-ping" />
                                     ) : null}
-                                    <span className={isCurrent ? 'text-toxic-green-DEFAULT/85 text-[8px]' : 'text-ash-400 text-[8px]'}>
+                                    <span className={isCurrent ? 'text-toxic-green/85 text-[8px]' : 'text-ash-400 text-[8px]'}>
                                         {track.url === bgmUrl ? "Default BGM" : `Track ${index}`}
                                     </span>
                                 </div>
@@ -457,7 +457,7 @@ export default function ChapterBgmPlayer({
                 <button
                     type="button"
                     onClick={() => setIsMuted((current) => !current)}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-ash-800 bg-ash-900/40 text-ash-200 transition hover:border-ash-700 hover:text-toxic-green-DEFAULT active:scale-95"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-ash-800 bg-ash-900/40 text-ash-200 transition hover:border-ash-700 hover:text-toxic-green active:scale-95"
                     title={isMuted ? labels.unmute : labels.mute}
                 >
                     {isMuted ? <VolumeX size={15} /> : <Volume2 size={15} />}
@@ -471,7 +471,7 @@ export default function ChapterBgmPlayer({
                         step="0.01"
                         value={volume}
                         onChange={(event) => setVolume(Number.parseFloat(event.target.value))}
-                        className="h-1.5 w-full cursor-pointer accent-toxic-green-DEFAULT bg-ash-900/60 border border-ash-800/40 rounded-full appearance-none"
+                        className="h-1.5 w-full cursor-pointer accent-toxic-green bg-ash-900/60 border border-ash-800/40 rounded-full appearance-none"
                     />
                 </div>
             </div>
