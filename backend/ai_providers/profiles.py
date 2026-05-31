@@ -204,14 +204,28 @@ def build_provider_profiles(
     Returns:
         Dict of provider_name -> ProviderProfile.
     """
-    providers_raw = config_data.get("providers", config_data)
+    providers_raw = config_data.get("providers", config_data) if config_data else {}
     if not isinstance(providers_raw, dict):
-        return {}
+        providers_raw = {}
 
     defaults = get_default_provider_profiles()
+    
+    # Seed all default providers so they are visible in the config editor
+    merged_providers = {}
+    for name, default_data in defaults.items():
+        if name in providers_raw and isinstance(providers_raw[name], dict):
+            merged_providers[name] = {**default_data, **providers_raw[name]}
+        else:
+            merged_providers[name] = default_data
+
+    # Handle any extra/custom providers from DB
+    for name, provider_data in providers_raw.items():
+        if name not in merged_providers and isinstance(provider_data, dict):
+            merged_providers[name] = provider_data
+
     profiles: dict[str, ProviderProfile] = {}
 
-    for provider_name, provider_data in providers_raw.items():
+    for provider_name, provider_data in merged_providers.items():
         if not isinstance(provider_data, dict):
             continue
 
