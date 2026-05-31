@@ -103,6 +103,12 @@ export default function AdminAiPage() {
     // Accordion state
     const [expandedProvider, setExpandedProvider] = useState<string | null>(null);
 
+    // Playground state for testing AI connections
+    const [testModels, setTestModels] = useState<Record<string, string>>({});
+    const [testKeys, setTestKeys] = useState<Record<string, string>>({});
+    const [testPrompts, setTestPrompts] = useState<Record<string, string>>({});
+    const [testingStatus, setTestingStatus] = useState<Record<string, { loading: boolean; success?: boolean; latency?: number; answer?: string; error?: string }>>({});
+
     // Load configurations and health snapshot
     useEffect(() => {
         const loadInitialData = async () => {
@@ -255,6 +261,103 @@ export default function AdminAiPage() {
             setError(err?.message || `Lỗi kết nối khi dò quét model cho ${providerKey}`);
         } finally {
             setDiscoveringProviders(prev => ({ ...prev, [providerKey]: false }));
+        }
+    };
+
+    // Playground: Test a specific model from the UI immediately
+    const handlePlaygroundTestModel = async (providerKey: string) => {
+        if (!token || !config) return;
+        
+        const provider = config.providers[providerKey];
+        if (!provider) return;
+
+        const modelName = testModels[providerKey] || provider.default_model || (provider.models && provider.models[0]) || '';
+        if (!modelName) {
+            alert('Vui lòng chọn hoặc thêm ít nhất một mô hình (Model) trước khi test.');
+            return;
+        }
+
+        const promptText = testPrompts[providerKey] || 'Hello, are you alive?';
+        const customKey = testKeys[providerKey] || '';
+        
+        // Find existing key if no custom key provided
+        let resolvedKey = '';
+        if (customKey.trim()) {
+            resolvedKey = customKey.trim();
+        } else {
+            // Get first unmasked key from client side if there is any, otherwise let the server resolve it
+            const hasKeys = (provider.api_keys || []).filter(k => k.trim() && !k.startsWith('****'));
+            if (hasKeys.length > 0) {
+                resolvedKey = hasKeys[0];
+            }
+        }
+
+        setTestingStatus(prev => ({
+            ...prev,
+            [providerKey]: { loading: true }
+        }));
+
+        try {
+            const freshToken = await getFreshAdminAccessToken();
+            setToken(freshToken);
+
+            const payload: any = {
+                models: [modelName],
+                prompt: promptText
+            };
+            if (resolvedKey) {
+                payload.api_key = resolvedKey;
+            }
+
+            const res = await fetch(`${API_BASE_URL}/oracle/admin/playground`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${freshToken}`
+                },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(data.detail || 'Lỗi kết nối Playground.');
+            }
+
+            const testResult = data.results && data.results[0];
+            if (testResult) {
+                if (testResult.status === 'success') {
+                    setTestingStatus(prev => ({
+                        ...prev,
+                        [providerKey]: {
+                            loading: false,
+                            success: true,
+                            latency: testResult.latency_ms,
+                            answer: testResult.answer_preview
+                        }
+                    }));
+                } else {
+                    setTestingStatus(prev => ({
+                        ...prev,
+                        [providerKey]: {
+                            loading: false,
+                            success: false,
+                            latency: testResult.latency_ms,
+                            error: testResult.error || 'Mô hình trả về lỗi không xác định.'
+                        }
+                    }));
+                }
+            } else {
+                throw new Error('Không nhận được kết quả test từ server.');
+            }
+        } catch (err: any) {
+            setTestingStatus(prev => ({
+                ...prev,
+                [providerKey]: {
+                    loading: false,
+                    success: false,
+                    error: err?.message || 'Lỗi kết nối API Playground.'
+                }
+            }));
         }
     };
 
@@ -922,6 +1025,114 @@ export default function AdminAiPage() {
                                                                 {discoveringProviders[providerKey] ? 'ĐANG QUÉT...' : 'DÒ TÌM MODEL TỰ ĐỘNG'}
                                                             </button>
                                                         </div>
+                                                    </div>
+
+                                                    {/* 🧪 Playground - Test Connection */}
+                                                    <div className="space-y-4 pt-5 border-t border-gray-850/60 bg-black/10 -mx-5 px-5 pb-1">
+                                                        <h3 className="text-xs font-mono tracking-wider text-amber-500 uppercase flex items-center gap-1.5 font-bold">
+                                                            <span>🧪 PLAYGROUND - TEST CONNECTION</span>
+                                                        </h3>
+                                                        
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                            {/* Select model dropdown */}
+                                                            <div className="space-y-1.5">
+                                                                <label className="text-[10px] font-mono text-gray-500 uppercase tracking-wider">Chọn Model để Test</label>
+                                                                <select
+                                                                    value={testModels[providerKey] || provider.default_model || (provider.models && provider.models[0]) || ''}
+                                                                    onChange={(e) => setTestModels({ ...testModels, [providerKey]: e.target.value })}
+                                                                    className="w-full bg-[#050505] border border-gray-800 rounded px-3 py-2 text-gray-300 font-mono text-xs focus:outline-none focus:border-amber-500 appearance-none"
+                                                                >
+                                                                    {(provider.models && provider.models.length > 0) ? (
+                                                                        provider.models.map(m => (
+                                                                            <option key={m} value={m}>{m} {provider.default_model === m ? '★' : ''}</option>
+                                                                        ))
+                                                                    ) : (
+                                                                        <option value="">(Chưa có mô hình nào)</option>
+                                                                    )}
+                                                                </select>
+                                                            </div>
+
+                                                            {/* Custom test prompt */}
+                                                            <div className="space-y-1.5">
+                                                                <label className="text-[10px] font-mono text-gray-500 uppercase tracking-wider">Nội dung Prompt test</label>
+                                                                <input
+                                                                    type="text"
+                                                                    value={testPrompts[providerKey] || ''}
+                                                                    onChange={(e) => setTestPrompts({ ...testPrompts, [providerKey]: e.target.value })}
+                                                                    placeholder="Hello, are you alive?"
+                                                                    className="w-full bg-[#050505] border border-gray-800 rounded px-3 py-2 text-gray-300 font-mono text-xs focus:outline-none focus:border-amber-500"
+                                                                />
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Optional Custom API Key to test */}
+                                                        <div className="space-y-1.5">
+                                                            <label className="text-[10px] font-mono text-gray-500 uppercase tracking-wider flex items-center justify-between">
+                                                                <span>API Key thử nghiệm (Tùy chọn)</span>
+                                                                <span className="text-[8px] text-gray-600 font-normal">Bỏ trống để dùng các key đã cấu hình ở trên</span>
+                                                            </label>
+                                                            <input
+                                                                type="password"
+                                                                value={testKeys[providerKey] || ''}
+                                                                onChange={(e) => setTestKeys({ ...testKeys, [providerKey]: e.target.value })}
+                                                                placeholder="Nhập API Key khác nếu muốn test nhanh..."
+                                                                className="w-full bg-[#050505] border border-gray-800 rounded px-3 py-2 text-gray-300 font-mono text-xs focus:outline-none focus:border-amber-500"
+                                                            />
+                                                        </div>
+
+                                                        {/* Test button & result */}
+                                                        <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-1">
+                                                            <button
+                                                                type="button"
+                                                                disabled={testingStatus[providerKey]?.loading}
+                                                                onClick={() => handlePlaygroundTestModel(providerKey)}
+                                                                className="px-4 py-2 bg-amber-950/20 hover:bg-amber-900/30 border border-amber-900/40 hover:border-amber-700/60 disabled:opacity-40 disabled:cursor-not-allowed text-amber-400 hover:text-amber-300 font-mono text-xs rounded transition-all flex items-center gap-1.5 self-start"
+                                                            >
+                                                                {testingStatus[providerKey]?.loading ? (
+                                                                    <>
+                                                                        <Loader2 size={12} className="animate-spin" />
+                                                                        ĐANG KẾT NỐI...
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        🚀 CHẠY THỬ MODEL
+                                                                    </>
+                                                                )}
+                                                            </button>
+
+                                                            {/* Inline feedback status */}
+                                                            {testingStatus[providerKey] && !testingStatus[providerKey].loading && (
+                                                                <div className="text-xs font-mono flex-1">
+                                                                    {testingStatus[providerKey].success ? (
+                                                                        <span className="text-green-400 font-bold flex items-center gap-1">
+                                                                            <span>✅ THÀNH CÔNG</span>
+                                                                            <span className="text-[10px] text-gray-500 font-normal">({testingStatus[providerKey].latency}ms)</span>
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className="text-red-400 font-bold">
+                                                                            ❌ THẤT BẠI
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Detailed response panel */}
+                                                        {testingStatus[providerKey] && !testingStatus[providerKey].loading && (
+                                                            <div className="bg-[#050505]/80 border border-gray-900 rounded p-3 text-[11px] font-mono leading-relaxed max-h-36 overflow-y-auto custom-scrollbar">
+                                                                {testingStatus[providerKey].success ? (
+                                                                    <div className="space-y-1.5">
+                                                                        <span className="text-[9px] text-green-500 uppercase tracking-widest block border-b border-gray-900 pb-1 font-bold">KẾT QUẢ PHẢN HỒI (AI RESPONSE):</span>
+                                                                        <p className="text-gray-300 whitespace-pre-wrap">{testingStatus[providerKey].answer}</p>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="space-y-1.5">
+                                                                        <span className="text-[9px] text-red-500 uppercase tracking-widest block border-b border-gray-900 pb-1 font-bold">CHI TIẾT LỖI (API ERROR):</span>
+                                                                        <p className="text-red-400/90 whitespace-pre-wrap">{testingStatus[providerKey].error}</p>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        )}
                                                     </div>
 
                                                 </div>
