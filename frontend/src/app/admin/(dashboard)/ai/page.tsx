@@ -132,7 +132,8 @@ export default function AdminAiPage() {
                 // Fetch AI Config and Snapshot parallelly
                 const [configRes, snapshotRes] = await Promise.all([
                     fetch(`${API_BASE_URL}/api/admin/ai/providers/config`, {
-                        headers: { 'Authorization': `Bearer ${session.access_token}` }
+                        headers: { 'Authorization': `Bearer ${session.access_token}` },
+                        cache: 'no-store'
                     }),
                     fetch(`${API_BASE_URL}/api/admin/ai/providers/health-snapshot`, {
                         headers: { 'Authorization': `Bearer ${session.access_token}` },
@@ -228,7 +229,8 @@ export default function AdminAiPage() {
                 setSuccess(`Đã dò quét thành công! Phát hiện ${data.discovered_count} model hợp lệ từ API của ${providerKey}.`);
                 // Reload configuration to get the fresh list of models
                 const configRes = await fetch(`${API_BASE_URL}/api/admin/ai/providers/config`, {
-                    headers: { 'Authorization': `Bearer ${freshToken}` }
+                    headers: { 'Authorization': `Bearer ${freshToken}` },
+                    cache: 'no-store'
                 });
                 if (configRes.ok) {
                     const configData = await configRes.json();
