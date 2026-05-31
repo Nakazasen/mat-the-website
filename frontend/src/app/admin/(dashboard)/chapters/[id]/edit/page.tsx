@@ -171,6 +171,29 @@ function buildTranslateNotice(chapterNumber: number, result: AdminChapterTransla
     return `Chương ${chapterNumber} dịch được ${translatedLocales.join(', ')}, nhưng còn lỗi: ${formatTranslationFailures(failedLocales)}`;
 }
 
+const PRESET_BGMS = [
+    {
+        title: "Dark Cello / Ambient Tension",
+        url: "https://pub-7b84345562bb41c6acf9cda324d194f8.r2.dev/bgm/20260331_5b1d8133_bgm_817_optimized_64k.mp3"
+    },
+    {
+        title: "The Descent / Deep Cello Tension",
+        url: "https://pub-7b84345562bb41c6acf9cda324d194f8.r2.dev/bgm/20260531_2bb03743_the_descent___deep_cello_tension.mp3"
+    },
+    {
+        title: "Unseen Horrors / Creepy Scraping",
+        url: "https://pub-7b84345562bb41c6acf9cda324d194f8.r2.dev/bgm/20260531_f707249c_unseen_horrors___creepy_scraping.mp3"
+    },
+    {
+        title: "Anxiety / High String Tension",
+        url: "https://pub-7b84345562bb41c6acf9cda324d194f8.r2.dev/bgm/20260531_4f8f64c8_anxiety___high_string_tension.mp3"
+    },
+    {
+        title: "Phantasm / Melancholic Suspense",
+        url: "https://pub-7b84345562bb41c6acf9cda324d194f8.r2.dev/bgm/20260531_39e2db0b_phantasm___melancholic_suspense.mp3"
+    }
+];
+
 export default function EditChapterPage() {
     const params = useParams();
     const router = useRouter();
@@ -748,6 +771,36 @@ export default function EditChapterPage() {
                 </div>
 
                 <div className="bg-[#0f0f0f] border border-gray-800 rounded-lg p-6 space-y-4">
+                    <div className="space-y-1">
+                        <label className="block text-xs font-mono text-gray-500 mb-1 tracking-widest uppercase">NHÚNG BGM PRESET (PLAYLIST MẠT THẾ ZOMBIE)</label>
+                        <select
+                            onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === 'custom') {
+                                    // Keep custom/empty
+                                    setBgmUrl('');
+                                    setBgmTitle('');
+                                } else {
+                                    const idx = parseInt(val);
+                                    const preset = PRESET_BGMS[idx];
+                                    if (preset) {
+                                        setBgmUrl(preset.url);
+                                        setBgmTitle(preset.title);
+                                    }
+                                }
+                            }}
+                            value={PRESET_BGMS.findIndex(p => p.url === bgmUrl) !== -1 ? PRESET_BGMS.findIndex(p => p.url === bgmUrl).toString() : 'custom'}
+                            className="w-full bg-[#0a0a0a] border border-gray-700 rounded px-3 py-2 text-gray-200 text-sm focus:outline-none focus:border-green-500 transition-colors font-mono appearance-none"
+                        >
+                            {PRESET_BGMS.map((preset, idx) => (
+                                <option key={idx} value={idx.toString()}>
+                                    {preset.title} (BGM có sẵn)
+                                </option>
+                            ))}
+                            <option value="custom">-- Tải nhạc khác / Nhập URL thủ công --</option>
+                        </select>
+                    </div>
+
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div>
                             <label className="block text-xs font-mono text-gray-500 mb-2 tracking-widest uppercase">BGM URL</label>

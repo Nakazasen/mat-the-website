@@ -84,6 +84,11 @@ try:
     from routes.wiki_search import router as wiki_router
     from routes.reader_learning import router as reader_learning_router
     from routes.reader_grammar import router as reader_grammar_router
+    from routes.ai_admin import router as ai_admin_router
+    from ai_providers import (
+        AIRequest, AIResult, OpenAICompatibleProvider, ProviderHealthChecker,
+        ProviderProfile, ProviderRouter, build_provider_profiles, get_default_provider_profiles,
+    )
 
 except (ImportError, ModuleNotFoundError):
 
@@ -114,6 +119,11 @@ except (ImportError, ModuleNotFoundError):
     from backend.routes.wiki_search import router as wiki_router
     from backend.routes.reader_learning import router as reader_learning_router
     from backend.routes.reader_grammar import router as reader_grammar_router
+    from backend.routes.ai_admin import router as ai_admin_router
+    from backend.ai_providers import (
+        AIRequest, AIResult, OpenAICompatibleProvider, ProviderHealthChecker,
+        ProviderProfile, ProviderRouter, build_provider_profiles, get_default_provider_profiles,
+    )
 
 load_dotenv(override=True)
 
@@ -211,6 +221,81 @@ TRANSLATION_RATE_LIMIT_STATE: dict[str, float] = {}
 TRANSLATION_RATE_LIMIT_LOCK = asyncio.Lock()
 CHAPTER_TRANSLATION_ALIGNMENT_SUPPORTED: Optional[bool] = None
 T = TypeVar("T")
+
+# === MULTI-PROVIDER AI ROUTER SINGLETON ===
+_PROVIDER_ROUTER: Optional[ProviderRouter] = None
+_PROVIDER_ROUTER_HEALTH_CHECKER: Optional[ProviderHealthChecker] = None
+
+
+def resolve_ai_provider_config() -> dict:
+    """Load multi-provider config from novel_settings.ai_provider_config.
+
+    Falls back to empty config if the column doesn't exist yet.
+    """
+    try:
+        settings = (
+            supabase.table("novel_settings")
+            .select("ai_provider_config")
+            .eq("id", 1)
+            .single()
+            .execute()
+        )
+        config = (settings.data or {}).get("ai_provider_config") or {}
+        if isinstance(config, dict):
+            return config
+    except Exception as e:
+        print(f"DEBUG: resolve_ai_provider_config error: {e}")
+    return {}
+
+
+def build_provider_router_from_config(
+    config_data: Optional[dict] = None, force_rebuild: bool = False
+) -> ProviderRouter:
+    """Get or build the global ProviderRouter singleton.
+
+    Constructs OpenAICompatibleProvider instances from the config
+    and registers them with the router.
+    """
+    global _PROVIDER_ROUTER, _PROVIDER_ROUTER_HEALTH_CHECKER
+    if _PROVIDER_ROUTER is not None and not force_rebuild:
+        return _PROVIDER_ROUTER
+
+    if config_data is None:
+        config_data = resolve_ai_provider_config()
+
+    profiles = build_provider_profiles(config_data)
+    router = ProviderRouter(cooldown_seconds=300, max_retries=3)
+
+    for provider_name, profile in profiles.items():
+        if not profile.enabled:
+            continue
+        try:
+            provider_instance = OpenAICompatibleProvider(profile=profile)
+            router.register_provider(provider_instance)
+        except Exception as e:
+            print(f"DEBUG: Failed to register provider {provider_name}: {e}")
+
+    _PROVIDER_ROUTER = router
+    _PROVIDER_ROUTER_HEALTH_CHECKER = ProviderHealthChecker(provider_router=router)
+    return router
+
+
+def get_provider_router() -> ProviderRouter:
+    """Get the current provider router, building it from config if needed."""
+    if _PROVIDER_ROUTER is not None:
+        return _PROVIDER_ROUTER
+    return build_provider_router_from_config()
+
+
+def get_provider_health_checker() -> ProviderHealthChecker:
+    """Get the current health checker, building the router if needed."""
+    global _PROVIDER_ROUTER_HEALTH_CHECKER
+    if _PROVIDER_ROUTER_HEALTH_CHECKER is not None:
+        return _PROVIDER_ROUTER_HEALTH_CHECKER
+    build_provider_router_from_config()
+    if _PROVIDER_ROUTER_HEALTH_CHECKER is None:
+        _PROVIDER_ROUTER_HEALTH_CHECKER = ProviderHealthChecker()
+    return _PROVIDER_ROUTER_HEALTH_CHECKER
 
 def normalize_locale(value: Optional[str]) -> str:
     if not value:
@@ -889,8 +974,8 @@ def normalize_model_catalog(raw_catalog, fallback_model: str) -> list[str]:
         catalog = DEFAULT_TRANSLATION_MODELS.copy()
     else:
         catalog.extend(DEFAULT_TRANSLATION_MODELS)
-    catalog = [item for item in catalog if item.startswith("gemini-")]
-    return list(dict.fromkeys(catalog))
+    # Allow model IDs from any provider (removed gemini- prefix filter)
+    return list(dict.fromkeys(item for item in catalog if item))
 
 def prioritize_model_catalog(catalog: list[str], preferred_model: str) -> list[str]:
     normalized = [item for item in catalog if item]
@@ -1018,6 +1103,43 @@ async def generate_structured_translation_payload(
     timeout_seconds: float = 300.0,
     translation_mode: str = "bulk",
 ) -> T:
+    # --- Multi-provider route (Phase 3) ---
+    # Try the ProviderRouter first if any providers are configured.
+    try:
+        router = get_provider_router()
+        if router._providers:  # At least one provider registered
+            temperature = 0.05 if translation_mode == "quality" else 0.1
+            request = AIRequest(
+                text=user_prompt,
+                mode="translation",
+                system_instruction=system_instruction,
+                response_schema=response_json_schema,
+                max_output_tokens=TRANSLATION_MAX_OUTPUT_TOKENS,
+                temperature=temperature,
+            )
+            config = resolve_ai_provider_config()
+            policy = config.get("translation_policy", {"mode": "waterfall"})
+            result = await router.route(request, policy=policy)
+            if result.status == "success" and result.text:
+                try:
+                    return parser(result.text)
+                except Exception as parse_exc:
+                    # If JSON parsing fails, try cleaning
+                    try:
+                        cleaned = parse_json_like_payload(result.text)
+                        raw_text = json.dumps(cleaned, ensure_ascii=False)
+                        return parser(raw_text)
+                    except Exception:
+                        pass
+                    # Log but fall through to legacy Gemini
+                    print(
+                        f"DEBUG: Multi-provider translation parsed failed "
+                        f"({result.provider}/{result.model}): {parse_exc}"
+                    )
+    except Exception as router_exc:
+        print(f"DEBUG: Multi-provider translation route error: {router_exc}")
+
+    # --- Legacy Gemini direct call (backward compatibility) ---
     _active_model, model_catalog, api_keys = await resolve_ai_settings_for_translation(translation_mode)
     if not api_keys:
         raise HTTPException(status_code=503, detail="AI translation is not configured")
@@ -1257,10 +1379,6 @@ async def resolve_ai_settings_for_translation(translation_mode: str = "bulk") ->
     )
 
 async def translate_text_with_ai(source_text: str, source_locale: str, target_locale: str, context_label: str) -> str:
-    _active_model, model_catalog, api_keys = await resolve_ai_settings_for_translation()
-    if not api_keys:
-        raise HTTPException(status_code=503, detail="AI translation is not configured")
-
     glossary_prompt = build_glossary_prompt()
     prompt = f"""
 Bạn là biên dịch viên chuyên nghiệp cho tiểu thuyết sinh tồn hậu tận thế.
@@ -1281,6 +1399,29 @@ GLOSSARY:
 SOURCE:
 {source_text}
 """.strip()
+
+    # --- Multi-provider route (Phase 3) ---
+    try:
+        router = get_provider_router()
+        if router._providers:
+            request = AIRequest(
+                text=prompt,
+                mode="chat",
+                max_output_tokens=8192,
+                temperature=0.3,
+            )
+            config = resolve_ai_provider_config()
+            policy = config.get("translation_policy", {"mode": "waterfall"})
+            result = await router.route(request, policy=policy)
+            if result.status == "success" and result.text:
+                return result.text.strip()
+    except Exception as router_exc:
+        print(f"DEBUG: Multi-provider translate_text error: {router_exc}")
+
+    # --- Legacy Gemini direct call ---
+    _active_model, model_catalog, api_keys = await resolve_ai_settings_for_translation()
+    if not api_keys:
+        raise HTTPException(status_code=503, detail="AI translation is not configured")
 
     payload = {
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
@@ -2753,6 +2894,8 @@ app.include_router(wiki_router)
 app.include_router(reader_learning_router)
 
 app.include_router(reader_grammar_router)
+
+app.include_router(ai_admin_router)
 
 @app.middleware("http")
 

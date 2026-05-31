@@ -10,6 +10,29 @@ import RichTextEditor from '@/components/Editor';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
+const PRESET_BGMS = [
+    {
+        title: "Dark Cello / Ambient Tension",
+        url: "https://pub-7b84345562bb41c6acf9cda324d194f8.r2.dev/bgm/20260331_5b1d8133_bgm_817_optimized_64k.mp3"
+    },
+    {
+        title: "The Descent / Deep Cello Tension",
+        url: "https://pub-7b84345562bb41c6acf9cda324d194f8.r2.dev/bgm/20260531_2bb03743_the_descent___deep_cello_tension.mp3"
+    },
+    {
+        title: "Unseen Horrors / Creepy Scraping",
+        url: "https://pub-7b84345562bb41c6acf9cda324d194f8.r2.dev/bgm/20260531_f707249c_unseen_horrors___creepy_scraping.mp3"
+    },
+    {
+        title: "Anxiety / High String Tension",
+        url: "https://pub-7b84345562bb41c6acf9cda324d194f8.r2.dev/bgm/20260531_4f8f64c8_anxiety___high_string_tension.mp3"
+    },
+    {
+        title: "Phantasm / Melancholic Suspense",
+        url: "https://pub-7b84345562bb41c6acf9cda324d194f8.r2.dev/bgm/20260531_39e2db0b_phantasm___melancholic_suspense.mp3"
+    }
+];
+
 export default function NewChapterPage() {
     const router = useRouter();
     const [chapterNumber, setChapterNumber] = useState('');
@@ -153,6 +176,36 @@ export default function NewChapterPage() {
                     <label htmlFor="isSideStory" className="text-sm font-mono text-gray-300 cursor-pointer select-none">
                         📜 Đây là Ngoại Truyện / Hồ sơ phụ (Không làm loạn số mạch truyện chính)
                     </label>
+                </div>
+
+                <div className="space-y-1">
+                    <label className="block text-xs font-mono text-gray-500 mb-1 tracking-widest">NHÚNG BGM PRESET (PLAYLIST MẠT THẾ ZOMBIE)</label>
+                    <select
+                        onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === 'custom') {
+                                // Clear for custom entry
+                                setBgmUrl('');
+                                setBgmTitle('');
+                            } else {
+                                const idx = parseInt(val);
+                                const preset = PRESET_BGMS[idx];
+                                if (preset) {
+                                    setBgmUrl(preset.url);
+                                    setBgmTitle(preset.title);
+                                }
+                            }
+                        }}
+                        defaultValue="0"
+                        className="w-full bg-[#0a0a0a] border border-gray-700 rounded px-3 py-2 text-gray-200 text-sm focus:outline-none focus:border-green-500 transition-colors font-mono appearance-none"
+                    >
+                        {PRESET_BGMS.map((preset, idx) => (
+                            <option key={idx} value={idx.toString()}>
+                                {preset.title} (BGM có sẵn)
+                            </option>
+                        ))}
+                        <option value="custom">-- Tải nhạc khác / Nhập URL thủ công --</option>
+                    </select>
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

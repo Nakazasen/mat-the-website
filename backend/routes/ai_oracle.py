@@ -51,11 +51,12 @@ Nguoi dung dang doc den Chuong {chapter_cap}.
 QUY TAC TUYET DOI:
 1. Chi duoc su dung thong tin tu Chuong 1 den Chuong {chapter_cap}.
 2. Neu su kien xay ra sau Chuong {chapter_cap}, hay noi chinh xac: "Du lieu chua duoc giai ma."
-3. Tra loi bang tieng Viet tu nhien, ngan gon, ro nghia, toi da 120 tu.
+3. Tra loi bang tieng Viet tu nhien, ngan gon, ro nghia, toi da 150 tu.
 4. Khong duoc tra ve tieu de rong kieu "[THONG BAO HE THONG]" neu khong co noi dung giai thich theo sau.
 5. Neu cau hoi khong du du kien trong pham vi da doc, hay tra loi ngan gon theo phong cach He Thong va neu ro gioi han du lieu.
 6. Khong bia thong tin khong co trong truyen hoac trong wiki context.
 7. Neu cau hoi la ve nhan vat, the luc, vat pham hoac su kien, uu tien tra loi bang chi tiet cu the thay vi noi chung chung.
+8. Tra loi PHAI day du va hoan chinh. KHONG duoc cat ngang giua cau.
 
 Thong tin ngu canh (wiki):
 {wiki_context}
@@ -229,21 +230,41 @@ async def get_wiki_context(supabase, question: str, chapter_cap: int) -> str:
         return ""
     try:
         words = [w for w in re.findall(r"[\wA-Za-zÀ-ỹ]{3,}", question) if w[0].isupper()]
-        if not words:
+        # Also extract significant lowercase words (>= 4 chars, not stopwords)
+        extra_words = [
+            w for w in re.findall(r"[\wA-Za-zÀ-ỹ]{4,}", question)
+            if w.lower() not in QUESTION_STOPWORDS and w not in words
+        ]
+        search_words = (words + extra_words[:2])[:5]
+        if not search_words:
             return ""
 
         context_parts: list[str] = []
-        for word in words[:3]:
+        seen_names: set[str] = set()
+        for word in search_words:
             result = (
                 supabase.table("wiki_entries")
                 .select("name, faction, status, description")
                 .ilike("name", f"%{word}%")
                 .lte("chapter_introduced", chapter_cap)
-                .limit(2)
+                .limit(3)
                 .execute()
             )
             for row in result.data or []:
-                context_parts.append(f"- {row['name']}: {row.get('description', '')[:150]}")
+                name = row.get('name', '')
+                if name in seen_names:
+                    continue
+                seen_names.add(name)
+                desc = row.get('description', '') or ''
+                faction = row.get('faction', '') or ''
+                status_text = row.get('status', '') or ''
+                parts = [f"- {name}"]
+                if faction:
+                    parts.append(f"(Phe: {faction})")
+                if status_text:
+                    parts.append(f"[{status_text}]")
+                parts.append(f": {desc[:300]}")
+                context_parts.append(" ".join(parts))
         return "\n".join(context_parts) or WIKI_EMPTY_CONTEXT
     except Exception:
         return ""
@@ -317,7 +338,7 @@ async def call_gemini(
             {"role": "user", "parts": [{"text": question}]},
         ],
         "generationConfig": {
-            "maxOutputTokens": 300,
+            "maxOutputTokens": 800,
             "temperature": 0.7,
         },
     }
@@ -340,6 +361,43 @@ async def call_gemini(
             return data["candidates"][0]["content"]["parts"][0]["text"]
         except (KeyError, IndexError):
             raise HTTPException(status_code=502, detail="Invalid Gemini response format")
+
+
+async def call_ai_provider(
+    question: str,
+    chapter_cap: int,
+    wiki_context: str,
+) -> Optional[str]:
+    """Try multi-provider router first, return None if unavailable."""
+    try:
+        try:
+            from main import get_provider_router, resolve_ai_provider_config, AIRequest
+        except ImportError:
+            from backend.main import get_provider_router, resolve_ai_provider_config, AIRequest
+
+        router = get_provider_router()
+        if not router._providers:
+            return None
+
+        system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
+            chapter_cap=chapter_cap,
+            wiki_context=wiki_context,
+        )
+        request = AIRequest(
+            text=question,
+            mode="chat",
+            system_instruction=system_prompt,
+            max_output_tokens=800,
+            temperature=0.7,
+        )
+        config = resolve_ai_provider_config()
+        policy = config.get("chat_policy", {"mode": "waterfall"})
+        result = await router.route(request, policy=policy)
+        if result.status == "success" and result.text:
+            return result.text.strip()
+        return None
+    except Exception:
+        return None
 
 
 def normalize_model_catalog(raw_catalog, fallback_model: str) -> list[str]:
@@ -580,9 +638,15 @@ async def ask_oracle(body: OracleRequest, request: Request):
             detail="He thong da dat gioi han truy van trong ngay. Vui long thu lai vao ngay mai.",
         )
 
+    # --- Multi-provider route (Phase 4) ---
+    answer = await call_ai_provider(question, chapter_cap, wiki_context)
+    if answer and not is_garbage_answer(answer):
+        await store_cache(supabase, question_hash, chapter_cap, answer, "ai_provider")
+        return OracleResponse(answer=answer, source="ai_provider", chapter_cap=chapter_cap)
+
+    # --- Legacy Gemini fallback ---
     _, model_catalog, api_keys = await resolve_ai_settings(supabase)
 
-    answer = None
     last_error: Optional[HTTPException] = None
     for api_key in api_keys:
         for model_name in model_catalog:
@@ -606,10 +670,10 @@ async def ask_oracle(body: OracleRequest, request: Request):
                 if not is_model_retryable(exc):
                     raise
                 continue
-        if answer is not None:
+        if answer is not None and not is_garbage_answer(answer):
             break
 
-    if answer is None:
+    if answer is None or is_garbage_answer(answer):
         if last_error:
             raise last_error
         raise HTTPException(status_code=502, detail="No AI model available")
