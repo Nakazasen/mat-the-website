@@ -11,6 +11,7 @@ and converted to async (httpx.AsyncClient).
 
 from __future__ import annotations
 
+from email.utils import parsedate_to_datetime
 import json
 import re
 import time
@@ -144,6 +145,9 @@ class OpenAICompatibleProvider(BaseAIProvider):
                     response_body=normalized_detail or raw_detail,
                 ),
                 error_message=_format_http_error_message(status_code, detail),
+                retry_after_seconds=_parse_retry_after_header(
+                    response.headers.get("Retry-After")
+                ),
                 latency_ms=round((time.time() - started) * 1000),
             )
         except httpx.TimeoutException as exc:
@@ -293,6 +297,23 @@ def _format_http_error_message(status_code: int | None, detail: str) -> str:
     if detail:
         return f"HTTP {status_code}: {detail}"
     return f"HTTP {status_code}"
+
+
+def _parse_retry_after_header(value: str | None) -> float:
+    if not value:
+        return 0.0
+
+    value = value.strip()
+    try:
+        return max(0.0, float(value))
+    except ValueError:
+        pass
+
+    try:
+        retry_at = parsedate_to_datetime(value)
+    except (TypeError, ValueError):
+        return 0.0
+    return max(0.0, retry_at.timestamp() - time.time())
 
 
 def _sanitize_error_detail(detail: str, api_key: str = "") -> str:

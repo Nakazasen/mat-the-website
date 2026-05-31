@@ -16,7 +16,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Iterable, Optional
 
 from ai_providers.base import AIRequest, AIResult, BaseAIProvider
-from ai_providers.error_classifier import COOLDOWN_ERROR_TYPES, FATAL_ERROR_TYPES, classify_error
+from ai_providers.error_classifier import classify_error
 from ai_providers.profiles import PROVIDER_QUALITY_SCORES
 
 
@@ -44,6 +44,39 @@ class ProviderState:
 
 class ProviderRouter:
     """Async runtime provider router with cooldown and health tracking."""
+
+    RATE_LIMIT_COOLDOWN_SECONDS = 15.0
+    RATE_LIMIT_MAX_RETRY_AFTER_SECONDS = 60.0
+    KNOWN_ERROR_TYPES = frozenset(
+        {
+            "auth_failure",
+            "quota_rate_limit",
+            "token_limit",
+            "timeout",
+            "transport_error",
+            "model_unavailable",
+            "model_error",
+            "provider_5xx",
+            "unknown_transport_error",
+            "provider_error",
+            "health_check_failed",
+        }
+    )
+    LONG_COOLDOWN_ERROR_TYPES = frozenset(
+        {
+            "auth_failure",
+            "model_unavailable",
+            "model_error",
+            "provider_5xx",
+        }
+    )
+    PERMANENT_ERROR_TYPES = frozenset(
+        {
+            "auth_failure",
+            "model_unavailable",
+            "model_error",
+        }
+    )
 
     def __init__(self, cooldown_seconds: int = 300, max_retries: int = 2):
         self.cooldown_seconds = max(1, int(cooldown_seconds))
@@ -207,9 +240,11 @@ class ProviderRouter:
                     return result
 
                 # Failed — record and continue
-                error_detail = (
-                    result.error_type or result.error_message or "provider_error"
-                )
+                error_detail = {
+                    "error_type": result.error_type or "provider_error",
+                    "error_message": result.error_message,
+                    "retry_after_seconds": result.retry_after_seconds,
+                }
                 self.mark_failure(
                     result.provider or provider.name,
                     result.model or candidate.model,
@@ -232,6 +267,7 @@ class ProviderRouter:
                         "status": "failed",
                         "reason": result.error_type or "error",
                         "message": result.error_message,
+                        "retry_after_seconds": result.retry_after_seconds,
                         "latency_ms": result.latency_ms,
                     }
                 )
@@ -252,6 +288,9 @@ class ProviderRouter:
                 final_attempt.get("reason", "no_provider_available")
             ),
             error_message=error_message,
+            retry_after_seconds=float(
+                final_attempt.get("retry_after_seconds", 0.0) or 0.0
+            ),
             latency_ms=int(final_attempt.get("latency_ms", 0) or 0),
             attempts=attempts,
         )
@@ -295,23 +334,29 @@ class ProviderRouter:
         key_index: int | None = None,
         key_id: str | None = None,
         display_name: str = "",
+        retry_after_seconds: float | None = None,
     ) -> None:
         state = self._ensure_state(
             provider, model, key_index=key_index, key_id=key_id, display_name=display_name
         )
-        error_type = classify_error(error)
+        error_type = self._normalize_error_type(error)
+        retry_after_seconds = self._extract_retry_after_seconds(
+            error, retry_after_seconds
+        )
         state.model = model or state.model
-        state.is_available = error_type not in FATAL_ERROR_TYPES
+        state.is_available = error_type not in self.PERMANENT_ERROR_TYPES
         state.consecutive_failures += 1
         state.last_error_type = error_type
         state.last_latency_ms = max(0, int(latency_ms or 0))
         state.failure_count += 1
         state.last_error_class = error_type
 
-        if error_type in FATAL_ERROR_TYPES:
+        if error_type in self.PERMANENT_ERROR_TYPES:
             state.health_status = "dead"
-        elif error_type in ("quota_rate_limit", "token_limit"):
+        elif error_type == "quota_rate_limit":
             state.health_status = "cooldown"
+        elif error_type == "token_limit":
+            state.health_status = "degraded"
         elif error_type in ("timeout", "provider_5xx"):
             state.health_status = "degraded"
 
@@ -323,8 +368,54 @@ class ProviderRouter:
                     latency_ms
                 )
 
-        if error_type in COOLDOWN_ERROR_TYPES:
+        if error_type == "quota_rate_limit":
+            state.cooldown_until = time.time() + self._rate_limit_cooldown_seconds(
+                retry_after_seconds
+            )
+        elif error_type in self.LONG_COOLDOWN_ERROR_TYPES:
             state.cooldown_until = time.time() + self.cooldown_seconds
+
+    def peek_next_candidate(
+        self,
+        policy: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any] | None:
+        """Return the next routable provider/model/key without mutating rotation state."""
+        policy = policy or {}
+        ordered_names = self._resolve_order(
+            policy.get("provider_order"),
+            policy.get("allowed_providers"),
+            policy,
+        )
+        now = time.time()
+
+        for provider_name in ordered_names:
+            provider = self._providers.get(provider_name)
+            if provider is None or not provider.is_available():
+                continue
+
+            for candidate in provider.iter_candidates():
+                state = self._ensure_state(
+                    provider.name,
+                    candidate.model or getattr(provider, "default_model", ""),
+                    key_index=candidate.key_index,
+                    key_id=candidate.key_id,
+                    display_name=getattr(provider, "display_name", provider.name),
+                )
+                if self._is_on_cooldown(state, now):
+                    continue
+
+                return {
+                    "provider": provider.name,
+                    "display_name": getattr(
+                        provider, "display_name", provider.name
+                    ),
+                    "model": candidate.model
+                    or getattr(provider, "default_model", ""),
+                    "key_index": candidate.key_index,
+                    "key_id": candidate.key_id,
+                }
+
+        return None
 
     def get_health_snapshot(self) -> list[dict[str, Any]]:
         """Return current health state for all tracked providers."""
@@ -458,3 +549,88 @@ class ProviderRouter:
             return False
         current = now if now is not None else time.time()
         return state.cooldown_until > current
+
+    def _rate_limit_cooldown_seconds(
+        self, retry_after_seconds: float | None = None
+    ) -> float:
+        if retry_after_seconds and retry_after_seconds > 0:
+            return min(
+                self.RATE_LIMIT_MAX_RETRY_AFTER_SECONDS,
+                max(1.0, float(retry_after_seconds)),
+            )
+        return self.RATE_LIMIT_COOLDOWN_SECONDS
+
+    def _normalize_error_type(self, error: Any) -> str:
+        """Prefer explicit router error types before falling back to hint matching."""
+        explicit_error_type = self._extract_error_type(error)
+        if explicit_error_type:
+            return explicit_error_type
+
+        if isinstance(error, dict):
+            status_code = self._extract_status_code(error)
+            response_body = (
+                error.get("response_body")
+                or error.get("body")
+                or error.get("error_message")
+                or error.get("message")
+                or error
+            )
+            return classify_error(error, status_code=status_code, response_body=response_body)
+
+        return classify_error(error)
+
+    def _extract_error_type(self, error: Any) -> str:
+        if isinstance(error, str):
+            candidate = error.strip().lower()
+            return candidate if candidate in self.KNOWN_ERROR_TYPES else ""
+
+        if not isinstance(error, dict):
+            return ""
+
+        for key in ("error_type", "error_class", "type", "reason"):
+            value = error.get(key)
+            if value is None:
+                continue
+            candidate = str(value).strip().lower()
+            if candidate in self.KNOWN_ERROR_TYPES:
+                return candidate
+
+        return ""
+
+    def _extract_status_code(self, error: dict[str, Any]) -> int | None:
+        for key in ("status_code", "status", "http_status", "code"):
+            value = error.get(key)
+            if value is None:
+                continue
+            try:
+                status_code = int(value)
+            except (TypeError, ValueError):
+                continue
+            if 100 <= status_code <= 599:
+                return status_code
+        return None
+
+    def _extract_retry_after_seconds(
+        self, error: Any, explicit_value: float | None = None
+    ) -> float:
+        if explicit_value is not None:
+            try:
+                return max(0.0, float(explicit_value))
+            except (TypeError, ValueError):
+                return 0.0
+
+        if isinstance(error, dict):
+            for key in (
+                "retry_after_seconds",
+                "retry_after",
+                "Retry-After",
+                "retry-after",
+            ):
+                value = error.get(key)
+                if value is None:
+                    continue
+                try:
+                    return max(0.0, float(value))
+                except (TypeError, ValueError):
+                    continue
+        return 0.0

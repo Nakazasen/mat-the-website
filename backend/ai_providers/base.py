@@ -52,6 +52,7 @@ class AIResult:
     key_index: int = -1
     error_type: str = ""
     error_message: str = ""
+    retry_after_seconds: float = 0.0
     latency_ms: int = 0
     from_cache: bool = False
     attempts: list[dict[str, Any]] = field(default_factory=list)

@@ -207,6 +207,11 @@ MODEL_MIN_INTERVAL_SECONDS = {
     "gemini-3.1-flash-lite-preview": 4.5,
     "gemini-3-flash-preview": 12.5,
 }
+PROVIDER_MIN_INTERVAL_SECONDS = {
+    "groq": 1.5,
+    "sambanova": 1.5,
+    "deepseek": 2.0,
+}
 TRANSLATION_MAX_OUTPUT_TOKENS = 65536
 TRANSLATION_MULTI_LOCALE_MAX_SOURCE_CHARS = 4000
 TRANSLATION_ALIGNMENT_MAX_SENTENCE_CHARS = 360
@@ -1026,11 +1031,45 @@ def build_translation_failure_detail(
     return "\n".join(lines)
 
 def get_model_min_interval_seconds(model_name: str) -> float:
-    return MODEL_MIN_INTERVAL_SECONDS.get(model_name, 6.5)
+    normalized_name = (model_name or "").strip().lower()
+    provider_name = ""
+    actual_model = model_name or ""
+
+    if ":" in normalized_name:
+        provider_name, _, _ = normalized_name.partition(":")
+        _, _, actual_model = (model_name or "").partition(":")
+
+    if provider_name in PROVIDER_MIN_INTERVAL_SECONDS:
+        return PROVIDER_MIN_INTERVAL_SECONDS[provider_name]
+
+    for provider_key, min_interval in PROVIDER_MIN_INTERVAL_SECONDS.items():
+        if provider_key in normalized_name:
+            return min_interval
+
+    return MODEL_MIN_INTERVAL_SECONDS.get(actual_model or model_name, 6.5)
 
 def get_key_model_bucket(model_name: str, api_key: str) -> str:
     key_hash = hashlib.sha1(api_key.encode("utf-8")).hexdigest()[:8] if api_key else "nokey"
     return f"{model_name}|{key_hash}"
+
+def build_router_throttle_model_name(candidate: Optional[dict[str, Any]]) -> str:
+    if not candidate:
+        return ""
+    provider_name = str(candidate.get("provider") or "").strip()
+    model_name = str(candidate.get("model") or "").strip()
+    if provider_name and model_name:
+        return f"{provider_name}:{model_name}"
+    return model_name or provider_name
+
+def build_router_throttle_key(candidate: Optional[dict[str, Any]]) -> str:
+    if not candidate:
+        return ""
+    provider_name = str(candidate.get("provider") or "").strip()
+    key_index = candidate.get("key_index")
+    key_id = str(candidate.get("key_id") or "").strip()
+    if key_index is None:
+        key_index = -1
+    return f"{provider_name}:{key_index}:{key_id}"
 
 def clean_json_like_response(raw_text: str) -> str:
     cleaned = (raw_text or "").strip()
@@ -1127,6 +1166,12 @@ async def generate_structured_translation_payload(
                 )
                 config = resolve_ai_provider_config()
                 policy = config.get("translation_policy", {"mode": "waterfall"})
+                next_candidate = router.peek_next_candidate(policy=policy)
+                if next_candidate:
+                    await throttle_translation_request(
+                        build_router_throttle_model_name(next_candidate),
+                        build_router_throttle_key(next_candidate),
+                    )
                 result = await router.route(request, policy=policy)
                 
                 if result.status == "success" and result.text:
@@ -1149,17 +1194,31 @@ async def generate_structured_translation_payload(
                 
                 router_failed = True
                 error_class = "unknown_error"
+                error_classes = []
+                retry_after_seconds = 0.0
                 for a in result.attempts:
                     if a.get('status') == 'failed':
                         router_error_details.append(f"{a.get('provider')} ({a.get('model')}): {a.get('reason')} - {a.get('message')}")
-                        error_class = a.get('reason') or error_class
-                
+                        reason = a.get('reason') or ""
+                        if reason:
+                            error_classes.append(reason)
+                        retry_after_seconds = max(
+                            retry_after_seconds,
+                            float(a.get("retry_after_seconds", 0.0) or 0.0),
+                        )
+                if "quota_rate_limit" in error_classes:
+                    error_class = "quota_rate_limit"
+                elif error_classes:
+                    error_class = error_classes[-1]
+
                 # If error is not transient (e.g. auth failure or invalid model), do not retry
                 if error_class in ("auth_failure", "model_error", "model_unavailable"):
                     break
-                
+
                 if attempt < max_retries:
                     wait_sec = 25 * attempt if error_class == "quota_rate_limit" else 3 * attempt
+                    if error_class == "quota_rate_limit" and retry_after_seconds > 0:
+                        wait_sec = max(wait_sec, retry_after_seconds)
                     print(f"DEBUG: Translation transient failure ({error_class}). Retrying attempt {attempt + 1}/{max_retries} in {wait_sec}s...")
                     await asyncio.sleep(wait_sec)
                     continue
