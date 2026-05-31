@@ -349,10 +349,23 @@ export default function AudioPlayer({
 
         audio.play().then(() => {
             audio.playbackRate = speedRef.current;
+            
+            // Pre-fetch the next chunk in the background to achieve gapless playback!
+            if (typeof window !== 'undefined') {
+                const nextIndex = index + 1;
+                if (nextIndex < chunksRef.current.length) {
+                    const nextUrl = ttsUrl(chunksRef.current[nextIndex], activeLocale, speedRef.current, activeVoice);
+                    const preloader = new window.Audio();
+                    preloader.src = nextUrl;
+                    preloader.preload = 'auto';
+                    preloader.load();
+                }
+            }
         }).catch(() => {
             if (!stoppedRef.current) playChunk(index + 1);
         });
     }, [activeLocale, localizePath, nextId, onIndexChange, router, stop, activeVoice]);
+
 
 
     const requestWakeLock = useCallback(async () => {

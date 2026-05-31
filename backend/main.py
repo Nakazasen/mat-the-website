@@ -3249,25 +3249,28 @@ async def tts_proxy(
             rate_val = int((speed - 1.0) * 100)
             rate_str = f"{rate_val:+d}%"
 
-            async def edge_tts_streamer():
-                try:
-                    communicate = edge_tts.Communicate(text, voice, rate=rate_str)
-                    async for chunk in communicate.stream():
-                        if chunk["type"] == "audio":
-                            yield chunk["data"]
-                except Exception as tts_err:
-                    print(f"ERROR inside edge_tts_streamer: {tts_err}")
+            # Pre-collect all audio bytes to avoid chunked transfer latency and set proper Content-Length
+            communicate = edge_tts.Communicate(text, voice, rate=rate_str)
+            audio_data = bytearray()
+            async for chunk in communicate.stream():
+                if chunk["type"] == "audio":
+                    audio_data.extend(chunk["data"])
+
+            if not audio_data:
+                raise ValueError("Edge TTS yielded no audio bytes")
 
             return StreamingResponse(
-                edge_tts_streamer(),
+                io.BytesIO(audio_data),
                 media_type="audio/mpeg",
                 headers={
                     "Cache-Control": "public, max-age=3600",
                     "Access-Control-Allow-Origin": "*",
+                    "Content-Length": str(len(audio_data)),
                 },
             )
         except Exception as e:
-            print(f"Edge TTS failed to initialize, falling back to Google Translate TTS: {e}")
+            print(f"Edge TTS failed to initialize/synthesize, falling back to Google Translate TTS: {e}")
+
 
 
     url = (
