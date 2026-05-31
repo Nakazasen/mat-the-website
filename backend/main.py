@@ -3270,31 +3270,62 @@ async def tts_proxy(
 
     """
     if voice and voice != "google":
+        import edge_tts
+
+        rate_val = int((speed - 1.0) * 100)
+        rate_str = f"{rate_val:+d}%"
+
+        # Define single fetch task
+        async def fetch_single(task_id: int) -> bytearray:
+            communicate = edge_tts.Communicate(text, voice, rate=rate_str)
+            audio = bytearray()
+            async for chunk in communicate.stream():
+                if chunk["type"] == "audio":
+                    audio.extend(chunk["data"])
+            if audio:
+                return audio
+            raise ValueError("No audio bytes yielded")
+
         audio_data = None
         last_err = None
-        for attempt in range(3):
-            try:
-                import edge_tts
 
-                # Map speed to rate percentage string: e.g. 1.25 -> "+25%", 0.75 -> "-25%", 1.0 -> "+0%"
-                rate_val = int((speed - 1.0) * 100)
-                rate_str = f"{rate_val:+d}%"
-
-                communicate = edge_tts.Communicate(text, voice, rate=rate_str)
-                current_audio = bytearray()
-                async for chunk in communicate.stream():
-                    if chunk["type"] == "audio":
-                        current_audio.extend(chunk["data"])
-
-                if current_audio:
-                    audio_data = current_audio
-                    break
-                else:
-                    raise ValueError("No audio bytes yielded")
-            except Exception as e:
-                last_err = e
-                print(f"Edge TTS attempt {attempt+1} failed: {e}")
-                await asyncio.sleep(0.15)  # tiny pause before retry
+        # Start Task 1
+        task_a = asyncio.create_task(fetch_single(1))
+        
+        # Wait up to 1.0 second for Task A
+        done, pending = await asyncio.wait({task_a}, timeout=1.0)
+        
+        if task_a in done and task_a.exception() is None:
+            # Task A finished successfully
+            audio_data = task_a.result()
+        else:
+            # Task A is either still running or failed
+            tasks_to_wait = []
+            if not task_a.done():
+                tasks_to_wait.append(task_a)
+            elif task_a.exception() is not None:
+                last_err = task_a.exception()
+                print(f"Edge TTS Task 1 failed early: {last_err}")
+            
+            # Spawn Task B (Backup/Hedged)
+            task_b = asyncio.create_task(fetch_single(2))
+            tasks_to_wait.append(task_b)
+            
+            # Race the remaining active tasks
+            while tasks_to_wait:
+                done_tasks, pending_tasks = await asyncio.wait(tasks_to_wait, return_when=asyncio.FIRST_COMPLETED)
+                for t in done_tasks:
+                    try:
+                        audio_data = t.result()
+                        # Cancel remaining pending tasks
+                        for p in pending_tasks:
+                            p.cancel()
+                        tasks_to_wait = []
+                        break
+                    except Exception as e:
+                        last_err = e
+                        print(f"Edge TTS Hedged Task failed: {e}")
+                        tasks_to_wait.remove(t)
 
         if audio_data:
             return StreamingResponse(
@@ -3307,7 +3338,7 @@ async def tts_proxy(
                 },
             )
         else:
-            print(f"Edge TTS failed completely after all attempts: {last_err}")
+            print(f"Edge TTS failed completely after hedged racing: {last_err}")
             friendly_name = get_friendly_voice_name(voice)
             raise HTTPException(
                 status_code=503,
