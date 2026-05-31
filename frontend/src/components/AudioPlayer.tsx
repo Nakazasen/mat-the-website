@@ -141,13 +141,20 @@ export default function AudioPlayer({
     const speedRef = useRef(speed);
     const stoppedRef = useRef(true);
     const wakeLockRef = useRef<any>(null);
-    const preloadTimerRef = useRef<any>(null);
+    const preloadTimerRef = useRef<any[]>([]);
     const floatingPanelRef = useRef<HTMLDivElement>(null);
     const draggingPointerIdRef = useRef<number | null>(null);
     const [isDesktop, setIsDesktop] = useState(false);
     const [floatingDragging, setFloatingDragging] = useState(false);
     const [floatingPosition, setFloatingPosition] = useState<{ top: number; left: number } | null>(null);
     const [mobileLearningPanelActive, setMobileLearningPanelActive] = useState(false);
+
+    const clearPreloadTimers = useCallback(() => {
+        if (preloadTimerRef.current.length > 0) {
+            preloadTimerRef.current.forEach(clearTimeout);
+            preloadTimerRef.current = [];
+        }
+    }, []);
 
     useEffect(() => {
         if (onVoiceChange) onVoiceChange(activeVoice);
@@ -183,6 +190,7 @@ export default function AudioPlayer({
         const cleanText = stripHtml(resolvedContent || content);
         const maxLen = activeVoice === 'google' ? 180 : 350;
         chunksRef.current = splitIntoChunks(cleanText, maxLen);
+        chunkIndexRef.current = 0; // Reset chunk index when chapter content changes!
     }, [content, resolvedContent, activeVoice]);
 
     useEffect(() => {
@@ -271,13 +279,10 @@ export default function AudioPlayer({
     useEffect(() => {
         return () => {
             stoppedRef.current = true;
-            if (preloadTimerRef.current) {
-                clearTimeout(preloadTimerRef.current);
-                preloadTimerRef.current = null;
-            }
+            clearPreloadTimers();
             if (onIndexChange) onIndexChange(null);
         };
-    }, [onIndexChange]);
+    }, [onIndexChange, clearPreloadTimers]);
 
 
     useEffect(() => {
@@ -319,10 +324,7 @@ export default function AudioPlayer({
 
     const stop = useCallback(() => {
         stoppedRef.current = true;
-        if (preloadTimerRef.current) {
-            clearTimeout(preloadTimerRef.current);
-            preloadTimerRef.current = null;
-        }
+        clearPreloadTimers();
         if (wakeLockRef.current) {
             wakeLockRef.current.release();
             wakeLockRef.current = null;
@@ -360,10 +362,7 @@ export default function AudioPlayer({
         if (!audio) return;
 
         // Clear any pending preload timer to prevent racing
-        if (preloadTimerRef.current) {
-            clearTimeout(preloadTimerRef.current);
-            preloadTimerRef.current = null;
-        }
+        clearPreloadTimers();
 
         if (index >= chunksRef.current.length) {
             stop();
@@ -383,23 +382,27 @@ export default function AudioPlayer({
         audio.play().then(() => {
             audio.playbackRate = speedRef.current;
             
-            // Pre-fetch the next chunk in the background after a small delay to avoid concurrent socket clashes on Microsoft server
+            // Pre-fetch the next 3 chunks in the background in a staggered sliding window
             if (typeof window !== 'undefined') {
-                const nextIndex = index + 1;
-                if (nextIndex < chunksRef.current.length) {
-                    preloadTimerRef.current = setTimeout(() => {
-                        const nextUrl = ttsUrl(chunksRef.current[nextIndex], activeLocale, speedRef.current, activeVoice);
-                        const preloader = new window.Audio();
-                        preloader.src = nextUrl;
-                        preloader.preload = 'auto';
-                        preloader.load();
-                    }, 2200); // 2.2 seconds delay is ideal
+                const windowSize = 3;
+                for (let i = 1; i <= windowSize; i++) {
+                    const nextIndex = index + i;
+                    if (nextIndex < chunksRef.current.length) {
+                        const timer = setTimeout(() => {
+                            const nextUrl = ttsUrl(chunksRef.current[nextIndex], activeLocale, speedRef.current, activeVoice);
+                            const preloader = new window.Audio();
+                            preloader.src = nextUrl;
+                            preloader.preload = 'auto';
+                            preloader.load();
+                        }, i * 600); // 600ms, 1200ms, 1800ms
+                        preloadTimerRef.current.push(timer);
+                    }
                 }
             }
         }).catch(() => {
             if (!stoppedRef.current) playChunk(index + 1);
         });
-    }, [activeLocale, localizePath, nextId, onIndexChange, router, stop, activeVoice]);
+    }, [activeLocale, localizePath, nextId, onIndexChange, router, stop, activeVoice, clearPreloadTimers]);
 
 
 
@@ -468,10 +471,7 @@ export default function AudioPlayer({
 
             // Stop the active playback loop
             stoppedRef.current = true;
-            if (preloadTimerRef.current) {
-                clearTimeout(preloadTimerRef.current);
-                preloadTimerRef.current = null;
-            }
+            clearPreloadTimers();
 
             // Speak the friendly error message via Google Translate TTS once
             const friendlyName = activeVoice === 'google' ? 'mặc định' : activeVoice.includes('NamMinh') ? 'Nam Minh' : 'Hoài Mỹ';
@@ -504,10 +504,10 @@ export default function AudioPlayer({
 
     const play = useCallback(() => {
         stoppedRef.current = false;
-        chunkIndexRef.current = 0;
+        const startIndex = chunkIndexRef.current > 0 ? chunkIndexRef.current : 0;
         setupMediaSession();
         requestWakeLock();
-        playChunk(0);
+        playChunk(startIndex);
     }, [playChunk, requestWakeLock, setupMediaSession]);
 
     const pause = useCallback(() => {
