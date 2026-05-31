@@ -463,20 +463,44 @@ export default function AudioPlayer({
             }
         };
 
+        const handleError = () => {
+            if (stoppedRef.current) return;
+
+            // Stop the active playback loop
+            stoppedRef.current = true;
+            if (preloadTimerRef.current) {
+                clearTimeout(preloadTimerRef.current);
+                preloadTimerRef.current = null;
+            }
+
+            // Speak the friendly error message via Google Translate TTS once
+            const friendlyName = activeVoice === 'google' ? 'mặc định' : activeVoice.includes('NamMinh') ? 'Nam Minh' : 'Hoài Mỹ';
+            const errMsg = `Hệ thống quá tải, không thể tải giọng đọc ${friendlyName}. Vui lòng thử lại sau.`;
+            const errUrl = ttsUrl(errMsg, activeLocale, 1.0, 'google');
+
+            // Force play error message once, then the player stops naturally
+            audio.src = errUrl;
+            audio.load();
+            audio.play().catch(() => {});
+
+            setPlayState('stopped');
+            if (onIndexChange) onIndexChange(null);
+        };
+
         audio.addEventListener('play', syncPlaying);
         audio.addEventListener('playing', syncPlaying);
         audio.addEventListener('pause', syncPaused);
         audio.addEventListener('ended', handleEnded);
-        audio.addEventListener('error', handleEnded);
+        audio.addEventListener('error', handleError);
 
         return () => {
             audio.removeEventListener('play', syncPlaying);
             audio.removeEventListener('playing', syncPlaying);
             audio.removeEventListener('pause', syncPaused);
             audio.removeEventListener('ended', handleEnded);
-            audio.removeEventListener('error', handleEnded);
+            audio.removeEventListener('error', handleError);
         };
-    }, [playChunk]);
+    }, [playChunk, activeVoice, activeLocale, onIndexChange]);
 
     const play = useCallback(() => {
         stoppedRef.current = false;

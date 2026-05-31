@@ -63,11 +63,11 @@ def run_large_tts_tests():
         }
     )
     print(f"Response status: {response_fallback.status_code}")
-    if response_fallback.status_code == 200:
-        print(f"✅ SUCCESS: Received {len(response_fallback.content)} bytes of fallback audio!")
-        print("Note: The server logged the exception and returned Google speech for 'Hệ thống quá tải, không thể tải giọng đọc Nam Minh. Vui lòng thử lại sau.'")
+    if response_fallback.status_code == 503:
+        print("✅ SUCCESS: Received HTTP 503 Service Unavailable error as expected!")
+        print(f"Detail payload: {response_fallback.json()}")
     else:
-        print(f"❌ FAILED: Status code {response_fallback.status_code}")
+        print(f"❌ FAILED: Expected 503, got status code {response_fallback.status_code}")
 
     print("\n====================================================")
     print("ALL TTS ROBUSTNESS VERIFICATION TESTS COMPLETED!")

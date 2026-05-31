@@ -3227,7 +3227,6 @@ async def get_chapter(
 # === TTS PROXY ===
 
 import asyncio
-edge_tts_lock = asyncio.Lock()
 
 def get_friendly_voice_name(voice: str) -> str:
     if not voice:
@@ -3281,13 +3280,11 @@ async def tts_proxy(
                 rate_val = int((speed - 1.0) * 100)
                 rate_str = f"{rate_val:+d}%"
 
-                # Pre-collect all audio bytes under a global concurrency lock to prevent IP blocking
-                async with edge_tts_lock:
-                    communicate = edge_tts.Communicate(text, voice, rate=rate_str)
-                    current_audio = bytearray()
-                    async for chunk in communicate.stream():
-                        if chunk["type"] == "audio":
-                            current_audio.extend(chunk["data"])
+                communicate = edge_tts.Communicate(text, voice, rate=rate_str)
+                current_audio = bytearray()
+                async for chunk in communicate.stream():
+                    if chunk["type"] == "audio":
+                        current_audio.extend(chunk["data"])
 
                 if current_audio:
                     audio_data = current_audio
@@ -3310,9 +3307,12 @@ async def tts_proxy(
                 },
             )
         else:
-            print(f"Edge TTS failed completely after all attempts. Generating error message via Google Translate: {last_err}")
+            print(f"Edge TTS failed completely after all attempts: {last_err}")
             friendly_name = get_friendly_voice_name(voice)
-            text = f"Hệ thống quá tải, không thể tải giọng đọc {friendly_name}. Vui lòng thử lại sau."
+            raise HTTPException(
+                status_code=503,
+                detail=f"Hệ thống quá tải, không thể tải giọng đọc {friendly_name}. Vui lòng thử lại sau."
+            )
 
 
 
