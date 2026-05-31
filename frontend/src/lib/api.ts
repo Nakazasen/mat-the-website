@@ -62,6 +62,7 @@ export interface AdminChapterTranslateResult {
     translated_locales: string[];
     skipped_locales?: string[];
     failed_translations?: TranslationFailure[];
+    status?: string;
 }
 
 export interface ChaptersResponse {

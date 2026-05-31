@@ -25,7 +25,7 @@ from botocore.client import Config
 
 import httpx
 
-from fastapi import FastAPI, HTTPException, Query, Header, status, UploadFile, File
+from fastapi import FastAPI, HTTPException, Query, Header, status, UploadFile, File, BackgroundTasks
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -1159,7 +1159,7 @@ async def generate_structured_translation_payload(
                     break
                 
                 if attempt < max_retries:
-                    wait_sec = 3 * attempt
+                    wait_sec = 25 * attempt if error_class == "quota_rate_limit" else 3 * attempt
                     print(f"DEBUG: Translation transient failure ({error_class}). Retrying attempt {attempt + 1}/{max_retries} in {wait_sec}s...")
                     await asyncio.sleep(wait_sec)
                     continue
@@ -3565,9 +3565,10 @@ async def admin_update_chapter(
 
     return {"message": "Không có gì thay đổi"}
 
-@app.post("/api/admin/chapters/{chapter_number}/translate", summary="[Admin] Translate chapter to EN/ZH-CN/JA")
+@app.post("/api/admin/chapters/{chapter_number}/translate", summary="[Admin] Translate chapter to EN/ZH-CN/JA", status_code=202)
 async def admin_translate_chapter(
     chapter_number: int,
+    background_tasks: BackgroundTasks,
     authorization: Optional[str] = Header(None),
 ):
     await verify_admin(authorization)
@@ -3584,44 +3585,52 @@ async def admin_translate_chapter(
 
     chapter_row = chapter_resp.data
     content_text = fetch_r2_content(chapter_row["content_url"])
-    try:
-        translation_result = await upsert_chapter_translations(
-            chapter_row,
-            chapter_row["title"],
-            content_text,
-            list(TRANSLATION_TARGET_LOCALES),
-        )
-        translated_locales = translation_result["translated_locales"]
-        failed_translations = translation_result["failed_translations"]
-    except HTTPException as exc:
-        translated_locales = []
-        failed_translations = [
-            {
-                "locale": ",".join(TRANSLATION_TARGET_LOCALES),
-                "status_code": exc.status_code,
-                "detail": str(exc.detail),
-            }
-        ]
-    except Exception as exc:
-        translated_locales = []
-        failed_translations = [
-            {
-                "locale": ",".join(TRANSLATION_TARGET_LOCALES),
-                "status_code": 500,
-                "detail": str(exc),
-            }
-        ]
+    content_hash = build_content_hash(content_text)
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    # Pre-emptively set statuses to 'in_progress' in DB so the UI updates instantly
+    for locale in TRANSLATION_TARGET_LOCALES:
+        payload = {
+            "chapter_id": chapter_row["id"],
+            "locale": locale,
+            "title": "",
+            "content": "",
+            "translation_status": "in_progress",
+            "translation_source": "ai",
+            "content_hash": content_hash,
+            "updated_at": now_iso,
+            "last_error": None,
+        }
+        supabase.table("chapter_translations").upsert(
+            payload,
+            on_conflict="chapter_id,locale",
+        ).execute()
+
+    async def run_translation_background():
+        try:
+            await upsert_chapter_translations(
+                chapter_row,
+                chapter_row["title"],
+                content_text,
+                list(TRANSLATION_TARGET_LOCALES),
+            )
+        except Exception as exc:
+            print(f"DEBUG: Background translation task failed for chapter {chapter_number}: {exc}")
+
+    background_tasks.add_task(run_translation_background)
 
     return {
-        "message": "Chapter translated",
+        "message": "Đang dịch thuật chương truyện trong nền...",
         "chapter_number": chapter_number,
-        "translated_locales": translated_locales,
-        "failed_translations": failed_translations,
+        "status": "queued",
+        "translated_locales": [],
+        "failed_translations": [],
     }
 
-@app.post("/api/admin/chapters/{chapter_number}/improve-quality", summary="[Admin] Improve chapter translation quality")
+@app.post("/api/admin/chapters/{chapter_number}/improve-quality", summary="[Admin] Improve chapter translation quality", status_code=202)
 async def admin_improve_chapter_translation_quality(
     chapter_number: int,
+    background_tasks: BackgroundTasks,
     force: bool = Query(False, description="Force quality refinement even if the chapter was already refined"),
     authorization: Optional[str] = Header(None),
 ):
@@ -3641,7 +3650,7 @@ async def admin_improve_chapter_translation_quality(
     content_text = fetch_r2_content(chapter_row["content_url"])
     existing_translation_resp = (
         supabase.table("chapter_translations")
-        .select("locale, translation_status, translation_source")
+        .select("locale, translation_status, translation_source, title, content, summary, translated_at")
         .eq("chapter_id", chapter_row["id"])
         .in_("locale", list(TRANSLATION_TARGET_LOCALES))
         .execute()
@@ -3677,39 +3686,45 @@ async def admin_improve_chapter_translation_quality(
             "skipped_locales": sorted(set(skipped_locales)),
         }
 
-    try:
-        improvement_result = await improve_chapter_translations(
-            chapter_row,
-            chapter_row["title"],
-            content_text,
-            needed_locales,
-        )
-        translated_locales = improvement_result["translated_locales"]
-        failed_translations = improvement_result["failed_translations"]
-    except HTTPException as exc:
-        translated_locales = []
-        failed_translations = [
-            {
-                "locale": ",".join(TRANSLATION_TARGET_LOCALES),
-                "status_code": exc.status_code,
-                "detail": str(exc.detail),
-            }
-        ]
-    except Exception as exc:
-        translated_locales = []
-        failed_translations = [
-            {
-                "locale": ",".join(TRANSLATION_TARGET_LOCALES),
-                "status_code": 500,
-                "detail": str(exc),
-            }
-        ]
+    now_iso = datetime.now(timezone.utc).isoformat()
+    # Pre-emptively set those locales being improved to 'in_progress' in DB so the UI updates instantly
+    for locale in needed_locales:
+        existing_row = next((r for r in existing_translation_resp.data if r["locale"] == locale), {})
+        payload = {
+            "chapter_id": chapter_row["id"],
+            "locale": locale,
+            "title": existing_row.get("title") or "",
+            "content": existing_row.get("content") or "",
+            "summary": existing_row.get("summary"),
+            "translation_status": "in_progress",
+            "translation_source": "ai_refine",
+            "updated_at": now_iso,
+            "last_error": None,
+        }
+        supabase.table("chapter_translations").upsert(
+            payload,
+            on_conflict="chapter_id,locale",
+        ).execute()
+
+    async def run_improvement_background():
+        try:
+            await improve_chapter_translations(
+                chapter_row,
+                chapter_row["title"],
+                content_text,
+                needed_locales,
+            )
+        except Exception as exc:
+            print(f"DEBUG: Background translation improvement failed for chapter {chapter_number}: {exc}")
+
+    background_tasks.add_task(run_improvement_background)
 
     return {
-        "message": "Chapter translation quality improved",
+        "message": "Đang cải thiện chất lượng dịch thuật trong nền...",
         "chapter_number": chapter_number,
-        "translated_locales": translated_locales,
-        "failed_translations": failed_translations,
+        "status": "queued",
+        "translated_locales": [],
+        "failed_translations": [],
         "skipped_locales": sorted(set(skipped_locales)),
     }
 

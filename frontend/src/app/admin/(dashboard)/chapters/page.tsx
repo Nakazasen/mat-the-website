@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getFreshAdminAccessToken } from '@/lib/admin-session';
@@ -290,6 +290,12 @@ function formatTranslationFailures(failures: TranslationFailure[] | undefined): 
 }
 
 function buildSingleTranslateNotice(chapterNumber: number, result: AdminChapterTranslateResult): ActionNotice {
+    if (result.status === 'queued') {
+        return {
+            tone: 'success',
+            message: `Đang tiến hành dịch thuật chương ${chapterNumber} trong nền...`,
+        };
+    }
     const translatedLocales = Array.isArray(result.translated_locales) ? result.translated_locales : [];
     const failedLocales = Array.isArray(result.failed_translations) ? result.failed_translations : [];
     if (failedLocales.length === 0) {
@@ -435,6 +441,14 @@ export default function AdminChaptersPage() {
     const [templateNotice, setTemplateNotice] = useState<ActionNotice | null>(null);
     const [grokPromptOutput, setGrokPromptOutput] = useState('');
     const [aiHealthList, setAiHealthList] = useState<any[]>([]);
+    const activePolls = useRef<Record<number, NodeJS.Timeout>>({});
+
+    useEffect(() => {
+        return () => {
+            // eslint-disable-next-line react-hooks/exhaustive-deps
+            Object.values(activePolls.current).forEach((interval) => clearInterval(interval));
+        };
+    }, []);
 
     const fetchAiHealthSnapshot = useCallback(async (authToken: string) => {
         try {
@@ -622,11 +636,11 @@ export default function AdminChaptersPage() {
     }, [maxChapterNumber, qualityBatchCheckpoint]);
 
     const refreshTranslationStatuses = useCallback(async (targetChapters?: number[]) => {
-        if (!token) return;
+        if (!token) return null;
         const chapterNumbers = (targetChapters && targetChapters.length > 0)
             ? targetChapters
             : chapters.map((chapter) => chapter.chapter_number);
-        if (chapterNumbers.length === 0) return;
+        if (chapterNumbers.length === 0) return null;
         try {
             const freshToken = await resolveAdminToken();
             const result = await getAdminChapterTranslationStatuses(chapterNumbers, freshToken);
@@ -637,7 +651,9 @@ export default function AdminChaptersPage() {
                 }
                 return nextMap;
             });
+            return result.statuses;
         } catch {
+            return null;
             // Keep the page usable even if status summary fails.
         }
     }, [chapters, resolveAdminToken, token]);
@@ -695,15 +711,60 @@ export default function AdminChaptersPage() {
         try {
             const freshToken = await resolveAdminToken();
             const result = await translateAdminChapter(chapterNumber, freshToken);
-            setActionNotice(buildSingleTranslateNotice(chapterNumber, result));
-            await refreshTranslationStatuses([chapterNumber]);
+            
+            if (result.status === 'queued') {
+                setActionNotice({
+                    tone: 'success',
+                    message: `Đã đưa chương ${chapterNumber} vào hàng đợi dịch 3 ngôn ngữ trong nền. Đang tiến hành dịch...`,
+                });
+                
+                if (activePolls.current[chapterNumber]) {
+                    clearInterval(activePolls.current[chapterNumber]);
+                }
+                
+                const interval = setInterval(async () => {
+                    const statuses = await refreshTranslationStatuses([chapterNumber]);
+                    if (statuses && statuses.length > 0) {
+                        const status = statuses[0];
+                        if (status.in_progress_count === 0) {
+                            clearInterval(interval);
+                            delete activePolls.current[chapterNumber];
+                            setTranslatingId(null);
+                            
+                            const failedCount = status.failed_count || 0;
+                            const publishedCount = status.published_count || 0;
+                            if (failedCount === 0) {
+                                setActionNotice({
+                                    tone: 'success',
+                                    message: `Chương ${chapterNumber}: Dịch 3 ngôn ngữ thành công (${status.published_locales.join(', ')}).`,
+                                });
+                            } else if (publishedCount === 0) {
+                                setActionNotice({
+                                    tone: 'error',
+                                    message: `Chương ${chapterNumber}: Dịch thất bại. Lỗi: ${status.last_error || 'Lỗi không xác định'}`,
+                                });
+                            } else {
+                                setActionNotice({
+                                    tone: 'error',
+                                    message: `Chương ${chapterNumber}: Dịch hoàn thành một phần (${status.published_locales.join(', ')}). Lỗi: ${status.last_error || 'Lỗi một số ngôn ngữ'}`,
+                                });
+                            }
+                        }
+                    }
+                }, 5000);
+                
+                activePolls.current[chapterNumber] = interval;
+            } else {
+                setActionNotice(buildSingleTranslateNotice(chapterNumber, result));
+                await refreshTranslationStatuses([chapterNumber]);
+                setTranslatingId(null);
+            }
         } catch (err: any) {
             setActionNotice({
                 tone: 'error',
                 message: `Lỗi dịch chương ${chapterNumber}: ${err?.message || 'Không nhận được thông báo lỗi từ backend.'}`,
             });
             await refreshTranslationStatuses([chapterNumber]);
-        } finally {
             setTranslatingId(null);
         }
     };
@@ -715,36 +776,81 @@ export default function AdminChaptersPage() {
         try {
             const freshToken = await resolveAdminToken();
             const result = await improveAdminChapterTranslation(chapterNumber, freshToken, forceQualityRefine);
-            const translatedLocales = Array.isArray(result.translated_locales) ? result.translated_locales : [];
-            const skippedLocales = Array.isArray(result.skipped_locales) ? result.skipped_locales : [];
-            const failedLocales = Array.isArray(result.failed_translations) ? result.failed_translations : [];
-
-            if (translatedLocales.length === 0 && failedLocales.length === 0 && skippedLocales.length > 0) {
+            
+            if (result.status === 'queued') {
                 setActionNotice({
                     tone: 'success',
-                    message: `Chương ${chapterNumber} đã được nâng chất lượng trước đó: ${skippedLocales.join(', ')}. Bật ép chạy lại nếu muốn refine lại.`,
+                    message: `Đã đưa chương ${chapterNumber} vào hàng đợi nâng chất lượng dịch thuật trong nền. Đang tiến hành...`,
                 });
-            } else if (failedLocales.length === 0) {
-                setActionNotice({
-                    tone: 'success',
-                    message: `Đã cải thiện chất lượng chương ${chapterNumber}: ${translatedLocales.join(', ') || 'không có locale nào được cập nhật'}.`,
-                });
+                
+                if (activePolls.current[chapterNumber]) {
+                    clearInterval(activePolls.current[chapterNumber]);
+                }
+                
+                const interval = setInterval(async () => {
+                    const statuses = await refreshTranslationStatuses([chapterNumber]);
+                    if (statuses && statuses.length > 0) {
+                        const status = statuses[0];
+                        if (status.in_progress_count === 0) {
+                            clearInterval(interval);
+                            delete activePolls.current[chapterNumber];
+                            setImprovingId(null);
+                            
+                            const failedCount = status.failed_count || 0;
+                            const refinedCount = status.refined_count || 0;
+                            if (failedCount === 0) {
+                                setActionNotice({
+                                    tone: 'success',
+                                    message: `Chương ${chapterNumber}: Nâng chất lượng dịch thuật thành công (${status.refined_locales.join(', ')}).`,
+                                });
+                            } else if (refinedCount === 0) {
+                                setActionNotice({
+                                    tone: 'error',
+                                    message: `Chương ${chapterNumber}: Nâng chất lượng thất bại. Lỗi: ${status.last_error || 'Lỗi không xác định'}`,
+                                });
+                            } else {
+                                setActionNotice({
+                                    tone: 'error',
+                                    message: `Chương ${chapterNumber}: Nâng chất lượng hoàn thành một phần (${status.refined_locales.join(', ')}). Lỗi: ${status.last_error || 'Lỗi một số ngôn ngữ'}`,
+                                });
+                            }
+                        }
+                    }
+                }, 5000);
+                
+                activePolls.current[chapterNumber] = interval;
             } else {
-                setActionNotice({
-                    tone: translatedLocales.length > 0 ? 'success' : 'error',
-                    message: translatedLocales.length > 0
-                        ? `Chương ${chapterNumber} đã cải thiện ${translatedLocales.join(', ')}, nhưng vẫn còn lỗi: ${formatTranslationFailures(failedLocales)}`
-                        : `Không thể cải thiện chất lượng chương ${chapterNumber}. ${formatTranslationFailures(failedLocales)}`,
-                });
+                const translatedLocales = Array.isArray(result.translated_locales) ? result.translated_locales : [];
+                const skippedLocales = Array.isArray(result.skipped_locales) ? result.skipped_locales : [];
+                const failedLocales = Array.isArray(result.failed_translations) ? result.failed_translations : [];
+
+                if (translatedLocales.length === 0 && failedLocales.length === 0 && skippedLocales.length > 0) {
+                    setActionNotice({
+                        tone: 'success',
+                        message: `Chương ${chapterNumber} đã được nâng chất lượng trước đó: ${skippedLocales.join(', ')}. Bật ép chạy lại nếu muốn refine lại.`,
+                    });
+                } else if (failedLocales.length === 0) {
+                    setActionNotice({
+                        tone: 'success',
+                        message: `Đã cải thiện chất lượng chương ${chapterNumber}: ${translatedLocales.join(', ') || 'không có locale nào được cập nhật'}.`,
+                    });
+                } else {
+                    setActionNotice({
+                        tone: translatedLocales.length > 0 ? 'success' : 'error',
+                        message: translatedLocales.length > 0
+                            ? `Chương ${chapterNumber} đã cải thiện ${translatedLocales.join(', ')}, nhưng vẫn còn lỗi: ${formatTranslationFailures(failedLocales)}`
+                            : `Không thể cải thiện chất lượng chương ${chapterNumber}. ${formatTranslationFailures(failedLocales)}`,
+                    });
+                }
+                await refreshTranslationStatuses([chapterNumber]);
+                setImprovingId(null);
             }
-            await refreshTranslationStatuses([chapterNumber]);
         } catch (err: any) {
             setActionNotice({
                 tone: 'error',
                 message: `Lỗi cải thiện chất lượng chương ${chapterNumber}: ${err?.message || 'Không nhận được thông báo lỗi từ backend.'}`,
             });
             await refreshTranslationStatuses([chapterNumber]);
-        } finally {
             setImprovingId(null);
         }
     };
