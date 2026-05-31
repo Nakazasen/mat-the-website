@@ -1149,93 +1149,11 @@ async def generate_structured_translation_payload(
     except Exception as router_exc:
         print(f"DEBUG: Multi-provider translation route error: {router_exc}")
 
-    # --- Legacy Gemini direct call (backward compatibility) ---
-    _active_model, model_catalog, api_keys = await resolve_ai_settings_for_translation(translation_mode)
-    if not api_keys:
-        if router_configured and (router_failed or not router_error_details):
-            err_msg = "Hệ thống quá tải hoặc hết hạn ngạch AI của tất cả nhà cung cấp (Rate Limit / Quota Exceeded)."
-            if router_error_details:
-                err_msg += f" Chi tiết lỗi: {'; '.join(router_error_details[:2])}"
-            raise HTTPException(status_code=503, detail=err_msg)
-        raise HTTPException(status_code=503, detail="AI translation is not configured")
-    temperature = 0.05 if translation_mode == "quality" else 0.1
-
-    payload = {
-        "systemInstruction": {"parts": [{"text": system_instruction}]},
-        "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],
-        "generationConfig": {
-            "maxOutputTokens": TRANSLATION_MAX_OUTPUT_TOKENS,
-            "temperature": temperature,
-            "responseMimeType": "application/json",
-            "responseJsonSchema": response_json_schema,
-        },
-    }
-
-    last_error: Optional[HTTPException] = None
-    attempts: list[dict] = []
-    async with httpx.AsyncClient(timeout=timeout_seconds) as client:
-        for key_index, api_key in enumerate(api_keys, start=1):
-            for model_name in model_catalog:
-                await throttle_translation_request(model_name, api_key)
-                gemini_url = (
-                    "https://generativelanguage.googleapis.com/v1beta/models/"
-                    f"{model_name}:generateContent?key={api_key}"
-                )
-                response = await client.post(gemini_url, json=payload)
-                if response.is_success:
-                    data = response.json()
-                    try:
-                        raw_text = extract_gemini_text_response(data)
-                        return parser(raw_text)
-                    except Exception as exc:
-                        last_error = HTTPException(
-                            status_code=502,
-                            detail=f"Model {model_name}: invalid translation payload: {exc}",
-                        )
-                        attempts.append(
-                            {
-                                "key_index": key_index,
-                                "model": model_name,
-                                "status_code": 502,
-                                "message": f"invalid translation payload: {exc}",
-                            }
-                        )
-                        continue
-
-                last_error = HTTPException(
-                    status_code=response.status_code,
-                    detail=f"Model {model_name}: Translation API error: {response.text}",
-                )
-                attempts.append(
-                    {
-                        "key_index": key_index,
-                        "model": model_name,
-                        "status_code": response.status_code,
-                        "message": response.text,
-                    }
-                )
-                if not is_translation_retryable(last_error):
-                    raise HTTPException(
-                        status_code=last_error.status_code,
-                        detail=build_translation_failure_detail(
-                            attempts,
-                            len(api_keys),
-                            len(model_catalog),
-                            str(last_error.detail),
-                        ),
-                    )
-
-    if last_error:
-        raise HTTPException(
-            status_code=last_error.status_code,
-            detail=build_translation_failure_detail(
-                attempts,
-                len(api_keys),
-                len(model_catalog),
-                str(last_error.detail),
-            ),
-        )
-    raise HTTPException(status_code=502, detail="Không có mô hình dịch AI khả dụng")
+    # --- Legacy Gemini direct call completely deleted for legal compliance ---
+    err_msg = "Dịch thuật AI thất bại: Tất cả nhà cung cấp đều quá tải hoặc hết hạn ngạch (Rate Limit / Quota Exceeded)."
+    if router_error_details:
+        err_msg += f" Chi tiết lỗi: {'; '.join(router_error_details[:3])}"
+    raise HTTPException(status_code=503, detail=err_msg)
 
 async def throttle_translation_request(model_name: str, api_key: str):
     bucket = get_key_model_bucket(model_name, api_key)
@@ -1433,68 +1351,8 @@ SOURCE:
     except Exception as router_exc:
         print(f"DEBUG: Multi-provider translate_text error: {router_exc}")
 
-    # --- Legacy Gemini direct call ---
-    _active_model, model_catalog, api_keys = await resolve_ai_settings_for_translation()
-    if not api_keys:
-        raise HTTPException(status_code=503, detail="AI translation is not configured")
-
-    payload = {
-        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-        "generationConfig": {"maxOutputTokens": 8192, "temperature": 0.3},
-    }
-
-    last_error: Optional[HTTPException] = None
-    attempts: list[dict] = []
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        for key_index, api_key in enumerate(api_keys, start=1):
-            for model_name in model_catalog:
-                await throttle_translation_request(model_name, api_key)
-                gemini_url = (
-                    "https://generativelanguage.googleapis.com/v1beta/models/"
-                    f"{model_name}:generateContent?key={api_key}"
-                )
-                response = await client.post(gemini_url, json=payload)
-                if response.is_success:
-                    data = response.json()
-                    try:
-                        return data["candidates"][0]["content"]["parts"][0]["text"].strip()
-                    except Exception as exc:
-                        raise HTTPException(status_code=502, detail=f"Model {model_name}: invalid translation response: {exc}")
-
-                last_error = HTTPException(
-                    status_code=response.status_code,
-                    detail=f"Model {model_name}: Translation API error: {response.text}",
-                )
-                attempts.append(
-                    {
-                        "key_index": key_index,
-                        "model": model_name,
-                        "status_code": response.status_code,
-                        "message": response.text,
-                    }
-                )
-                if not is_translation_retryable(last_error):
-                    raise HTTPException(
-                        status_code=last_error.status_code,
-                        detail=build_translation_failure_detail(
-                            attempts,
-                            len(api_keys),
-                            len(model_catalog),
-                            str(last_error.detail),
-                        ),
-                    )
-
-    if last_error:
-        raise HTTPException(
-            status_code=last_error.status_code,
-            detail=build_translation_failure_detail(
-                attempts,
-                len(api_keys),
-                len(model_catalog),
-                str(last_error.detail),
-            ),
-        )
-    raise HTTPException(status_code=502, detail="Không có mô hình dịch khả dụng")
+    # --- Legacy Gemini direct call completely deleted for legal compliance ---
+    raise HTTPException(status_code=503, detail="Dịch thuật văn bản thất bại. Tất cả nhà cung cấp đều quá tải hoặc không khả dụng.")
 
 async def translate_chapter_payload_with_ai(
     title: str,
@@ -2237,10 +2095,6 @@ async def improve_chapter_translations(chapter_row: dict, title: str, content: s
     }
 
 async def translate_homepage_payload_with_ai(settings_payload: dict, target_locale: str) -> dict:
-    _active_model, model_catalog, api_keys = await resolve_ai_settings_for_translation()
-    if not api_keys:
-        raise HTTPException(status_code=503, detail="AI translation is not configured")
-
     base_payload = prepare_homepage_settings_payload(settings_payload)
     glossary_prompt = build_glossary_prompt()
     source_payload = {
@@ -2265,10 +2119,7 @@ async def translate_homepage_payload_with_ai(settings_payload: dict, target_loca
         source_locale=DEFAULT_LOCALE,
     )
 
-    payload = {
-        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-        "generationConfig": {"maxOutputTokens": 8192, "temperature": 0.3},
-    }
+    system_instruction = build_homepage_multilocale_system_instruction()
 
     def parse_homepage_translation_payload(raw_text: str) -> dict:
         parsed = parse_json_like_payload(raw_text)
@@ -2276,71 +2127,52 @@ async def translate_homepage_payload_with_ai(settings_payload: dict, target_loca
         translated["features_json"] = sanitize_homepage_features(parsed.get("features_json"))
         return translated
 
-    last_error: Optional[HTTPException] = None
-    attempts: list[dict] = []
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        for key_index, api_key in enumerate(api_keys, start=1):
-            for model_name in model_catalog:
-                await throttle_translation_request(model_name, api_key)
-                gemini_url = (
-                    "https://generativelanguage.googleapis.com/v1beta/models/"
-                    f"{model_name}:generateContent?key={api_key}"
-                )
-                response = await client.post(gemini_url, json=payload)
-                if response.is_success:
-                    data = response.json()
-                    try:
-                        raw_text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
-                        return parse_homepage_translation_payload(raw_text)
-                    except Exception as exc:
-                        last_error = HTTPException(
-                            status_code=502,
-                            detail=f"Model {model_name}: invalid homepage translation payload: {exc}",
-                        )
-                        attempts.append(
-                            {
-                                "key_index": key_index,
-                                "model": model_name,
-                                "status_code": 502,
-                                "message": f"invalid homepage translation payload: {exc}",
+    try:
+        router = get_provider_router()
+        if router._providers:
+            schema = {
+                "type": "object",
+                "properties": {
+                    "warning_title": {"type": "string"},
+                    "warning_subtitle": {"type": "string"},
+                    "warning_headline": {"type": "string"},
+                    "warning_description": {"type": "string"},
+                    "features_title": {"type": "string"},
+                    "features_json": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "icon": {"type": "string"},
+                                "title": {"type": "string"},
+                                "desc": {"type": "string"},
                             }
-                        )
-                        continue
-
-                last_error = HTTPException(
-                    status_code=response.status_code,
-                    detail=f"Model {model_name}: Translation API error: {response.text}",
-                )
-                attempts.append(
-                    {
-                        "key_index": key_index,
-                        "model": model_name,
-                        "status_code": response.status_code,
-                        "message": response.text,
+                        }
                     }
-                )
-                if not is_translation_retryable(last_error):
-                    raise HTTPException(
-                        status_code=last_error.status_code,
-                        detail=build_translation_failure_detail(
-                            attempts,
-                            len(api_keys),
-                            len(model_catalog),
-                            str(last_error.detail),
-                        ),
-                    )
-
-    if last_error:
+                }
+            }
+            request = AIRequest(
+                text=prompt,
+                mode="translation",
+                system_instruction=system_instruction,
+                response_schema=schema,
+                max_output_tokens=8192,
+                temperature=0.3,
+            )
+            config = resolve_ai_provider_config()
+            policy = config.get("translation_policy", {"mode": "waterfall"})
+            result = await router.route(request, policy=policy)
+            if result.status == "success" and result.text:
+                return parse_homepage_translation_payload(result.text)
+            else:
+                raise ValueError(f"AI Router failed: {result.error_message}")
+    except Exception as exc:
+        print(f"DEBUG: Multi-provider homepage translation error: {exc}")
         raise HTTPException(
-            status_code=last_error.status_code,
-            detail=build_translation_failure_detail(
-                attempts,
-                len(api_keys),
-                len(model_catalog),
-                str(last_error.detail),
-            ),
+            status_code=503,
+            detail=f"Dịch thuật trang chủ thất bại. Tất cả nhà cung cấp đều quá tải. (Chi tiết: {exc})"
         )
-    raise HTTPException(status_code=502, detail="Không có mô hình dịch homepage khả dụng")
+    raise HTTPException(status_code=503, detail="Dịch trang chủ thất bại: Không có nhà cung cấp nào khả dụng.")
 
 async def translate_homepage_payloads_with_ai(settings_payload: dict, locales: list[str]) -> dict[str, dict]:
     target_locales = build_target_translation_locales(locales)
@@ -2580,10 +2412,6 @@ async def upsert_homepage_translation(settings_payload: dict, locale: str):
         return None
 
 async def translate_wiki_payload_with_ai(entry_payload: dict, target_locale: str) -> dict:
-    _active_model, model_catalog, api_keys = await resolve_ai_settings_for_translation()
-    if not api_keys:
-        raise HTTPException(status_code=503, detail="AI translation is not configured")
-
     glossary_prompt = build_glossary_prompt()
     source_payload = {
         "title": entry_payload.get("title") or "",
@@ -2597,10 +2425,7 @@ async def translate_wiki_payload_with_ai(entry_payload: dict, target_locale: str
         source_locale=DEFAULT_LOCALE,
     )
 
-    payload = {
-        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-        "generationConfig": {"maxOutputTokens": 8192, "temperature": 0.3},
-    }
+    system_instruction = build_wiki_multilocale_system_instruction()
 
     def parse_wiki_translation_payload(raw_text: str) -> dict:
         parsed = parse_json_like_payload(raw_text)
@@ -2615,71 +2440,39 @@ async def translate_wiki_payload_with_ai(entry_payload: dict, target_locale: str
             "content": translated_content,
         }
 
-    last_error: Optional[HTTPException] = None
-    attempts: list[dict] = []
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        for key_index, api_key in enumerate(api_keys, start=1):
-            for model_name in model_catalog:
-                await throttle_translation_request(model_name, api_key)
-                gemini_url = (
-                    "https://generativelanguage.googleapis.com/v1beta/models/"
-                    f"{model_name}:generateContent?key={api_key}"
-                )
-                response = await client.post(gemini_url, json=payload)
-                if response.is_success:
-                    data = response.json()
-                    try:
-                        raw_text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
-                        return parse_wiki_translation_payload(raw_text)
-                    except Exception as exc:
-                        last_error = HTTPException(
-                            status_code=502,
-                            detail=f"Model {model_name}: invalid wiki translation payload: {exc}",
-                        )
-                        attempts.append(
-                            {
-                                "key_index": key_index,
-                                "model": model_name,
-                                "status_code": 502,
-                                "message": f"invalid wiki translation payload: {exc}",
-                            }
-                        )
-                        continue
-
-                last_error = HTTPException(
-                    status_code=response.status_code,
-                    detail=f"Model {model_name}: Translation API error: {response.text}",
-                )
-                attempts.append(
-                    {
-                        "key_index": key_index,
-                        "model": model_name,
-                        "status_code": response.status_code,
-                        "message": response.text,
-                    }
-                )
-                if not is_translation_retryable(last_error):
-                    raise HTTPException(
-                        status_code=last_error.status_code,
-                        detail=build_translation_failure_detail(
-                            attempts,
-                            len(api_keys),
-                            len(model_catalog),
-                            str(last_error.detail),
-                        ),
-                    )
-
-    if last_error:
+    try:
+        router = get_provider_router()
+        if router._providers:
+            schema = {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string"},
+                    "summary": {"type": "string"},
+                    "content": {"type": "string"},
+                }
+            }
+            request = AIRequest(
+                text=prompt,
+                mode="translation",
+                system_instruction=system_instruction,
+                response_schema=schema,
+                max_output_tokens=8192,
+                temperature=0.3,
+            )
+            config = resolve_ai_provider_config()
+            policy = config.get("translation_policy", {"mode": "waterfall"})
+            result = await router.route(request, policy=policy)
+            if result.status == "success" and result.text:
+                return parse_wiki_translation_payload(result.text)
+            else:
+                raise ValueError(f"AI Router failed: {result.error_message}")
+    except Exception as exc:
+        print(f"DEBUG: Multi-provider wiki translation error: {exc}")
         raise HTTPException(
-            status_code=last_error.status_code,
-            detail=build_translation_failure_detail(
-                attempts,
-                len(api_keys),
-                len(model_catalog),
-                str(last_error.detail),
-            ),
+            status_code=503,
+            detail=f"Dịch thuật Wiki thất bại. Tất cả nhà cung cấp đều quá tải. (Chi tiết: {exc})"
         )
-    raise HTTPException(status_code=502, detail="Không có mô hình dịch wiki khả dụng")
+    raise HTTPException(status_code=503, detail="Dịch Wiki thất bại: Không có nhà cung cấp nào khả dụng.")
 
 async def translate_wiki_payloads_with_ai(entry_payload: dict, locales: list[str]) -> dict[str, dict]:
     target_locales = build_target_translation_locales(locales)

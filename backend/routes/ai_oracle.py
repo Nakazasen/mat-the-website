@@ -16,7 +16,7 @@ import os
 import re
 from datetime import datetime, timedelta, timezone
 from time import perf_counter
-from typing import Optional
+from typing import Optional, Any
 
 import httpx
 from fastapi import APIRouter, Header, HTTPException, Request
@@ -38,10 +38,7 @@ DEFAULT_MODEL_CATALOG = [
     "gemini-2.5-flash-lite",
 ]
 DEFAULT_MODEL = DEFAULT_MODEL_CATALOG[0]
-MODEL_PRIORITY = {model: index for index, model in enumerate(DEFAULT_MODEL_CATALOG)}
-BASE_GEMINI_URL = (
-    "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-)
+
 DAILY_AI_LIMIT = 50
 
 SYSTEM_PROMPT_TEMPLATE = """
@@ -352,92 +349,36 @@ async def check_rate_limit(supabase, ip_hash: str) -> bool:
         return True
 
 
-async def call_gemini(
+
+async def call_ai_provider_result(
     question: str,
     chapter_cap: int,
     wiki_context: str,
-    model_name: str = DEFAULT_MODEL,
-    api_key: Optional[str] = None,
     chapter_context: str = "",
-) -> str:
-    current_key = api_key or GEMINI_API_KEY
-    if not current_key:
-        raise HTTPException(status_code=503, detail="AI service not configured")
+) -> Any:
+    """Route question through the multi-provider router, returning the AIResult."""
+    try:
+        from main import get_provider_router, resolve_ai_provider_config, AIRequest
+    except ImportError:
+        from backend.main import get_provider_router, resolve_ai_provider_config, AIRequest
 
-    gemini_url = BASE_GEMINI_URL.format(model=model_name)
+    router = get_provider_router()
     system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
         chapter_cap=chapter_cap,
         wiki_context=wiki_context,
         chapter_context=chapter_context,
     )
-    payload = {
-        "contents": [
-            {"role": "user", "parts": [{"text": system_prompt}]},
-            {"role": "user", "parts": [{"text": question}]},
-        ],
-        "generationConfig": {
-            "maxOutputTokens": 800,
-            "temperature": 0.7,
-        },
-    }
+    request = AIRequest(
+        text=question,
+        mode="chat",
+        system_instruction=system_prompt,
+        max_output_tokens=800,
+        temperature=0.7,
+    )
+    config = resolve_ai_provider_config()
+    policy = config.get("chat_policy", {"mode": "waterfall"})
+    return await router.route(request, policy=policy)
 
-    async with httpx.AsyncClient(timeout=20.0) as client:
-        resp = await client.post(f"{gemini_url}?key={current_key}", json=payload)
-        if not resp.is_success:
-            detail = f"Gemini API error: {resp.status_code}"
-            try:
-                error_payload = resp.json()
-                message = error_payload.get("error", {}).get("message")
-                if message:
-                    detail = f"{detail} - {message}"
-            except Exception:
-                pass
-            raise HTTPException(status_code=resp.status_code, detail=detail)
-
-        data = resp.json()
-        try:
-            return data["candidates"][0]["content"]["parts"][0]["text"]
-        except (KeyError, IndexError):
-            raise HTTPException(status_code=502, detail="Invalid Gemini response format")
-
-
-async def call_ai_provider(
-    question: str,
-    chapter_cap: int,
-    wiki_context: str,
-    chapter_context: str = "",
-) -> Optional[str]:
-    """Try multi-provider router first, return None if unavailable."""
-    try:
-        try:
-            from main import get_provider_router, resolve_ai_provider_config, AIRequest
-        except ImportError:
-            from backend.main import get_provider_router, resolve_ai_provider_config, AIRequest
-
-        router = get_provider_router()
-        if not router._providers:
-            return None
-
-        system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
-            chapter_cap=chapter_cap,
-            wiki_context=wiki_context,
-            chapter_context=chapter_context,
-        )
-        request = AIRequest(
-            text=question,
-            mode="chat",
-            system_instruction=system_prompt,
-            max_output_tokens=800,
-            temperature=0.7,
-        )
-        config = resolve_ai_provider_config()
-        policy = config.get("chat_policy", {"mode": "waterfall"})
-        result = await router.route(request, policy=policy)
-        if result.status == "success" and result.text:
-            return result.text.strip()
-        return None
-    except Exception:
-        return None
 
 
 def normalize_model_catalog(raw_catalog, fallback_model: str) -> list[str]:
@@ -528,74 +469,74 @@ def probe_table(supabase, table_name: str) -> bool:
 
 
 async def build_oracle_health(supabase) -> OracleHealthResponse:
-    active_model, model_catalog, api_keys = await resolve_ai_settings(supabase)
-    has_api_key = bool(api_keys)
     cache_configured = probe_table(supabase, "oracle_cache")
     rate_limit_configured = probe_table(supabase, "oracle_rate_limits")
 
-    if not has_api_key:
+    try:
+        from main import get_provider_router, resolve_ai_provider_config
+    except ImportError:
+        from backend.main import get_provider_router, resolve_ai_provider_config
+
+    router = get_provider_router()
+    enabled_providers = [p for p in router._providers.values() if p.is_available()]
+    
+    if not enabled_providers:
         return OracleHealthResponse(
             ok=False,
             status="missing_key",
-            active_model=active_model,
-            model_catalog=model_catalog,
+            active_model="N/A",
+            model_catalog=[],
             has_api_key=False,
             rate_limit_configured=rate_limit_configured,
             cache_configured=cache_configured,
-            detail="Oracle chua co API key hop le.",
+            detail="Oracle chưa cấu hình hoặc không có nhà cung cấp AI Multi-provider nào khả dụng (vui lòng cấu hình API keys trong novel_settings).",
         )
 
-    last_error: Optional[HTTPException] = None
-    for api_key in api_keys:
-        for model_name in model_catalog:
-            try:
-                await call_gemini(
-                    question="Tra loi mot tu: ONLINE",
-                    chapter_cap=1,
-                    wiki_context="",
-                    model_name=model_name,
-                    api_key=api_key,
-                )
-                return OracleHealthResponse(
-                    ok=True,
-                    status="ok",
-                    active_model=model_name,
-                    model_catalog=model_catalog,
-                    has_api_key=True,
-                    rate_limit_configured=rate_limit_configured,
-                    cache_configured=cache_configured,
-                    detail="Oracle backend san sang xu ly.",
-                )
-            except HTTPException as exc:
-                last_error = exc
-                if not is_model_retryable(exc):
-                    break
-
-    if last_error:
-        status = classify_upstream_error(last_error)
+    # Let's run a test query to verify if the router works
+    try:
+        result = await call_ai_provider_result(
+            question="Tra loi dung mot tu viet hoa duy nhat: ONLINE",
+            chapter_cap=1,
+            wiki_context="",
+        )
+        if result.status == "success" and result.text:
+            return OracleHealthResponse(
+                ok=True,
+                status="ok",
+                active_model=result.model or "Multi-Provider",
+                model_catalog=[p.name for p in enabled_providers],
+                has_api_key=True,
+                rate_limit_configured=rate_limit_configured,
+                cache_configured=cache_configured,
+                detail="Oracle backend sẵn sàng xử lý qua bộ định tuyến Multi-provider.",
+            )
+        else:
+            err_msg = result.error_message or "Router returned empty response"
+            return OracleHealthResponse(
+                ok=False,
+                status="upstream_error",
+                active_model="Multi-Provider Router",
+                model_catalog=[p.name for p in enabled_providers],
+                has_api_key=True,
+                rate_limit_configured=rate_limit_configured,
+                cache_configured=cache_configured,
+                detail=f"Lỗi kết nối bộ định tuyến AI Multi-provider: {err_msg}",
+                upstream_status=502,
+                upstream_error=err_msg,
+            )
+    except Exception as exc:
         return OracleHealthResponse(
             ok=False,
-            status=status,
-            active_model=active_model,
-            model_catalog=model_catalog,
+            status="upstream_error",
+            active_model="Multi-Provider Router",
+            model_catalog=[p.name for p in enabled_providers],
             has_api_key=True,
             rate_limit_configured=rate_limit_configured,
             cache_configured=cache_configured,
-            detail=str(last_error.detail),
-            upstream_status=last_error.status_code,
-            upstream_error=str(last_error.detail),
+            detail=f"Lỗi kết nối bộ định tuyến AI Multi-provider: {exc}",
+            upstream_status=502,
+            upstream_error=str(exc),
         )
-
-    return OracleHealthResponse(
-        ok=False,
-        status="model_unavailable",
-        active_model=active_model,
-        model_catalog=model_catalog,
-        has_api_key=has_api_key,
-        rate_limit_configured=rate_limit_configured,
-        cache_configured=cache_configured,
-        detail="Khong co model AI kha dung.",
-    )
 
 
 @router.get("/health", response_model=OracleHealthResponse)
@@ -645,6 +586,80 @@ async def admin_reset_oracle_rate_limit(authorization: Optional[str] = Header(No
         raise HTTPException(status_code=500, detail=f"Failed to reset Oracle rate limits: {exc}")
 
 
+async def test_multi_provider_model(
+    model_name: str,
+    prompt: str,
+    custom_api_key: Optional[str] = None
+) -> str:
+    try:
+        from main import get_provider_router
+    except ImportError:
+        from backend.main import get_provider_router
+    from ai_providers.openai_compatible import OpenAICompatibleProvider
+    from ai_providers.profiles import ProviderProfile
+    from ai_providers.base import AIRequest, ProviderCandidate
+
+    router = get_provider_router()
+    
+    # 1. Find which provider owns this model
+    target_provider = None
+    for provider in router._providers.values():
+        if model_name in provider.model_pool:
+            target_provider = provider
+            break
+            
+    if not target_provider:
+        if router._providers:
+            target_provider = list(router._providers.values())[0]
+        else:
+            raise HTTPException(status_code=404, detail=f"Model {model_name} không được cấu hình trong bất kỳ nhà cung cấp AI nào.")
+            
+    request = AIRequest(text=prompt, mode="chat", max_output_tokens=800, temperature=0.7)
+    
+    if custom_api_key:
+        # Build dynamic provider profile to test the custom key
+        temp_profile = ProviderProfile(
+            name=target_provider.name,
+            display_name=target_provider.display_name,
+            provider_type="openai_compatible",
+            enabled=True,
+            base_url=target_provider.base_url,
+            api_key_pool=[custom_api_key],
+            model_pool=[model_name],
+            timeout=target_provider.timeout,
+            default_model=model_name
+        ).normalized()
+        temp_provider = OpenAICompatibleProvider(profile=temp_profile)
+        candidates = temp_provider.iter_candidates()
+        if not candidates:
+            raise HTTPException(status_code=500, detail="Không tạo được candidate hợp lệ cho API key.")
+        result = await temp_provider.call(request, candidates[0])
+    else:
+        # Iterate over provider candidates to find matching model
+        candidates = target_provider.iter_candidates()
+        matching_candidate = None
+        for cand in candidates:
+            if cand.model == model_name:
+                matching_candidate = cand
+                break
+        if not matching_candidate:
+            if candidates:
+                matching_candidate = ProviderCandidate(
+                    provider_name=candidates[0].provider_name,
+                    model=model_name,
+                    key_index=candidates[0].key_index,
+                    key_id=candidates[0].key_id
+                )
+            else:
+                raise HTTPException(status_code=500, detail=f"Không có API keys khả dụng cho nhà cung cấp {target_provider.name}.")
+        result = await target_provider.call(request, matching_candidate)
+        
+    if result.status == "success" and result.text:
+        return result.text
+    else:
+        raise HTTPException(status_code=502, detail=result.error_message or f"Model {model_name} trả về lỗi từ API.")
+
+
 @router.post("/ask", response_model=OracleResponse)
 async def ask_oracle(body: OracleRequest, request: Request):
     try:
@@ -681,48 +696,25 @@ async def ask_oracle(body: OracleRequest, request: Request):
         )
 
     # --- Multi-provider route (Phase 4) ---
-    answer = await call_ai_provider(question, chapter_cap, wiki_context, chapter_context)
-    if answer and not is_garbage_answer(answer):
-        await store_cache(supabase, question_hash, chapter_cap, answer, "ai_provider")
-        return OracleResponse(answer=answer, source="ai_provider", chapter_cap=chapter_cap)
+    result = await call_ai_provider_result(question, chapter_cap, wiki_context, chapter_context)
+    if result.status == "success" and result.text:
+        answer = result.text.strip()
+        if answer and not is_garbage_answer(answer):
+            await store_cache(supabase, question_hash, chapter_cap, answer, "ai_provider")
+            return OracleResponse(answer=answer, source="ai_provider", chapter_cap=chapter_cap)
 
-    # --- Legacy Gemini fallback ---
-    _, model_catalog, api_keys = await resolve_ai_settings(supabase)
+    # Collect router failure details
+    router_error_details = []
+    if result.attempts:
+        for a in result.attempts:
+            if a.get('status') == 'failed':
+                router_error_details.append(f"{a.get('provider')} ({a.get('model')}): {a.get('reason')} - {a.get('message')}")
 
-    last_error: Optional[HTTPException] = None
-    for api_key in api_keys:
-        for model_name in model_catalog:
-            try:
-                answer = await call_gemini(
-                    question,
-                    chapter_cap,
-                    wiki_context,
-                    model_name=model_name,
-                    api_key=api_key,
-                    chapter_context=chapter_context,
-                )
-                if is_garbage_answer(answer):
-                    last_error = HTTPException(
-                        status_code=502,
-                        detail=f"Model {model_name} returned invalid answer",
-                    )
-                    continue
-                break
-            except HTTPException as exc:
-                last_error = exc
-                if not is_model_retryable(exc):
-                    raise
-                continue
-        if answer is not None and not is_garbage_answer(answer):
-            break
-
-    if answer is None or is_garbage_answer(answer):
-        if last_error:
-            raise last_error
-        raise HTTPException(status_code=502, detail="No AI model available")
-
-    await store_cache(supabase, question_hash, chapter_cap, answer, "gemini")
-    return OracleResponse(answer=answer, source="gemini", chapter_cap=chapter_cap)
+    # No fallback to Gemini! Direct exception raised.
+    err_msg = "Không thể lấy câu trả lời từ Hệ Thống: Tất cả các nhà cung cấp AI Multi-provider đều báo lỗi hoặc hết hạn ngạch."
+    if router_error_details:
+        err_msg += f" Chi tiết lỗi: {'; '.join(router_error_details[:3])}"
+    raise HTTPException(status_code=503, detail=err_msg)
 
 
 @router.post("/admin/playground", response_model=AdminAiPlaygroundResponse)
@@ -746,22 +738,17 @@ async def admin_ai_playground(
 
     prompt = body.prompt.strip() or "Tra loi ngan gon bang tieng Viet: xac nhan model dang hoat dong."
     chapter_progress = max(1, min(body.chapter_progress, 9999))
-    stored_model, _, stored_keys = await resolve_ai_settings(supabase)
-    chosen_key = body.api_key.strip() if body.api_key else (stored_keys[0] if stored_keys else "")
+    chosen_key = body.api_key.strip() if body.api_key else ""
     used_saved_key = not bool(body.api_key and body.api_key.strip())
     results: list[AdminAiPlaygroundResult] = []
+
     for model in models:
         start = perf_counter()
         try:
-            if not chosen_key:
-                raise HTTPException(status_code=503, detail="AI service not configured")
-
-            answer = await call_gemini(
-                prompt,
-                chapter_progress,
-                "",
-                model_name=model or stored_model,
-                api_key=chosen_key,
+            answer = await test_multi_provider_model(
+                model_name=model,
+                prompt=prompt,
+                custom_api_key=chosen_key if chosen_key else None
             )
             latency_ms = int((perf_counter() - start) * 1000)
             results.append(

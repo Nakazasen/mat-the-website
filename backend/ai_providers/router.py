@@ -137,10 +137,10 @@ class ProviderRouter:
                 )
                 continue
 
-            # Try at most 2 candidates for this provider before falling back to the next provider
+            # Try at most 5 candidates for this provider before falling back to the next provider
             provider_attempts = 0
             for candidate in candidates:
-                if provider_attempts >= 2:
+                if provider_attempts >= 5:
                     break
                 if total_attempts >= max_attempts:
                     break
