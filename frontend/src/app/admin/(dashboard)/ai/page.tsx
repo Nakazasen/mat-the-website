@@ -144,6 +144,17 @@ export default function AdminAiPage() {
 
                 if (configRes.ok) {
                     const configData = await configRes.json();
+                    const allKeys = Object.keys(configData.providers || {});
+                    if (configData.translation_policy) {
+                        if (!configData.translation_policy.provider_order || configData.translation_policy.provider_order.length === 0) {
+                            configData.translation_policy.provider_order = allKeys;
+                        }
+                    }
+                    if (configData.chat_policy) {
+                        if (!configData.chat_policy.provider_order || configData.chat_policy.provider_order.length === 0) {
+                            configData.chat_policy.provider_order = allKeys;
+                        }
+                    }
                     setConfig(configData);
                 } else {
                     throw new Error('Không thể tải cấu hình AI.');
@@ -579,6 +590,52 @@ export default function AdminAiPage() {
                                             <option value="ai_pool_auto">AI Pool Auto (Định tuyến động theo tốc độ + chất lượng)</option>
                                         </select>
                                     </div>
+                                    {config.translation_policy.mode === 'waterfall' && (
+                                        <div className="space-y-2 mt-4 pt-2 border-t border-gray-900">
+                                            <label className="text-[10px] font-mono text-gray-500 uppercase flex items-center justify-between">
+                                                <span>Thứ tự ưu tiên Waterfall</span>
+                                                <span className="text-[9px] text-green-500 font-normal">Sắp xếp ưu tiên từ trên xuống</span>
+                                            </label>
+                                            <div className="space-y-1 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
+                                                {(config.translation_policy.provider_order || []).map((providerKey, index) => {
+                                                    const provider = config.providers[providerKey];
+                                                    if (!provider) return null;
+                                                    const hasKeys = (provider.api_keys || []).filter(k => k.trim()).length > 0;
+                                                    const isActive = provider.enabled && hasKeys;
+                                                    
+                                                    return (
+                                                        <div key={providerKey} className="flex items-center justify-between bg-black/60 border border-gray-900 rounded px-2 py-1.5 text-[11px] font-mono">
+                                                            <div className="flex items-center gap-2 truncate">
+                                                                <span className="text-[9px] text-gray-500 w-4 text-right">#{index + 1}</span>
+                                                                <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-green-500 animate-pulse' : 'bg-gray-800'}`}></span>
+                                                                <span className={isActive ? 'text-gray-200 font-medium' : 'text-gray-600 line-through'}>
+                                                                    {provider.display_name || provider.name}
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex items-center gap-1">
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={index === 0}
+                                                                    onClick={() => moveProviderOrder('translation', index, 'up')}
+                                                                    className="p-0.5 text-gray-500 hover:text-green-400 disabled:opacity-20 disabled:hover:text-gray-500 transition-colors"
+                                                                >
+                                                                    <ChevronUp size={12} />
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={index === (config.translation_policy.provider_order || []).length - 1}
+                                                                    onClick={() => moveProviderOrder('translation', index, 'down')}
+                                                                    className="p-0.5 text-gray-500 hover:text-green-400 disabled:opacity-20 disabled:hover:text-gray-500 transition-colors"
+                                                                >
+                                                                    <ChevronDown size={12} />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Chat Policy */}
@@ -604,6 +661,52 @@ export default function AdminAiPage() {
                                             <option value="ai_pool_auto">AI Pool Auto (Định tuyến động theo tốc độ + chất lượng)</option>
                                         </select>
                                     </div>
+                                    {config.chat_policy.mode === 'waterfall' && (
+                                        <div className="space-y-2 mt-4 pt-2 border-t border-gray-900">
+                                            <label className="text-[10px] font-mono text-gray-500 uppercase flex items-center justify-between">
+                                                <span>Thứ tự ưu tiên Waterfall</span>
+                                                <span className="text-[9px] text-cyan-500 font-normal">Sắp xếp ưu tiên từ trên xuống</span>
+                                            </label>
+                                            <div className="space-y-1 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
+                                                {(config.chat_policy.provider_order || []).map((providerKey, index) => {
+                                                    const provider = config.providers[providerKey];
+                                                    if (!provider) return null;
+                                                    const hasKeys = (provider.api_keys || []).filter(k => k.trim()).length > 0;
+                                                    const isActive = provider.enabled && hasKeys;
+                                                    
+                                                    return (
+                                                        <div key={providerKey} className="flex items-center justify-between bg-black/60 border border-gray-900 rounded px-2 py-1.5 text-[11px] font-mono">
+                                                            <div className="flex items-center gap-2 truncate">
+                                                                <span className="text-[9px] text-gray-500 w-4 text-right">#{index + 1}</span>
+                                                                <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-cyan-500 animate-pulse' : 'bg-gray-800'}`}></span>
+                                                                <span className={isActive ? 'text-gray-200 font-medium' : 'text-gray-600 line-through'}>
+                                                                    {provider.display_name || provider.name}
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex items-center gap-1">
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={index === 0}
+                                                                    onClick={() => moveProviderOrder('chat', index, 'up')}
+                                                                    className="p-0.5 text-gray-500 hover:text-cyan-400 disabled:opacity-20 disabled:hover:text-gray-500 transition-colors"
+                                                                >
+                                                                    <ChevronUp size={12} />
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={index === (config.chat_policy.provider_order || []).length - 1}
+                                                                    onClick={() => moveProviderOrder('chat', index, 'down')}
+                                                                    className="p-0.5 text-gray-500 hover:text-cyan-400 disabled:opacity-20 disabled:hover:text-gray-500 transition-colors"
+                                                                >
+                                                                    <ChevronDown size={12} />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                             </div>
