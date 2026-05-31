@@ -434,6 +434,39 @@ export default function AdminChaptersPage() {
     const [templateRunning, setTemplateRunning] = useState(false);
     const [templateNotice, setTemplateNotice] = useState<ActionNotice | null>(null);
     const [grokPromptOutput, setGrokPromptOutput] = useState('');
+    const [aiHealthList, setAiHealthList] = useState<any[]>([]);
+
+    const fetchAiHealthSnapshot = useCallback(async (authToken: string) => {
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/admin/ai/providers/health-snapshot`, {
+                headers: {
+                    'Authorization': `Bearer ${authToken}`
+                },
+                cache: 'no-store'
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setAiHealthList(data.snapshot || []);
+            }
+        } catch (err) {
+            console.error('Failed to fetch AI health snapshot:', err);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (!token) return;
+        fetchAiHealthSnapshot(token);
+        const interval = setInterval(() => {
+            fetchAiHealthSnapshot(token);
+        }, 15000);
+        return () => clearInterval(interval);
+    }, [token, fetchAiHealthSnapshot]);
+
+    const isAllProvidersOnCooldown = useMemo(() => {
+        const enabledProviders = aiHealthList.filter(item => item.is_available);
+        if (enabledProviders.length === 0) return false;
+        return enabledProviders.every(item => item.health_status === 'cooldown');
+    }, [aiHealthList]);
 
     useEffect(() => {
         if (!error || error !== 'Failed to fetch') return;
@@ -1866,6 +1899,72 @@ export default function AdminChaptersPage() {
                 </div>
             </div>
 
+            {/* Live AI Status Bar - Dynamic AI Orchestrator */}
+            <div className="mb-6 rounded-lg border border-purple-900/40 bg-gradient-to-r from-[#0d051c] to-[#050f24] p-4 shadow-lg shadow-purple-950/15">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                            </span>
+                            <p className="font-mono text-xs tracking-widest text-purple-300 uppercase font-bold">BỘ ĐIỀU PHỐI AI THỜI GIAN THỰC</p>
+                        </div>
+                        <p className="mt-1 text-[11px] font-mono text-gray-500">Giám sát hiệu năng và trạng thái hạ nhiệt (Cooldown) các nhà cung cấp</p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                        {aiHealthList.length === 0 ? (
+                            <span className="text-[11px] font-mono text-gray-600 animate-pulse">Đang đồng bộ trạng thái AI...</span>
+                        ) : (
+                            aiHealthList.filter(item => item.is_available).map((item) => {
+                                const isCooldown = item.health_status === 'cooldown';
+                                const isDegraded = item.health_status === 'degraded';
+                                const isDead = item.health_status === 'dead';
+                                
+                                let statusDot = 'bg-green-500';
+                                let statusText = 'Khả dụng';
+                                let textColor = 'text-green-400';
+                                let borderClass = 'border-green-950/40 bg-green-950/10';
+                                
+                                if (isCooldown) {
+                                    statusDot = 'bg-amber-400 animate-pulse';
+                                    statusText = 'Hạ nhiệt (Cooldown)';
+                                    textColor = 'text-amber-400';
+                                    borderClass = 'border-amber-950/40 bg-amber-950/10';
+                                } else if (isDegraded) {
+                                    statusDot = 'bg-yellow-500';
+                                    statusText = 'Suy giảm';
+                                    textColor = 'text-yellow-400';
+                                    borderClass = 'border-yellow-950/40 bg-yellow-950/10';
+                                } else if (isDead) {
+                                    statusDot = 'bg-red-500';
+                                    statusText = 'Không hoạt động';
+                                    textColor = 'text-red-400';
+                                    borderClass = 'border-red-950/40 bg-red-950/10';
+                                }
+                                
+                                return (
+                                    <div 
+                                        key={`${item.provider_name}-${item.model}`}
+                                        className={`flex items-center gap-2 px-2.5 py-1 rounded border font-mono text-[11px] transition-all hover:scale-105 duration-300 ${borderClass}`}
+                                    >
+                                        <span className={`h-1.5 w-1.5 rounded-full ${statusDot}`}></span>
+                                        <span className="text-gray-300 font-bold uppercase">{item.display_name}</span>
+                                        <span className="text-gray-500">({item.model})</span>
+                                        {item.last_latency_ms > 0 && !isCooldown && !isDead && (
+                                            <span className={`${textColor} font-bold`}>{item.last_latency_ms}ms</span>
+                                        )}
+                                        {isCooldown && (
+                                            <span className="text-amber-400/80 text-[10px] font-bold">HẠ NHIỆT</span>
+                                        )}
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
+                </div>
+            </div>
+
             <div className="mb-6 rounded-lg border border-gray-800 bg-[#0d0d0d] p-4">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                     <div>
@@ -2186,6 +2285,20 @@ export default function AdminChaptersPage() {
                                             </td>
                                             <td className="md:table-cell py-2 md:px-4 md:py-3 text-gray-200">
                                                 <div className="max-w-xs md:max-w-md truncate font-medium">{chapter.title}</div>
+                                                {/* Pre-flight Token Footprint Estimation - Dynamic AI Orchestrator */}
+                                                {chapter.word_count && (
+                                                    <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                                                        {chapter.word_count < 1500 ? (
+                                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-green-950/20 text-green-400 border border-green-900/30">
+                                                                🟢 Tiêu thụ thấp (~{Math.round(chapter.word_count * 5.2).toLocaleString()} tokens) → Dịch đa ngôn ngữ
+                                                            </span>
+                                                        ) : (
+                                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-amber-950/30 text-amber-400 border border-amber-900/35">
+                                                                🟡 Tiêu thụ cao (~{Math.round(chapter.word_count * 5.2).toLocaleString()} tokens) → Tự động dịch tuần tự chống nghẽn
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
                                                 {translationStatusMap[chapter.chapter_number] && (
                                                     <div className="mt-2 space-y-1">
                                                         <div className="text-[11px] font-mono text-cyan-300">
@@ -2219,11 +2332,11 @@ export default function AdminChaptersPage() {
                                                 <div className="flex items-center justify-start md:justify-end gap-2 flex-wrap">
                                                     <button
                                                         onClick={() => handleTranslate(chapter.chapter_number)}
-                                                        disabled={!token || translatingId === chapter.chapter_number || improvingId === chapter.chapter_number}
+                                                        disabled={!token || translatingId === chapter.chapter_number || improvingId === chapter.chapter_number || isAllProvidersOnCooldown}
                                                         className="flex items-center gap-1.5 px-3 py-1.5 border border-purple-700/60 hover:border-purple-500 text-purple-300 hover:text-purple-200 disabled:opacity-50 rounded text-xs font-mono transition-all hover:bg-purple-500/10"
                                                     >
                                                         <Languages size={10} />
-                                                        {translatingId === chapter.chapter_number ? 'ĐANG DỊCH...' : 'DỊCH 3 NGÔN NGỮ'}
+                                                        {translatingId === chapter.chapter_number ? 'ĐANG DỊCH...' : isAllProvidersOnCooldown ? 'COOLDOWN (HẠ NHIỆT)...' : 'DỊCH 3 NGÔN NGỮ'}
                                                     </button>
                                                     <button
                                                         onClick={() => handleImproveQuality(chapter.chapter_number)}

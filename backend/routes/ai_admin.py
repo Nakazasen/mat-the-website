@@ -321,8 +321,8 @@ async def run_health_check(
 @router.get("/providers/health-snapshot", response_model=HealthSnapshotResponse)
 async def get_health_snapshot(authorization: Optional[str] = Header(None)):
     """Get current runtime health state for all tracked providers."""
-    await _require_superadmin(authorization)
     deps = _get_admin_deps()
+    await deps["verify_admin"](authorization)
     router_instance = deps["get_provider_router"]()
     raw_snapshot = router_instance.get_health_snapshot()
 
