@@ -628,33 +628,36 @@ export default function AdminAiPage() {
                                                         </label>
                                                         
                                                         <div className="space-y-2">
-                                                            {(provider.api_keys || []).map((key, kIndex) => {
-                                                                const isMasked = key.startsWith('****');
-                                                                return (
-                                                                    <div key={kIndex} className="flex items-center gap-2">
-                                                                        <input
-                                                                            type={isMasked ? 'text' : 'password'}
-                                                                            value={isMasked ? '' : key}
-                                                                            readOnly={isMasked}
-                                                                            onChange={(e) => !isMasked && updateApiKeyFieldValue(providerKey, kIndex, e.target.value)}
-                                                                            className="flex-1 bg-[#050505] border border-gray-800 rounded px-3 py-2 text-gray-300 font-mono text-xs focus:outline-none focus:border-green-500 read-only:text-gray-500"
-                                                                            placeholder={
-                                                                                isMasked 
-                                                                                    ? `Đã lưu API Key #${kIndex + 1} (ẩn bảo mật)`
-                                                                                    : `Nhập API Key #${kIndex + 1}...`
-                                                                            }
-                                                                        />
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => removeApiKeyField(providerKey, kIndex)}
-                                                                            className="p-2 border border-red-900/40 text-red-400 hover:bg-red-950/20 hover:text-red-300 rounded transition-colors"
-                                                                            title="Xóa dòng key này"
-                                                                        >
-                                                                            <Trash2 size={12} />
-                                                                        </button>
-                                                                    </div>
-                                                                );
-                                                            })}
+                                                            {(() => {
+                                                                const apiKeys = provider.api_keys && provider.api_keys.length > 0 ? provider.api_keys : [''];
+                                                                return apiKeys.map((key, kIndex) => {
+                                                                    const isMasked = key.startsWith('****');
+                                                                    return (
+                                                                        <div key={kIndex} className="flex items-center gap-2">
+                                                                            <input
+                                                                                type={isMasked ? 'text' : 'password'}
+                                                                                value={isMasked ? '' : key}
+                                                                                readOnly={isMasked}
+                                                                                onChange={(e) => !isMasked && updateApiKeyFieldValue(providerKey, kIndex, e.target.value)}
+                                                                                className="flex-1 bg-[#050505] border border-gray-800 rounded px-3 py-2 text-gray-300 font-mono text-xs focus:outline-none focus:border-green-500 read-only:text-gray-500"
+                                                                                placeholder={
+                                                                                    isMasked 
+                                                                                        ? `Đã lưu API Key #${kIndex + 1} (ẩn bảo mật)`
+                                                                                        : `Nhập API Key #${kIndex + 1}...`
+                                                                                }
+                                                                            />
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => removeApiKeyField(providerKey, kIndex)}
+                                                                                className="p-2 border border-red-900/40 text-red-400 hover:bg-red-950/20 hover:text-red-300 rounded transition-colors"
+                                                                                title="Xóa dòng key này"
+                                                                            >
+                                                                                <Trash2 size={12} />
+                                                                            </button>
+                                                                        </div>
+                                                                    );
+                                                                });
+                                                            })()}
                                                         </div>
 
                                                         <button
