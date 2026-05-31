@@ -25,7 +25,7 @@ from botocore.client import Config
 
 import httpx
 
-from fastapi import FastAPI, HTTPException, Query, Header, status, UploadFile, File, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Query, Header, status, UploadFile, File, BackgroundTasks, Response
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -3628,6 +3628,7 @@ async def admin_update_chapter(
 async def admin_translate_chapter(
     chapter_number: int,
     background_tasks: BackgroundTasks,
+    response: Response,
     authorization: Optional[str] = Header(None),
 ):
     await verify_admin(authorization)
@@ -3646,9 +3647,48 @@ async def admin_translate_chapter(
     content_text = fetch_r2_content(chapter_row["content_url"])
     content_hash = build_content_hash(content_text)
     now_iso = datetime.now(timezone.utc).isoformat()
+    target_locales = list(TRANSLATION_TARGET_LOCALES)
+
+    existing_translation_resp = (
+        supabase.table("chapter_translations")
+        .select("locale, translation_status, content_hash")
+        .eq("chapter_id", chapter_row["id"])
+        .in_("locale", target_locales)
+        .execute()
+    )
+    existing_translation_rows = {
+        row.get("locale"): row
+        for row in (existing_translation_resp.data or [])
+        if row.get("locale")
+    }
+    completed_locales = []
+    for locale in target_locales:
+        existing_row = existing_translation_rows.get(locale) or {}
+        is_current_published_translation = (
+            existing_row.get("translation_status") == "published"
+            and existing_row.get("content_hash") == content_hash
+        )
+        if is_current_published_translation:
+            completed_locales.append(locale)
+
+    needed_locales = [
+        locale
+        for locale in target_locales
+        if locale not in completed_locales
+    ]
+
+    if not needed_locales:
+        response.status_code = status.HTTP_200_OK
+        return {
+            "message": "Tất cả các ngôn ngữ đều đã được dịch phiên bản mới nhất.",
+            "chapter_number": chapter_number,
+            "status": "completed",
+            "translated_locales": target_locales,
+            "failed_translations": [],
+        }
 
     # Pre-emptively set statuses to 'in_progress' in DB so the UI updates instantly
-    for locale in TRANSLATION_TARGET_LOCALES:
+    for locale in needed_locales:
         payload = {
             "chapter_id": chapter_row["id"],
             "locale": locale,
@@ -3671,7 +3711,7 @@ async def admin_translate_chapter(
                 chapter_row,
                 chapter_row["title"],
                 content_text,
-                list(TRANSLATION_TARGET_LOCALES),
+                needed_locales,
             )
         except Exception as exc:
             print(f"DEBUG: Background translation task failed for chapter {chapter_number}: {exc}")
@@ -3682,7 +3722,8 @@ async def admin_translate_chapter(
         "message": "Đang dịch thuật chương truyện trong nền...",
         "chapter_number": chapter_number,
         "status": "queued",
-        "translated_locales": [],
+        "translated_locales": completed_locales,
+        "queued_locales": needed_locales,
         "failed_translations": [],
     }
 
