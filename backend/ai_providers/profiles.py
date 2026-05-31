@@ -91,9 +91,11 @@ def get_default_provider_profiles() -> dict[str, dict[str, Any]]:
             "api_keys": [],
             "models": [
                 "llama-3.3-70b-versatile",
+                "deepseek-r1-distill-llama-70b",
+                "deepseek-r1-distill-qwen-32b",
                 "llama-3.1-8b-instant",
-                "mixtral-8x7b-32768",
                 "gemma2-9b-it",
+                "mixtral-8x7b-32768",
             ],
             "timeout": 20,
         },
@@ -103,7 +105,11 @@ def get_default_provider_profiles() -> dict[str, dict[str, Any]]:
             "display_name": "Cerebras",
             "base_url": "https://api.cerebras.ai/v1",
             "api_keys": [],
-            "models": ["llama3.1-8b", "llama3.1-70b"],
+            "models": [
+                "llama-3.3-70b",
+                "llama3.1-70b",
+                "llama3.1-8b",
+            ],
             "timeout": 20,
         },
         "openrouter": {
@@ -119,6 +125,7 @@ def get_default_provider_profiles() -> dict[str, dict[str, Any]]:
                 "deepseek/deepseek-chat:free",
                 "deepseek/deepseek-chat",
                 "deepseek/deepseek-reasoner",
+                "qwen/qwen-2.5-72b-instruct:free",
                 "meta-llama/llama-3.2-3b-instruct:free",
             ],
             "timeout": 25,
@@ -129,7 +136,12 @@ def get_default_provider_profiles() -> dict[str, dict[str, Any]]:
             "display_name": "Mistral AI",
             "base_url": "https://api.mistral.ai/v1",
             "api_keys": [],
-            "models": ["mistral-small-latest", "mistral-tiny"],
+            "models": [
+                "mistral-large-latest",
+                "mistral-small-latest",
+                "open-mixtral-8x22b",
+                "mistral-tiny",
+            ],
             "timeout": 20,
         },
         "sambanova": {
@@ -139,8 +151,11 @@ def get_default_provider_profiles() -> dict[str, dict[str, Any]]:
             "base_url": "https://api.sambanova.ai/v1",
             "api_keys": [],
             "models": [
-                "DeepSeek-V3.1",
-                "Llama-4-Maverick-17B-128E-Instruct",
+                "DeepSeek-R1",
+                "DeepSeek-V3",
+                "Meta-Llama-3.3-70B-Instruct",
+                "Meta-Llama-3.1-405B-Instruct",
+                "Meta-Llama-3.1-8B-Instruct",
             ],
             "timeout": 25,
         },
@@ -150,7 +165,13 @@ def get_default_provider_profiles() -> dict[str, dict[str, Any]]:
             "display_name": "GitHub Models",
             "base_url": "https://models.inference.ai.azure.com",
             "api_keys": [],
-            "models": ["gpt-4o-mini", "meta-llama-3-8b-instruct"],
+            "models": [
+                "gpt-4o-mini",
+                "gpt-4o",
+                "meta-llama-3.3-70b-instruct",
+                "meta-llama-3.1-8b-instruct",
+                "cohere-command-r-plus",
+            ],
             "timeout": 20,
         },
         "ai21": {
@@ -159,7 +180,10 @@ def get_default_provider_profiles() -> dict[str, dict[str, Any]]:
             "display_name": "AI21 Studio",
             "base_url": "https://api.ai21.com/studio/v1",
             "api_keys": [],
-            "models": ["jamba-1.5-mini"],
+            "models": [
+                "jamba-1.5-mini",
+                "jamba-1.5-large",
+            ],
             "timeout": 20,
         },
         "deepseek": {
@@ -168,7 +192,10 @@ def get_default_provider_profiles() -> dict[str, dict[str, Any]]:
             "display_name": "DeepSeek",
             "base_url": "https://api.deepseek.com/v1",
             "api_keys": [],
-            "models": ["deepseek-chat"],
+            "models": [
+                "deepseek-chat",
+                "deepseek-reasoner",
+            ],
             "timeout": 25,
         },
         "nvidia_nim": {
@@ -177,7 +204,13 @@ def get_default_provider_profiles() -> dict[str, dict[str, Any]]:
             "display_name": "NVIDIA NIM",
             "base_url": "https://integrate.api.nvidia.com/v1",
             "api_keys": [],
-            "models": ["meta/llama-3.1-8b-instruct"],
+            "models": [
+                "meta/llama-3.3-70b-instruct",
+                "nvidia/llama-3.1-nemotron-70b-instruct",
+                "meta/llama-3.1-405b-instruct",
+                "meta/llama-3.1-8b-instruct",
+                "deepseek-ai/deepseek-r1",
+            ],
             "timeout": 20,
         },
     }
