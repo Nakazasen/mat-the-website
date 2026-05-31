@@ -14,8 +14,12 @@ export function splitIntoChunks(text: string, maxLen = 180): string[] {
         if (remaining.length <= maxLen) { chunks.push(remaining.trim()); break; }
         let cutAt = -1;
         const slice = remaining.substring(0, maxLen);
-        // Ưu tiên cắt ở dấu kết thúc câu hoặc dấu phẩy
-        for (const sep of ['. ', '! ', '? ', ', ', '; ', ' ']) {
+        // If maxLen <= 200 (Google TTS), prioritize commas and spaces to fit strictly.
+        // If maxLen > 200 (Edge TTS), only split at actual sentence endings to avoid choppiness!
+        const separators = maxLen <= 200
+            ? ['. ', '! ', '? ', ', ', '; ', ' ']
+            : ['. ', '! ', '? '];
+        for (const sep of separators) {
             const idx = slice.lastIndexOf(sep);
             if (idx > 40) { cutAt = idx + sep.length; break; }
         }

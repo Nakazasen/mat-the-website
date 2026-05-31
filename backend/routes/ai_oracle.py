@@ -45,24 +45,25 @@ BASE_GEMINI_URL = (
 DAILY_AI_LIMIT = 50
 
 SYSTEM_PROMPT_TEMPLATE = """
-Ban la "He Thong" - mot tri tue nhan tao bi an trong cau chuyen "Mat The Sinh Hoa Nguy Co".
-Nguoi dung dang doc den Chuong {chapter_cap}.
+Bạn là "Hệ Thống" - một trí tuệ nhân tạo bí ẩn, tối cao đang hỗ trợ người dùng sinh tồn trong thế giới tận thế của tác phẩm "Mạt Thế Sinh Hóa Nguy Cơ".
+Người dùng hiện đang đọc đến Chương {chapter_cap}. Bạn có quyền truy cập vào dữ liệu của chương này và thông tin wiki được cung cấp dưới đây.
 
-QUY TAC TUYET DOI:
-1. Chi duoc su dung thong tin tu Chuong 1 den Chuong {chapter_cap}.
-2. Neu su kien xay ra sau Chuong {chapter_cap}, hay noi chinh xac: "Du lieu chua duoc giai ma."
-3. Tra loi bang tieng Viet tu nhien, ngan gon, ro nghia, toi da 150 tu.
-4. Khong duoc tra ve tieu de rong kieu "[THONG BAO HE THONG]" neu khong co noi dung giai thich theo sau.
-5. Neu cau hoi khong du du kien trong pham vi da doc, hay tra loi ngan gon theo phong cach He Thong va neu ro gioi han du lieu.
-6. Khong bia thong tin khong co trong truyen hoac trong wiki context.
-7. Neu cau hoi la ve nhan vat, the luc, vat pham hoac su kien, uu tien tra loi bang chi tiet cu the thay vi noi chung chung.
-8. Tra loi PHAI day du va hoan chinh. KHONG duoc cat ngang giua cau.
+QUY TẮC TUYỆT ĐỐI KHÔNG ĐƯỢC VI PHẠM:
+1. Chỉ được phép sử dụng thông tin từ Chương 1 đến Chương {chapter_cap} (dựa trên thông tin ngữ cảnh wiki và nội dung chương hiện tại được cung cấp bên dưới).
+2. Nếu câu hỏi liên quan đến bất kỳ sự kiện, nhân vật hay chi tiết nào xuất hiện sau Chương {chapter_cap}, hoặc nằm ngoài dữ liệu được cung cấp dưới đây, bạn PHẢI trả lời chính xác câu sau: "Dữ liệu chưa được giải mã." (không được thêm thắt, không bịa đặt, không giải thích gì thêm).
+3. Câu trả lời phải sử dụng tiếng Việt có dấu hoàn chỉnh, tự nhiên, mang phong thái lạnh lùng, huyền bí nhưng chuyên nghiệp của "Hệ Thống" tối cao.
+4. Độ dài câu trả lời ngắn gọn, cô đọng, tối đa 150 từ. Trả lời đầy đủ, trọn vẹn ý, tuyệt đối không được cắt ngang giữa câu hoặc bỏ dở câu.
+5. Tuyệt đối KHÔNG ĐƯỢC BỊA ĐẶT thông tin không có trong truyện hoặc không có trong dữ liệu wiki/ngữ cảnh được cung cấp. Nếu không chắc chắn, hãy trả lời: "Dữ liệu chưa được giải mã."
+6. Không sử dụng tiêu đề rỗng như "[THÔNG BÁO HỆ THỐNG]" nếu không có nội dung giải thích chi tiết đi kèm.
 
-Thong tin ngu canh (wiki):
+Dữ liệu Wiki (Nhân vật, Thế lực, Vật phẩm, Địa điểm):
 {wiki_context}
+
+Nội dung Chương {chapter_cap} hiện tại:
+{chapter_context}
 """.strip()
 
-WIKI_EMPTY_CONTEXT = "Khong co du lieu wiki lien quan."
+WIKI_EMPTY_CONTEXT = "Không có dữ liệu wiki liên quan."
 MIN_CACHEABLE_LENGTH = 24
 QUESTION_STOPWORDS = {
     "ai", "la", "gi", "nao", "bao", "nhieu", "co", "khong", "cho", "toi",
@@ -240,32 +241,67 @@ async def get_wiki_context(supabase, question: str, chapter_cap: int) -> str:
             return ""
 
         context_parts: list[str] = []
-        seen_names: set[str] = set()
+        seen_titles: set[str] = set()
         for word in search_words:
             result = (
                 supabase.table("wiki_entries")
-                .select("name, faction, status, description")
-                .ilike("name", f"%{word}%")
-                .lte("chapter_introduced", chapter_cap)
+                .select("title, category, summary, content")
+                .ilike("title", f"%{word}%")
                 .limit(3)
                 .execute()
             )
             for row in result.data or []:
-                name = row.get('name', '')
-                if name in seen_names:
+                title = row.get('title', '')
+                if title in seen_titles:
                     continue
-                seen_names.add(name)
-                desc = row.get('description', '') or ''
-                faction = row.get('faction', '') or ''
-                status_text = row.get('status', '') or ''
-                parts = [f"- {name}"]
-                if faction:
-                    parts.append(f"(Phe: {faction})")
-                if status_text:
-                    parts.append(f"[{status_text}]")
-                parts.append(f": {desc[:300]}")
+                seen_titles.add(title)
+                summary = row.get('summary', '') or ''
+                content = row.get('content', '') or ''
+                category = row.get('category', '') or ''
+                desc = summary if summary else content
+                parts = [f"- {title}"]
+                if category:
+                    parts.append(f"(Phân loại: {category})")
+                parts.append(f": {desc[:400]}")
                 context_parts.append(" ".join(parts))
         return "\n".join(context_parts) or WIKI_EMPTY_CONTEXT
+    except Exception:
+        return ""
+
+
+async def get_chapter_context(supabase, chapter_cap: int) -> str:
+    if not supabase:
+        return ""
+    try:
+        result = (
+            supabase.table("chapters")
+            .select("title, content_url")
+            .eq("chapter_number", chapter_cap)
+            .limit(1)
+            .execute()
+        )
+        if not result.data:
+            return f"(Không có dữ liệu Chương {chapter_cap})"
+
+        row = result.data[0]
+        title = row.get("title", "")
+        content_url = row.get("content_url")
+        if not content_url:
+            return f"Chương {chapter_cap}: {title}\n(Nội dung chưa được tải)"
+
+        try:
+            from main import fetch_r2_content
+        except ImportError:
+            from backend.main import fetch_r2_content
+
+        import asyncio
+        loop = asyncio.get_event_loop()
+        content = await loop.run_in_executor(None, fetch_r2_content, content_url)
+
+        if content:
+            snippet = content[:12000]
+            return f"Nội dung Chương {chapter_cap}: {title}\n{snippet}"
+        return f"Chương {chapter_cap}: {title}\n(Nội dung trống)"
     except Exception:
         return ""
 
@@ -322,6 +358,7 @@ async def call_gemini(
     wiki_context: str,
     model_name: str = DEFAULT_MODEL,
     api_key: Optional[str] = None,
+    chapter_context: str = "",
 ) -> str:
     current_key = api_key or GEMINI_API_KEY
     if not current_key:
@@ -331,6 +368,7 @@ async def call_gemini(
     system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
         chapter_cap=chapter_cap,
         wiki_context=wiki_context,
+        chapter_context=chapter_context,
     )
     payload = {
         "contents": [
@@ -367,6 +405,7 @@ async def call_ai_provider(
     question: str,
     chapter_cap: int,
     wiki_context: str,
+    chapter_context: str = "",
 ) -> Optional[str]:
     """Try multi-provider router first, return None if unavailable."""
     try:
@@ -382,6 +421,7 @@ async def call_ai_provider(
         system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
             chapter_cap=chapter_cap,
             wiki_context=wiki_context,
+            chapter_context=chapter_context,
         )
         request = AIRequest(
             text=question,
@@ -626,8 +666,10 @@ async def ask_oracle(body: OracleRequest, request: Request):
         return OracleResponse(answer=cached, source="cache", chapter_cap=chapter_cap)
 
     wiki_context = await get_wiki_context(supabase, question, chapter_cap)
+    chapter_context = await get_chapter_context(supabase, chapter_cap)
+
     if wiki_context and wiki_context != WIKI_EMPTY_CONTEXT and len(question.split()) <= 12:
-        answer = f"[DU LIEU HE THONG]\n{wiki_context}"
+        answer = f"[DỮ LIỆU HỆ THỐNG]\n{wiki_context}"
         await store_cache(supabase, question_hash, chapter_cap, answer, "local_wiki")
         return OracleResponse(answer=answer, source="local_wiki", chapter_cap=chapter_cap)
 
@@ -639,7 +681,7 @@ async def ask_oracle(body: OracleRequest, request: Request):
         )
 
     # --- Multi-provider route (Phase 4) ---
-    answer = await call_ai_provider(question, chapter_cap, wiki_context)
+    answer = await call_ai_provider(question, chapter_cap, wiki_context, chapter_context)
     if answer and not is_garbage_answer(answer):
         await store_cache(supabase, question_hash, chapter_cap, answer, "ai_provider")
         return OracleResponse(answer=answer, source="ai_provider", chapter_cap=chapter_cap)
@@ -657,6 +699,7 @@ async def ask_oracle(body: OracleRequest, request: Request):
                     wiki_context,
                     model_name=model_name,
                     api_key=api_key,
+                    chapter_context=chapter_context,
                 )
                 if is_garbage_answer(answer):
                     last_error = HTTPException(
@@ -706,7 +749,6 @@ async def admin_ai_playground(
     stored_model, _, stored_keys = await resolve_ai_settings(supabase)
     chosen_key = body.api_key.strip() if body.api_key else (stored_keys[0] if stored_keys else "")
     used_saved_key = not bool(body.api_key and body.api_key.strip())
-
     results: list[AdminAiPlaygroundResult] = []
     for model in models:
         start = perf_counter()

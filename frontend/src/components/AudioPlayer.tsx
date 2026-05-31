@@ -175,8 +175,9 @@ export default function AudioPlayer({
 
     useEffect(() => {
         const cleanText = stripHtml(resolvedContent || content);
-        chunksRef.current = splitIntoChunks(cleanText);
-    }, [content, resolvedContent]);
+        const maxLen = activeVoice === 'google' ? 180 : 1000;
+        chunksRef.current = splitIntoChunks(cleanText, maxLen);
+    }, [content, resolvedContent, activeVoice]);
 
     useEffect(() => {
         if (audioRef.current) audioRef.current.muted = isMuted;

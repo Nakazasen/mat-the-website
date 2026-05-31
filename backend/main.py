@@ -3229,10 +3229,32 @@ async def get_chapter(
 import asyncio
 edge_tts_lock = asyncio.Lock()
 
+def get_friendly_voice_name(voice: str) -> str:
+    if not voice:
+        return "được chọn"
+    lowered = voice.lower()
+    if "namminh" in lowered:
+        return "Nam Minh"
+    if "hoaimy" in lowered:
+        return "Hoài Mỹ"
+    if "xiaoxiao" in lowered:
+        return "Xiaoxiao"
+    if "yunxi" in lowered:
+        return "Yunxi"
+    
+    # Generic parsing fallback
+    import re
+    parts = voice.split("-")
+    if len(parts) >= 3:
+        name_part = parts[-1].replace("Neural", "").replace("Multilingual", "").strip()
+        # Insert space before capital letters, e.g. "NamMinh" -> "Nam Minh"
+        return re.sub(r'(?<!^)(?=[A-Z])', ' ', name_part)
+    return "được chọn"
+
 @app.get("/api/tts", summary="Google Translate TTS Proxy")
 
 async def tts_proxy(
-    text: str = Query(..., max_length=200, description="Văn bản cần đọc (tối đa 200 ký tự)"),
+    text: str = Query(..., max_length=2000, description="Văn bản cần đọc (tối đa 2000 ký tự)"),
 
     lang: str = Query("vi", description="Ngôn ngữ (vi, en, ...)"),
 
@@ -3288,7 +3310,9 @@ async def tts_proxy(
                 },
             )
         else:
-            print(f"Edge TTS failed completely after all attempts, falling back to Google: {last_err}")
+            print(f"Edge TTS failed completely after all attempts. Generating error message via Google Translate: {last_err}")
+            friendly_name = get_friendly_voice_name(voice)
+            text = f"Hệ thống quá tải, không thể tải giọng đọc {friendly_name}. Vui lòng thử lại sau."
 
 
 
