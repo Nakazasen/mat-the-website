@@ -89,14 +89,7 @@ def get_default_provider_profiles() -> dict[str, dict[str, Any]]:
             "display_name": "Groq",
             "base_url": "https://api.groq.com/openai/v1",
             "api_keys": [],
-            "models": [
-                "llama-3.3-70b-versatile",
-                "deepseek-r1-distill-llama-70b",
-                "deepseek-r1-distill-qwen-32b",
-                "llama-3.1-8b-instant",
-                "gemma2-9b-it",
-                "mixtral-8x7b-32768",
-            ],
+            "models": [],
             "timeout": 20,
         },
         "cerebras": {
@@ -105,11 +98,7 @@ def get_default_provider_profiles() -> dict[str, dict[str, Any]]:
             "display_name": "Cerebras",
             "base_url": "https://api.cerebras.ai/v1",
             "api_keys": [],
-            "models": [
-                "llama-3.3-70b",
-                "llama3.1-70b",
-                "llama3.1-8b",
-            ],
+            "models": [],
             "timeout": 20,
         },
         "openrouter": {
@@ -118,16 +107,7 @@ def get_default_provider_profiles() -> dict[str, dict[str, Any]]:
             "display_name": "OpenRouter",
             "base_url": "https://openrouter.ai/api/v1",
             "api_keys": [],
-            "models": [
-                "meta-llama/llama-3.3-70b-instruct:free",
-                "google/gemini-2.5-flash:free",
-                "google/gemini-2.5-pro:free",
-                "deepseek/deepseek-chat:free",
-                "deepseek/deepseek-chat",
-                "deepseek/deepseek-reasoner",
-                "qwen/qwen-2.5-72b-instruct:free",
-                "meta-llama/llama-3.2-3b-instruct:free",
-            ],
+            "models": [],
             "timeout": 25,
         },
         "mistral": {
@@ -136,12 +116,7 @@ def get_default_provider_profiles() -> dict[str, dict[str, Any]]:
             "display_name": "Mistral AI",
             "base_url": "https://api.mistral.ai/v1",
             "api_keys": [],
-            "models": [
-                "mistral-large-latest",
-                "mistral-small-latest",
-                "open-mixtral-8x22b",
-                "mistral-tiny",
-            ],
+            "models": [],
             "timeout": 20,
         },
         "sambanova": {
@@ -150,13 +125,7 @@ def get_default_provider_profiles() -> dict[str, dict[str, Any]]:
             "display_name": "SambaNova",
             "base_url": "https://api.sambanova.ai/v1",
             "api_keys": [],
-            "models": [
-                "DeepSeek-R1",
-                "DeepSeek-V3",
-                "Meta-Llama-3.3-70B-Instruct",
-                "Meta-Llama-3.1-405B-Instruct",
-                "Meta-Llama-3.1-8B-Instruct",
-            ],
+            "models": [],
             "timeout": 25,
         },
         "github": {
@@ -165,13 +134,7 @@ def get_default_provider_profiles() -> dict[str, dict[str, Any]]:
             "display_name": "GitHub Models",
             "base_url": "https://models.inference.ai.azure.com",
             "api_keys": [],
-            "models": [
-                "gpt-4o-mini",
-                "gpt-4o",
-                "meta-llama-3.3-70b-instruct",
-                "meta-llama-3.1-8b-instruct",
-                "cohere-command-r-plus",
-            ],
+            "models": [],
             "timeout": 20,
         },
         "ai21": {
@@ -180,10 +143,7 @@ def get_default_provider_profiles() -> dict[str, dict[str, Any]]:
             "display_name": "AI21 Studio",
             "base_url": "https://api.ai21.com/studio/v1",
             "api_keys": [],
-            "models": [
-                "jamba-1.5-mini",
-                "jamba-1.5-large",
-            ],
+            "models": [],
             "timeout": 20,
         },
         "deepseek": {
@@ -192,10 +152,7 @@ def get_default_provider_profiles() -> dict[str, dict[str, Any]]:
             "display_name": "DeepSeek",
             "base_url": "https://api.deepseek.com/v1",
             "api_keys": [],
-            "models": [
-                "deepseek-chat",
-                "deepseek-reasoner",
-            ],
+            "models": [],
             "timeout": 25,
         },
         "nvidia_nim": {
@@ -204,13 +161,16 @@ def get_default_provider_profiles() -> dict[str, dict[str, Any]]:
             "display_name": "NVIDIA NIM",
             "base_url": "https://integrate.api.nvidia.com/v1",
             "api_keys": [],
-            "models": [
-                "meta/llama-3.3-70b-instruct",
-                "nvidia/llama-3.1-nemotron-70b-instruct",
-                "meta/llama-3.1-405b-instruct",
-                "meta/llama-3.1-8b-instruct",
-                "deepseek-ai/deepseek-r1",
-            ],
+            "models": [],
+            "timeout": 20,
+        },
+        "chatanywhere": {
+            "enabled": False,
+            "type": "openai_compatible",
+            "display_name": "ChatAnyWhere",
+            "base_url": "https://api.chatanywhere.tech/v1",
+            "api_keys": [],
+            "models": [],
             "timeout": 20,
         },
     }
@@ -227,6 +187,7 @@ PROVIDER_QUALITY_SCORES: dict[str, float] = {
     "ai21": 7.0,
     "deepseek": 8.0,
     "nvidia_nim": 7.5,
+    "chatanywhere": 7.5,
 }
 
 
