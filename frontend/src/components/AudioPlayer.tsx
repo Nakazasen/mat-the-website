@@ -119,10 +119,19 @@ export default function AudioPlayer({
     const activeLocale = locale ?? contextLocale;
 
     const [playState, setPlayState] = useState<PlayState>('stopped');
-    const [speed, setSpeed] = useState(() => readSavedPlaybackSpeed());
-    const [activeVoice, setActiveVoice] = useState(() => readSavedVoice(activeLocale));
+    const [speed, setSpeed] = useState(1);
+    const [activeVoice, setActiveVoice] = useState('google');
     const [isMuted, setIsMuted] = useState(false);
+    const [mounted, setMounted] = useState(false);
 
+    // Hydration safety: only load stored preferences once mounted on client
+    useEffect(() => {
+        setMounted(true);
+        const savedSpeed = readSavedPlaybackSpeed();
+        const savedVoice = readSavedVoice(activeLocale);
+        setSpeed(savedSpeed);
+        setActiveVoice(savedVoice);
+    }, [activeLocale]);
 
     const audioRef = useRef<HTMLAudioElement>(null);
     const chunksRef = useRef<string[]>([]);
@@ -146,22 +155,22 @@ export default function AudioPlayer({
     }, [speed]);
 
     useEffect(() => {
-        if (typeof window === 'undefined') return;
+        if (!mounted || typeof window === 'undefined') return;
         try {
             window.localStorage.setItem(AUDIO_PLAYBACK_SPEED_STORAGE_KEY, String(speed));
         } catch {
             // ignore storage errors
         }
-    }, [speed]);
+    }, [speed, mounted]);
 
     useEffect(() => {
-        if (typeof window === 'undefined') return;
+        if (!mounted || typeof window === 'undefined') return;
         try {
             window.localStorage.setItem(AUDIO_VOICE_STORAGE_KEY, activeVoice);
         } catch {
             // ignore storage errors
         }
-    }, [activeVoice]);
+    }, [activeVoice, mounted]);
 
 
     useEffect(() => {
