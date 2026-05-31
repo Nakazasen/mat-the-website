@@ -31,6 +31,30 @@ const MOBILE_PANEL_EVENT = 'reader-learning-mobile-panel';
 const AUDIO_LAYOUT_EVENT = 'reader-audio-layout';
 const AUDIO_SPEED_OPTIONS = [0.75, 1, 1.25, 1.5, 1.75] as const;
 
+const AUDIO_VOICE_STORAGE_KEY = 'reader-audio-voice-v1';
+const AVAILABLE_VOICES: Record<Locale, { id: string; label: string }[]> = {
+    vi: [
+        { id: 'google', label: 'Google Chị Cả' },
+        { id: 'vi-VN-HoaiMyNeural', label: 'Edge Hoài Mỹ (Nữ)' },
+        { id: 'vi-VN-NamMinhNeural', label: 'Edge Nam Minh (Nam)' },
+    ],
+    en: [
+        { id: 'google', label: 'Google Default' },
+        { id: 'en-US-AriaNeural', label: 'Edge Aria (Female)' },
+        { id: 'en-US-GuyNeural', label: 'Edge Guy (Male)' },
+    ],
+    ja: [
+        { id: 'google', label: 'Google Default' },
+        { id: 'ja-JP-NanamiNeural', label: 'Edge Nanami (Female)' },
+        { id: 'ja-JP-KeitaNeural', label: 'Edge Keita (Male)' },
+    ],
+    'zh-CN': [
+        { id: 'google', label: 'Google Default' },
+        { id: 'zh-CN-XiaoxiaoNeural', label: 'Edge Xiaoxiao (Female)' },
+        { id: 'zh-CN-YunxiNeural', label: 'Edge Yunxi (Male)' },
+    ],
+};
+
 function normalizePlaybackSpeed(value: number | null | undefined): number {
     if (typeof value !== 'number' || Number.isNaN(value)) return 1;
     return AUDIO_SPEED_OPTIONS.includes(value as typeof AUDIO_SPEED_OPTIONS[number]) ? value : 1;
@@ -44,6 +68,18 @@ function readSavedPlaybackSpeed(): number {
         return normalizePlaybackSpeed(Number(raw));
     } catch {
         return 1;
+    }
+}
+
+function readSavedVoice(locale: Locale): string {
+    if (typeof window === 'undefined') return 'google';
+    try {
+        const raw = window.localStorage.getItem(AUDIO_VOICE_STORAGE_KEY);
+        if (!raw) return 'google';
+        const voices = AVAILABLE_VOICES[locale] || AVAILABLE_VOICES.vi;
+        return voices.some(v => v.id === raw) ? raw : 'google';
+    } catch {
+        return 'google';
     }
 }
 
@@ -84,7 +120,9 @@ export default function AudioPlayer({
 
     const [playState, setPlayState] = useState<PlayState>('stopped');
     const [speed, setSpeed] = useState(() => readSavedPlaybackSpeed());
+    const [activeVoice, setActiveVoice] = useState(() => readSavedVoice(activeLocale));
     const [isMuted, setIsMuted] = useState(false);
+
 
     const audioRef = useRef<HTMLAudioElement>(null);
     const chunksRef = useRef<string[]>([]);
@@ -114,6 +152,16 @@ export default function AudioPlayer({
             // ignore storage errors
         }
     }, [speed]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        try {
+            window.localStorage.setItem(AUDIO_VOICE_STORAGE_KEY, activeVoice);
+        } catch {
+            // ignore storage errors
+        }
+    }, [activeVoice]);
+
 
     useEffect(() => {
         const cleanText = stripHtml(resolvedContent || content);
@@ -293,7 +341,7 @@ export default function AudioPlayer({
         chunkIndexRef.current = index;
         if (onIndexChange) onIndexChange(index);
 
-        const url = ttsUrl(chunksRef.current[index], activeLocale, speedRef.current, voice);
+        const url = ttsUrl(chunksRef.current[index], activeLocale, speedRef.current, activeVoice);
         if (audio.src !== url) {
             audio.src = url;
             audio.load();
@@ -304,7 +352,8 @@ export default function AudioPlayer({
         }).catch(() => {
             if (!stoppedRef.current) playChunk(index + 1);
         });
-    }, [activeLocale, localizePath, nextId, onIndexChange, router, stop, voice]);
+    }, [activeLocale, localizePath, nextId, onIndexChange, router, stop, activeVoice]);
+
 
     const requestWakeLock = useCallback(async () => {
         if ('wakeLock' in navigator) {
@@ -541,9 +590,26 @@ export default function AudioPlayer({
                         ))}
                     </div>
 
+                    <div className="w-px h-8 bg-gray-800" />
+
+                    <div className="flex items-center gap-1.5 ml-1">
+                        <select
+                            value={activeVoice}
+                            onChange={(e) => setActiveVoice(e.target.value)}
+                            className="bg-[#1a1a1a] border border-gray-800 text-gray-300 text-[10px] font-mono rounded px-2 py-1 focus:outline-none focus:border-toxic-green-DEFAULT cursor-pointer transition-all hover:border-gray-700"
+                        >
+                            {(AVAILABLE_VOICES[activeLocale] || AVAILABLE_VOICES.vi).map((v) => (
+                                <option key={v.id} value={v.id}>
+                                    {v.label}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
                     <button onClick={() => setIsMuted(!isMuted)} className="ml-auto p-2 text-gray-500 hover:text-gray-200 transition-colors">
                         {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
                     </button>
+
                 </div>
 
                 {playState !== 'stopped' && (
@@ -619,6 +685,24 @@ export default function AudioPlayer({
                                 </button>
                             ))}
                         </div>
+
+                        <div className="mt-2.5 flex flex-wrap items-center gap-1.5 border-t border-gray-800 pt-2.5">
+                            <span className="mr-1 text-[10px] font-mono uppercase tracking-[0.16em] text-gray-500">
+                                GIỌNG:
+                            </span>
+                            <select
+                                value={activeVoice}
+                                onChange={(e) => setActiveVoice(e.target.value)}
+                                className="bg-[#1e1e1e] border border-gray-800 text-gray-300 text-[10px] font-mono rounded px-2 py-1 focus:outline-none focus:border-toxic-green-DEFAULT/50 cursor-pointer"
+                            >
+                                {(AVAILABLE_VOICES[activeLocale] || AVAILABLE_VOICES.vi).map((v) => (
+                                    <option key={v.id} value={v.id}>
+                                        {v.label}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
                     </div>
                 </div>
             )}
@@ -707,25 +791,47 @@ export default function AudioPlayer({
                             </button>
                         </div>
 
-                        <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-gray-800 pt-3">
-                            <span className="mr-1 text-[10px] font-mono uppercase tracking-[0.16em] text-gray-500">
-                                {dictionary.audio.speed}
-                            </span>
-                            {AUDIO_SPEED_OPTIONS.map((option) => (
-                                <button
-                                    key={`floating-speed-${option}`}
-                                    type="button"
-                                    onClick={() => setSpeed(option)}
-                                    className={`rounded-md px-2 py-1 text-[10px] font-mono transition-all ${
-                                        speed === option
-                                            ? 'bg-toxic-green-DEFAULT text-black font-bold'
-                                            : 'border border-gray-800 text-gray-400 hover:border-toxic-green-DEFAULT/40 hover:text-toxic-green-DEFAULT'
-                                    }`}
+                        <div className="mt-3 flex flex-wrap items-center justify-between gap-1.5 border-t border-gray-800 pt-3">
+                            <div className="flex items-center gap-1">
+                                <span className="mr-1 text-[10px] font-mono uppercase tracking-[0.16em] text-gray-500">
+                                    GIỌNG:
+                                </span>
+                                <select
+                                    value={activeVoice}
+                                    onChange={(e) => setActiveVoice(e.target.value)}
+                                    className="bg-[#12161f] border border-gray-850 text-gray-300 text-[10px] font-mono rounded px-1.5 py-1 focus:outline-none focus:border-toxic-green-DEFAULT/50 cursor-pointer max-w-[125px]"
                                 >
-                                    {option}x
-                                </button>
-                            ))}
+                                    {(AVAILABLE_VOICES[activeLocale] || AVAILABLE_VOICES.vi).map((v) => (
+                                        <option key={v.id} value={v.id}>
+                                            {v.label}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="flex items-center gap-1.5">
+                                <span className="mr-1 text-[10px] font-mono uppercase tracking-[0.16em] text-gray-500">
+                                    {dictionary.audio.speed}
+                                </span>
+                                <div className="flex gap-0.5">
+                                    {AUDIO_SPEED_OPTIONS.map((option) => (
+                                        <button
+                                            key={`floating-speed-${option}`}
+                                            type="button"
+                                            onClick={() => setSpeed(option)}
+                                            className={`rounded px-1.5 py-0.5 text-[9px] font-mono transition-all ${
+                                                speed === option
+                                                    ? 'bg-toxic-green-DEFAULT text-black font-bold'
+                                                    : 'border border-gray-800 text-gray-400 hover:border-toxic-green-DEFAULT/40 hover:text-toxic-green-DEFAULT'
+                                            }`}
+                                        >
+                                            {option}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
+
                     </div>
                 </div>
             )}

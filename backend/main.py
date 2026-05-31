@@ -3231,15 +3231,44 @@ async def tts_proxy(
 
     speed: float = Query(1.0, ge=0.5, le=2.0, description="Tốc độ đọc"),
 
+    voice: Optional[str] = Query(None, description="Tên giọng đọc (Edge TTS hoặc 'google')"),
 ):
 
     """
 
-    Proxy Google Translate TTS để tránh bị chặn khi gọi trực tiếp từ browser.
+    Proxy Google Translate TTS hoặc Microsoft Edge TTS để tránh bị chặn khi gọi trực tiếp từ browser.
 
     Trả về audio MP3 stream.
 
     """
+    if voice and voice != "google":
+        try:
+            import edge_tts
+
+            # Map speed to rate percentage string: e.g. 1.25 -> "+25%", 0.75 -> "-25%", 1.0 -> "+0%"
+            rate_val = int((speed - 1.0) * 100)
+            rate_str = f"{rate_val:+d}%"
+
+            async def edge_tts_streamer():
+                try:
+                    communicate = edge_tts.Communicate(text, voice, rate=rate_str)
+                    async for chunk in communicate.stream():
+                        if chunk["type"] == "audio":
+                            yield chunk["data"]
+                except Exception as tts_err:
+                    print(f"ERROR inside edge_tts_streamer: {tts_err}")
+
+            return StreamingResponse(
+                edge_tts_streamer(),
+                media_type="audio/mpeg",
+                headers={
+                    "Cache-Control": "public, max-age=3600",
+                    "Access-Control-Allow-Origin": "*",
+                },
+            )
+        except Exception as e:
+            print(f"Edge TTS failed to initialize, falling back to Google Translate TTS: {e}")
+
 
     url = (
 
