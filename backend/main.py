@@ -1105,9 +1105,14 @@ async def generate_structured_translation_payload(
 ) -> T:
     # --- Multi-provider route (Phase 3) ---
     # Try the ProviderRouter first if any providers are configured.
+    router_configured = False
+    router_failed = False
+    router_error_details = []
+
     try:
         router = get_provider_router()
         if router._providers:  # At least one provider registered
+            router_configured = True
             temperature = 0.05 if translation_mode == "quality" else 0.1
             request = AIRequest(
                 text=user_prompt,
@@ -1121,9 +1126,10 @@ async def generate_structured_translation_payload(
             policy = config.get("translation_policy", {"mode": "waterfall"})
             result = await router.route(request, policy=policy)
             if result.status != "success":
-                print(f"DEBUG: Multi-provider routing failed with status: {result.status}, error_type: {result.error_type}, message: {result.error_message}")
+                router_failed = True
                 for a in result.attempts:
-                    print(f"  - Attempt {a.get('provider')} ({a.get('model')}): status={a.get('status')}, reason={a.get('reason')}, message={a.get('message')}")
+                    if a.get('status') == 'failed':
+                        router_error_details.append(f"{a.get('provider')} ({a.get('model')}): {a.get('reason')} - {a.get('message')}")
             if result.status == "success" and result.text:
                 try:
                     return parser(result.text)
@@ -1146,6 +1152,11 @@ async def generate_structured_translation_payload(
     # --- Legacy Gemini direct call (backward compatibility) ---
     _active_model, model_catalog, api_keys = await resolve_ai_settings_for_translation(translation_mode)
     if not api_keys:
+        if router_configured and (router_failed or not router_error_details):
+            err_msg = "Hệ thống quá tải hoặc hết hạn ngạch AI của tất cả nhà cung cấp (Rate Limit / Quota Exceeded)."
+            if router_error_details:
+                err_msg += f" Chi tiết lỗi: {'; '.join(router_error_details[:2])}"
+            raise HTTPException(status_code=503, detail=err_msg)
         raise HTTPException(status_code=503, detail="AI translation is not configured")
     temperature = 0.05 if translation_mode == "quality" else 0.1
 
