@@ -3249,24 +3249,35 @@ async def tts_proxy(
 
     """
     if voice and voice != "google":
-        try:
-            import edge_tts
+        audio_data = None
+        last_err = None
+        for attempt in range(3):
+            try:
+                import edge_tts
 
-            # Map speed to rate percentage string: e.g. 1.25 -> "+25%", 0.75 -> "-25%", 1.0 -> "+0%"
-            rate_val = int((speed - 1.0) * 100)
-            rate_str = f"{rate_val:+d}%"
+                # Map speed to rate percentage string: e.g. 1.25 -> "+25%", 0.75 -> "-25%", 1.0 -> "+0%"
+                rate_val = int((speed - 1.0) * 100)
+                rate_str = f"{rate_val:+d}%"
 
-            # Pre-collect all audio bytes under a global concurrency lock to prevent IP blocking
-            async with edge_tts_lock:
-                communicate = edge_tts.Communicate(text, voice, rate=rate_str)
-                audio_data = bytearray()
-                async for chunk in communicate.stream():
-                    if chunk["type"] == "audio":
-                        audio_data.extend(chunk["data"])
+                # Pre-collect all audio bytes under a global concurrency lock to prevent IP blocking
+                async with edge_tts_lock:
+                    communicate = edge_tts.Communicate(text, voice, rate=rate_str)
+                    current_audio = bytearray()
+                    async for chunk in communicate.stream():
+                        if chunk["type"] == "audio":
+                            current_audio.extend(chunk["data"])
 
-            if not audio_data:
-                raise ValueError("Edge TTS yielded no audio bytes")
+                if current_audio:
+                    audio_data = current_audio
+                    break
+                else:
+                    raise ValueError("No audio bytes yielded")
+            except Exception as e:
+                last_err = e
+                print(f"Edge TTS attempt {attempt+1} failed: {e}")
+                await asyncio.sleep(0.15)  # tiny pause before retry
 
+        if audio_data:
             return StreamingResponse(
                 io.BytesIO(audio_data),
                 media_type="audio/mpeg",
@@ -3276,8 +3287,8 @@ async def tts_proxy(
                     "Content-Length": str(len(audio_data)),
                 },
             )
-        except Exception as e:
-            print(f"Edge TTS failed to initialize/synthesize, falling back to Google Translate TTS: {e}")
+        else:
+            print(f"Edge TTS failed completely after all attempts, falling back to Google: {last_err}")
 
 
 
