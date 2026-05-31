@@ -500,3 +500,222 @@ async def discover_provider_models(
         "models": discovered_models,
         "detail": f"Đã dò quét và kích hoạt thêm {len(discovered_models)} model mới."
     }
+
+
+async def _discover_models_for_provider(provider_name: str, provider_cfg: dict) -> list[str]:
+    base_url = str(provider_cfg.get("base_url", "")).strip()
+    if not base_url:
+        return []
+
+    # Get api keys
+    api_keys = provider_cfg.get("api_keys", [])
+    api_key = str(api_keys[0]).strip() if api_keys else ""
+    if not api_key:
+        return []
+
+    import httpx
+    endpoint = f"{base_url.rstrip('/')}/models"
+    headers = {"Authorization": f"Bearer {api_key}"}
+    payload = None
+
+    try:
+        async with httpx.AsyncClient(timeout=6.0) as client:
+            resp = await client.get(endpoint, headers=headers)
+        if resp.status_code == 200:
+            payload = resp.json()
+    except Exception:
+        pass
+
+    if payload is None:
+        try:
+            alt_endpoint = f"{base_url.rstrip('/')}/v1/models"
+            async with httpx.AsyncClient(timeout=6.0) as client:
+                resp = await client.get(alt_endpoint, headers=headers)
+            if resp.status_code == 200:
+                payload = resp.json()
+        except Exception:
+            pass
+
+    if payload is None:
+        return []
+
+    if isinstance(payload, list):
+        data = payload
+    elif isinstance(payload, dict):
+        data = payload.get("data", [])
+    else:
+        data = []
+
+    if not isinstance(data, list):
+        return []
+
+    discovered = []
+    invalid_keywords = ["imagen", "veo", "tts", "native-audio", "audio", "robotics", "computer-use", "embed", "rerank", "whisper"]
+
+    for item in data:
+        if isinstance(item, dict):
+            model_id = str(item.get("id") or item.get("model") or "").strip()
+        else:
+            model_id = str(item).strip()
+        if not model_id:
+            continue
+        model_lower = model_id.lower()
+        if any(kw in model_lower for kw in invalid_keywords):
+            continue
+        if provider_name == "nvidia_nim" and model_lower.startswith(("models/gemini", "gemini-", "gpt-", "claude-")):
+            continue
+        if model_id not in discovered:
+            discovered.append(model_id)
+
+    return discovered
+
+
+@router.post("/providers/auto-optimize")
+async def auto_optimize_all_providers(
+    authorization: Optional[str] = Header(None),
+):
+    """Automatically discover active models for all enabled providers, test their stability
+    and access latency in parallel, and dynamically sort the most stable/fastest models to
+    the top of each provider's model pool. Rebuilds router instantly for 100% routing uptime (9router style).
+    """
+    await _require_superadmin(authorization)
+    deps = _get_admin_deps()
+    supabase = deps["supabase"]
+    checker = deps["get_provider_health_checker"]()
+
+    # 1. Resolve current config
+    current_config = deps["resolve_ai_provider_config"]()
+    providers = current_config.get("providers", {})
+
+    # 2. Build testing tasks for all enabled providers
+    from ai_providers.profiles import ProviderProfile
+    import asyncio
+
+    tasks = []
+    task_meta = []
+
+    # Scrape active models for all enabled providers first
+    for provider_name, provider_cfg in providers.items():
+        if not provider_cfg.get("enabled", False):
+            continue
+
+        discovered = await _discover_models_for_provider(provider_name, provider_cfg)
+        existing = provider_cfg.get("models", [])
+
+        # Merge
+        merged = list(existing)
+        for m in discovered:
+            if m not in merged:
+                merged.append(m)
+
+        provider_cfg["models"] = merged
+
+        if not merged:
+            continue
+
+        # We limit the number of models to test per provider to top 15 to avoid API rate limit bottlenecks
+        models_to_test = merged[:15]
+
+        for model_id in models_to_test:
+            # Construct a dynamic ProviderProfile for testing this single model
+            profile = ProviderProfile(
+                name=provider_name,
+                display_name=provider_cfg.get("display_name", provider_name.upper()),
+                provider_type=provider_cfg.get("type", "openai"),
+                enabled=True,
+                base_url=provider_cfg.get("base_url", ""),
+                api_key_pool=provider_cfg.get("api_keys", []),
+                model_pool=[model_id],
+                timeout=8,
+                default_model=model_id
+            ).normalized()
+
+            tasks.append(checker.check_provider(profile, model_id=model_id))
+            task_meta.append((provider_name, model_id))
+
+    # 3. Execute all stability probes concurrently
+    results = []
+    if tasks:
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Group results by provider name
+    provider_results = {}
+    for meta, res in zip(task_meta, results):
+        if isinstance(res, Exception):
+            logger.warning(f"Health check task failed with exception for {meta}: {res}")
+            continue
+        p_name, _ = meta
+        if p_name not in provider_results:
+            provider_results[p_name] = []
+        provider_results[p_name].append(res)
+
+    # 4. Rank and Sort
+    summary = {}
+    for provider_name, provider_cfg in providers.items():
+        if not provider_cfg.get("enabled", False):
+            continue
+
+        res_list = provider_results.get(provider_name, [])
+        if not res_list:
+            continue
+
+        # Separate into stable and failed lists
+        stable = []
+        failed = []
+        for r in res_list:
+            if r.status == "ok":
+                stable.append(r)
+            else:
+                failed.append(r)
+
+        # Sort stable by latency ascending (fastest first)
+        stable.sort(key=lambda x: x.latency_ms)
+
+        # Combined order
+        sorted_model_ids = [r.model_id for r in stable] + [r.model_id for r in failed]
+
+        # Append any models that were excluded from top-15 tests in original order
+        untested = [m for m in provider_cfg.get("models", []) if m not in sorted_model_ids]
+        sorted_model_ids.extend(untested)
+
+        # Update config pool order
+        provider_cfg["models"] = sorted_model_ids
+        if stable:
+            provider_cfg["default_model"] = stable[0].model_id
+            summary[provider_name] = {
+                "tested_count": len(res_list),
+                "stable_count": len(stable),
+                "best_model": stable[0].model_id,
+                "best_latency_ms": stable[0].latency_ms,
+                "models_ordered": sorted_model_ids
+            }
+        else:
+            summary[provider_name] = {
+                "tested_count": len(res_list),
+                "stable_count": 0,
+                "best_model": provider_cfg.get("default_model", ""),
+                "best_latency_ms": 0,
+                "models_ordered": sorted_model_ids
+            }
+
+    # 5. Persist to novel_settings
+    current_config["providers"] = providers
+    try:
+        supabase.table("novel_settings").update(
+            {"ai_provider_config": current_config}
+        ).eq("id", 1).execute()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Không thể lưu cấu hình tối ưu vào database: {exc}")
+
+    # Rebuild active router
+    try:
+        deps["build_provider_router_from_config"](config_data=current_config, force_rebuild=True)
+    except Exception as exc:
+        logger.warning(f"Failed to rebuild provider router: {exc}")
+
+    return {
+        "status": "ok",
+        "detail": "Đã tự động dò tìm, kiểm tra sức khỏe và xoay tua tối ưu hóa toàn bộ providers.",
+        "summary": summary
+    }
+

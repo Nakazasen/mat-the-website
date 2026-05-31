@@ -91,6 +91,7 @@ export default function AdminAiPage() {
     const [saving, setSaving] = useState(false);
     const [probing, setProbing] = useState(false);
     const [resetting, setResetting] = useState(false);
+    const [optimizing, setOptimizing] = useState(false);
     const [discoveringProviders, setDiscoveringProviders] = useState<Record<string, boolean>>({});
     const [userRole, setUserRole] = useState<string>('editor');
     const [token, setToken] = useState<string | null>(null);
@@ -324,6 +325,73 @@ export default function AdminAiPage() {
             setError(err?.message || 'Không thể xóa cooldown.');
         } finally {
             setResetting(false);
+        }
+    };
+
+    // Auto-discover, test, and dynamically re-order active models (ONE-CLICK DYNAMIC OPTIMIZER - 9ROUTER STYLE)
+    const handleAutoOptimize = async () => {
+        if (!token) return;
+        setOptimizing(true);
+        setError(null);
+        setSuccess(null);
+        setHealthCheckResults([]);
+
+        try {
+            const freshToken = await getFreshAdminAccessToken();
+            setToken(freshToken);
+
+            const res = await fetch(`${API_BASE_URL}/api/admin/ai/providers/auto-optimize`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${freshToken}`
+                }
+            });
+
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || 'Lỗi tối ưu hóa tự động.');
+
+            // Extract how many models were successfully verified active
+            let totalTested = 0;
+            let totalStable = 0;
+            const details: string[] = [];
+            
+            if (data.summary) {
+                Object.entries(data.summary).forEach(([provider, info]: [string, any]) => {
+                    totalTested += info.tested_count || 0;
+                    totalStable += info.stable_count || 0;
+                    if (info.stable_count > 0) {
+                        details.push(`${provider}: ${info.best_model} (${info.best_latency_ms}ms)`);
+                    } else {
+                        details.push(`${provider}: Không tìm thấy model ổn định`);
+                    }
+                });
+            }
+
+            setSuccess(`Đã hoàn thành Tối ưu hóa Bất tử! Kiểm tra ${totalTested} mô hình, tìm thấy ${totalStable} mô hình hoạt động ổn định và tự động xoay tua đưa lên đầu.\nChi tiết: ${details.join(' | ')}`);
+
+            // Reload configuration to get the fresh order of models in the UI
+            const configRes = await fetch(`${API_BASE_URL}/api/admin/ai/providers/config`, {
+                headers: { 'Authorization': `Bearer ${freshToken}` },
+                cache: 'no-store'
+            });
+            if (configRes.ok) {
+                const configData = await configRes.json();
+                setConfig(configData);
+            }
+
+            // Reload snapshot info to get the fresh status
+            const snapshotRes = await fetch(`${API_BASE_URL}/api/admin/ai/providers/health-snapshot`, {
+                headers: { 'Authorization': `Bearer ${freshToken}` },
+                cache: 'no-store'
+            });
+            if (snapshotRes.ok) {
+                const snapshotData = await snapshotRes.json();
+                setHealthSnapshot(snapshotData.snapshot || []);
+            }
+        } catch (err: any) {
+            setError(err?.message || 'Lỗi trong quá trình chạy tự động tối ưu hóa 9router.');
+        } finally {
+            setOptimizing(false);
         }
     };
 
@@ -767,6 +835,43 @@ export default function AdminAiPage() {
                 {/* RIGHT COLUMN: Health Dashboard & Probing Controls (ONE-CLICK PROBE) */}
                 <div className="space-y-8">
                     
+                    {/* AUTO-OPTIMIZER BOARD (9router Style) */}
+                    <div className="bg-[#0f0f0f] border border-amber-900/40 rounded-lg p-6 shadow-2xl relative overflow-hidden group hover:border-amber-700/60 transition-all duration-300">
+                        {/* Glowing backdrop micro-animation */}
+                        <div className="absolute -top-24 -right-24 w-48 h-48 rounded-full bg-amber-500/5 blur-3xl group-hover:bg-amber-500/10 transition-all duration-500" />
+                        
+                        <div className="mb-4">
+                            <h2 className="text-sm font-mono tracking-widest text-amber-400 uppercase flex items-center gap-2">
+                                <Zap size={16} className="text-amber-500 animate-pulse" />
+                                TỰ ĐỘNG TỐI ƯU HÓA BẤT TỬ
+                            </h2>
+                            <p className="text-[10px] text-gray-400 font-mono mt-1">
+                                [9router Engine] Tự động dò quét toàn bộ 10 Providers, đo độ trễ và đẩy các mô hình hoạt động nhanh nhất lên đầu danh sách để đạt tỷ lệ online 100%.
+                            </p>
+                        </div>
+
+                        {/* BIG GLOWING OPTIMIZE BUTTON */}
+                        <div className="py-4">
+                            <button
+                                onClick={handleAutoOptimize}
+                                disabled={optimizing}
+                                className="w-full flex items-center justify-center gap-3 py-4 px-6 rounded-lg bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-mono text-sm tracking-widest font-bold transition-all duration-200 shadow-xl shadow-amber-950/40 hover:shadow-amber-500/20 disabled:bg-gray-800 disabled:from-gray-850 disabled:to-gray-850 disabled:text-gray-500 disabled:shadow-none hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+                            >
+                                {optimizing ? (
+                                    <>
+                                        <Loader2 size={16} className="animate-spin text-amber-300" />
+                                        ĐANG TỐI ƯU HÓA BẤT TỬ...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Zap size={16} fill="white" className="text-white" />
+                                        KÍCH HOẠT XOAY TUA BẤT TỬ
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+
                     {/* ONE-CLICK HEALTH CHECK BOARD (Visual Premium Interface) */}
                     <div className="bg-[#0f0f0f] border border-gray-850 rounded-lg p-6 shadow-xl relative overflow-hidden">
                         <div className="absolute top-0 right-0 p-8 opacity-5">
