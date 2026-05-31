@@ -3222,6 +3222,9 @@ async def get_chapter(
 
 # === TTS PROXY ===
 
+import asyncio
+edge_tts_lock = asyncio.Lock()
+
 @app.get("/api/tts", summary="Google Translate TTS Proxy")
 
 async def tts_proxy(
@@ -3249,12 +3252,13 @@ async def tts_proxy(
             rate_val = int((speed - 1.0) * 100)
             rate_str = f"{rate_val:+d}%"
 
-            # Pre-collect all audio bytes to avoid chunked transfer latency and set proper Content-Length
-            communicate = edge_tts.Communicate(text, voice, rate=rate_str)
-            audio_data = bytearray()
-            async for chunk in communicate.stream():
-                if chunk["type"] == "audio":
-                    audio_data.extend(chunk["data"])
+            # Pre-collect all audio bytes under a global concurrency lock to prevent IP blocking
+            async with edge_tts_lock:
+                communicate = edge_tts.Communicate(text, voice, rate=rate_str)
+                audio_data = bytearray()
+                async for chunk in communicate.stream():
+                    if chunk["type"] == "audio":
+                        audio_data.extend(chunk["data"])
 
             if not audio_data:
                 raise ValueError("Edge TTS yielded no audio bytes")
@@ -3270,6 +3274,7 @@ async def tts_proxy(
             )
         except Exception as e:
             print(f"Edge TTS failed to initialize/synthesize, falling back to Google Translate TTS: {e}")
+
 
 
 

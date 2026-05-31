@@ -130,6 +130,7 @@ export default function AudioPlayer({
     const speedRef = useRef(speed);
     const stoppedRef = useRef(true);
     const wakeLockRef = useRef<any>(null);
+    const preloadTimerRef = useRef<any>(null);
     const floatingPanelRef = useRef<HTMLDivElement>(null);
     const draggingPointerIdRef = useRef<number | null>(null);
     const [isDesktop, setIsDesktop] = useState(false);
@@ -254,9 +255,14 @@ export default function AudioPlayer({
     useEffect(() => {
         return () => {
             stoppedRef.current = true;
+            if (preloadTimerRef.current) {
+                clearTimeout(preloadTimerRef.current);
+                preloadTimerRef.current = null;
+            }
             if (onIndexChange) onIndexChange(null);
         };
     }, [onIndexChange]);
+
 
     useEffect(() => {
         window.dispatchEvent(new CustomEvent('reader-audio-state', {
@@ -297,6 +303,10 @@ export default function AudioPlayer({
 
     const stop = useCallback(() => {
         stoppedRef.current = true;
+        if (preloadTimerRef.current) {
+            clearTimeout(preloadTimerRef.current);
+            preloadTimerRef.current = null;
+        }
         if (wakeLockRef.current) {
             wakeLockRef.current.release();
             wakeLockRef.current = null;
@@ -312,6 +322,7 @@ export default function AudioPlayer({
             navigator.mediaSession.playbackState = 'none';
         }
     }, [onIndexChange]);
+
 
     const updateMetadata = useCallback(() => {
         if (!('mediaSession' in navigator)) return;
@@ -332,6 +343,12 @@ export default function AudioPlayer({
         const audio = audioRef.current;
         if (!audio) return;
 
+        // Clear any pending preload timer to prevent racing
+        if (preloadTimerRef.current) {
+            clearTimeout(preloadTimerRef.current);
+            preloadTimerRef.current = null;
+        }
+
         if (index >= chunksRef.current.length) {
             stop();
             if (nextId) setTimeout(() => router.push(localizePath(`/chapters/${nextId}`)), 1000);
@@ -350,21 +367,24 @@ export default function AudioPlayer({
         audio.play().then(() => {
             audio.playbackRate = speedRef.current;
             
-            // Pre-fetch the next chunk in the background to achieve gapless playback!
+            // Pre-fetch the next chunk in the background after a small delay to avoid concurrent socket clashes on Microsoft server
             if (typeof window !== 'undefined') {
                 const nextIndex = index + 1;
                 if (nextIndex < chunksRef.current.length) {
-                    const nextUrl = ttsUrl(chunksRef.current[nextIndex], activeLocale, speedRef.current, activeVoice);
-                    const preloader = new window.Audio();
-                    preloader.src = nextUrl;
-                    preloader.preload = 'auto';
-                    preloader.load();
+                    preloadTimerRef.current = setTimeout(() => {
+                        const nextUrl = ttsUrl(chunksRef.current[nextIndex], activeLocale, speedRef.current, activeVoice);
+                        const preloader = new window.Audio();
+                        preloader.src = nextUrl;
+                        preloader.preload = 'auto';
+                        preloader.load();
+                    }, 2200); // 2.2 seconds delay is ideal
                 }
             }
         }).catch(() => {
             if (!stoppedRef.current) playChunk(index + 1);
         });
     }, [activeLocale, localizePath, nextId, onIndexChange, router, stop, activeVoice]);
+
 
 
 
