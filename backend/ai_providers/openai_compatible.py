@@ -81,10 +81,12 @@ class OpenAICompatibleProvider(BaseAIProvider):
 
         messages = _build_messages(request)
         model_name = candidate.model or self.default_model
+        # Cap max_tokens to a safe value (4096) for non-Gemini OpenAI-compatible providers to prevent HTTP 400
+        safe_max_tokens = min(request.max_output_tokens or 4096, 4096)
         payload: dict[str, Any] = {
             "model": model_name,
             "messages": messages,
-            "max_tokens": request.max_output_tokens,
+            "max_tokens": safe_max_tokens,
             "temperature": request.temperature,
         }
 

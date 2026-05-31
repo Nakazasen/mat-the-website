@@ -1120,6 +1120,10 @@ async def generate_structured_translation_payload(
             config = resolve_ai_provider_config()
             policy = config.get("translation_policy", {"mode": "waterfall"})
             result = await router.route(request, policy=policy)
+            if result.status != "success":
+                print(f"DEBUG: Multi-provider routing failed with status: {result.status}, error_type: {result.error_type}, message: {result.error_message}")
+                for a in result.attempts:
+                    print(f"  - Attempt {a.get('provider')} ({a.get('model')}): status={a.get('status')}, reason={a.get('reason')}, message={a.get('message')}")
             if result.status == "success" and result.text:
                 try:
                     return parser(result.text)

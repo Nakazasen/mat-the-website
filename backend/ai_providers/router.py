@@ -83,7 +83,8 @@ class ProviderRouter:
             policy.get("allowed_providers"),
             policy,
         )
-        max_attempts = self.max_retries + 1 if ordered_names else 0
+        # Set a generous limit for total attempts across all providers to ensure fallback works
+        max_attempts = max(15, (self.max_retries + 1) * len(ordered_names))
         attempts: list[dict[str, Any]] = []
         total_attempts = 0
 
@@ -136,9 +137,14 @@ class ProviderRouter:
                 )
                 continue
 
+            # Try at most 2 candidates for this provider before falling back to the next provider
+            provider_attempts = 0
             for candidate in candidates:
+                if provider_attempts >= 2:
+                    break
                 if total_attempts >= max_attempts:
                     break
+                provider_attempts += 1
 
                 state = self._ensure_state(
                     provider.name,
