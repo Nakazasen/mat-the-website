@@ -91,6 +91,7 @@ export default function AdminAiPage() {
     const [saving, setSaving] = useState(false);
     const [probing, setProbing] = useState(false);
     const [resetting, setResetting] = useState(false);
+    const [discoveringProviders, setDiscoveringProviders] = useState<Record<string, boolean>>({});
     const [userRole, setUserRole] = useState<string>('editor');
     const [token, setToken] = useState<string | null>(null);
     
@@ -203,6 +204,43 @@ export default function AdminAiPage() {
             setError(err?.message || 'Không thể lưu cấu hình.');
         } finally {
             setSaving(false);
+        }
+    };
+
+    // Dynamically discover models from provider's API key
+    const handleDiscoverModels = async (providerKey: string) => {
+        if (!token) return;
+        setDiscoveringProviders(prev => ({ ...prev, [providerKey]: true }));
+        setError(null);
+        setSuccess(null);
+        try {
+            const freshToken = await getFreshAdminAccessToken();
+            setToken(freshToken);
+
+            const res = await fetch(`${API_BASE_URL}/api/admin/ai/providers/${providerKey}/discover-models`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${freshToken}`
+                }
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setSuccess(`Đã dò quét thành công! Phát hiện ${data.discovered_count} model hợp lệ từ API của ${providerKey}.`);
+                // Reload configuration to get the fresh list of models
+                const configRes = await fetch(`${API_BASE_URL}/api/admin/ai/providers/config`, {
+                    headers: { 'Authorization': `Bearer ${freshToken}` }
+                });
+                if (configRes.ok) {
+                    const configData = await configRes.json();
+                    setConfig(configData);
+                }
+            } else {
+                throw new Error(data.detail || `Lỗi dò quét model cho ${providerKey}`);
+            }
+        } catch (err: any) {
+            setError(err?.message || `Lỗi kết nối khi dò quét model cho ${providerKey}`);
+        } finally {
+            setDiscoveringProviders(prev => ({ ...prev, [providerKey]: false }));
         }
     };
 
@@ -697,6 +735,15 @@ export default function AdminAiPage() {
                                                                 className="px-3 py-1.5 border border-gray-800 hover:border-green-800/40 text-gray-400 hover:text-green-300 rounded font-mono text-[10px]"
                                                             >
                                                                 THÊM MODEL
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                disabled={discoveringProviders[providerKey]}
+                                                                onClick={() => handleDiscoverModels(providerKey)}
+                                                                className="px-3 py-1.5 border border-cyan-900/50 hover:border-cyan-800/80 hover:bg-cyan-950/10 text-cyan-400 hover:text-cyan-300 disabled:opacity-40 disabled:cursor-not-allowed rounded font-mono text-[10px] transition-all"
+                                                                title="Tự động kết nối tới API của nhà cung cấp để quét và chèn toàn bộ các mô hình live hiện tại"
+                                                            >
+                                                                {discoveringProviders[providerKey] ? 'ĐANG QUÉT...' : 'DÒ TÌM MODEL TỰ ĐỘNG'}
                                                             </button>
                                                         </div>
                                                     </div>

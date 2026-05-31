@@ -359,3 +359,144 @@ async def reset_cooldowns(authorization: Optional[str] = Header(None)):
         status="ok",
         detail="All provider cooldowns have been cleared.",
     )
+
+
+@router.post("/providers/{provider_name}/discover-models")
+async def discover_provider_models(
+    provider_name: str,
+    authorization: Optional[str] = Header(None),
+):
+    """Query the provider's /models endpoint dynamically to discover all actual models,
+    then save them to the config (merge and persist).
+    """
+    await _require_superadmin(authorization)
+    deps = _get_admin_deps()
+    supabase = deps["supabase"]
+
+    # 1. Resolve current config
+    current_config = deps["resolve_ai_provider_config"]()
+    providers = current_config.get("providers", {})
+    provider_cfg = providers.get(provider_name)
+    if not provider_cfg:
+        # Check defaults
+        defaults = deps["build_provider_profiles"]({})
+        if provider_name in defaults:
+            # Seed the default config into current providers first so we have the base URL
+            provider_cfg = defaults[provider_name].to_public_dict()
+            provider_cfg["api_keys"] = []
+            providers[provider_name] = provider_cfg
+            current_config["providers"] = providers
+        else:
+            raise HTTPException(status_code=404, detail=f"Provider '{provider_name}' not found.")
+
+    # 2. Get base_url and API Key
+    base_url = str(provider_cfg.get("base_url", "")).strip()
+    if not base_url:
+        raise HTTPException(status_code=400, detail=f"Provider '{provider_name}' has no base URL.")
+
+    # Get plain keys from Supabase instead of masked ones
+    actual_api_keys = current_config.get("providers", {}).get(provider_name, {}).get("api_keys", [])
+    api_key = str(actual_api_keys[0]).strip() if actual_api_keys else ""
+
+    if not api_key:
+        raise HTTPException(
+            status_code=400,
+            detail="Vui lòng cấu hình và lưu API Key trước khi dò tìm model."
+        )
+
+    # 3. Request /models endpoint
+    import httpx
+    endpoint = f"{base_url.rstrip('/')}/models"
+    headers = {"Authorization": f"Bearer {api_key}"}
+    payload = None
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(endpoint, headers=headers)
+        if resp.status_code == 200:
+            payload = resp.json()
+    except Exception:
+        pass
+
+    if payload is None:
+        try:
+            alt_endpoint = f"{base_url.rstrip('/')}/v1/models"
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(alt_endpoint, headers=headers)
+            if resp.status_code == 200:
+                payload = resp.json()
+            else:
+                raise HTTPException(
+                    status_code=resp.status_code,
+                    detail=f"Provider returned status {resp.status_code}: {resp.text[:150]}"
+                )
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"Không thể kết nối đến API: {exc}")
+
+    # 4. Parse models list
+    data = payload.get("data", payload if isinstance(payload, list) else [])
+    if not isinstance(data, list):
+        raise HTTPException(status_code=502, detail="Cấu trúc dữ liệu trả về từ API không hợp lệ.")
+
+    discovered_models = []
+    # Block models that are obviously non-text (audio, vision, embedding, TTS, etc.)
+    invalid_keywords = ["imagen", "veo", "tts", "native-audio", "audio", "robotics", "computer-use", "embed", "rerank", "whisper"]
+
+    for item in data:
+        if isinstance(item, dict):
+            model_id = str(item.get("id") or item.get("model") or "").strip()
+        else:
+            model_id = str(item).strip()
+
+        if not model_id:
+            continue
+
+        model_lower = model_id.lower()
+        if any(kw in model_lower for kw in invalid_keywords):
+            continue
+
+        # Exclude Gemini models in Nvidia NIM, etc.
+        if provider_name == "nvidia_nim" and model_lower.startswith(("models/gemini", "gemini-", "gpt-", "claude-")):
+            continue
+
+        if model_id not in discovered_models:
+            discovered_models.append(model_id)
+
+    if not discovered_models:
+        raise HTTPException(status_code=404, detail="Không tìm thấy mô hình văn bản hợp lệ nào từ API.")
+
+    # 5. Merge and save to database
+    existing_models = provider_cfg.get("models", [])
+    merged_models = list(existing_models)
+    for model in discovered_models:
+        if model not in merged_models:
+            merged_models.append(model)
+
+    provider_cfg["models"] = merged_models
+    if not provider_cfg.get("default_model") and merged_models:
+        provider_cfg["default_model"] = merged_models[0]
+
+    providers[provider_name] = provider_cfg
+    current_config["providers"] = providers
+
+    try:
+        supabase.table("novel_settings").update(
+            {"ai_provider_config": current_config}
+        ).eq("id", 1).execute()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Lưu cấu hình thất bại: {exc}")
+
+    # Rebuild router
+    try:
+        deps["build_provider_router_from_config"](config_data=current_config, force_rebuild=True)
+    except Exception:
+        pass
+
+    return {
+        "status": "ok",
+        "discovered_count": len(discovered_models),
+        "models": discovered_models,
+        "detail": f"Đã dò quét và kích hoạt thêm {len(discovered_models)} model mới."
+    }
