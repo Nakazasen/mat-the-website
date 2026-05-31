@@ -15,6 +15,7 @@ interface AudioPlayerProps {
     prevId: number | null;
     nextId: number | null;
     onIndexChange?: (index: number | null) => void;
+    onVoiceChange?: (voice: string) => void;
     locale?: Locale;
     resolvedContent?: string;
     voice?: string;
@@ -110,6 +111,7 @@ export default function AudioPlayer({
     prevId,
     nextId,
     onIndexChange,
+    onVoiceChange,
     locale,
     resolvedContent,
     voice,
@@ -148,6 +150,10 @@ export default function AudioPlayer({
     const [mobileLearningPanelActive, setMobileLearningPanelActive] = useState(false);
 
     useEffect(() => {
+        if (onVoiceChange) onVoiceChange(activeVoice);
+    }, [activeVoice, onVoiceChange]);
+
+    useEffect(() => {
         speedRef.current = speed;
         if (audioRef.current) {
             audioRef.current.playbackRate = speed;
@@ -175,7 +181,7 @@ export default function AudioPlayer({
 
     useEffect(() => {
         const cleanText = stripHtml(resolvedContent || content);
-        const maxLen = activeVoice === 'google' ? 180 : 1000;
+        const maxLen = activeVoice === 'google' ? 180 : 350;
         chunksRef.current = splitIntoChunks(cleanText, maxLen);
     }, [content, resolvedContent, activeVoice]);
 

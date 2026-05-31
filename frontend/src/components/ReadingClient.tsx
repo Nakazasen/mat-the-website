@@ -70,6 +70,7 @@ export default function ReadingClient({
 
     const [readingProgress, setReadingProgress] = useState(0);
     const [activeChunkIndex, setActiveChunkIndex] = useState<number | null>(null);
+    const [activeVoice, setActiveVoice] = useState('google');
     const [characterNames, setCharacterNames] = useState<string[]>([]);
     const [isMounted, setIsMounted] = useState(false);
     const [isBookmarked, setIsBookmarked] = useState(false);
@@ -82,6 +83,10 @@ export default function ReadingClient({
 
     useEffect(() => {
         setIsMounted(true);
+        if (typeof window !== 'undefined') {
+            const savedVoice = window.localStorage.getItem('reader-audio-voice-v1') || 'google';
+            setActiveVoice(savedVoice);
+        }
     }, []);
 
     useEffect(() => {
@@ -102,18 +107,20 @@ export default function ReadingClient({
 
     const karaokeNodes = useMemo(() => {
         if (!isMounted) return null;
+        // If activeVoice is an Edge voice, completely disable visual karaoke highlighting
+        const highlightIndex = activeVoice === 'google' ? activeChunkIndex : null;
         return renderRichKaraoke(
             highlightedContent,
-            activeChunkIndex,
+            highlightIndex,
             theme,
             chapterNumber,
             (idx: number, el: HTMLElement | null) => {
-                if (activeChunkIndex === idx && el) {
+                if (highlightIndex === idx && el) {
                     activeChunkRef.current = el;
                 }
             },
         ).nodes;
-    }, [activeChunkIndex, chapterNumber, highlightedContent, isMounted, theme]);
+    }, [activeChunkIndex, activeVoice, chapterNumber, highlightedContent, isMounted, theme]);
 
     useEffect(() => {
         fetch("/api/user/bookmarks")
@@ -411,6 +418,7 @@ export default function ReadingClient({
                         prevId={prevId}
                         nextId={nextId}
                         onIndexChange={setActiveChunkIndex}
+                        onVoiceChange={setActiveVoice}
                         locale={(resolvedLocale as any) || locale}
                         resolvedContent={content}
                     />
