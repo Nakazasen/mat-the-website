@@ -257,6 +257,7 @@ export const dictionaries: Record<Locale, Dictionary> = {
                 cache: "Bộ nhớ cache",
                 local_wiki: "Bách khoa nội bộ",
                 gemini: "AI Oracle",
+                ai_provider: "AI Oracle",
             },
             diagnostics: {
                 ready: "ONLINE",
@@ -430,6 +431,7 @@ export const dictionaries: Record<Locale, Dictionary> = {
                 cache: "Cache memory",
                 local_wiki: "Local wiki",
                 gemini: "AI Oracle",
+                ai_provider: "AI Oracle",
             },
             diagnostics: {
                 ready: "ONLINE",
@@ -603,6 +605,7 @@ export const dictionaries: Record<Locale, Dictionary> = {
                 cache: "缓存",
                 local_wiki: "本地百科",
                 gemini: "AI Oracle",
+                ai_provider: "AI Oracle",
             },
             diagnostics: {
                 ready: "ONLINE",
@@ -776,6 +779,7 @@ export const dictionaries: Record<Locale, Dictionary> = {
                 cache: "キャッシュ",
                 local_wiki: "ローカル百科",
                 gemini: "AI Oracle",
+                ai_provider: "AI Oracle",
             },
             diagnostics: {
                 ready: "ONLINE",

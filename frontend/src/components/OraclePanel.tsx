@@ -8,7 +8,7 @@ import { useTheme } from "@/context/ThemeContext";
 interface Message {
     role: "user" | "oracle";
     text: string;
-    source?: "cache" | "local_wiki" | "gemini";
+    source?: "cache" | "local_wiki" | "gemini" | "ai_provider" | string;
 }
 
 interface OraclePanelProps {
@@ -30,7 +30,7 @@ interface OracleErrorPayload {
     error?: string;
     error_code?: DiagnosticCode;
     answer?: string;
-    source?: "cache" | "local_wiki" | "gemini";
+    source?: "cache" | "local_wiki" | "gemini" | "ai_provider" | string;
 }
 
 interface FloatingPosition {
@@ -313,7 +313,7 @@ export default function OraclePanel({
                                 </div>
                                 {message.source && (
                                     <div style={{ fontSize: "9px", color: "rgba(255,255,255,0.25)", fontFamily: "monospace", paddingLeft: "4px" }}>
-                                        {dictionary.oracle.sources[message.source] ?? message.source}
+                                        {((dictionary?.oracle?.sources as Record<string, string>)?.[message.source]) ?? message.source}
                                     </div>
                                 )}
                             </div>

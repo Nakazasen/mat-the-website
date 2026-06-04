@@ -223,6 +223,8 @@ async def store_cache(
         pass
 
 
+# TODO: Upgrade this basic keyword-matching retrieval to a more advanced RAG system in future phases.
+# E.g., implement dense vector embeddings with pgvector or hybrid dense-sparse search to retrieve context.
 async def get_wiki_context(supabase, question: str, chapter_cap: int) -> str:
     if not supabase:
         return ""

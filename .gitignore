@@ -69,3 +69,12 @@ processed/*
 .brain/knowledge_gaps.json
 .brain/deliberation_runs.jsonl
 .brain/cache/
+
+# AI Oracle Security Cleanup
+temp_key.txt
+*key*.txt
+*.secret
+*.pem
+.env
+.env.*
+!.env.example
