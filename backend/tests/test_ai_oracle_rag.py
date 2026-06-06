@@ -234,3 +234,114 @@ async def test_ask_oracle_endpoint_rag_routing():
     # Cleanup
     if "ORACLE_RAG_ENABLED" in os.environ:
         del os.environ["ORACLE_RAG_ENABLED"]
+
+
+@pytest.mark.asyncio
+async def test_ask_oracle_rag_preview_endpoint():
+    try:
+        from main import app
+    except ImportError:
+        from backend.main import app
+
+    from fastapi.testclient import TestClient
+    client = TestClient(app)
+
+    # 1. No token env -> 403 Forbidden
+    if "ORACLE_RAG_PREVIEW_TOKEN" in os.environ:
+        del os.environ["ORACLE_RAG_PREVIEW_TOKEN"]
+
+    response = client.post("/oracle/rag-preview", json={
+        "question": "Hàn Phong là ai?",
+        "chapter_progress": 10
+    })
+    assert response.status_code == 403
+    assert "token not configured" in response.json()["detail"].lower()
+
+    # Set token env
+    os.environ["ORACLE_RAG_PREVIEW_TOKEN"] = "preview_secret_token_123"
+
+    # 2. Has token env but missing header -> 403
+    response = client.post("/oracle/rag-preview", json={
+        "question": "Hàn Phong là ai?",
+        "chapter_progress": 10
+    })
+    assert response.status_code == 403
+    assert "invalid rag preview token" in response.json()["detail"].lower()
+
+    # 3. Wrong token -> 403
+    headers = {"X-Oracle-Rag-Preview-Token": "wrong_token"}
+    response = client.post("/oracle/rag-preview", json={
+        "question": "Hàn Phong là ai?",
+        "chapter_progress": 10
+    }, headers=headers)
+    assert response.status_code == 403
+    assert "invalid rag preview token" in response.json()["detail"].lower()
+
+    # Prepare headers with correct token for subsequent tests
+    headers = {"X-Oracle-Rag-Preview-Token": "preview_secret_token_123"}
+
+    # 4. Correct token + mock retrieval has context -> 200, chunks_used > 0
+    mock_results = [
+        {
+            "chapter_number": 1,
+            "chapter_title": "Đầu lâu khổng lồ ngoài cửa sổ",
+            "chunk_index": 0,
+            "content_plain": "Hàn Phong đứng trước bàn giám đốc.",
+            "content_hash": "hash123"
+        }
+    ]
+    with patch("backend.rag.retrieval.search_story_chunks_hybrid_lexical", return_value=mock_results):
+        response = client.post("/oracle/rag-preview", json={
+            "question": "Hàn Phong là ai?",
+            "chapter_progress": 10,
+            "limit": 5,
+            "max_chunks": 4
+        }, headers=headers)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["ok"] is True
+        assert data["rag_used"] is True
+        assert data["chunks_used"] == 1
+        assert "Hàn Phong đứng trước bàn giám đốc." in data["context_preview"]
+        assert len(data["citations"]) == 1
+        assert data["citations"][0]["content_hash"] == "hash123"
+
+    # 5. Correct token + no results -> 200, rag_used false
+    with patch("backend.rag.retrieval.search_story_chunks_hybrid_lexical", return_value=[]):
+        response = client.post("/oracle/rag-preview", json={
+            "question": "Không tồn tại nhân vật này",
+            "chapter_progress": 10
+        }, headers=headers)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["ok"] is True
+        assert data["rag_used"] is False
+        assert data["chunks_used"] == 0
+        assert data["context_preview"] == ""
+        assert data["citations"] == []
+
+    # 6. Retrieval exception -> HTTP 503, no crash
+    with patch("backend.rag.retrieval.search_story_chunks_hybrid_lexical", side_effect=Exception("Database connection timed out")):
+        response = client.post("/oracle/rag-preview", json={
+            "question": "Hàn Phong",
+            "chapter_progress": 10
+        }, headers=headers)
+
+        assert response.status_code == 503
+        assert "Database connection timed out" in response.json()["detail"]
+
+    # 7. Endpoint does not call AI provider
+    with patch_oracle_func("call_ai_provider_result") as mock_call:
+        with patch("backend.rag.retrieval.search_story_chunks_hybrid_lexical", return_value=[]):
+            response = client.post("/oracle/rag-preview", json={
+                "question": "Hàn Phong là ai?",
+                "chapter_progress": 10
+            }, headers=headers)
+            assert response.status_code == 200
+            assert mock_call.called is False
+
+    # Cleanup token env
+    if "ORACLE_RAG_PREVIEW_TOKEN" in os.environ:
+        del os.environ["ORACLE_RAG_PREVIEW_TOKEN"]

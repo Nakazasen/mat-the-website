@@ -20,7 +20,7 @@ from typing import Optional, Any
 
 import httpx
 from fastapi import APIRouter, Header, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/oracle", tags=["ai_oracle"])
 
@@ -78,6 +78,22 @@ class OracleResponse(BaseModel):
     answer: str
     source: str
     chapter_cap: int
+
+
+class OracleRagPreviewRequest(BaseModel):
+    question: str = Field(..., min_length=1, max_length=500)
+    chapter_progress: int = Field(..., ge=1)
+    limit: int = Field(5, ge=1, le=10)
+    max_chunks: int = Field(4, ge=1, le=6)
+
+
+class OracleRagPreviewResponse(BaseModel):
+    ok: bool
+    rag_used: bool
+    chunks_used: int
+    citations: list[dict]
+    context_preview: str
+    source: str = "story_chunks_hybrid_context"
 
 
 class OracleHealthResponse(BaseModel):
@@ -848,3 +864,61 @@ async def admin_ai_playground(
         chapter_progress=chapter_progress,
         results=results,
     )
+
+
+@router.post("/rag-preview", response_model=OracleRagPreviewResponse)
+async def oracle_rag_preview(
+    body: OracleRagPreviewRequest,
+    x_oracle_rag_preview_token: Optional[str] = Header(None, alias="X-Oracle-Rag-Preview-Token")
+):
+    token_env = os.getenv("ORACLE_RAG_PREVIEW_TOKEN")
+    if not token_env or not token_env.strip():
+        raise HTTPException(
+            status_code=403,
+            detail="Forbidden: RAG preview token not configured on server."
+        )
+
+    if not x_oracle_rag_preview_token or x_oracle_rag_preview_token.strip() != token_env.strip():
+        raise HTTPException(
+            status_code=403,
+            detail="Forbidden: Invalid RAG preview token."
+        )
+
+    try:
+        from main import supabase
+    except ImportError:
+        from backend.main import supabase
+
+    if not supabase:
+        raise HTTPException(
+            status_code=503,
+            detail="Service Unavailable: Supabase client not initialized."
+        )
+
+    try:
+        from backend.rag.retrieval import search_story_chunks_hybrid_lexical
+        from backend.rag.context_builder import build_rag_context_block
+
+        results = search_story_chunks_hybrid_lexical(
+            supabase=supabase,
+            query=body.question,
+            chapter_cap=body.chapter_progress,
+            limit=body.limit
+        )
+
+        context_data = build_rag_context_block(results, max_chunks=body.max_chunks)
+        chunks_used = context_data.get("chunks_used", 0)
+
+        return OracleRagPreviewResponse(
+            ok=True,
+            rag_used=chunks_used > 0,
+            chunks_used=chunks_used,
+            citations=context_data.get("citations", []),
+            context_preview=context_data.get("context_text", ""),
+            source="story_chunks_hybrid_context"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Service Unavailable: RAG retrieval failed: {str(e)}"
+        )
