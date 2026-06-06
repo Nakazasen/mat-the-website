@@ -18,7 +18,10 @@ try:
 except ImportError:
     supabase = None
 
-from backend.rag.retrieval import search_story_chunks_text
+from backend.rag.retrieval import (
+    search_story_chunks_text,
+    search_story_chunks_hybrid_lexical,
+)
 
 def main():
     # Ensure stdout/stderr handles UTF-8 on Windows environments (like cp932)
@@ -33,30 +36,40 @@ def main():
         except Exception:
             pass
 
-    parser = argparse.ArgumentParser(description="Full-Text Search on story_chunks table")
+    parser = argparse.ArgumentParser(description="Search on story_chunks table")
     parser.add_argument("--query", type=str, required=True, help="Search query string")
     parser.add_argument("--chapter-cap", type=int, default=None, help="Spoiler protection cap (chapter number <= N)")
     parser.add_argument("--limit", type=int, default=5, help="Maximum number of results to retrieve")
+    parser.add_argument("--mode", type=str, choices=["fts", "hybrid"], default="hybrid", help="Search mode (fts or hybrid, default: hybrid)")
 
     args = parser.parse_args()
 
     print("=" * 60)
-    print("RAG Full-Text Search Retrieval CLI")
+    print("RAG Search Retrieval CLI")
     print(f"Query          : {args.query}")
     print(f"Chapter Cap    : {args.chapter_cap}")
     print(f"Limit          : {args.limit}")
+    print(f"Mode           : {args.mode}")
     print("=" * 60)
 
     if not supabase:
         print("Error: Supabase client is not initialized.")
         sys.exit(1)
 
-    results = search_story_chunks_text(
-        supabase=supabase,
-        query=args.query,
-        chapter_cap=args.chapter_cap,
-        limit=args.limit
-    )
+    if args.mode == "hybrid":
+        results = search_story_chunks_hybrid_lexical(
+            supabase=supabase,
+            query=args.query,
+            chapter_cap=args.chapter_cap,
+            limit=args.limit
+        )
+    else:
+        results = search_story_chunks_text(
+            supabase=supabase,
+            query=args.query,
+            chapter_cap=args.chapter_cap,
+            limit=args.limit
+        )
 
     print(f"Results Count  : {len(results)}")
     print("=" * 60)
@@ -68,6 +81,10 @@ def main():
         print(f"Chunk Index    : {r['chunk_index']}")
         print(f"Preview        : {r['content_preview']}")
         print(f"Source         : {r['source']}")
+        if "score" in r:
+            print(f"Score          : {r['score']}")
+        if "match_reasons" in r:
+            print(f"Match Reasons  : {', '.join(r['match_reasons'])}")
         print("-" * 60)
 
 if __name__ == "__main__":

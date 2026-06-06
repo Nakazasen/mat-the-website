@@ -10,4 +10,5 @@ from backend.rag.retrieval import (
     build_tsquery_terms,
     format_retrieval_result,
     search_story_chunks_text,
+    search_story_chunks_hybrid_lexical,
 )
