@@ -17,8 +17,7 @@ try:
 except ImportError:
     from backend.main import supabase
 
-from backend.rag.eval_cases import EVAL_CASES
-from backend.rag.evaluator import evaluate_all_cases
+from backend.rag.evaluator import evaluate_all_cases, load_eval_cases
 
 def print_safe(text):
     """Safely print text on Windows consoles to prevent encoding errors."""
@@ -29,7 +28,7 @@ def print_safe(text):
 
 async def run_evaluation(args):
     # Filter cases
-    cases = EVAL_CASES
+    cases = load_eval_cases(args.case_source)
     if args.intent:
         cases = [c for c in cases if c.get("intent") == args.intent]
 
@@ -41,7 +40,7 @@ async def run_evaluation(args):
         sys.exit(0)
 
     # Run evaluator
-    result = await evaluate_all_cases(cases, supabase)
+    result = await evaluate_all_cases(cases, supabase, case_source=args.case_source)
 
     if args.json:
         # Output as JSON
@@ -52,10 +51,18 @@ async def run_evaluation(args):
         print_safe("=" * 60)
         print_safe("           RAG RETRIEVAL PIPELINE EVALUATION")
         print_safe("=" * 60)
+        print_safe(f"Case Source          : {result['case_source']}")
         print_safe(f"Total cases evaluated : {result['total']}")
         print_safe(f"Passed cases         : {result['passed']}")
         print_safe(f"Failed cases         : {result['failed']}")
         print_safe(f"Overall Pass Rate    : {result['pass_rate']:.2%}")
+
+        if "feedback_cases_count" in result:
+            print_safe(f"Feedback cases count : {result['feedback_cases_count']}")
+
+        if result.get("duplicate_ids"):
+            print_safe(f"Duplicate Case IDs   : {', '.join(result['duplicate_ids'])}")
+
         print_safe("-" * 60)
         print_safe("PASS RATE BY INTENT:")
         for intent, stats in result["by_intent"].items():
@@ -95,6 +102,7 @@ async def run_evaluation(args):
 
 def main():
     parser = argparse.ArgumentParser(description="Evaluate RAG retrieval and anti-spoiler pipeline quality.")
+    parser.add_argument("--case-source", type=str, choices=["base", "feedback", "all"], default="base", help="Select evaluation case source: base, feedback, or all.")
     parser.add_argument("--limit", type=int, default=None, help="Limit number of cases to evaluate.")
     parser.add_argument("--intent", type=str, default=None, help="Filter cases by intent.")
     parser.add_argument("--json", action="store_true", help="Output results in JSON format.")
