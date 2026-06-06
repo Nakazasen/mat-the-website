@@ -32,17 +32,17 @@ async def run_evaluation(args):
     cases = EVAL_CASES
     if args.intent:
         cases = [c for c in cases if c.get("intent") == args.intent]
-        
+
     if args.limit:
         cases = cases[:args.limit]
-        
+
     if not cases:
         print_safe("Warning: No evaluation cases matched the filters.")
         sys.exit(0)
-        
+
     # Run evaluator
     result = await evaluate_all_cases(cases, supabase)
-    
+
     if args.json:
         # Output as JSON
         output_str = json.dumps(result, indent=2, ensure_ascii=False)
@@ -60,7 +60,7 @@ async def run_evaluation(args):
         print_safe("PASS RATE BY INTENT:")
         for intent, stats in result["by_intent"].items():
             print_safe(f"  - {intent:<15}: {stats['passed']}/{stats['total']} ({stats['pass_rate']:.2%})")
-            
+
         if result["failures"]:
             print_safe("-" * 60)
             print_safe("DETAILED FAILURES:")
@@ -68,8 +68,23 @@ async def run_evaluation(args):
                 print_safe(f"  [Case ID: {fail['id']}] Q: '{fail['question']}'")
                 for reason in fail["fail_reasons"]:
                     print_safe(f"    - {reason}")
+
+        if args.report_missing_entities:
+            missing_entities = []
+            for r in result.get("results", []):
+                if r.get("missing_entity_context") and r.get("entity_name"):
+                    missing_entities.append(r["entity_name"])
+            deduped = []
+            for ent in missing_entities:
+                if ent not in deduped:
+                    deduped.append(ent)
+            print_safe("-" * 60)
+            print_safe("Missing entity/wiki profiles:")
+            for ent in deduped:
+                print_safe(f"- {ent}")
+
         print_safe("=" * 60)
-        
+
     # Exit code based on fail-under
     if result["pass_rate"] < args.fail_under:
         print_safe(f"Evaluation FAILED: Pass rate {result['pass_rate']:.2%} is below threshold {args.fail_under:.2%}")
@@ -84,9 +99,10 @@ def main():
     parser.add_argument("--intent", type=str, default=None, help="Filter cases by intent.")
     parser.add_argument("--json", action="store_true", help="Output results in JSON format.")
     parser.add_argument("--fail-under", type=float, default=0.7, help="Minimum acceptable overall pass rate (default: 0.7).")
-    
+    parser.add_argument("--report-missing-entities", action="store_true", help="Report missing entity wiki profiles for identity cases.")
+
     args = parser.parse_args()
-    
+
     # Run async loop
     asyncio.run(run_evaluation(args))
 

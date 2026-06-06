@@ -11,7 +11,7 @@ async def test_evaluator_does_not_call_llm():
         patch_path = "main.get_provider_router"
     except ImportError:
         patch_path = "backend.main.get_provider_router"
-        
+
     case = {
         "id": "test-llm-call",
         "intent": "event",
@@ -24,7 +24,7 @@ async def test_evaluator_does_not_call_llm():
         "should_abstain": False,
         "notes": "Test LLM calls"
     }
-    
+
     mock_results = [
         {
             "chapter_number": 1,
@@ -34,12 +34,12 @@ async def test_evaluator_does_not_call_llm():
             "content_hash": "hash1"
         }
     ]
-    
+
     mock_supabase = MagicMock()
-    
+
     with patch("backend.rag.evaluator.search_story_chunks_hybrid_lexical", return_value=mock_results), \
          patch(patch_path) as mock_router_getter:
-         
+
          res = await evaluate_case_retrieval(case, mock_supabase)
          assert res["passed"] is True
          assert mock_router_getter.called is False  # LLM router getter was not invoked
@@ -60,7 +60,7 @@ async def test_evaluator_output_fields():
         "should_abstain": False,
         "notes": ""
     }
-    
+
     mock_supabase = MagicMock()
     with patch("backend.rag.evaluator.search_story_chunks_hybrid_lexical", return_value=[]):
         res = await evaluate_case_retrieval(case, mock_supabase)
@@ -89,7 +89,7 @@ async def test_evaluator_anti_spoiler_spoiled():
         "should_abstain": True,
         "notes": ""
     }
-    
+
     # Mock retrieval returns a chunk from chapter 11 (which is a spoiler since progress is 10)
     mock_results = [
         {
@@ -100,7 +100,7 @@ async def test_evaluator_anti_spoiler_spoiled():
             "content_hash": "hash11"
         }
     ]
-    
+
     mock_supabase = MagicMock()
     with patch("backend.rag.evaluator.search_story_chunks_hybrid_lexical", return_value=mock_results):
         res = await evaluate_case_retrieval(case, mock_supabase)
@@ -123,7 +123,7 @@ async def test_evaluator_no_data_abstain():
         "should_abstain": True,
         "notes": ""
     }
-    
+
     mock_results = [
         {
             "chapter_number": 5,
@@ -133,7 +133,7 @@ async def test_evaluator_no_data_abstain():
             "content_hash": "hash5"
         }
     ]
-    
+
     mock_supabase = MagicMock()
     with patch("backend.rag.evaluator.search_story_chunks_hybrid_lexical", return_value=mock_results):
         res = await evaluate_case_retrieval(case, mock_supabase)
@@ -156,9 +156,9 @@ async def test_evaluator_expected_chapters_match():
         "should_abstain": False,
         "notes": ""
     }
-    
+
     mock_supabase = MagicMock()
-    
+
     # Scenario A: Overlap exists (chapter 3 matches expected_chapters [3, 4]) -> Passed
     mock_results_ok = [
         {
@@ -172,7 +172,7 @@ async def test_evaluator_expected_chapters_match():
     with patch("backend.rag.evaluator.search_story_chunks_hybrid_lexical", return_value=mock_results_ok):
         res = await evaluate_case_retrieval(case, mock_supabase)
         assert res["passed"] is True
-        
+
     # Scenario B: No overlap (chapter 5 retrieved, expected [3, 4]) -> Failed
     mock_results_fail = [
         {
@@ -221,14 +221,111 @@ async def test_evaluator_by_intent_aggregation():
             "should_abstain": False
         }
     ]
-    
+
     mock_supabase = MagicMock()
     with patch("backend.rag.evaluator.search_story_chunks_hybrid_lexical", return_value=[]), \
          patch("backend.routes.ai_oracle.get_entity_context_for_oracle", AsyncMock(return_value=None)):
-         
+
          summary = await evaluate_all_cases(cases, mock_supabase)
          assert summary["total"] == 3
          assert "summary" in summary["by_intent"]
          assert "identity" in summary["by_intent"]
          assert summary["by_intent"]["summary"]["total"] == 2
          assert summary["by_intent"]["identity"]["total"] == 1
+
+
+def test_entity_extraction_patterns():
+    from backend.routes.ai_oracle import extract_entity_name
+    assert extract_entity_name("Dịch thể gen cường hóa là vật phẩm gì?") == "Dịch thể gen cường hóa"
+    assert extract_entity_name("Đầu lâu khổng lồ là thực thể gì?") == "Đầu lâu khổng lồ"
+    assert extract_entity_name("Thông tin về Bàng Lâm") == "Bàng Lâm"
+    assert extract_entity_name("Lý Đức là nhân vật nào?") == "Lý Đức"
+    assert extract_entity_name("Hàn Phong là ai?") == "Hàn Phong"
+    assert extract_entity_name("Công ty Đại Thiên Thần là gì?") == "Công ty Đại Thiên Thần"
+    assert extract_entity_name("Zombie đột biến cấp 1 là sinh vật gì?") == "Zombie đột biến cấp 1"
+
+
+@pytest.mark.asyncio
+async def test_evaluator_missing_entity_context_flag():
+    case = {
+        "id": "ident-missing-test",
+        "intent": "identity",
+        "question": "Dịch thể gen cường hóa là vật phẩm gì?",
+        "chapter_progress": 10,
+        "expected_sources": ["entity_context", "wiki_entries"],
+        "must_include": ["dịch thể"],
+        "must_not_include": [],
+        "expected_chapters": [],
+        "should_abstain": False,
+        "notes": ""
+    }
+
+    mock_supabase = MagicMock()
+    with patch("backend.rag.evaluator.search_story_chunks_hybrid_lexical", return_value=[]), \
+         patch("backend.rag.evaluator.get_entity_context_for_oracle", AsyncMock(return_value=None)):
+
+         res = await evaluate_case_retrieval(case, mock_supabase)
+         assert res["entity_name"] == "Dịch thể gen cường hóa"
+         assert res["missing_entity_context"] is True
+         assert res["suggestion"] == "add wiki_entries profile for Dịch thể gen cường hóa"
+
+    mock_entity = {
+        "context_text": "- Dịch thể gen cường hóa (Phân loại: Vật phẩm): Giúp nâng cao sinh lực.",
+        "citations": [{"title": "Dịch thể gen cường hóa", "category": "Vật phẩm", "source": "wiki_entries"}],
+        "source": "entity_profile"
+    }
+    with patch("backend.rag.evaluator.search_story_chunks_hybrid_lexical", return_value=[]), \
+         patch("backend.rag.evaluator.get_entity_context_for_oracle", AsyncMock(return_value=mock_entity)):
+
+         res = await evaluate_case_retrieval(case, mock_supabase)
+         assert res["entity_name"] == "Dịch thể gen cường hóa"
+         assert res["missing_entity_context"] is False
+         assert "suggestion" not in res
+
+
+@pytest.mark.asyncio
+async def test_report_missing_entities_no_duplicate():
+    cases = [
+        {
+            "id": "ident-1",
+            "intent": "identity",
+            "question": "Lâm Nhã Vy là ai?",
+            "chapter_progress": 10,
+            "expected_sources": ["entity_context"],
+        },
+        {
+            "id": "ident-2",
+            "intent": "identity",
+            "question": "Lâm Nhã Vy là ai?",
+            "chapter_progress": 10,
+            "expected_sources": ["entity_context"],
+        },
+        {
+            "id": "ident-3",
+            "intent": "identity",
+            "question": "Trương Hạo là ai?",
+            "chapter_progress": 10,
+            "expected_sources": ["entity_context"],
+        }
+    ]
+
+    mock_supabase = MagicMock()
+    with patch("backend.rag.evaluator.search_story_chunks_hybrid_lexical", return_value=[]), \
+         patch("backend.rag.evaluator.get_entity_context_for_oracle", AsyncMock(return_value=None)):
+
+         summary = await evaluate_all_cases(cases, mock_supabase)
+
+         missing_entities = []
+         for r in summary.get("results", []):
+             if r.get("missing_entity_context") and r.get("entity_name"):
+                 missing_entities.append(r["entity_name"])
+
+         deduped = []
+         for ent in missing_entities:
+             if ent not in deduped:
+                 deduped.append(ent)
+
+         assert len(missing_entities) == 3
+         assert missing_entities == ["Lâm Nhã Vy", "Lâm Nhã Vy", "Trương Hạo"]
+         assert len(deduped) == 2
+         assert deduped == ["Lâm Nhã Vy", "Trương Hạo"]

@@ -349,10 +349,23 @@ async def test_ask_oracle_rag_preview_endpoint():
 
 def test_is_identity_question():
     from backend.routes.ai_oracle import is_identity_question
+    # True patterns
     assert is_identity_question("Hàn Phong là ai?") is True
     assert is_identity_question("Công ty Đại Thiên Thần là gì?") is True
+    assert is_identity_question("Dịch thể gen cường hóa là vật phẩm gì?") is True
+    assert is_identity_question("Đầu lâu khổng lồ là thực thể gì?") is True
+    assert is_identity_question("Zombie đột biến cấp 1 là sinh vật gì?") is True
+    assert is_identity_question("Quân đội là tổ chức gì?") is True
+    assert is_identity_question("Thăng cấp kỹ năng là gì?") is True
+    assert is_identity_question("Giới thiệu Hàn Phong") is True
+    assert is_identity_question("Thông tin về Bàng Lâm") is True
+    assert is_identity_question("Lý Đức là nhân vật nào?") is True
+
+    # False patterns (non-identity, no_data, anti_spoiler)
     assert is_identity_question("đầu lâu khổng lồ xuất hiện ở đâu?") is False
     assert is_identity_question("chương 2 xảy ra chuyện gì?") is False
+    assert is_identity_question("Hàn Phong làm gì sau khi tận thế xảy ra?") is False
+    assert is_identity_question("tóm tắt chương 3") is False
 
 
 @pytest.mark.asyncio

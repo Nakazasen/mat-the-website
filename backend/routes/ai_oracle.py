@@ -117,11 +117,19 @@ def is_identity_question(question: str) -> bool:
     q = question.lower().strip()
     q = re.sub(r"[?\s]+$", "", q)
     
-    # Check suffix patterns
-    if q.endswith(" là ai") or q.endswith(" la ai") or q.endswith(" là gì") or q.endswith(" la gi"):
+    suffixes = (
+        " là ai", " la ai",
+        " là gì", " la gi",
+        " là vật phẩm gì", " la vat pham gi",
+        " là thực thể gì", " la thuc the gi",
+        " là sinh vật gì", " la sinh vat gi",
+        " là tổ chức gì", " la to chuc gi",
+        " là kỹ năng gì", " la ky nang gi",
+        " là nhân vật nào", " la nhan vat nao"
+    )
+    if q.endswith(suffixes):
         return True
         
-    # Check prefix patterns
     prefixes = (
         "ai là ", "ai la ",
         "giới thiệu ", "gioi thieu ",
@@ -140,11 +148,27 @@ def extract_entity_name(question: str) -> str:
     q = re.sub(r"[?\s]+$", "", q)
     q_lower = q.lower()
     
-    for suffix in [" là ai", " la ai", " là gì", " la gi"]:
+    suffixes = [
+        " là vật phẩm gì", " la vat pham gi",
+        " là thực thể gì", " la thuc the gi",
+        " là sinh vật gì", " la sinh vat gi",
+        " là nhân vật nào", " la nhan vat nao",
+        " là tổ chức gì", " la to chuc gi",
+        " là kỹ năng gì", " la ky nang gi",
+        " là ai", " la ai",
+        " là gì", " la gi"
+    ]
+    for suffix in suffixes:
         if q_lower.endswith(suffix):
             return q[:-len(suffix)].strip()
             
-    for prefix in ["ai là ", "ai la ", "giới thiệu ", "gioi thieu ", "thông tin về ", "thong tin ve ", "nhân vật ", "nhan vat "]:
+    prefixes = [
+        "thông tin về ", "thong tin ve ",
+        "giới thiệu ", "gioi thieu ",
+        "nhân vật ", "nhan vat ",
+        "ai là ", "ai la "
+    ]
+    for prefix in prefixes:
         if q_lower.startswith(prefix):
             return q[len(prefix):].strip()
             
