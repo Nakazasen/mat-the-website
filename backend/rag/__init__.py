@@ -5,3 +5,9 @@ from backend.rag.chunking import (
     chunk_text,
     stable_content_hash,
 )
+from backend.rag.retrieval import (
+    normalize_search_query,
+    build_tsquery_terms,
+    format_retrieval_result,
+    search_story_chunks_text,
+)
