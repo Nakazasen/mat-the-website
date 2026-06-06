@@ -1,0 +1,420 @@
+[
+  {
+    "entity_name": "Giám đốc công ty của Hàn Phong",
+    "entity_type": "character",
+    "summary": "needs_review",
+    "status": "needs_review",
+    "evidence": [
+      {
+        "chapter_number": 1,
+        "chapter_title": "Đầu lâu khổng lồ ngoài cửa sổ",
+        "chunk_index": 0,
+        "preview": "Công ty Đại Thiên Thần. - Chết tiệt thật, tên khốn ngươi không biết cách làm người sao? Hàn Phong đứng trước bàn giám đốc, khuôn mặt cúi gằm, ánh mắt nhẫn nhịn nhìn mũi giày, im lặng lắng nghe những c...",
+        "content_hash": "1fef1e79f09917398be489262c7c334626bc0374c7d198bda81240778e71846a"
+      },
+      {
+        "chapter_number": 1,
+        "chapter_title": "Đầu lâu khổng lồ ngoài cửa sổ",
+        "chunk_index": 1,
+        "preview": "Hàn Phong vội quay qua bên cạnh, chẳng biết từ khi nào, 2 tên to con đã đứng sẵn chờ hắn tại hành lang. Hàn Phong khuôn mặt tái xanh chợt mềm giọng cầu khẩn:\n- Lý đại ca, ta hôm trước mới trả một khoả...",
+        "content_hash": "2c809485f7c3d50e6d5b1c497546925471bc33f27626539f02d22664cf339ebf"
+      },
+      {
+        "chapter_number": 4,
+        "chapter_title": "Trinh sát nhãn",
+        "chunk_index": 0,
+        "preview": "Nhìn thời gian trên đồng hồ, 4h chiều, Hàn Phong đem điện thoại ném vào túi quần, đứng lên vươn vai một cái. Thể lực hồi phục tới 10/12, trí lực cũng hoàn trả về 9/10, xem ra giấc ngủ ngắn đúng là phụ...",
+        "content_hash": "4713ab4331438c250719c35486f61568378cfe3c25723ee0d317da8528931fbe"
+      },
+      {
+        "chapter_number": 5,
+        "chapter_title": "Thẻ vật phẩm",
+        "chunk_index": 1,
+        "preview": "Một cái thẻ bài màu bạc lớn chừng lòng bàn tay cũng theo đó rơi ra bên cạnh thân xác Lý Bình. Hàn Phong vận khí không tệ chút nào, Lý Bình vừa rồi là ngã sấp mặt. Nếu gã ngã ngửa ra, hai tay có khả nă...",
+        "content_hash": "06953c3d796abb3f0d06cbe964117ce4eac49cbe606c7778b35152e131a1717b"
+      },
+      {
+        "chapter_number": 2,
+        "chapter_title": "Tận thế hàng lâm",
+        "chunk_index": 0,
+        "preview": "Hàn Phong biết chủ nhân của khuôn mặt chảy mủ này, gã chính là Bàng Lâm, một giây trước còn là đồng nghiệp của mình! Bất quá vị đồng nghiệp này giống như đã mất hết tri giác, chỉ theo bản năng lấn tới...",
+        "content_hash": "8a33c058165ac0457dc95462d05c8982e0d72c44d6ee5a05f4f15dd473eb0d85"
+      }
+    ],
+    "suggested_wiki_entry": {
+      "title": "Giám đốc công ty của Hàn Phong",
+      "category": "character",
+      "content": "needs_review"
+    },
+    "notes": "Generated from retrieval evidence only; human review required."
+  },
+  {
+    "entity_name": "Lâm Nhã Vy",
+    "entity_type": "character",
+    "summary": "needs_review",
+    "status": "needs_review",
+    "evidence": [
+      {
+        "chapter_number": 4,
+        "chapter_title": "Trinh sát nhãn",
+        "chunk_index": 2,
+        "preview": "Hàn Phong trong lòng vui vẻ, lập tức lựa chọn:\n- Học tập! “Đinh! Học tập thành công!”\nNương theo thanh âm máy móc chấm dứt, Hàn Phong hai mắt cảm nhận được một chút ấm áp. Hắn theo đó thử nhìn xuống h...",
+        "content_hash": "d7273f605ef0bbe0f3d198000a3a36e910bcde83feb18d7e9ef59d087a6032cf"
+      },
+      {
+        "chapter_number": 2,
+        "chapter_title": "Tận thế hàng lâm",
+        "chunk_index": 0,
+        "preview": "Hàn Phong biết chủ nhân của khuôn mặt chảy mủ này, gã chính là Bàng Lâm, một giây trước còn là đồng nghiệp của mình! Bất quá vị đồng nghiệp này giống như đã mất hết tri giác, chỉ theo bản năng lấn tới...",
+        "content_hash": "8a33c058165ac0457dc95462d05c8982e0d72c44d6ee5a05f4f15dd473eb0d85"
+      },
+      {
+        "chapter_number": 4,
+        "chapter_title": "Trinh sát nhãn",
+        "chunk_index": 0,
+        "preview": "Nhìn thời gian trên đồng hồ, 4h chiều, Hàn Phong đem điện thoại ném vào túi quần, đứng lên vươn vai một cái. Thể lực hồi phục tới 10/12, trí lực cũng hoàn trả về 9/10, xem ra giấc ngủ ngắn đúng là phụ...",
+        "content_hash": "4713ab4331438c250719c35486f61568378cfe3c25723ee0d317da8528931fbe"
+      },
+      {
+        "chapter_number": 4,
+        "chapter_title": "Trinh sát nhãn",
+        "chunk_index": 1,
+        "preview": "Trong đó thây ma bảo vệ kia rõ ràng động tác nhanh nhẹn hơn một chút, tốc độ không khác gì một người bình thường đi bộ, hai cánh tay trảo về phía trước muốn tóm lấy con mồi. Hàn Phong tâm thần có chút...",
+        "content_hash": "cdf75cd9494a5a87f2067b0d29d32a20197ad7de293481a577ed113919c0a168"
+      },
+      {
+        "chapter_number": 1,
+        "chapter_title": "Đầu lâu khổng lồ ngoài cửa sổ",
+        "chunk_index": 2,
+        "preview": "Từ ngày hôm nay, ta sẽ để cho các ngươi nếm mùi lợi hại.\n\nChuẩn bị đón nhận cơn thịnh nộ của ta đi, tham gia vào trò chơi của ta đi, khiến cho ta vui vẻ hài lòng đi, ha ha ha ha…”\nĐầu lâu vừa dứt lời,...",
+        "content_hash": "25ad38ba847145309f17eb297411f8a692c9b35f1771595c975180800973c8d5"
+      }
+    ],
+    "suggested_wiki_entry": {
+      "title": "Lâm Nhã Vy",
+      "category": "character",
+      "content": "needs_review"
+    },
+    "notes": "Generated from retrieval evidence only; human review required."
+  },
+  {
+    "entity_name": "Trương Hạo",
+    "entity_type": "character",
+    "summary": "needs_review",
+    "status": "needs_review",
+    "evidence": [],
+    "suggested_wiki_entry": {
+      "title": "Trương Hạo",
+      "category": "character",
+      "content": "needs_review"
+    },
+    "notes": "Generated from retrieval evidence only; human review required."
+  },
+  {
+    "entity_name": "Vương Mạnh",
+    "entity_type": "character",
+    "summary": "needs_review",
+    "status": "needs_review",
+    "evidence": [
+      {
+        "chapter_number": 1,
+        "chapter_title": "Đầu lâu khổng lồ ngoài cửa sổ",
+        "chunk_index": 0,
+        "preview": "Công ty Đại Thiên Thần. - Chết tiệt thật, tên khốn ngươi không biết cách làm người sao? Hàn Phong đứng trước bàn giám đốc, khuôn mặt cúi gằm, ánh mắt nhẫn nhịn nhìn mũi giày, im lặng lắng nghe những c...",
+        "content_hash": "1fef1e79f09917398be489262c7c334626bc0374c7d198bda81240778e71846a"
+      },
+      {
+        "chapter_number": 1,
+        "chapter_title": "Đầu lâu khổng lồ ngoài cửa sổ",
+        "chunk_index": 2,
+        "preview": "Từ ngày hôm nay, ta sẽ để cho các ngươi nếm mùi lợi hại.\n\nChuẩn bị đón nhận cơn thịnh nộ của ta đi, tham gia vào trò chơi của ta đi, khiến cho ta vui vẻ hài lòng đi, ha ha ha ha…”\nĐầu lâu vừa dứt lời,...",
+        "content_hash": "25ad38ba847145309f17eb297411f8a692c9b35f1771595c975180800973c8d5"
+      },
+      {
+        "chapter_number": 2,
+        "chapter_title": "Tận thế hàng lâm",
+        "chunk_index": 1,
+        "preview": "Bất quá thương tổn như vậy còn chưa đủ để làm cho nó chết, chỉ làm lộ ra khoang miệng với một đám thịt nhầy nhụa nửa đỏ nửa đen, cái lưỡi không biết vì sao biến dị thành nhơ nhớp, tua tủa răng thịt. H...",
+        "content_hash": "3010c07dfa76693990e1c062cc2f6f3a691124c763bd0c3936683ad2bc15ab1a"
+      },
+      {
+        "chapter_number": 2,
+        "chapter_title": "Tận thế hàng lâm",
+        "chunk_index": 2,
+        "preview": "Tận thế, tới thật rồi.\n\nSau khi lặng người tưởng niệm 1 phút, Hàn Phong mới mở ra đôi mắt, đôi đồng tử ánh lên sự hận thù sâu sắc.\n\nHắn muốn tìm ra nguyên nhân của tất cả những chuyện khủng khiếp này....",
+        "content_hash": "a7498e5c3cc403360f314f4607ef2f9e6e1cbaa2406b42523a9df14f0bca2640"
+      },
+      {
+        "chapter_number": 3,
+        "chapter_title": "Thuộc tính thân thể",
+        "chunk_index": 0,
+        "preview": "Sau khi xem xét cẩn thận, Hàn Phong thở ra một hơi, cuối cùng cũng có lý giải đôi chút về sự kinh ngạc của Ngô Soái. Hắn không xa lạ gì với bảng thuộc tính này, nó có chút tương tự với mấy tựa game on...",
+        "content_hash": "17c24ee6960c34f78358e90208d63afaa900c8585b4574f0a7e1a1ae1197b332"
+      }
+    ],
+    "suggested_wiki_entry": {
+      "title": "Vương Mạnh",
+      "category": "character",
+      "content": "needs_review"
+    },
+    "notes": "Generated from retrieval evidence only; human review required."
+  },
+  {
+    "entity_name": "Lý Đức",
+    "entity_type": "character",
+    "summary": "needs_review",
+    "status": "needs_review",
+    "evidence": [],
+    "suggested_wiki_entry": {
+      "title": "Lý Đức",
+      "category": "character",
+      "content": "needs_review"
+    },
+    "notes": "Generated from retrieval evidence only; human review required."
+  },
+  {
+    "entity_name": "Hệ thống sinh tồn",
+    "entity_type": "character",
+    "summary": "needs_review",
+    "status": "needs_review",
+    "evidence": [
+      {
+        "chapter_number": 2,
+        "chapter_title": "Tận thế hàng lâm",
+        "chunk_index": 0,
+        "preview": "Hàn Phong biết chủ nhân của khuôn mặt chảy mủ này, gã chính là Bàng Lâm, một giây trước còn là đồng nghiệp của mình! Bất quá vị đồng nghiệp này giống như đã mất hết tri giác, chỉ theo bản năng lấn tới...",
+        "content_hash": "8a33c058165ac0457dc95462d05c8982e0d72c44d6ee5a05f4f15dd473eb0d85"
+      },
+      {
+        "chapter_number": 2,
+        "chapter_title": "Tận thế hàng lâm",
+        "chunk_index": 1,
+        "preview": "Bất quá thương tổn như vậy còn chưa đủ để làm cho nó chết, chỉ làm lộ ra khoang miệng với một đám thịt nhầy nhụa nửa đỏ nửa đen, cái lưỡi không biết vì sao biến dị thành nhơ nhớp, tua tủa răng thịt. H...",
+        "content_hash": "3010c07dfa76693990e1c062cc2f6f3a691124c763bd0c3936683ad2bc15ab1a"
+      },
+      {
+        "chapter_number": 3,
+        "chapter_title": "Thuộc tính thân thể",
+        "chunk_index": 0,
+        "preview": "Sau khi xem xét cẩn thận, Hàn Phong thở ra một hơi, cuối cùng cũng có lý giải đôi chút về sự kinh ngạc của Ngô Soái. Hắn không xa lạ gì với bảng thuộc tính này, nó có chút tương tự với mấy tựa game on...",
+        "content_hash": "17c24ee6960c34f78358e90208d63afaa900c8585b4574f0a7e1a1ae1197b332"
+      },
+      {
+        "chapter_number": 3,
+        "chapter_title": "Thuộc tính thân thể",
+        "chunk_index": 1,
+        "preview": "Cả ba thứ này đều có lực hấp dẫn nhất định, lựa chọn nào cũng để cho hắn thèm thuồng, chỉ hận không thể lấy hết. Sau khi cân nhắc cẩn thận, Hàn Phong trong lòng quyết đoán hô nhỏ:\n- Lựa chọn bản kỹ nă...",
+        "content_hash": "751a67ee8c24b28e3277ef9a600867d6572d96c7bc70c8f34d011adbd42f3709"
+      },
+      {
+        "chapter_number": 4,
+        "chapter_title": "Trinh sát nhãn",
+        "chunk_index": 1,
+        "preview": "Trong đó thây ma bảo vệ kia rõ ràng động tác nhanh nhẹn hơn một chút, tốc độ không khác gì một người bình thường đi bộ, hai cánh tay trảo về phía trước muốn tóm lấy con mồi. Hàn Phong tâm thần có chút...",
+        "content_hash": "cdf75cd9494a5a87f2067b0d29d32a20197ad7de293481a577ed113919c0a168"
+      }
+    ],
+    "suggested_wiki_entry": {
+      "title": "Hệ thống sinh tồn",
+      "category": "character",
+      "content": "needs_review"
+    },
+    "notes": "Generated from retrieval evidence only; human review required."
+  },
+  {
+    "entity_name": "Tinh thể zombie",
+    "entity_type": "character",
+    "summary": "needs_review",
+    "status": "needs_review",
+    "evidence": [
+      {
+        "chapter_number": 7,
+        "chapter_title": "Nguy cơ",
+        "chunk_index": 1,
+        "preview": "Sau khi quyết định, cả ba người đều nối đuôi nhau rời khỏi đây, thẳng hướng cầu thang bộ. Hàn Phong đảm nhiệm chủ công đi trước, Liễu Huyên đứng giữa, lão béo Phương Tường đi đoạn hậu, bàn tay nắm gậy...",
+        "content_hash": "01a01332e9d4b27d21a84b097e3a9485c804764de4b0fbfb92c424d212f69f50"
+      },
+      {
+        "chapter_number": 1,
+        "chapter_title": "Đầu lâu khổng lồ ngoài cửa sổ",
+        "chunk_index": 0,
+        "preview": "Công ty Đại Thiên Thần. - Chết tiệt thật, tên khốn ngươi không biết cách làm người sao? Hàn Phong đứng trước bàn giám đốc, khuôn mặt cúi gằm, ánh mắt nhẫn nhịn nhìn mũi giày, im lặng lắng nghe những c...",
+        "content_hash": "1fef1e79f09917398be489262c7c334626bc0374c7d198bda81240778e71846a"
+      },
+      {
+        "chapter_number": 1,
+        "chapter_title": "Đầu lâu khổng lồ ngoài cửa sổ",
+        "chunk_index": 1,
+        "preview": "Hàn Phong vội quay qua bên cạnh, chẳng biết từ khi nào, 2 tên to con đã đứng sẵn chờ hắn tại hành lang. Hàn Phong khuôn mặt tái xanh chợt mềm giọng cầu khẩn:\n- Lý đại ca, ta hôm trước mới trả một khoả...",
+        "content_hash": "2c809485f7c3d50e6d5b1c497546925471bc33f27626539f02d22664cf339ebf"
+      },
+      {
+        "chapter_number": 2,
+        "chapter_title": "Tận thế hàng lâm",
+        "chunk_index": 0,
+        "preview": "Hàn Phong biết chủ nhân của khuôn mặt chảy mủ này, gã chính là Bàng Lâm, một giây trước còn là đồng nghiệp của mình! Bất quá vị đồng nghiệp này giống như đã mất hết tri giác, chỉ theo bản năng lấn tới...",
+        "content_hash": "8a33c058165ac0457dc95462d05c8982e0d72c44d6ee5a05f4f15dd473eb0d85"
+      },
+      {
+        "chapter_number": 2,
+        "chapter_title": "Tận thế hàng lâm",
+        "chunk_index": 1,
+        "preview": "Bất quá thương tổn như vậy còn chưa đủ để làm cho nó chết, chỉ làm lộ ra khoang miệng với một đám thịt nhầy nhụa nửa đỏ nửa đen, cái lưỡi không biết vì sao biến dị thành nhơ nhớp, tua tủa răng thịt. H...",
+        "content_hash": "3010c07dfa76693990e1c062cc2f6f3a691124c763bd0c3936683ad2bc15ab1a"
+      }
+    ],
+    "suggested_wiki_entry": {
+      "title": "Tinh thể zombie",
+      "category": "character",
+      "content": "needs_review"
+    },
+    "notes": "Generated from retrieval evidence only; human review required."
+  },
+  {
+    "entity_name": "Dị năng giả",
+    "entity_type": "character",
+    "summary": "needs_review",
+    "status": "needs_review",
+    "evidence": [
+      {
+        "chapter_number": 3,
+        "chapter_title": "Thuộc tính thân thể",
+        "chunk_index": 0,
+        "preview": "Sau khi xem xét cẩn thận, Hàn Phong thở ra một hơi, cuối cùng cũng có lý giải đôi chút về sự kinh ngạc của Ngô Soái. Hắn không xa lạ gì với bảng thuộc tính này, nó có chút tương tự với mấy tựa game on...",
+        "content_hash": "17c24ee6960c34f78358e90208d63afaa900c8585b4574f0a7e1a1ae1197b332"
+      },
+      {
+        "chapter_number": 3,
+        "chapter_title": "Thuộc tính thân thể",
+        "chunk_index": 1,
+        "preview": "Cả ba thứ này đều có lực hấp dẫn nhất định, lựa chọn nào cũng để cho hắn thèm thuồng, chỉ hận không thể lấy hết. Sau khi cân nhắc cẩn thận, Hàn Phong trong lòng quyết đoán hô nhỏ:\n- Lựa chọn bản kỹ nă...",
+        "content_hash": "751a67ee8c24b28e3277ef9a600867d6572d96c7bc70c8f34d011adbd42f3709"
+      },
+      {
+        "chapter_number": 4,
+        "chapter_title": "Trinh sát nhãn",
+        "chunk_index": 1,
+        "preview": "Trong đó thây ma bảo vệ kia rõ ràng động tác nhanh nhẹn hơn một chút, tốc độ không khác gì một người bình thường đi bộ, hai cánh tay trảo về phía trước muốn tóm lấy con mồi. Hàn Phong tâm thần có chút...",
+        "content_hash": "cdf75cd9494a5a87f2067b0d29d32a20197ad7de293481a577ed113919c0a168"
+      },
+      {
+        "chapter_number": 1,
+        "chapter_title": "Đầu lâu khổng lồ ngoài cửa sổ",
+        "chunk_index": 2,
+        "preview": "Từ ngày hôm nay, ta sẽ để cho các ngươi nếm mùi lợi hại.\n\nChuẩn bị đón nhận cơn thịnh nộ của ta đi, tham gia vào trò chơi của ta đi, khiến cho ta vui vẻ hài lòng đi, ha ha ha ha…”\nĐầu lâu vừa dứt lời,...",
+        "content_hash": "25ad38ba847145309f17eb297411f8a692c9b35f1771595c975180800973c8d5"
+      },
+      {
+        "chapter_number": 2,
+        "chapter_title": "Tận thế hàng lâm",
+        "chunk_index": 0,
+        "preview": "Hàn Phong biết chủ nhân của khuôn mặt chảy mủ này, gã chính là Bàng Lâm, một giây trước còn là đồng nghiệp của mình! Bất quá vị đồng nghiệp này giống như đã mất hết tri giác, chỉ theo bản năng lấn tới...",
+        "content_hash": "8a33c058165ac0457dc95462d05c8982e0d72c44d6ee5a05f4f15dd473eb0d85"
+      }
+    ],
+    "suggested_wiki_entry": {
+      "title": "Dị năng giả",
+      "category": "character",
+      "content": "needs_review"
+    },
+    "notes": "Generated from retrieval evidence only; human review required."
+  },
+  {
+    "entity_name": "Hộp thực phẩm hệ thống",
+    "entity_type": "character",
+    "summary": "needs_review",
+    "status": "needs_review",
+    "evidence": [
+      {
+        "chapter_number": 3,
+        "chapter_title": "Thuộc tính thân thể",
+        "chunk_index": 0,
+        "preview": "Sau khi xem xét cẩn thận, Hàn Phong thở ra một hơi, cuối cùng cũng có lý giải đôi chút về sự kinh ngạc của Ngô Soái. Hắn không xa lạ gì với bảng thuộc tính này, nó có chút tương tự với mấy tựa game on...",
+        "content_hash": "17c24ee6960c34f78358e90208d63afaa900c8585b4574f0a7e1a1ae1197b332"
+      },
+      {
+        "chapter_number": 3,
+        "chapter_title": "Thuộc tính thân thể",
+        "chunk_index": 1,
+        "preview": "Cả ba thứ này đều có lực hấp dẫn nhất định, lựa chọn nào cũng để cho hắn thèm thuồng, chỉ hận không thể lấy hết. Sau khi cân nhắc cẩn thận, Hàn Phong trong lòng quyết đoán hô nhỏ:\n- Lựa chọn bản kỹ nă...",
+        "content_hash": "751a67ee8c24b28e3277ef9a600867d6572d96c7bc70c8f34d011adbd42f3709"
+      },
+      {
+        "chapter_number": 4,
+        "chapter_title": "Trinh sát nhãn",
+        "chunk_index": 0,
+        "preview": "Nhìn thời gian trên đồng hồ, 4h chiều, Hàn Phong đem điện thoại ném vào túi quần, đứng lên vươn vai một cái. Thể lực hồi phục tới 10/12, trí lực cũng hoàn trả về 9/10, xem ra giấc ngủ ngắn đúng là phụ...",
+        "content_hash": "4713ab4331438c250719c35486f61568378cfe3c25723ee0d317da8528931fbe"
+      },
+      {
+        "chapter_number": 4,
+        "chapter_title": "Trinh sát nhãn",
+        "chunk_index": 1,
+        "preview": "Trong đó thây ma bảo vệ kia rõ ràng động tác nhanh nhẹn hơn một chút, tốc độ không khác gì một người bình thường đi bộ, hai cánh tay trảo về phía trước muốn tóm lấy con mồi. Hàn Phong tâm thần có chút...",
+        "content_hash": "cdf75cd9494a5a87f2067b0d29d32a20197ad7de293481a577ed113919c0a168"
+      },
+      {
+        "chapter_number": 6,
+        "chapter_title": "Thăng cấp kỹ năng",
+        "chunk_index": 2,
+        "preview": "Chẳng lẽ ăn thịt người khiến bọn chúng tiến hoá hay sao? Hàn Phong mắng thần một câu trong lòng, ý muốn tìm kiếm khẩu súng đã giảm xuống rõ rệt. Thế nhưng thây ma kia giống như nhận ra gì đó, chầm chậ...",
+        "content_hash": "c93a13c456b15fe47ba56ce38423a36291a07c24fb439642a47f22bb58ef336b"
+      }
+    ],
+    "suggested_wiki_entry": {
+      "title": "Hộp thực phẩm hệ thống",
+      "category": "character",
+      "content": "needs_review"
+    },
+    "notes": "Generated from retrieval evidence only; human review required."
+  },
+  {
+    "entity_name": "Zombie đột biến cấp 1",
+    "entity_type": "character",
+    "summary": "needs_review",
+    "status": "needs_review",
+    "evidence": [
+      {
+        "chapter_number": 6,
+        "chapter_title": "Thăng cấp kỹ năng",
+        "chunk_index": 1,
+        "preview": "Bên cạnh phòng giám đốc là phòng làm việc số 2. Lúc này cửa phòng hé mở, từ cách xa 2 mét đã nghe thấy âm thanh khò khè cùng tiếng cắn nuốt xác thịt ghê rợn. Hàn Phong ra hiệu cho hai người phía sau d...",
+        "content_hash": "1f3fd2409f870ae0508bd1815ebac7fdb04702354cb80156628669b1db3a1a71"
+      },
+      {
+        "chapter_number": 2,
+        "chapter_title": "Tận thế hàng lâm",
+        "chunk_index": 0,
+        "preview": "Hàn Phong biết chủ nhân của khuôn mặt chảy mủ này, gã chính là Bàng Lâm, một giây trước còn là đồng nghiệp của mình! Bất quá vị đồng nghiệp này giống như đã mất hết tri giác, chỉ theo bản năng lấn tới...",
+        "content_hash": "8a33c058165ac0457dc95462d05c8982e0d72c44d6ee5a05f4f15dd473eb0d85"
+      },
+      {
+        "chapter_number": 2,
+        "chapter_title": "Tận thế hàng lâm",
+        "chunk_index": 2,
+        "preview": "Tận thế, tới thật rồi.\n\nSau khi lặng người tưởng niệm 1 phút, Hàn Phong mới mở ra đôi mắt, đôi đồng tử ánh lên sự hận thù sâu sắc.\n\nHắn muốn tìm ra nguyên nhân của tất cả những chuyện khủng khiếp này....",
+        "content_hash": "a7498e5c3cc403360f314f4607ef2f9e6e1cbaa2406b42523a9df14f0bca2640"
+      },
+      {
+        "chapter_number": 6,
+        "chapter_title": "Thăng cấp kỹ năng",
+        "chunk_index": 0,
+        "preview": "Sau khi đạt thành nhận thức chung, Hàn Phong lập tức nói:\n- Hai người chuẩn bị một chút, thu dọn tất thảy đồ ăn thức uống, cũng mặc thêm y phục, che chắn bản thân cho tốt. Về phần những thứ vô dụng kh...",
+        "content_hash": "801a122220a0c349b62027cb986aeff27d318ff88810d31603e3a5efe056406c"
+      },
+      {
+        "chapter_number": 6,
+        "chapter_title": "Thăng cấp kỹ năng",
+        "chunk_index": 2,
+        "preview": "Chẳng lẽ ăn thịt người khiến bọn chúng tiến hoá hay sao? Hàn Phong mắng thần một câu trong lòng, ý muốn tìm kiếm khẩu súng đã giảm xuống rõ rệt. Thế nhưng thây ma kia giống như nhận ra gì đó, chầm chậ...",
+        "content_hash": "c93a13c456b15fe47ba56ce38423a36291a07c24fb439642a47f22bb58ef336b"
+      }
+    ],
+    "suggested_wiki_entry": {
+      "title": "Zombie đột biến cấp 1",
+      "category": "character",
+      "content": "needs_review"
+    },
+    "notes": "Generated from retrieval evidence only; human review required."
+  }
+]
