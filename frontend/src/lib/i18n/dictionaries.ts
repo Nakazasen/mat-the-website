@@ -93,6 +93,15 @@ export interface Dictionary {
         invalidResponse: string;
         sources: Record<string, string>;
         diagnostics: Record<string, string>;
+        feedbackBtn: string;
+        feedbackTitle: string;
+        feedbackTypes: Record<string, string>;
+        feedbackCommentPlaceholder: string;
+        feedbackCorrectionPlaceholder: string;
+        feedbackSubmit: string;
+        feedbackCancel: string;
+        feedbackSuccess: string;
+        feedbackError: string;
     };
     tooltip: {
         title: string;
@@ -269,6 +278,21 @@ export const dictionaries: Record<Locale, Dictionary> = {
                 invalid_question: "INPUT KHÔNG HỢP LỆ",
                 backend_error: "BACKEND ERROR",
             },
+            feedbackBtn: "Báo lỗi câu trả lời",
+            feedbackTitle: "Báo lỗi câu trả lời RAG",
+            feedbackTypes: {
+                wrong: "Sai kiến thức",
+                missing: "Thiếu thông tin",
+                spoiler: "Lộ tình tiết/spoiler",
+                hallucination: "AI bịa",
+                other: "Khác"
+            },
+            feedbackCommentPlaceholder: "Góp ý của bạn về câu trả lời...",
+            feedbackCorrectionPlaceholder: "Đề xuất sửa đổi thông tin đúng (nếu có)...",
+            feedbackSubmit: "Gửi phản hồi",
+            feedbackCancel: "Hủy",
+            feedbackSuccess: "Đã gửi góp ý. Cảm ơn bạn đã giúp cải thiện AI.",
+            feedbackError: "Chưa gửi được góp ý. Vui lòng thử lại.",
         },
         tooltip: {
             title: "QUICK SCAN",
@@ -443,6 +467,21 @@ export const dictionaries: Record<Locale, Dictionary> = {
                 invalid_question: "INVALID INPUT",
                 backend_error: "BACKEND ERROR",
             },
+            feedbackBtn: "Report Issue",
+            feedbackTitle: "Report Answer Issue",
+            feedbackTypes: {
+                wrong: "Incorrect info",
+                missing: "Missing info",
+                spoiler: "Spoiler content",
+                hallucination: "AI hallucination",
+                other: "Other"
+            },
+            feedbackCommentPlaceholder: "Your comment about this answer...",
+            feedbackCorrectionPlaceholder: "Suggested correct info (optional)...",
+            feedbackSubmit: "Submit",
+            feedbackCancel: "Cancel",
+            feedbackSuccess: "Feedback submitted. Thank you!",
+            feedbackError: "Could not submit feedback. Try again.",
         },
         tooltip: {
             title: "QUICK SCAN",
@@ -617,6 +656,21 @@ export const dictionaries: Record<Locale, Dictionary> = {
                 invalid_question: "输入无效",
                 backend_error: "BACKEND ERROR",
             },
+            feedbackBtn: "报告错误",
+            feedbackTitle: "报告回答错误",
+            feedbackTypes: {
+                wrong: "信息有误",
+                missing: "信息缺失",
+                spoiler: "剧透内容",
+                hallucination: "AI幻觉",
+                other: "其他"
+            },
+            feedbackCommentPlaceholder: "您对该回答的反馈意见...",
+            feedbackCorrectionPlaceholder: "建议的正确信息（可选）...",
+            feedbackSubmit: "提交",
+            feedbackCancel: "取消",
+            feedbackSuccess: "反馈已提交。谢谢！",
+            feedbackError: "无法提交反馈。请重试。",
         },
         tooltip: {
             title: "快速扫描",
@@ -791,6 +845,21 @@ export const dictionaries: Record<Locale, Dictionary> = {
                 invalid_question: "入力エラー",
                 backend_error: "BACKEND ERROR",
             },
+            feedbackBtn: "問題を報告",
+            feedbackTitle: "回答の不具合を報告",
+            feedbackTypes: {
+                wrong: "誤った情報",
+                missing: "情報の不足",
+                spoiler: "ネタバレ内容",
+                hallucination: "AIの幻覚",
+                other: "その他"
+            },
+            feedbackCommentPlaceholder: "この回答に対するフィードバック...",
+            feedbackCorrectionPlaceholder: "正しい情報の提案（任意）...",
+            feedbackSubmit: "送信",
+            feedbackCancel: "キャンセル",
+            feedbackSuccess: "送信完了。ご協力ありがとうございます！",
+            feedbackError: "送信できませんでした。再試行してください。",
         },
         tooltip: {
             title: "クイックスキャン",
