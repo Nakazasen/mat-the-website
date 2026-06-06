@@ -1314,3 +1314,66 @@ async def get_pending_feedback(
         return res.data or []
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+
+class FeedbackReviewRequest(BaseModel):
+    status: Literal["reviewed", "accepted", "rejected", "resolved"]
+    reviewer_note: Optional[str] = Field(None, max_length=2000)
+
+
+class FeedbackReviewResponse(BaseModel):
+    ok: bool
+    feedback_id: str
+    status: str
+
+
+@router.patch("/feedback/{feedback_id}", response_model=FeedbackReviewResponse)
+async def review_oracle_feedback(
+    feedback_id: str,
+    body: FeedbackReviewRequest,
+    x_oracle_feedback_admin_token: Optional[str] = Header(None, alias="X-Oracle-Feedback-Admin-Token")
+):
+    admin_token = os.getenv("ORACLE_FEEDBACK_ADMIN_TOKEN")
+    if not admin_token:
+        raise HTTPException(status_code=403, detail="Admin token not configured")
+
+    if not x_oracle_feedback_admin_token or x_oracle_feedback_admin_token != admin_token:
+        raise HTTPException(status_code=403, detail="Forbidden: Invalid admin token")
+
+    try:
+        from main import supabase
+    except ImportError:
+        from backend.main import supabase
+
+    if not supabase:
+        raise HTTPException(
+            status_code=503,
+            detail="Database service unavailable"
+        )
+
+    try:
+        # Check if feedback exists
+        existing = supabase.table("rag_feedback").select("id").eq("id", feedback_id).execute()
+        if not existing.data:
+            raise HTTPException(status_code=404, detail="Feedback not found")
+
+        update_data = {
+            "status": body.status,
+            "reviewer_note": body.reviewer_note,
+            "reviewed_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+
+        res = supabase.table("rag_feedback").update(update_data).eq("id", feedback_id).execute()
+        if not res.data:
+            raise HTTPException(status_code=404, detail="Feedback not found or update failed")
+
+        return FeedbackReviewResponse(
+            ok=True,
+            feedback_id=str(res.data[0]["id"]),
+            status=res.data[0]["status"]
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
