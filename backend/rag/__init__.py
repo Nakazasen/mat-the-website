@@ -12,3 +12,8 @@ from backend.rag.retrieval import (
     search_story_chunks_text,
     search_story_chunks_hybrid_lexical,
 )
+from backend.rag.context_builder import (
+    build_citation,
+    trim_context_text,
+    build_rag_context_block,
+)
