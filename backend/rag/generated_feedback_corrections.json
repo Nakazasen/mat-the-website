@@ -1,0 +1,145 @@
+{
+  "corrections": [
+    {
+      "feedback_id": "e77d3a58-d076-4946-af1a-8c9f993f2f76",
+      "entity_name": null,
+      "correction_type": "other",
+      "proposed_content": "correct this answer",
+      "evidence": [],
+      "status": "draft",
+      "reviewer_note": "Generated from accepted/resolved feedback; human review required."
+    },
+    {
+      "feedback_id": "c22cbf39-d05b-4afa-919d-69c619bc1138",
+      "entity_name": null,
+      "correction_type": "wiki_update",
+      "proposed_content": "needs_review",
+      "evidence": [],
+      "status": "draft",
+      "reviewer_note": "Generated from accepted/resolved feedback; human review required."
+    },
+    {
+      "feedback_id": "4434d328-fa54-432f-ab28-18ea5b21776e",
+      "entity_name": "Hàn Phong",
+      "correction_type": "entity_profile",
+      "proposed_content": "Sửa đổi đề xuất",
+      "evidence": [],
+      "status": "draft",
+      "reviewer_note": "Generated from accepted/resolved feedback; human review required."
+    },
+    {
+      "feedback_id": "3db51a90-f37e-4bc3-a87f-536a045da761",
+      "entity_name": "Hàn Phong",
+      "correction_type": "entity_profile",
+      "proposed_content": "Sửa đổi đề xuất",
+      "evidence": [],
+      "status": "draft",
+      "reviewer_note": "Generated from accepted/resolved feedback; human review required."
+    },
+    {
+      "feedback_id": "c6f84636-1cc5-4670-94db-a9a1fd40fd47",
+      "entity_name": "Hàn Phong",
+      "correction_type": "entity_profile",
+      "proposed_content": "Sửa đổi đề xuất",
+      "evidence": [],
+      "status": "draft",
+      "reviewer_note": "Generated from accepted/resolved feedback; human review required."
+    }
+  ],
+  "eval_cases": [
+    {
+      "id": "feedback_e77d3a58",
+      "question": "Test question for smoke test",
+      "chapter_progress": 1,
+      "intent": "event",
+      "expected_sources": [
+        "story_chunks"
+      ],
+      "must_include": [
+        "correct this answer"
+      ],
+      "must_not_include": [],
+      "expected_chapters": [
+        1
+      ],
+      "should_abstain": false,
+      "notes": "Generated from feedback; human review required."
+    },
+    {
+      "id": "feedback_c22cbf39",
+      "question": "Test proxy?",
+      "chapter_progress": 10,
+      "intent": "event",
+      "expected_sources": [
+        "story_chunks"
+      ],
+      "must_include": [],
+      "must_not_include": [],
+      "expected_chapters": [
+        10
+      ],
+      "should_abstain": false,
+      "notes": "Generated from feedback; human review required."
+    },
+    {
+      "id": "feedback_4434d328",
+      "question": "Hàn Phong là ai?",
+      "chapter_progress": 10,
+      "intent": "identity",
+      "expected_sources": [
+        "entity_context",
+        "wiki_entries"
+      ],
+      "must_include": [
+        "Hàn Phong",
+        "Sửa đổi đề xuất"
+      ],
+      "must_not_include": [],
+      "expected_chapters": [
+        10
+      ],
+      "should_abstain": false,
+      "notes": "Generated from feedback; human review required."
+    },
+    {
+      "id": "feedback_3db51a90",
+      "question": "Hàn Phong là ai?",
+      "chapter_progress": 10,
+      "intent": "identity",
+      "expected_sources": [
+        "entity_context",
+        "wiki_entries"
+      ],
+      "must_include": [
+        "Hàn Phong",
+        "Sửa đổi đề xuất"
+      ],
+      "must_not_include": [],
+      "expected_chapters": [
+        10
+      ],
+      "should_abstain": false,
+      "notes": "Generated from feedback; human review required."
+    },
+    {
+      "id": "feedback_c6f84636",
+      "question": "Hàn Phong là ai?",
+      "chapter_progress": 10,
+      "intent": "identity",
+      "expected_sources": [
+        "entity_context",
+        "wiki_entries"
+      ],
+      "must_include": [
+        "Hàn Phong",
+        "Sửa đổi đề xuất"
+      ],
+      "must_not_include": [],
+      "expected_chapters": [
+        10
+      ],
+      "should_abstain": false,
+      "notes": "Generated from feedback; human review required."
+    }
+  ]
+}
