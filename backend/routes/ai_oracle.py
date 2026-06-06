@@ -352,11 +352,62 @@ async def check_rate_limit(supabase, ip_hash: str) -> bool:
 
 
 
+def is_oracle_rag_enabled() -> bool:
+    """Checks if the RAG context enhancement is enabled for the Oracle ask endpoint."""
+    val = os.getenv("ORACLE_RAG_ENABLED", "").lower().strip()
+    return val in ("1", "true", "yes", "on")
+
+def get_rag_context_for_oracle(
+    question: str,
+    chapter_cap: int | None,
+    limit: int = 5
+) -> dict | None:
+    """
+    Retrieves the RAG context block for the oracle query if RAG is enabled.
+    Returns the context data dictionary containing 'context_text' and 'citations', or None.
+    """
+    if not is_oracle_rag_enabled():
+        return None
+    if not question or not question.strip():
+        return None
+
+    try:
+        from main import supabase
+    except ImportError:
+        from backend.main import supabase
+
+    if not supabase:
+        return None
+
+    try:
+        from backend.rag.retrieval import search_story_chunks_hybrid_lexical
+        from backend.rag.context_builder import build_rag_context_block
+
+        results = search_story_chunks_hybrid_lexical(
+            supabase=supabase,
+            query=question,
+            chapter_cap=chapter_cap,
+            limit=limit
+        )
+        if not results:
+            return None
+
+        context_data = build_rag_context_block(results, max_chunks=limit)
+        if context_data.get("chunks_used", 0) == 0:
+            return None
+
+        return context_data
+    except Exception as e:
+        # Catch all exceptions to prevent crash, fallback to old Oracle logic
+        print(f"Warning: RAG retrieval failed: {e}")
+        return None
+
 async def call_ai_provider_result(
     question: str,
     chapter_cap: int,
     wiki_context: str,
     chapter_context: str = "",
+    rag_context: str = "",
 ) -> Any:
     """Route question through the multi-provider router, returning the AIResult."""
     try:
@@ -370,6 +421,9 @@ async def call_ai_provider_result(
         wiki_context=wiki_context,
         chapter_context=chapter_context,
     )
+    if rag_context:
+        system_prompt += f"\n\n[RAG_CONTEXT_STORY_CHUNKS]\n{rag_context}"
+
     request = AIRequest(
         text=question,
         mode="chat",
@@ -481,7 +535,7 @@ async def build_oracle_health(supabase) -> OracleHealthResponse:
 
     router = get_provider_router()
     enabled_providers = [p for p in router._providers.values() if p.is_available()]
-    
+
     if not enabled_providers:
         return OracleHealthResponse(
             ok=False,
@@ -602,22 +656,22 @@ async def test_multi_provider_model(
     from ai_providers.base import AIRequest, ProviderCandidate
 
     router = get_provider_router()
-    
+
     # 1. Find which provider owns this model
     target_provider = None
     for provider in router._providers.values():
         if model_name in provider.model_pool:
             target_provider = provider
             break
-            
+
     if not target_provider:
         if router._providers:
             target_provider = list(router._providers.values())[0]
         else:
             raise HTTPException(status_code=404, detail=f"Model {model_name} không được cấu hình trong bất kỳ nhà cung cấp AI nào.")
-            
+
     request = AIRequest(text=prompt, mode="chat", max_output_tokens=800, temperature=0.7)
-    
+
     if custom_api_key:
         # Build dynamic provider profile to test the custom key
         temp_profile = ProviderProfile(
@@ -655,7 +709,7 @@ async def test_multi_provider_model(
             else:
                 raise HTTPException(status_code=500, detail=f"Không có API keys khả dụng cho nhà cung cấp {target_provider.name}.")
         result = await target_provider.call(request, matching_candidate)
-        
+
     if result.status == "success" and result.text:
         return result.text
     else:
@@ -698,7 +752,10 @@ async def ask_oracle(body: OracleRequest, request: Request):
         )
 
     # --- Multi-provider route (Phase 4) ---
-    result = await call_ai_provider_result(question, chapter_cap, wiki_context, chapter_context)
+    rag_data = get_rag_context_for_oracle(question, chapter_cap)
+    rag_context = rag_data.get("context_text", "") if rag_data else ""
+
+    result = await call_ai_provider_result(question, chapter_cap, wiki_context, chapter_context, rag_context)
     if result.status == "success" and result.text:
         answer = result.text.strip()
         if answer and not is_garbage_answer(answer):
