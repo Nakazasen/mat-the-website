@@ -25,8 +25,34 @@ def build_tsquery_terms(query: str) -> str:
     # Join terms with '&' operator for AND matching
     return " & ".join(words)
 
+def extract_chapters_from_query(query: str) -> list[int]:
+    query_lower = query.lower()
+    chapters = []
+
+    # Match patterns like "chương 5-6", "chương 5 - 6", "chương 5 đến 6"
+    range_matches = re.findall(r'chương\s*(\d+)\s*(?:-|đến)\s*(\d+)', query_lower)
+    for start, end in range_matches:
+        try:
+            s, e = int(start), int(end)
+            if s <= e:
+                chapters.extend(range(s, e + 1))
+        except ValueError:
+            pass
+
+    # Match pattern like "chương 5" or "chương 5, 6"
+    single_matches = re.finditer(r'chương\s*(\d+)(?:\s*,\s*(\d+))?', query_lower)
+    for m in single_matches:
+        try:
+            chapters.append(int(m.group(1)))
+            if m.group(2):
+                chapters.append(int(m.group(2)))
+        except ValueError:
+            pass
+
+    return list(set(chapters))
+
 def extract_search_keywords(query: str) -> list[str]:
-    """Extracts unique lowercase search keywords of length >= 3 for fallback queries."""
+    """Extracts unique lowercase search keywords of length >= 2 for fallback queries."""
     normalized = normalize_search_query(query)
     if not normalized:
         return []
@@ -35,15 +61,63 @@ def extract_search_keywords(query: str) -> list[str]:
     seen = set()
     deduped = []
     for w in words:
-        if w not in seen and len(w) >= 3:
+        if w not in seen and len(w) >= 2:
             seen.add(w)
             deduped.append(w)
     return deduped
 
+STOP_WORDS = {
+    "là", "và", "của", "trong", "có", "ở", "này", "cái", "gì", "ai", "đây", "đó",
+    "nào", "được", "để", "cho", "với", "như", "những", "các", "tại", "thì", "mà",
+    "the", "and", "of", "in", "to", "a", "is", "that", "it", "on", "for", "with"
+}
+
+def get_keywords_proximity_boost(content_lower: str, non_stop_kws: list[str]) -> float:
+    """Calculates a score boost if non-stop keywords appear near each other in the content."""
+    if len(non_stop_kws) < 2:
+        return 0.0
+
+    # Find all start positions for each non-stop keyword (using \b boundaries to avoid partial match)
+    indices = []
+    for kw in non_stop_kws:
+        positions = [m.start() for m in re.finditer(r'\b' + re.escape(kw) + r'\b', content_lower)]
+        if positions:
+            indices.append((kw, positions))
+
+    # Need at least 2 distinct keywords present in the content
+    if len(indices) < 2:
+        return 0.0
+
+    # Flatten positions into a single list of (pos, keyword)
+    all_positions = []
+    for kw, positions in indices:
+        for pos in positions:
+            all_positions.append((pos, kw))
+    all_positions.sort()
+
+    min_span = float('inf')
+    # Find minimum character span containing at least 2 distinct keywords
+    for i in range(len(all_positions)):
+        seen_kws = {all_positions[i][1]}
+        for j in range(i + 1, len(all_positions)):
+            seen_kws.add(all_positions[j][1])
+            if len(seen_kws) >= 2:
+                span = all_positions[j][0] - all_positions[i][0]
+                if span < min_span:
+                    min_span = span
+                break
+
+    if min_span < 100:
+        return 50.0
+    elif min_span < 200:
+        return 25.0
+    return 0.0
+
 def score_lexical_result(row: dict, query: str, keywords: list[str]) -> tuple[float, list[str]]:
-    """Calculates a lexical relevance score and reasons for a retrieved chunk row."""
+    """Calculates an improved lexical relevance score and reasons for a retrieved chunk row."""
     title = (row.get("chapter_title") or "").strip()
     content = (row.get("content_plain") or row.get("content") or "").strip()
+    chapter_num = row.get("chapter_number")
 
     score = 0.0
     reasons = []
@@ -52,14 +126,14 @@ def score_lexical_result(row: dict, query: str, keywords: list[str]) -> tuple[fl
     title_lower = title.lower()
     content_lower = content.lower()
 
-    # 1. Full phrase in chapter title (+100)
+    # 1. Full phrase in chapter title (+150)
     if query_lower and query_lower in title_lower:
-        score += 100.0
+        score += 150.0
         reasons.append("title_phrase")
 
-    # 2. Full phrase in chunk content (+80)
+    # 2. Full phrase in chunk content (+100)
     if query_lower and query_lower in content_lower:
-        score += 80.0
+        score += 100.0
         reasons.append("content_phrase")
 
     # 3. FTS index match (+40)
@@ -67,17 +141,58 @@ def score_lexical_result(row: dict, query: str, keywords: list[str]) -> tuple[fl
         score += 40.0
         reasons.append("fts")
 
-    # 4. Individual keyword matches in chapter title (+10 each)
+    # 4. Individual keyword matches in chapter title and content (using \b boundaries to avoid partial match)
+    non_stop_kws = []
+    matched_non_stop = []
     for kw in keywords:
-        if kw in title_lower:
-            score += 10.0
-            reasons.append(f"title_keyword:{kw}")
+        is_stop = kw in STOP_WORDS
+        if not is_stop:
+            non_stop_kws.append(kw)
 
-    # 5. Individual keyword matches in chunk content (+5 each)
-    for kw in keywords:
-        if kw in content_lower:
-            score += 5.0
+        kw_score_title = 2.0 if is_stop else 25.0
+        kw_score_content = 1.0 if is_stop else 12.0
+
+        has_title_match = bool(re.search(r'\b' + re.escape(kw) + r'\b', title_lower))
+        has_content_match = bool(re.search(r'\b' + re.escape(kw) + r'\b', content_lower))
+
+        if has_title_match:
+            score += kw_score_title
+            reasons.append(f"title_keyword:{kw}")
+            score += 25.0
+            reasons.append(f"title_exact_keyword:{kw}")
+            if not is_stop:
+                matched_non_stop.append(kw)
+
+        if has_content_match:
+            score += kw_score_content
             reasons.append(f"content_keyword:{kw}")
+            if not is_stop and kw not in matched_non_stop:
+                matched_non_stop.append(kw)
+
+    # 5. Proximity boost for non-stop keywords in content
+    proximity_boost = get_keywords_proximity_boost(content_lower, non_stop_kws)
+    if proximity_boost > 0:
+        score += proximity_boost
+        reasons.append(f"proximity_boost:{proximity_boost}")
+
+    # 6. Chapter number exact match boost (+150)
+    if chapter_num is not None:
+        query_chaps = extract_chapters_from_query(query)
+        if chapter_num in query_chaps:
+            score += 150.0
+            reasons.append(f"chapter_match_boost:{chapter_num}")
+
+    # 7. Keyword coverage ratio penalty for multi-keyword queries
+    has_chapter_match = any(w.startswith("chapter_match_boost:") for w in reasons)
+    if not has_chapter_match and len(non_stop_kws) > 1:
+        match_ratio = len(matched_non_stop) / len(non_stop_kws)
+        if match_ratio < 0.35:
+            score = 0.0
+            reasons.append("penalty_low_coverage_zeroed")
+        elif match_ratio < 0.6:
+            penalty_factor = (match_ratio / 0.6) ** 2
+            score *= penalty_factor
+            reasons.append(f"penalty_low_coverage_scaled:{penalty_factor:.2f}")
 
     return score, reasons
 
@@ -99,9 +214,22 @@ def merge_retrieval_results(result_lists: list[list[dict]], query: str, limit: i
                 if r.get("temp_fts_match"):
                     unique_results[h]["temp_fts_match"] = True
 
+    # Calculate dynamic threshold based on number of non-stop keywords
+    non_stop_kws = [kw for kw in keywords if kw not in STOP_WORDS]
+    n_kws = len(non_stop_kws)
+    if n_kws <= 1:
+        threshold = 10.0
+    elif n_kws == 2:
+        threshold = 20.0
+    else:
+        threshold = 30.0
+
     scored_list = []
     for r in unique_results.values():
         score, reasons = score_lexical_result(r, query, keywords)
+
+        if score < threshold:
+            continue
 
         content = r.get("content", "")
         content_plain = r.get("content_plain", "")

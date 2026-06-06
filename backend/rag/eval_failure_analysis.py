@@ -70,7 +70,7 @@ def analyze_evaluation_failures(results: Dict[str, Any]) -> Dict[str, Any]:
                 reasons_found.add("anti_spoiler_violation")
             elif "Intent is identity but" in reason or "is_identity_question" in reason:
                 reasons_found.add("intent_detection_mismatch")
-            elif "Expected abstain" in reason or "should_abstain=True" in reason:
+            elif "Expected abstain" in reason or "should_abstain=True" in reason or "weak_match_should_abstain" in reason or "no_data_should_abstain_but_retrieved" in reason:
                 reasons_found.add("no_data_should_abstain_but_retrieved")
             elif "No matching expected chapters" in reason:
                 reasons_found.add("expected_chapter_not_retrieved")
@@ -79,6 +79,8 @@ def analyze_evaluation_failures(results: Dict[str, Any]) -> Dict[str, Any]:
                 has_missing_entity = True
             elif "Expected source" in reason:
                 reasons_found.add("source_mismatch")
+            elif "weak_match_retrieved" in reason:
+                reasons_found.add("no_chunks_retrieved")
                 
         if has_missing_entity:
             ent_name = res.get("entity_name")

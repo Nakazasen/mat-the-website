@@ -164,11 +164,11 @@ def test_merge_retrieval_results_deduplicates():
 
     list1 = [
         {"content_hash": "hash1", "chapter_number": 1, "chapter_title": "C1", "content_plain": "A", "chunk_index": 0},
-        {"content_hash": "hash2", "chapter_number": 2, "chapter_title": "C2", "content_plain": "B", "chunk_index": 0}
+        {"content_hash": "hash2", "chapter_number": 2, "chapter_title": "C2", "content_plain": "A B", "chunk_index": 0}
     ]
     list2 = [
         {"content_hash": "hash1", "chapter_number": 1, "chapter_title": "C1", "content_plain": "A", "chunk_index": 0, "temp_fts_match": True},
-        {"content_hash": "hash3", "chapter_number": 3, "chapter_title": "C3", "content_plain": "C", "chunk_index": 0}
+        {"content_hash": "hash3", "chapter_number": 3, "chapter_title": "C3", "content_plain": "A C", "chunk_index": 0}
     ]
 
     merged = merge_retrieval_results([list1, list2], "A", limit=5)
@@ -207,7 +207,7 @@ def test_hybrid_search_respects_chapter_cap():
         def execute(self):
             class MockResponse:
                 data = [
-                    {"content_hash": "h1", "chapter_number": 2, "chapter_title": "Title", "content_plain": "content", "chunk_index": 0}
+                    {"content_hash": "h1", "chapter_number": 2, "chapter_title": "Title", "content_plain": "Hàn Phong ở đây", "chunk_index": 0}
                 ]
             return MockResponse()
 

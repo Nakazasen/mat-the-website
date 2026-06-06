@@ -87,7 +87,15 @@ async def evaluate_case_retrieval(case: Dict[str, Any], supabase: Any = None) ->
     # 3. Abstain rules verification
     if should_abstain:
         if chunks_used > 0:
-            fail_reasons.append(f"Expected abstain (should_abstain=True) but chunks_used was {chunks_used}.")
+            scores = [r.get("score") for r in results if r.get("score") is not None]
+            if scores:
+                max_score = max(scores)
+                if max_score < 40.0:
+                    fail_reasons.append(f"weak_match_should_abstain: Expected abstain (should_abstain=True) but retrieved weak matching chunks (max_score: {max_score:.1f}).")
+                else:
+                    fail_reasons.append(f"no_data_should_abstain_but_retrieved: Expected abstain (should_abstain=True) but retrieved strong matching chunks (max_score: {max_score:.1f}).")
+            else:
+                fail_reasons.append(f"Expected abstain (should_abstain=True) but chunks_used was {chunks_used}.")
 
     # 4. Expected chapters validation (if shouldn't abstain and expected_chapters is provided)
     if not should_abstain and expected_chapters:
