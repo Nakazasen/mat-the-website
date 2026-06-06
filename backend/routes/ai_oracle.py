@@ -96,6 +96,148 @@ class OracleRagPreviewResponse(BaseModel):
     source: str = "story_chunks_hybrid_context"
 
 
+class OracleRagAnswerPreviewRequest(BaseModel):
+    question: str = Field(..., min_length=1, max_length=500)
+    chapter_progress: int = Field(..., ge=1)
+    limit: int = Field(5, ge=1, le=10)
+    max_chunks: int = Field(4, ge=1, le=6)
+
+
+class OracleRagAnswerPreviewResponse(BaseModel):
+    ok: bool
+    rag_used: bool
+    chunks_used: int
+    answer: str
+    citations: list[dict]
+    source: str = "rag_answer_preview"
+
+
+def is_identity_question(question: str) -> bool:
+    """Detects whether a question is an identity/entity identification query."""
+    q = question.lower().strip()
+    q = re.sub(r"[?\s]+$", "", q)
+    
+    # Check suffix patterns
+    if q.endswith(" là ai") or q.endswith(" la ai") or q.endswith(" là gì") or q.endswith(" la gi"):
+        return True
+        
+    # Check prefix patterns
+    prefixes = (
+        "ai là ", "ai la ",
+        "giới thiệu ", "gioi thieu ",
+        "thông tin về ", "thong tin ve ",
+        "nhân vật ", "nhan vat "
+    )
+    if q.startswith(prefixes):
+        return True
+        
+    return False
+
+
+def extract_entity_name(question: str) -> str:
+    """Extracts potential entity/character name from an identity question."""
+    q = question.strip()
+    q = re.sub(r"[?\s]+$", "", q)
+    q_lower = q.lower()
+    
+    for suffix in [" là ai", " la ai", " là gì", " la gi"]:
+        if q_lower.endswith(suffix):
+            return q[:-len(suffix)].strip()
+            
+    for prefix in ["ai là ", "ai la ", "giới thiệu ", "gioi thieu ", "thông tin về ", "thong tin ve ", "nhân vật ", "nhan vat "]:
+        if q_lower.startswith(prefix):
+            return q[len(prefix):].strip()
+            
+    return q
+
+
+async def get_entity_context_for_oracle(supabase, question: str, chapter_cap: int | None = None) -> dict | None:
+    """Retrieves identity information from wiki_entries table based on question's main entity name."""
+    if not supabase:
+        return None
+    entity_name = extract_entity_name(question)
+    if not entity_name or len(entity_name) < 2:
+        return None
+        
+    try:
+        result = (
+            supabase.table("wiki_entries")
+            .select("title, category, summary, content")
+            .ilike("title", f"%{entity_name}%")
+            .limit(1)
+            .execute()
+        )
+        if result.data:
+            row = result.data[0]
+            title = row.get("title", "")
+            category = row.get("category", "") or ""
+            summary = row.get("summary", "") or ""
+            content = row.get("content", "") or ""
+            
+            desc = summary if summary else content
+            desc = desc.strip()
+            
+            context_text = f"- {title}"
+            if category:
+                context_text += f" (Phân loại: {category})"
+            context_text += f": {desc}"
+            
+            citation = {
+                "title": title,
+                "category": category,
+                "source": "wiki_entries"
+            }
+            
+            return {
+                "context_text": context_text,
+                "citations": [citation],
+                "source": "entity_profile"
+            }
+    except Exception as e:
+        print(f"Warning: get_entity_context_for_oracle failed: {e}")
+    return None
+
+
+def build_rag_answer_prompt(
+    question: str,
+    entity_context: str,
+    story_context: str,
+    chapter_cap: int | None
+) -> str:
+    """Builds the prompt instructing the AI to answer strictly based on RAG contexts (Entity profile & Story evidence)."""
+    cap = chapter_cap if chapter_cap is not None else 9999
+    
+    entity_section = f"--- [ENTITY_CONTEXT (ƯU TIÊN HÀNG ĐẦU BẰT BUỘC)] ---\n{entity_context}" if entity_context else "--- [ENTITY_CONTEXT] ---\nKhông có thông tin hồ sơ định danh trực tiếp."
+    story_section = f"--- [STORY_EVIDENCE (BẰNG CHỨNG HỖ TRỢ)] ---\n{story_context}" if story_context else "--- [STORY_EVIDENCE] ---\nKhông có trích đoạn truyện hỗ trợ."
+    
+    return f"""
+Bạn là "Hệ Thống" - một trí tuệ nhân tạo tối cao hỗ trợ người dùng trong thế giới tận thế của "Mạt Thế Sinh Hóa Nguy Cơ".
+Người dùng hiện đang đọc đến Chương {cap}. Bạn PHẢI tuân thủ các quy tắc sau:
+
+QUY TẮC ĐẶC BIỆT CHO RAG ANSWER:
+1. CHỈ được trả lời câu hỏi dựa trên khối dữ liệu ngữ cảnh được cung cấp dưới đây gồm ENTITY_CONTEXT (thông tin hồ sơ wiki chính thức) và STORY_EVIDENCE (bằng chứng từ các chương truyện).
+2. ƯU TIÊN HÀNG ĐẦU thông tin định danh từ ENTITY_CONTEXT để trả lời các câu hỏi định danh (Ví dụ: "... là ai", "... là gì").
+3. Tuyệt đối KHÔNG BỊA ĐẶT, không được sử dụng kiến thức bên ngoài hoặc thông tin không có trong khối ngữ cảnh được cung cấp.
+4. Nếu thông tin trong cả hai ngữ cảnh không đủ để trả lời câu hỏi một cách chắc chắn, bạn bắt buộc phải trả lời: "Dữ liệu hiện có chưa đủ để kết luận." (không thêm thắt, không giải thích).
+5. Không spoil thông tin xuất hiện sau Chương {cap}.
+6. Câu trả lời mang phong thái lạnh lùng, ngắn gọn, súc tích (dưới 150 từ). Nếu đó là câu hỏi định danh và có hồ sơ, hãy nêu bật vai trò cốt lõi của đối tượng (ví dụ: "nhân vật chính").
+7. Hãy định dạng câu trả lời theo cấu trúc sau:
+
+Câu trả lời:
+[Nội dung câu trả lời của bạn]
+
+Nguồn:
+[Liệt kê các nguồn dưới dạng: - Wiki: [Tên thực thể] hoặc - Chương X - Tiêu đề chương | chunk Y (như được ghi trong tiêu đề của chunk ngữ cảnh)]
+
+Ngữ cảnh RAG:
+{entity_section}
+
+{story_section}
+
+Câu hỏi của người dùng: {question}
+""".strip()
+
+
 class OracleHealthResponse(BaseModel):
     ok: bool
     status: str
@@ -921,4 +1063,138 @@ async def oracle_rag_preview(
         raise HTTPException(
             status_code=503,
             detail=f"Service Unavailable: RAG retrieval failed: {str(e)}"
+        )
+
+
+@router.post("/rag-answer-preview", response_model=OracleRagAnswerPreviewResponse)
+async def oracle_rag_answer_preview(
+    body: OracleRagAnswerPreviewRequest,
+    x_oracle_rag_preview_token: Optional[str] = Header(None, alias="X-Oracle-Rag-Preview-Token")
+):
+    token_env = os.getenv("ORACLE_RAG_PREVIEW_TOKEN")
+    if not token_env or not token_env.strip():
+        raise HTTPException(
+            status_code=403,
+            detail="Forbidden: RAG preview token not configured on server."
+        )
+
+    if not x_oracle_rag_preview_token or x_oracle_rag_preview_token.strip() != token_env.strip():
+        raise HTTPException(
+            status_code=403,
+            detail="Forbidden: Invalid RAG preview token."
+        )
+
+    try:
+        from main import supabase
+    except ImportError:
+        from backend.main import supabase
+
+    if not supabase:
+        raise HTTPException(
+            status_code=503,
+            detail="Service Unavailable: Supabase client not initialized."
+        )
+
+    try:
+        from backend.rag.retrieval import search_story_chunks_hybrid_lexical
+        from backend.rag.context_builder import build_rag_context_block
+
+        is_identity = is_identity_question(body.question)
+        entity_context_text = ""
+        entity_citations = []
+        entity_source = None
+
+        if is_identity:
+            entity_res = await get_entity_context_for_oracle(supabase, body.question, body.chapter_progress)
+            if entity_res:
+                entity_context_text = entity_res["context_text"]
+                entity_citations = entity_res["citations"]
+                entity_source = entity_res["source"]
+
+        results = search_story_chunks_hybrid_lexical(
+            supabase=supabase,
+            query=body.question,
+            chapter_cap=body.chapter_progress,
+            limit=body.limit
+        )
+
+        context_data = build_rag_context_block(results, max_chunks=body.max_chunks)
+        story_context_text = context_data.get("context_text", "")
+        story_citations = context_data.get("citations", [])
+        chunks_used = context_data.get("chunks_used", 0)
+
+        has_context = bool(entity_context_text.strip()) or (chunks_used > 0)
+
+        if not has_context:
+            return OracleRagAnswerPreviewResponse(
+                ok=True,
+                rag_used=False,
+                chunks_used=0,
+                answer="Dữ liệu hiện có chưa đủ để kết luận.",
+                citations=[],
+                source="rag_answer_preview"
+            )
+
+        all_citations = []
+        if entity_citations:
+            all_citations.extend(entity_citations)
+        if story_citations:
+            all_citations.extend(story_citations)
+
+        if is_identity:
+            if entity_context_text:
+                resp_source = "entity_profile_rag_answer_preview"
+            else:
+                resp_source = "fallback_story_chunks_rag_answer_preview"
+        else:
+            resp_source = "story_chunks_rag_answer_preview"
+
+        try:
+            from main import get_provider_router, resolve_ai_provider_config, AIRequest
+        except ImportError:
+            from backend.main import get_provider_router, resolve_ai_provider_config, AIRequest
+
+        system_instruction = build_rag_answer_prompt(
+            question=body.question,
+            entity_context=entity_context_text,
+            story_context=story_context_text,
+            chapter_cap=body.chapter_progress
+        )
+
+        request = AIRequest(
+            text=body.question,
+            mode="chat",
+            system_instruction=system_instruction,
+            max_output_tokens=800,
+            temperature=0.3,
+        )
+
+        router = get_provider_router()
+        config = resolve_ai_provider_config()
+        policy = config.get("chat_policy", {"mode": "waterfall"})
+
+        result = await router.route(request, policy=policy)
+
+        if result.status == "success" and result.text:
+            return OracleRagAnswerPreviewResponse(
+                ok=True,
+                rag_used=True,
+                chunks_used=chunks_used,
+                answer=result.text.strip(),
+                citations=all_citations,
+                source=resp_source
+            )
+
+        err_msg = result.error_message or "Router returned empty response"
+        raise HTTPException(
+            status_code=502,
+            detail=f"Bad Gateway: Multi-provider router error: {err_msg}"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Service Unavailable: RAG answer generation failed: {str(e)}"
         )

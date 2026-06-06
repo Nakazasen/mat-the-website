@@ -345,3 +345,191 @@ async def test_ask_oracle_rag_preview_endpoint():
     # Cleanup token env
     if "ORACLE_RAG_PREVIEW_TOKEN" in os.environ:
         del os.environ["ORACLE_RAG_PREVIEW_TOKEN"]
+
+
+def test_is_identity_question():
+    from backend.routes.ai_oracle import is_identity_question
+    assert is_identity_question("Hàn Phong là ai?") is True
+    assert is_identity_question("Công ty Đại Thiên Thần là gì?") is True
+    assert is_identity_question("đầu lâu khổng lồ xuất hiện ở đâu?") is False
+    assert is_identity_question("chương 2 xảy ra chuyện gì?") is False
+
+
+@pytest.mark.asyncio
+async def test_ask_oracle_rag_answer_preview_endpoint():
+    try:
+        from main import app
+    except ImportError:
+        from backend.main import app
+
+    from fastapi.testclient import TestClient
+    client = TestClient(app)
+
+    # 1. No token env -> 403 Forbidden
+    if "ORACLE_RAG_PREVIEW_TOKEN" in os.environ:
+        del os.environ["ORACLE_RAG_PREVIEW_TOKEN"]
+
+    response = client.post("/oracle/rag-answer-preview", json={
+        "question": "Hàn Phong là ai?",
+        "chapter_progress": 10
+    })
+    assert response.status_code == 403
+    assert "token not configured" in response.json()["detail"].lower()
+
+    # Set token env
+    os.environ["ORACLE_RAG_PREVIEW_TOKEN"] = "preview_secret_token_123"
+    headers = {"X-Oracle-Rag-Preview-Token": "preview_secret_token_123"}
+
+    # 2. Sai token -> 403
+    bad_headers = {"X-Oracle-Rag-Preview-Token": "wrong_token"}
+    response = client.post("/oracle/rag-answer-preview", json={
+        "question": "Hàn Phong là ai?",
+        "chapter_progress": 10
+    }, headers=bad_headers)
+    assert response.status_code == 403
+    assert "invalid rag preview token" in response.json()["detail"].lower()
+
+    # 3. Đúng token nhưng no context -> 200, rag_used=false, answer mặc định, không gọi AI router
+    try:
+        import main
+        patch_path = "main.get_provider_router"
+    except ImportError:
+        patch_path = "backend.main.get_provider_router"
+
+    with patch("backend.rag.retrieval.search_story_chunks_hybrid_lexical", return_value=[]), \
+         patch_oracle_func("get_entity_context_for_oracle", return_value=None) as mock_entity_getter, \
+         patch(patch_path) as mock_router_getter:
+
+        response = client.post("/oracle/rag-answer-preview", json={
+            "question": "Hàn Phong là ai?",
+            "chapter_progress": 10
+        }, headers=headers)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["ok"] is True
+        assert data["rag_used"] is False
+        assert data["chunks_used"] == 0
+        assert data["answer"] == "Dữ liệu hiện có chưa đủ để kết luận."
+        assert data["citations"] == []
+        assert mock_router_getter.called is False
+
+    # 4. Đúng token + có wiki/entity context cho identity query -> Gọi AI router và trả về câu trả lời 200 với entity_profile_rag_answer_preview
+    mock_results = [
+        {
+            "chapter_number": 1,
+            "chapter_title": "Đầu lâu khổng lồ ngoài cửa sổ",
+            "chunk_index": 0,
+            "content_plain": "Hàn Phong đứng trước bàn giám đốc.",
+            "content_hash": "hash123"
+        }
+    ]
+    mock_entity = {
+        "context_text": "- Hàn Phong: Nhân vật chính của truyện, mang dị năng hệ băng.",
+        "citations": [{"title": "Hàn Phong", "category": "Nhân vật", "source": "wiki_entries"}],
+        "source": "entity_profile"
+    }
+
+    with patch("backend.rag.retrieval.search_story_chunks_hybrid_lexical", return_value=mock_results), \
+         patch_oracle_func("get_entity_context_for_oracle", return_value=mock_entity) as mock_entity_getter, \
+         patch(patch_path) as mock_router_getter:
+
+        mock_router = MagicMock()
+        mock_router.route = AsyncMock()
+        mock_router_getter.return_value = mock_router
+
+        from backend.ai_providers.base import AIResult
+        mock_ai_result = AIResult(
+            status="success",
+            text="Hàn Phong là nhân vật chính của bộ truyện Mạt Thế Sinh Hóa Nguy Cơ.",
+            provider="mock_provider",
+            model="mock_model"
+        )
+        mock_router.route.return_value = mock_ai_result
+
+        response = client.post("/oracle/rag-answer-preview", json={
+            "question": "Hàn Phong là ai?",
+            "chapter_progress": 10,
+            "limit": 5,
+            "max_chunks": 4
+        }, headers=headers)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["ok"] is True
+        assert data["rag_used"] is True
+        assert data["chunks_used"] == 1
+        assert "nhân vật chính" in data["answer"].lower()
+        assert len(data["answer"]) >= 24  # MIN_CACHEABLE_LENGTH
+        assert data["source"] == "entity_profile_rag_answer_preview"
+        assert len(data["citations"]) == 2  # 1 entity profile, 1 story chunk
+        assert data["citations"][0]["title"] == "Hàn Phong"
+        assert data["citations"][1]["content_hash"] == "hash123"
+
+        args, kwargs = mock_router.route.call_args
+        ai_request = args[0]
+        assert "ENTITY_CONTEXT" in ai_request.system_instruction
+        assert "STORY_EVIDENCE" in ai_request.system_instruction
+        assert "Hàn Phong" in ai_request.system_instruction
+        assert "ƯU TIÊN HÀNG ĐẦU thông tin định danh từ ENTITY_CONTEXT" in ai_request.system_instruction
+
+    # 5. Đúng token + identity query không có wiki/entity context -> fallback_story_chunks_rag_answer_preview
+    with patch("backend.rag.retrieval.search_story_chunks_hybrid_lexical", return_value=mock_results), \
+         patch_oracle_func("get_entity_context_for_oracle", return_value=None) as mock_entity_getter, \
+         patch(patch_path) as mock_router_getter:
+
+        mock_router = MagicMock()
+        mock_router.route = AsyncMock()
+        mock_router_getter.return_value = mock_router
+
+        from backend.ai_providers.base import AIResult
+        mock_ai_result = AIResult(
+            status="success",
+            text="Chỉ tìm thấy Hàn Phong xuất hiện trong chương 1.",
+            provider="mock_provider",
+            model="mock_model"
+        )
+        mock_router.route.return_value = mock_ai_result
+
+        response = client.post("/oracle/rag-answer-preview", json={
+            "question": "Hàn Phong là ai?",
+            "chapter_progress": 10
+        }, headers=headers)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["ok"] is True
+        assert data["rag_used"] is True
+        assert data["chunks_used"] == 1
+        assert data["source"] == "fallback_story_chunks_rag_answer_preview"
+        assert len(data["citations"]) == 1
+        assert data["citations"][0]["content_hash"] == "hash123"
+
+    # 6. AI provider router error -> 502 Bad Gateway
+    with patch("backend.rag.retrieval.search_story_chunks_hybrid_lexical", return_value=mock_results), \
+         patch_oracle_func("get_entity_context_for_oracle", return_value=None) as mock_entity_getter, \
+         patch(patch_path) as mock_router_getter:
+
+        mock_router = MagicMock()
+        mock_router.route = AsyncMock()
+        mock_router_getter.return_value = mock_router
+
+        from backend.ai_providers.base import AIResult
+        mock_ai_result = AIResult(
+            status="error",
+            error_message="Quota exceeded",
+            provider="mock_provider"
+        )
+        mock_router.route.return_value = mock_ai_result
+
+        response = client.post("/oracle/rag-answer-preview", json={
+            "question": "Hàn Phong là ai?",
+            "chapter_progress": 10
+        }, headers=headers)
+
+        assert response.status_code == 502
+        assert "Multi-provider router error: Quota exceeded" in response.json()["detail"]
+
+    # Cleanup token env
+    if "ORACLE_RAG_PREVIEW_TOKEN" in os.environ:
+        del os.environ["ORACLE_RAG_PREVIEW_TOKEN"]
