@@ -1,0 +1,96 @@
+{
+  "total_failures": 68,
+  "by_reason": {
+    "missing_entity_context": 27,
+    "expected_chapter_not_retrieved": 33,
+    "no_chunks_retrieved": 2,
+    "anti_spoiler_violation": 0,
+    "no_data_should_abstain_but_retrieved": 15,
+    "source_mismatch": 0,
+    "intent_detection_mismatch": 0,
+    "duplicate_id": 0,
+    "unknown": 0
+  },
+  "by_intent": {
+    "identity": 14,
+    "event": 10,
+    "summary": 7,
+    "relationship": 8,
+    "ability": 8,
+    "location": 6,
+    "no_data": 10,
+    "anti_spoiler": 5
+  },
+  "feedback_failures": 0,
+  "top_missing_entities": [
+    {
+      "entity": "Giám đốc công ty của Hàn Phong",
+      "count": 1
+    },
+    {
+      "entity": "Lâm Nhã Vy",
+      "count": 1
+    },
+    {
+      "entity": "Trương Hạo",
+      "count": 1
+    },
+    {
+      "entity": "Vương Mạnh",
+      "count": 1
+    },
+    {
+      "entity": "Lý Đức",
+      "count": 1
+    },
+    {
+      "entity": "Hệ thống sinh tồn",
+      "count": 1
+    },
+    {
+      "entity": "Tinh thể zombie",
+      "count": 1
+    },
+    {
+      "entity": "Dị năng giả",
+      "count": 1
+    },
+    {
+      "entity": "Hộp thực phẩm hệ thống",
+      "count": 1
+    },
+    {
+      "entity": "Zombie đột biến cấp 1",
+      "count": 1
+    },
+    {
+      "entity": "Thẻ triệu hồi",
+      "count": 1
+    },
+    {
+      "entity": "Dịch thể cường hóa",
+      "count": 1
+    },
+    {
+      "entity": "Dị năng hệ băng",
+      "count": 1
+    },
+    {
+      "entity": "Công ty Đại Thiên Thần",
+      "count": 1
+    },
+    {
+      "entity": "Tác dụng của dịch thể cường hóa gen",
+      "count": 1
+    },
+    {
+      "entity": "Tên thành phố xảy ra mạt thế sinh hóa",
+      "count": 1
+    }
+  ],
+  "recommended_next_actions": [
+    "Add missing entity profiles to wiki_entries table.",
+    "Improve hybrid lexical retrieval logic and check chunk indexing.",
+    "Refine abstain threshold and search matching rules."
+  ]
+}

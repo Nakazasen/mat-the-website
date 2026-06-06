@@ -92,6 +92,41 @@ async def run_evaluation(args):
 
         print_safe("=" * 60)
 
+    # Failure Report Generation
+    if args.failure_report:
+        from backend.rag.eval_failure_analysis import analyze_evaluation_failures
+        analysis = analyze_evaluation_failures(result)
+
+        # Write report to file
+        os.makedirs(os.path.dirname(os.path.abspath(args.failure_report_output)), exist_ok=True)
+        try:
+            with open(args.failure_report_output, "w", encoding="utf-8") as f:
+                json.dump(analysis, f, indent=2, ensure_ascii=False)
+            if not args.json:
+                print_safe("-" * 60)
+                print_safe(f"FAILURE ANALYSIS REPORT EXPORTED TO: {args.failure_report_output}")
+                print_safe("-" * 60)
+                print_safe(f"Total Failure Cases  : {analysis['total_failures']}")
+                print_safe(f"Feedback Failures    : {analysis['feedback_failures']}")
+                print_safe("\nFAILURES BY REASON:")
+                for reason, count in analysis["by_reason"].items():
+                    if count > 0:
+                        print_safe(f"  - {reason:<40}: {count}")
+                print_safe("\nFAILURES BY INTENT:")
+                for intent, count in analysis["by_intent"].items():
+                    print_safe(f"  - {intent:<15}: {count}")
+                if analysis["top_missing_entities"]:
+                    print_safe("\nTOP MISSING ENTITIES:")
+                    for ent_info in analysis["top_missing_entities"]:
+                        print_safe(f"  - {ent_info['entity']}: {ent_info['count']} failures")
+                if analysis["recommended_next_actions"]:
+                    print_safe("\nRECOMMENDED NEXT ACTIONS:")
+                    for action in analysis["recommended_next_actions"]:
+                        print_safe(f"  * {action}")
+                print_safe("=" * 60)
+        except Exception as e:
+            print_safe(f"Error writing failure report: {e}")
+
     # Exit code based on fail-under
     if result["pass_rate"] < args.fail_under:
         print_safe(f"Evaluation FAILED: Pass rate {result['pass_rate']:.2%} is below threshold {args.fail_under:.2%}")
@@ -108,6 +143,8 @@ def main():
     parser.add_argument("--json", action="store_true", help="Output results in JSON format.")
     parser.add_argument("--fail-under", type=float, default=0.7, help="Minimum acceptable overall pass rate (default: 0.7).")
     parser.add_argument("--report-missing-entities", action="store_true", help="Report missing entity wiki profiles for identity cases.")
+    parser.add_argument("--failure-report", action="store_true", help="Perform structured failure analysis on failed evaluation cases.")
+    parser.add_argument("--failure-report-output", type=str, default="backend/rag/generated_eval_failure_report.json", help="File path to write the JSON failure analysis report.")
 
     args = parser.parse_args()
 

@@ -1,0 +1,23 @@
+{
+  "total_failures": 5,
+  "by_reason": {
+    "missing_entity_context": 0,
+    "expected_chapter_not_retrieved": 5,
+    "no_chunks_retrieved": 2,
+    "anti_spoiler_violation": 0,
+    "no_data_should_abstain_but_retrieved": 0,
+    "source_mismatch": 2,
+    "intent_detection_mismatch": 0,
+    "duplicate_id": 0,
+    "unknown": 0
+  },
+  "by_intent": {
+    "event": 2,
+    "identity": 3
+  },
+  "feedback_failures": 5,
+  "top_missing_entities": [],
+  "recommended_next_actions": [
+    "Improve hybrid lexical retrieval logic and check chunk indexing."
+  ]
+}
