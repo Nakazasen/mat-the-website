@@ -168,7 +168,7 @@ async def process_chapter(chapter_num: int, title: str, content_html: str, args,
 async def main_async():
     parser = argparse.ArgumentParser(description="Dry-run story chunking builder")
     parser.add_argument("--dry-run", action="store_true", default=True, help="Run without writing to database (default: True)")
-    parser.add_argument("--no-dry-run", dest="dry-run", action="store_false", help="Disable dry-run mode (allow DB writing)")
+    parser.add_argument("--no-dry-run", dest="dry_run", action="store_false", help="Disable dry-run mode (allow DB writing)")
     parser.add_argument("--write", action="store_true", default=False, help="Perform database operations")
     parser.add_argument("--limit", type=int, default=None, help="Limit number of chapters to process")
     parser.add_argument("--chapter-number", type=int, default=None, help="Process specific chapter number")
