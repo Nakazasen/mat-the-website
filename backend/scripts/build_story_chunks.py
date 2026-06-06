@@ -49,23 +49,60 @@ SAMPLE_HTML = """
 </div>
 """
 
-async def process_chapter(chapter_num: int, title: str, content_html: str, args):
+def build_story_chunk_payloads(chapter: dict, chunks: list[str]) -> list[dict]:
+    """Pure logic to construct story chunk database payloads."""
+    payloads = []
+    chapter_id = chapter.get("id")
+    chapter_number = chapter.get("chapter_number")
+    chapter_title = chapter.get("title")
+
+    for idx, chunk in enumerate(chunks):
+        chunk_hash = stable_content_hash(chunk)
+        token_count = estimate_token_count(chunk)
+        char_count = len(chunk)
+
+        metadata = {
+            "chapter_number": chapter_number,
+            "chapter_title": chapter_title,
+            "chunk_index": idx,
+            "source": "r2_chapter",
+            "rag_version": "phase_3a_no_embedding"
+        }
+
+        payload = {
+            "chapter_id": chapter_id,
+            "chapter_number": chapter_number,
+            "chapter_title": chapter_title,
+            "chunk_index": idx,
+            "content": chunk,
+            "content_plain": chunk,
+            "token_count": token_count,
+            "char_count": char_count,
+            "content_hash": chunk_hash,
+            "metadata": metadata,
+            "embedding": None
+        }
+        payloads.append(payload)
+
+    return payloads
+
+async def process_chapter(chapter_num: int, title: str, content_html: str, args, chapter_id: int = None):
     # 1. Clean HTML to plain text
     plain_text = strip_html_to_text(content_html)
-    
+
     # 2. Normalize text
     normalized_text = normalize_story_text(plain_text)
-    
+
     # 3. Chunk text
     chunks = chunk_text(
-        normalized_text, 
-        max_chars=args.max_chars, 
+        normalized_text,
+        max_chars=args.max_chars,
         overlap_chars=args.overlap_chars
     )
-    
+
     total_chars = len(normalized_text)
     estimated_tokens = estimate_token_count(normalized_text)
-    
+
     # Report
     print("-" * 60)
     print(f"Chapter Number   : {chapter_num}")
@@ -73,47 +110,60 @@ async def process_chapter(chapter_num: int, title: str, content_html: str, args)
     print(f"Chunks Count     : {len(chunks)}")
     print(f"Total Chars      : {total_chars}")
     print(f"Estimated Tokens : {estimated_tokens}")
-    
+
     if chunks:
         first_chunk = chunks[0]
         preview = first_chunk[:200].replace("\n", " ") + "..." if len(first_chunk) > 200 else first_chunk
         print(f"First Chunk Preview: {preview}")
     else:
         print("First Chunk Preview: (No chunks generated)")
-        
+
+    # Build payloads
+    chapter_dict = {
+        "id": chapter_id,
+        "chapter_number": chapter_num,
+        "title": title
+    }
+    payloads = build_story_chunk_payloads(chapter_dict, chunks)
+
+    prepared_chunks = len(payloads)
+    upserted_chunks = 0
+    failed_chunks = 0
+    dry_run = args.dry_run
+
     # Database operations
     if args.write and not args.dry_run:
         if not supabase:
             print("Error: Supabase client is not initialized. Cannot write to DB.")
-            return len(chunks)
-            
-        print(f"Writing {len(chunks)} chunks to Database...")
-        for idx, chunk in enumerate(chunks):
-            chunk_hash = stable_content_hash(chunk)
-            payload = {
-                "chapter_number": chapter_num,
-                "chapter_title": title,
-                "chunk_index": idx,
-                "content": chunk,
-                "content_plain": chunk,
-                "token_count": estimate_token_count(chunk),
-                "char_count": len(chunk),
-                "content_hash": chunk_hash,
-                "metadata": {"source": "build_story_chunks_script_cli"},
-            }
+            failed_chunks = prepared_chunks
+        else:
+            print(f"Writing {prepared_chunks} chunks to Database...")
             try:
-                # Upsert table
-                supabase.table("story_chunks").upsert(
-                    payload, 
-                    on_conflict="chapter_number,chunk_index,content_hash"
-                ).execute()
+                if payloads:
+                    supabase.table("story_chunks").upsert(
+                        payloads,
+                        on_conflict="chapter_number,chunk_index,content_hash"
+                    ).execute()
+                    upserted_chunks = prepared_chunks
             except Exception as e:
-                print(f"Error writing chunk {idx}: {e}")
+                print(f"Batch upsert failed: {e}. Attempting fallback one-by-one...")
+                for p in payloads:
+                    try:
+                        supabase.table("story_chunks").upsert(
+                            p,
+                            on_conflict="chapter_number,chunk_index,content_hash"
+                        ).execute()
+                        upserted_chunks += 1
+                    except Exception as ex:
+                        print(f"Error writing chunk {p['chunk_index']}: {ex}")
+                        failed_chunks += 1
     else:
         if args.write:
             print("[DRY-RUN] DB Write simulated (use --no-dry-run to write to DB)")
             
+    print(f"Report: prepared_chunks={prepared_chunks}, upserted_chunks={upserted_chunks}, failed_chunks={failed_chunks}, dry_run={dry_run}")
     return len(chunks)
+
 
 async def main_async():
     parser = argparse.ArgumentParser(description="Dry-run story chunking builder")
@@ -154,6 +204,7 @@ async def main_async():
     if not chapters:
         print("Using sample mock text mode...")
         mock_chapter = {
+            "id": 99999,
             "chapter_number": args.chapter_number or 1,
             "title": "Chương 1: Ngày Tận Thế Bắt Đầu (Sample Mock)",
             "content_html": SAMPLE_HTML
@@ -179,7 +230,8 @@ async def main_async():
             else:
                 content_html = SAMPLE_HTML
                 
-        chunks_count = await process_chapter(chapter_num, title, content_html, args)
+        chapter_id = ch.get("id")
+        chunks_count = await process_chapter(chapter_num, title, content_html, args, chapter_id=chapter_id)
         total_chunks += chunks_count
         
     print("=" * 60)

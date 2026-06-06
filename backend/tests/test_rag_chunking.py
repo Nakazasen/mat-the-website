@@ -116,7 +116,6 @@ async def test_dry_run_no_db_write(monkeypatch):
     from backend.scripts.build_story_chunks import process_chapter
     
     # Even if write=True, dry_run=True should prevent any DB calls
-    # Mock supabase client that throws error if table() is called
     mock_sb = MockSupabase()
     monkeypatch.setattr("backend.scripts.build_story_chunks.supabase", mock_sb)
     
@@ -127,4 +126,94 @@ async def test_dry_run_no_db_write(monkeypatch):
         content_html="<p>Test content</p>",
         args=MockArgs()
     )
-    assert chunks_count == 1  # Should process correctly but not call DB
+
+# Test 9: build_story_chunk_payloads creates correct fields and starts at 0 (consistent index)
+def test_build_story_chunk_payloads_fields():
+    from backend.scripts.build_story_chunks import build_story_chunk_payloads
+
+    chapter = {
+        "id": 123,
+        "chapter_number": 5,
+        "title": "Chương 5: Thế Giới Mới"
+    }
+    chunks = ["Chunk 1 content here", "Chunk 2 content here"]
+
+    payloads = build_story_chunk_payloads(chapter, chunks)
+    assert len(payloads) == 2
+
+    # Check fields of the first payload
+    p0 = payloads[0]
+    assert p0["chapter_id"] == 123
+    assert p0["chapter_number"] == 5
+    assert p0["chapter_title"] == "Chương 5: Thế Giới Mới"
+    assert p0["chunk_index"] == 0  # Starts at 0, consistently
+    assert p0["content"] == "Chunk 1 content here"
+    assert p0["content_plain"] == "Chunk 1 content here"
+    assert p0["token_count"] > 0
+    assert p0["char_count"] == len("Chunk 1 content here")
+    assert len(p0["content_hash"]) == 64
+    assert p0["embedding"] is None  # Phase 3A requirement: always None
+
+    # Check metadata content
+    meta = p0["metadata"]
+    assert meta["chapter_number"] == 5
+    assert meta["chapter_title"] == "Chương 5: Thế Giới Mới"
+    assert meta["chunk_index"] == 0
+    assert meta["source"] == "r2_chapter"
+    assert meta["rag_version"] == "phase_3a_no_embedding"
+
+    # Check that second payload starts at 1
+    p1 = payloads[1]
+    assert p1["chunk_index"] == 1
+    assert p1["metadata"]["chunk_index"] == 1
+
+# Test 10: write mode actually executes upsert call on story_chunks table
+@pytest.mark.asyncio
+async def test_write_mode_executes_upsert(monkeypatch):
+    class MockArgs:
+        dry_run = False
+        write = True
+        max_chars = 3500
+        overlap_chars = 450
+
+    called_table_name = None
+    called_upsert_payloads = None
+    called_on_conflict = None
+
+    class MockQueryBuilder:
+        def __init__(self, table_name):
+            nonlocal called_table_name
+            called_table_name = table_name
+
+        def upsert(self, payloads, on_conflict=None):
+            nonlocal called_upsert_payloads, called_on_conflict
+            called_upsert_payloads = payloads
+            called_on_conflict = on_conflict
+            return self
+
+        def execute(self):
+            return self
+
+    class MockSupabase:
+        def table(self, name):
+            return MockQueryBuilder(name)
+
+    from backend.scripts.build_story_chunks import process_chapter
+
+    mock_sb = MockSupabase()
+    monkeypatch.setattr("backend.scripts.build_story_chunks.supabase", mock_sb)
+
+    chunks_count = await process_chapter(
+        chapter_num=1,
+        title="Test Chapter",
+        content_html="<p>Test content 1</p>",
+        args=MockArgs(),
+        chapter_id=123
+    )
+
+    assert chunks_count == 1
+    assert called_table_name == "story_chunks"
+    assert called_upsert_payloads is not None
+    assert len(called_upsert_payloads) == 1
+    assert called_upsert_payloads[0]["chapter_id"] == 123
+    assert called_on_conflict == "chapter_number,chunk_index,content_hash"
