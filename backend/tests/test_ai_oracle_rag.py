@@ -1,11 +1,42 @@
 import os
 import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
+from contextlib import contextmanager
+
 from backend.routes.ai_oracle import (
     is_oracle_rag_enabled,
     get_rag_context_for_oracle,
     call_ai_provider_result,
 )
+
+@contextmanager
+def patch_oracle_func(func_name, **kwargs):
+    import sys
+    patched = []
+    targets = []
+    for mod_name in list(sys.modules.keys()):
+        if mod_name.endswith("routes.ai_oracle"):
+            targets.append(f"{mod_name}.{func_name}")
+    if not targets:
+        targets = [f"routes.ai_oracle.{func_name}", f"backend.routes.ai_oracle.{func_name}"]
+
+    is_async = func_name != "get_rag_context_for_oracle"
+    mock_obj = AsyncMock(**kwargs) if is_async else MagicMock(**kwargs)
+    for target in targets:
+        try:
+            p = patch(target, mock_obj)
+            p.start()
+            patched.append(p)
+        except Exception:
+            pass
+    try:
+        yield mock_obj
+    finally:
+        for p in patched:
+            try:
+                p.stop()
+            except Exception:
+                pass
 
 # Test 1 & 2: is_oracle_rag_enabled default and values
 def test_is_oracle_rag_enabled():
@@ -128,3 +159,78 @@ async def test_call_ai_provider_result_prompt_formatting():
         assert "[RAG_CONTEXT_STORY_CHUNKS]" in ai_request.system_instruction
         assert "RAG content" in ai_request.system_instruction
         assert "Wiki info" in ai_request.system_instruction
+
+@pytest.mark.asyncio
+async def test_ask_oracle_endpoint_rag_routing():
+    import sys
+    print("\nALL AI ORACLE MODULES IN SYS:", [k for k in sys.modules.keys() if "ai_oracle" in k])
+    try:
+        from main import app
+    except ImportError:
+        from backend.main import app
+
+    from fastapi.testclient import TestClient
+    client = TestClient(app)
+
+    # 1. When ORACLE_RAG_ENABLED is OFF
+    if "ORACLE_RAG_ENABLED" in os.environ:
+        del os.environ["ORACLE_RAG_ENABLED"]
+
+    with patch_oracle_func("call_ai_provider_result") as mock_call, \
+         patch_oracle_func("check_cache", return_value=None), \
+         patch_oracle_func("get_wiki_context", return_value=""), \
+         patch_oracle_func("get_chapter_context", return_value=""), \
+         patch_oracle_func("check_rate_limit", return_value=True):
+
+        mock_result = MagicMock()
+        mock_result.status = "success"
+        mock_result.text = "Mock answer that is long enough to pass validation"
+        mock_call.return_value = mock_result
+
+        response = client.post("/oracle/ask", json={
+            "question": "Hàn Phong là ai?",
+            "chapter_progress": 10
+        })
+
+        print("DEBUG RESPONSE status:", response.status_code)
+        print("DEBUG RESPONSE text:", response.text.encode('ascii', errors='backslashreplace').decode('ascii'))
+        print("DEBUG mock_call called:", mock_call.called)
+        if mock_call.called:
+            print("DEBUG mock_call call_args:", str(mock_call.call_args).encode('ascii', errors='backslashreplace').decode('ascii'))
+
+        assert response.status_code == 200
+        assert response.json()["answer"] == "Mock answer that is long enough to pass validation"
+        assert response.json()["source"] == "ai_provider"
+
+        args, kwargs = mock_call.call_args
+        assert len(args) < 5 or args[4] == ""
+
+    # 2. When ORACLE_RAG_ENABLED is ON
+    os.environ["ORACLE_RAG_ENABLED"] = "true"
+
+    with patch_oracle_func("call_ai_provider_result") as mock_call, \
+         patch_oracle_func("check_cache", return_value=None), \
+         patch_oracle_func("get_wiki_context", return_value=""), \
+         patch_oracle_func("get_chapter_context", return_value=""), \
+         patch_oracle_func("check_rate_limit", return_value=True), \
+         patch_oracle_func("get_rag_context_for_oracle", return_value={"context_text": "Mock RAG Context", "citations": []}):
+
+        mock_result = MagicMock()
+        mock_result.status = "success"
+        mock_result.text = "Mock RAG answer that is long enough to pass validation"
+        mock_call.return_value = mock_result
+
+        response = client.post("/oracle/ask", json={
+            "question": "Hàn Phong là ai?",
+            "chapter_progress": 10
+        })
+
+        assert response.status_code == 200
+        assert response.json()["answer"] == "Mock RAG answer that is long enough to pass validation"
+
+        args, kwargs = mock_call.call_args
+        assert args[4] == "Mock RAG Context"
+
+    # Cleanup
+    if "ORACLE_RAG_ENABLED" in os.environ:
+        del os.environ["ORACLE_RAG_ENABLED"]
