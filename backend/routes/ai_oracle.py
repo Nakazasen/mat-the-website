@@ -16,7 +16,7 @@ import os
 import re
 from datetime import datetime, timedelta, timezone
 from time import perf_counter
-from typing import Optional, Any
+from typing import Optional, Any, Literal
 
 import httpx
 from fastapi import APIRouter, Header, HTTPException, Request
@@ -1222,3 +1222,95 @@ async def oracle_rag_answer_preview(
             status_code=503,
             detail=f"Service Unavailable: RAG answer generation failed: {str(e)}"
         )
+
+
+class OracleFeedbackRequest(BaseModel):
+    question: str = Field(..., min_length=1, max_length=1000)
+    answer: Optional[str] = Field(None, max_length=8000)
+    source: Optional[str] = Field(None, max_length=100)
+    citations: list = Field(default_factory=list)
+    chapter_progress: Optional[int] = Field(None, ge=1)
+    feedback_type: Literal["wrong", "missing", "spoiler", "hallucination", "other"]
+    user_comment: Optional[str] = Field(None, max_length=2000)
+    suggested_correction: Optional[str] = Field(None, max_length=4000)
+
+
+class OracleFeedbackResponse(BaseModel):
+    ok: bool
+    feedback_id: str
+    status: str = "pending"
+
+
+@router.post("/feedback", response_model=OracleFeedbackResponse)
+async def create_oracle_feedback(body: OracleFeedbackRequest):
+    if not isinstance(body.citations, list):
+        raise HTTPException(status_code=400, detail="Citations must be a list")
+
+    try:
+        from main import supabase
+    except ImportError:
+        from backend.main import supabase
+
+    if not supabase:
+        raise HTTPException(
+            status_code=503,
+            detail="Database service unavailable"
+        )
+
+    feedback_data = {
+        "question": body.question,
+        "answer": body.answer,
+        "source": body.source,
+        "citations": body.citations,
+        "chapter_progress": body.chapter_progress,
+        "feedback_type": body.feedback_type,
+        "user_comment": body.user_comment,
+        "suggested_correction": body.suggested_correction,
+        "status": "pending"
+    }
+
+    try:
+        res = supabase.table("rag_feedback").insert(feedback_data).execute()
+        if not res.data:
+            raise HTTPException(status_code=500, detail="Failed to record feedback")
+        feedback_id = res.data[0]["id"]
+        return OracleFeedbackResponse(ok=True, feedback_id=str(feedback_id), status="pending")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+
+@router.get("/feedback/pending")
+async def get_pending_feedback(
+    x_oracle_feedback_admin_token: Optional[str] = Header(None, alias="X-Oracle-Feedback-Admin-Token"),
+    limit: int = 50
+):
+    admin_token = os.getenv("ORACLE_FEEDBACK_ADMIN_TOKEN")
+    if not admin_token:
+        raise HTTPException(status_code=403, detail="Admin token not configured")
+
+    if not x_oracle_feedback_admin_token or x_oracle_feedback_admin_token != admin_token:
+        raise HTTPException(status_code=403, detail="Forbidden: Invalid admin token")
+
+    try:
+        from main import supabase
+    except ImportError:
+        from backend.main import supabase
+
+    if not supabase:
+        raise HTTPException(
+            status_code=503,
+            detail="Database service unavailable"
+        )
+
+    try:
+        res = (
+            supabase.table("rag_feedback")
+            .select("*")
+            .eq("status", "pending")
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        return res.data or []
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
