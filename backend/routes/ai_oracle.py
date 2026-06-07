@@ -1377,3 +1377,112 @@ async def review_oracle_feedback(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+
+class CorrectionReviewRequest(BaseModel):
+    status: Literal["reviewed", "accepted", "rejected", "resolved", "needs_more_info"]
+    reviewer_note: Optional[str] = Field(None, max_length=2000)
+
+
+class CorrectionReviewResponse(BaseModel):
+    ok: bool
+    correction_id: str
+    status: str
+
+
+@router.get("/corrections/pending")
+async def get_pending_corrections(
+    x_oracle_feedback_admin_token: Optional[str] = Header(None, alias="X-Oracle-Feedback-Admin-Token"),
+    status: str = "draft",
+    correction_type: Optional[str] = None,
+    limit: int = 50
+):
+    admin_token = os.getenv("ORACLE_FEEDBACK_ADMIN_TOKEN")
+    if not admin_token:
+        raise HTTPException(status_code=403, detail="Admin token not configured")
+
+    if not x_oracle_feedback_admin_token or x_oracle_feedback_admin_token != admin_token:
+        raise HTTPException(status_code=403, detail="Forbidden: Invalid admin token")
+
+    try:
+        from main import supabase
+    except ImportError:
+        from backend.main import supabase
+
+    if not supabase:
+        raise HTTPException(
+            status_code=503,
+            detail="Database service unavailable"
+        )
+
+    try:
+        q = supabase.table("rag_corrections").select("*").eq("status", status)
+        if correction_type:
+            q = q.eq("correction_type", correction_type)
+        res = q.order("created_at", desc=True).limit(limit).execute()
+        return res.data or []
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+
+@router.patch("/corrections/{correction_id}", response_model=CorrectionReviewResponse)
+async def review_oracle_correction(
+    correction_id: str,
+    body: CorrectionReviewRequest,
+    x_oracle_feedback_admin_token: Optional[str] = Header(None, alias="X-Oracle-Feedback-Admin-Token")
+):
+    admin_token = os.getenv("ORACLE_FEEDBACK_ADMIN_TOKEN")
+    if not admin_token:
+        raise HTTPException(status_code=403, detail="Admin token not configured")
+
+    if not x_oracle_feedback_admin_token or x_oracle_feedback_admin_token != admin_token:
+        raise HTTPException(status_code=403, detail="Forbidden: Invalid admin token")
+
+    try:
+        from main import supabase
+    except ImportError:
+        from backend.main import supabase
+
+    if not supabase:
+        raise HTTPException(
+            status_code=503,
+            detail="Database service unavailable"
+        )
+
+    status_map = {
+        "reviewed": "approved",
+        "accepted": "approved",
+        "rejected": "rejected",
+        "resolved": "applied",
+        "needs_more_info": "draft"
+    }
+    db_status = status_map.get(body.status)
+    if not db_status:
+        raise HTTPException(status_code=400, detail=f"Invalid status transition: {body.status}")
+
+    try:
+        # Check if correction exists
+        existing = supabase.table("rag_corrections").select("id").eq("id", correction_id).execute()
+        if not existing.data:
+            raise HTTPException(status_code=404, detail="Correction not found")
+
+        update_data = {
+            "status": db_status,
+            "reviewer_note": body.reviewer_note,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+
+        res = supabase.table("rag_corrections").update(update_data).eq("id", correction_id).execute()
+        if not res.data:
+            raise HTTPException(status_code=404, detail="Correction not found or update failed")
+
+        return CorrectionReviewResponse(
+            ok=True,
+            correction_id=str(res.data[0]["id"]),
+            status=res.data[0]["status"]
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+

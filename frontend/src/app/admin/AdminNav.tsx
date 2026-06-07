@@ -15,6 +15,7 @@ const navItems = [
     { href: '/admin/novel', label: 'Thông Tin Truyện', icon: Settings },
     { href: '/admin/comments', label: 'Bình Luận', icon: MessageSquare },
     { href: '/admin/feedback', label: 'Báo lỗi Oracle', icon: AlertCircle },
+    { href: '/admin/corrections', label: 'Bản nháp Oracle', icon: FileText },
     { href: '/admin/wiki', label: 'Wiki / Bách Khoa', icon: LibraryBig },
     { href: '/admin/ai', label: 'Cấu hình AI', icon: Cpu, superadminOnly: true },
     { href: '/admin/personnel', label: 'Nhân Sự', icon: Users, superadminOnly: true },

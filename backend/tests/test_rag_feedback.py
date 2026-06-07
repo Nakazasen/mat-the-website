@@ -291,3 +291,106 @@ def test_patch_feedback_success():
         stop_patches(patched)
         if "ORACLE_FEEDBACK_ADMIN_TOKEN" in os.environ:
             del os.environ["ORACLE_FEEDBACK_ADMIN_TOKEN"]
+
+
+def test_admin_corrections_pending_no_token():
+    if "ORACLE_FEEDBACK_ADMIN_TOKEN" in os.environ:
+        del os.environ["ORACLE_FEEDBACK_ADMIN_TOKEN"]
+
+    response = client.get("/oracle/corrections/pending")
+    assert response.status_code == 403
+
+
+def test_admin_corrections_pending_wrong_token():
+    os.environ["ORACLE_FEEDBACK_ADMIN_TOKEN"] = "super-secret-admin-token"
+    headers = {"X-Oracle-Feedback-Admin-Token": "wrong-token"}
+    response = client.get("/oracle/corrections/pending", headers=headers)
+    assert response.status_code == 403
+    if "ORACLE_FEEDBACK_ADMIN_TOKEN" in os.environ:
+        del os.environ["ORACLE_FEEDBACK_ADMIN_TOKEN"]
+
+
+def test_admin_corrections_pending_correct_token():
+    os.environ["ORACLE_FEEDBACK_ADMIN_TOKEN"] = "super-secret-admin-token"
+    headers = {"X-Oracle-Feedback-Admin-Token": "super-secret-admin-token"}
+
+    mock_supabase, patched = patch_supabase()
+
+    mock_resp = MagicMock()
+    mock_resp.data = [
+        {"id": "c-uuid-1", "entity_name": "E1", "status": "draft", "correction_type": "entity_profile"},
+        {"id": "c-uuid-2", "entity_name": "E2", "status": "draft", "correction_type": "entity_profile"},
+    ]
+
+    builder_mock = MagicMock()
+    mock_supabase.table.return_value = builder_mock
+    builder_mock.select.return_value = builder_mock
+    builder_mock.eq.return_value = builder_mock
+    builder_mock.order.return_value = builder_mock
+    builder_mock.limit.return_value = builder_mock
+    builder_mock.execute.return_value = mock_resp
+
+    try:
+        response = client.get("/oracle/corrections/pending?correction_type=entity_profile", headers=headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 2
+        assert data[0]["entity_name"] == "E1"
+        assert data[1]["entity_name"] == "E2"
+
+        mock_supabase.table.assert_called_with("rag_corrections")
+    finally:
+        stop_patches(patched)
+        if "ORACLE_FEEDBACK_ADMIN_TOKEN" in os.environ:
+            del os.environ["ORACLE_FEEDBACK_ADMIN_TOKEN"]
+
+
+def test_patch_correction_no_token():
+    if "ORACLE_FEEDBACK_ADMIN_TOKEN" in os.environ:
+        del os.environ["ORACLE_FEEDBACK_ADMIN_TOKEN"]
+    response = client.patch("/oracle/corrections/c-uuid", json={"status": "accepted"})
+    assert response.status_code == 403
+
+
+def test_patch_correction_invalid_status():
+    os.environ["ORACLE_FEEDBACK_ADMIN_TOKEN"] = "super-secret-admin-token"
+    headers = {"X-Oracle-Feedback-Admin-Token": "super-secret-admin-token"}
+    response = client.patch("/oracle/corrections/c-uuid", json={"status": "invalid-status"}, headers=headers)
+    assert response.status_code == 422
+    if "ORACLE_FEEDBACK_ADMIN_TOKEN" in os.environ:
+        del os.environ["ORACLE_FEEDBACK_ADMIN_TOKEN"]
+
+
+def test_patch_correction_success():
+    os.environ["ORACLE_FEEDBACK_ADMIN_TOKEN"] = "super-secret-admin-token"
+    headers = {"X-Oracle-Feedback-Admin-Token": "super-secret-admin-token"}
+
+    mock_supabase, patched = patch_supabase()
+
+    mock_select_resp = MagicMock()
+    mock_select_resp.data = [{"id": "c-uuid"}]
+    mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_select_resp
+
+    mock_update_resp = MagicMock()
+    mock_update_resp.data = [{"id": "c-uuid", "status": "approved"}]
+    mock_supabase.table.return_value.update.return_value.eq.return_value.execute.return_value = mock_update_resp
+
+    payload = {
+        "status": "accepted",
+        "reviewer_note": "Approved profile"
+    }
+
+    try:
+        response = client.patch("/oracle/corrections/c-uuid", json=payload, headers=headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["ok"] is True
+        assert data["correction_id"] == "c-uuid"
+        assert data["status"] == "approved"
+
+        mock_supabase.table.assert_called_with("rag_corrections")
+    finally:
+        stop_patches(patched)
+        if "ORACLE_FEEDBACK_ADMIN_TOKEN" in os.environ:
+            del os.environ["ORACLE_FEEDBACK_ADMIN_TOKEN"]
+
