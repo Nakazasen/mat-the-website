@@ -52,6 +52,7 @@ QUY TẮC TUYỆT ĐỐI KHÔNG ĐƯỢC VI PHẠM:
 4. Độ dài câu trả lời ngắn gọn, cô đọng, tối đa 150 từ. Trả lời đầy đủ, trọn vẹn ý, tuyệt đối không được cắt ngang giữa câu hoặc bỏ dở câu.
 5. Tuyệt đối KHÔNG ĐƯỢC BỊA ĐẶT thông tin không có trong truyện hoặc không có trong dữ liệu wiki/ngữ cảnh được cung cấp. Nếu không chắc chắn, hãy trả lời: "Dữ liệu chưa được giải mã."
 6. Không sử dụng tiêu đề rỗng như "[THÔNG BÁO HỆ THỐNG]" nếu không có nội dung giải thích chi tiết đi kèm.
+7. Nếu câu trả lời dựa trên thông tin từ thư viện tự động ([THƯ VIỆN TỰ ĐỘNG - ...]), câu trả lời PHẢI đi kèm cảnh báo ở cuối rằng đây là dữ liệu tự động trích xuất từ truyện, chưa phải canon wiki chính thức.
 
 Dữ liệu Wiki (Nhân vật, Thế lực, Vật phẩm, Địa điểm):
 {wiki_context}
@@ -116,7 +117,7 @@ def is_identity_question(question: str) -> bool:
     """Detects whether a question is an identity/entity identification query."""
     q = question.lower().strip()
     q = re.sub(r"[?\s]+$", "", q)
-    
+
     suffixes = (
         " là ai", " la ai",
         " là gì", " la gi",
@@ -129,7 +130,7 @@ def is_identity_question(question: str) -> bool:
     )
     if q.endswith(suffixes):
         return True
-        
+
     prefixes = (
         "ai là ", "ai la ",
         "giới thiệu ", "gioi thieu ",
@@ -138,7 +139,7 @@ def is_identity_question(question: str) -> bool:
     )
     if q.startswith(prefixes):
         return True
-        
+
     return False
 
 
@@ -147,7 +148,7 @@ def extract_entity_name(question: str) -> str:
     q = question.strip()
     q = re.sub(r"[?\s]+$", "", q)
     q_lower = q.lower()
-    
+
     suffixes = [
         " là vật phẩm gì", " la vat pham gi",
         " là thực thể gì", " la thuc the gi",
@@ -161,7 +162,7 @@ def extract_entity_name(question: str) -> str:
     for suffix in suffixes:
         if q_lower.endswith(suffix):
             return q[:-len(suffix)].strip()
-            
+
     prefixes = [
         "thông tin về ", "thong tin ve ",
         "giới thiệu ", "gioi thieu ",
@@ -171,52 +172,92 @@ def extract_entity_name(question: str) -> str:
     for prefix in prefixes:
         if q_lower.startswith(prefix):
             return q[len(prefix):].strip()
-            
+
     return q
 
 
 async def get_entity_context_for_oracle(supabase, question: str, chapter_cap: int | None = None) -> dict | None:
-    """Retrieves identity information from wiki_entries table based on question's main entity name."""
+    """Retrieves identity information from wiki_entries table, falling back to provisional_library based on question's main entity name."""
     if not supabase:
         return None
     entity_name = extract_entity_name(question)
     if not entity_name or len(entity_name) < 2:
         return None
-        
+
     try:
+        # 1. Search wiki_entries
         result = (
             supabase.table("wiki_entries")
-            .select("title, category, summary, content")
+            .select("title, category, summary, content, chapter_introduced")
             .ilike("title", f"%{entity_name}%")
             .limit(1)
             .execute()
         )
         if result.data:
             row = result.data[0]
-            title = row.get("title", "")
-            category = row.get("category", "") or ""
-            summary = row.get("summary", "") or ""
-            content = row.get("content", "") or ""
-            
-            desc = summary if summary else content
-            desc = desc.strip()
-            
-            context_text = f"- {title}"
-            if category:
-                context_text += f" (Phân loại: {category})"
-            context_text += f": {desc}"
-            
-            citation = {
-                "title": title,
-                "category": category,
-                "source": "wiki_entries"
-            }
-            
-            return {
-                "context_text": context_text,
-                "citations": [citation],
-                "source": "entity_profile"
-            }
+            chapter_introduced = row.get("chapter_introduced")
+            if chapter_cap is None or chapter_introduced is None or chapter_introduced <= chapter_cap:
+                title = row.get("title", "")
+                category = row.get("category", "") or ""
+                summary = row.get("summary", "") or ""
+                content = row.get("content", "") or ""
+
+                desc = summary if summary else content
+                desc = desc.strip()
+
+                context_text = f"[CANON WIKI] {title}"
+                if category:
+                    context_text += f" (Phân loại: {category})"
+                context_text += f": {desc}"
+
+                citation = {
+                    "title": title,
+                    "category": category,
+                    "source": "wiki_entries"
+                }
+
+                return {
+                    "context_text": context_text,
+                    "citations": [citation],
+                    "source": "entity_profile"
+                }
+
+        # 2. Fallback to provisional_library
+        prov_result = (
+            supabase.table("provisional_library")
+            .select("*")
+            .ilike("name", f"%{entity_name}%")
+            .in_("quality_class", ["high_confidence", "medium_confidence"])
+            .limit(1)
+            .execute()
+        )
+        if prov_result.data:
+            row = prov_result.data[0]
+            first_ch = row.get("first_chapter")
+            if chapter_cap is None or first_ch is None or first_ch <= chapter_cap:
+                name = row.get("name", "")
+                type_val = row.get("type", "") or ""
+                summary = row.get("summary", "") or ""
+                quality_class = row.get("quality_class", "")
+
+                ev_str = f" Evidence: Chương {first_ch}" if first_ch is not None else ""
+                context_text = f"[THƯ VIỆN TỰ ĐỘNG - {quality_class}] {name}"
+                if type_val:
+                    context_text += f" (Phân loại: {type_val})"
+                context_text += f": {summary}.{ev_str}"
+
+                citation = {
+                    "title": name,
+                    "category": type_val,
+                    "source": "provisional_library",
+                    "quality_class": quality_class
+                }
+
+                return {
+                    "context_text": context_text,
+                    "citations": [citation],
+                    "source": "entity_profile"
+                }
     except Exception as e:
         print(f"Warning: get_entity_context_for_oracle failed: {e}")
     return None
@@ -230,10 +271,10 @@ def build_rag_answer_prompt(
 ) -> str:
     """Builds the prompt instructing the AI to answer strictly based on RAG contexts (Entity profile & Story evidence)."""
     cap = chapter_cap if chapter_cap is not None else 9999
-    
+
     entity_section = f"--- [ENTITY_CONTEXT (ƯU TIÊN HÀNG ĐẦU BẰT BUỘC)] ---\n{entity_context}" if entity_context else "--- [ENTITY_CONTEXT] ---\nKhông có thông tin hồ sơ định danh trực tiếp."
     story_section = f"--- [STORY_EVIDENCE (BẰNG CHỨNG HỖ TRỢ)] ---\n{story_context}" if story_context else "--- [STORY_EVIDENCE] ---\nKhông có trích đoạn truyện hỗ trợ."
-    
+
     return f"""
 Bạn là "Hệ Thống" - một trí tuệ nhân tạo tối cao hỗ trợ người dùng trong thế giới tận thế của "Mạt Thế Sinh Hóa Nguy Cơ".
 Người dùng hiện đang đọc đến Chương {cap}. Bạn PHẢI tuân thủ các quy tắc sau:
@@ -252,6 +293,8 @@ Câu trả lời:
 
 Nguồn:
 [Liệt kê các nguồn dưới dạng: - Wiki: [Tên thực thể] hoặc - Chương X - Tiêu đề chương | chunk Y (như được ghi trong tiêu đề của chunk ngữ cảnh)]
+
+8. Nếu câu trả lời dựa trên thông tin từ thư viện tự động [THƯ VIỆN TỰ ĐỘNG - ...], bạn BẮT BUỘC phải ghi rõ đây là dữ liệu tự động trích xuất từ truyện, chưa phải canon wiki chính thức ở cuối câu trả lời.
 
 Ngữ cảnh RAG:
 {entity_section}
@@ -411,42 +454,33 @@ async def get_wiki_context(supabase, question: str, chapter_cap: int) -> str:
     if not supabase:
         return ""
     try:
-        words = [w for w in re.findall(r"[\wA-Za-zÀ-ỹ]{3,}", question) if w[0].isupper()]
-        # Also extract significant lowercase words (>= 4 chars, not stopwords)
-        extra_words = [
-            w for w in re.findall(r"[\wA-Za-zÀ-ỹ]{4,}", question)
-            if w.lower() not in QUESTION_STOPWORDS and w not in words
-        ]
-        search_words = (words + extra_words[:2])[:5]
-        if not search_words:
-            return ""
+        from backend.rag.retrieval import (
+            search_wiki_entries,
+            search_provisional_library,
+            merge_oracle_knowledge_results,
+        )
+        wiki_res = search_wiki_entries(supabase, question, chapter_cap, limit=3)
+        prov_res = search_provisional_library(supabase, question, chapter_cap, limit=3)
+        merged = merge_oracle_knowledge_results(wiki_res, prov_res, limit=5)
 
-        context_parts: list[str] = []
-        seen_titles: set[str] = set()
-        for word in search_words:
-            result = (
-                supabase.table("wiki_entries")
-                .select("title, category, summary, content")
-                .ilike("title", f"%{word}%")
-                .limit(3)
-                .execute()
-            )
-            for row in result.data or []:
-                title = row.get('title', '')
-                if title in seen_titles:
-                    continue
-                seen_titles.add(title)
-                summary = row.get('summary', '') or ''
-                content = row.get('content', '') or ''
-                category = row.get('category', '') or ''
-                desc = summary if summary else content
-                parts = [f"- {title}"]
-                if category:
-                    parts.append(f"(Phân loại: {category})")
-                parts.append(f": {desc[:400]}")
-                context_parts.append(" ".join(parts))
+        context_parts = []
+        for r in merged:
+            if r["source"] == "wiki_entries":
+                desc = (r.get("summary") or "").strip()
+                cat = r.get("category") or ""
+                cat_str = f" (Phân loại: {cat})" if cat else ""
+                context_parts.append(f"[CANON WIKI] {r['title']}{cat_str}: {desc[:400]}")
+            else:
+                desc = (r.get("summary") or "").strip()
+                cat = r.get("type") or r.get("category") or ""
+                cat_str = f" (Phân loại: {cat})" if cat else ""
+                first_ch = r.get("first_chapter")
+                ev_str = f" Evidence: Chương {first_ch}" if first_ch is not None else ""
+                context_parts.append(f"[THƯ VIỆN TỰ ĐỘNG - {r['quality_class']}] {r['name']}{cat_str}: {desc[:400]}.{ev_str}")
+
         return "\n".join(context_parts) or WIKI_EMPTY_CONTEXT
-    except Exception:
+    except Exception as e:
+        print(f"Warning: get_wiki_context failed: {e}")
         return ""
 
 
@@ -923,6 +957,8 @@ async def ask_oracle(body: OracleRequest, request: Request):
 
     if wiki_context and wiki_context != WIKI_EMPTY_CONTEXT and len(question.split()) <= 12:
         answer = f"[DỮ LIỆU HỆ THỐNG]\n{wiki_context}"
+        if "[THƯ VIỆN TỰ ĐỘNG" in wiki_context:
+            answer += "\n\nLưu ý: Dữ liệu trên được trích xuất tự động từ truyện, chưa phải canon wiki chính thức."
         await store_cache(supabase, question_hash, chapter_cap, answer, "local_wiki")
         return OracleResponse(answer=answer, source="local_wiki", chapter_cap=chapter_cap)
 

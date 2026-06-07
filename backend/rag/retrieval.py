@@ -419,3 +419,262 @@ def search_story_chunks_hybrid_lexical(
 
     # Merge, score, deduplicate, and limit
     return merge_retrieval_results(result_lists, query, limit)
+
+
+def search_wiki_entries(
+    supabase,
+    query: str,
+    chapter_cap: int | None = None,
+    limit: int = 5
+) -> list[dict]:
+    """
+    Searches the wiki_entries table.
+    Note: wiki_entries does not have a chapter column, so no spoiler cap filter is applied here.
+    """
+    if not query or not query.strip():
+        return []
+    if not supabase:
+        print("Warning: Supabase client is None in search_wiki_entries.")
+        return []
+
+    keywords = extract_search_keywords(query)
+    if not keywords:
+        return []
+
+    try:
+        # Build query for matching keywords in title or summary or content
+        or_parts = []
+        for kw in keywords:
+            or_parts.append(f"title.ilike.%{kw}%")
+            or_parts.append(f"summary.ilike.%{kw}%")
+            or_parts.append(f"content.ilike.%{kw}%")
+
+        q = supabase.table("wiki_entries").select("title, category, summary, content")
+        if or_parts:
+            q = q.or_(",".join(or_parts))
+
+        resp = q.limit(100).execute()
+        rows = resp.data or []
+
+        # Score and rank rows in Python
+        scored_rows = []
+        query_lower = query.lower().strip()
+        for row in rows:
+            title = (row.get("title") or "").strip()
+            summary = (row.get("summary") or "").strip()
+            content = (row.get("content") or "").strip()
+
+            title_lower = title.lower()
+            summary_lower = summary.lower()
+            content_lower = content.lower()
+
+            score = 0.0
+            # Phrase matches
+            if query_lower in title_lower:
+                score += 100.0
+            if query_lower in summary_lower:
+                score += 50.0
+            if query_lower in content_lower:
+                score += 30.0
+
+            # Keyword matches
+            for kw in keywords:
+                if kw in title_lower:
+                    score += 10.0
+                if kw in summary_lower:
+                    score += 5.0
+                if kw in content_lower:
+                    score += 2.0
+
+            scored_rows.append((score, row))
+
+        # Sort and return top limit
+        scored_rows.sort(key=lambda x: x[0], reverse=True)
+
+        results = []
+        for score, row in scored_rows:
+            if score <= 0:
+                continue
+            title = row.get("title", "")
+            category = row.get("category", "")
+            summary = row.get("summary") or row.get("content") or ""
+            results.append({
+                "title": title,
+                "name": title,
+                "type": category,
+                "category": category,
+                "summary": summary,
+                "source": "wiki_entries",
+                "quality_class": "canon",
+                "confidence": 1.0,
+                "evidence": []
+            })
+
+        return results[:limit]
+    except Exception as e:
+        print(f"Error searching wiki entries: {e}")
+        return []
+
+
+def search_provisional_library(
+    supabase,
+    query: str,
+    chapter_cap: int | None = None,
+    limit: int = 5
+) -> list[dict]:
+    """
+    Searches the provisional_library table.
+    Only allows high_confidence and medium_confidence.
+    Filters evidence by chapter_cap.
+    """
+    if not query or not query.strip():
+        return []
+    if not supabase:
+        print("Warning: Supabase client is None in search_provisional_library.")
+        return []
+
+    keywords = extract_search_keywords(query)
+    if not keywords:
+        return []
+
+    try:
+        # Build keyword match on name or summary
+        or_parts = []
+        for kw in keywords:
+            or_parts.append(f"name.ilike.%{kw}%")
+            or_parts.append(f"summary.ilike.%{kw}%")
+
+        q = supabase.table("provisional_library").select("*").in_("quality_class", ["high_confidence", "medium_confidence"])
+        if or_parts:
+            q = q.or_(",".join(or_parts))
+
+        resp = q.limit(100).execute()
+        rows = resp.data or []
+
+        scored_rows = []
+        query_lower = query.lower().strip()
+        for row in rows:
+            quality_class = row.get("quality_class", "")
+            if quality_class not in ["high_confidence", "medium_confidence"]:
+                continue
+            name = (row.get("name") or "").strip()
+            summary = (row.get("summary") or "").strip()
+            confidence = float(row.get("confidence", 0.0))
+            first_ch = row.get("first_chapter")
+
+            # Spoiler cap filter
+            if chapter_cap is not None:
+                if first_ch is not None and first_ch > chapter_cap:
+                    continue
+
+            # Filter evidence list programmatically
+            evidence = row.get("evidence") or []
+            if not isinstance(evidence, list):
+                evidence = []
+            filtered_evidence = []
+            for ev in evidence:
+                ch_num = ev.get("chapter_number")
+                if chapter_cap is not None and ch_num is not None:
+                    try:
+                        if int(ch_num) > chapter_cap:
+                            continue
+                    except (ValueError, TypeError):
+                        pass
+                filtered_evidence.append(ev)
+
+            if chapter_cap is not None and not filtered_evidence:
+                continue
+
+            name_lower = name.lower()
+            summary_lower = summary.lower()
+
+            score = 0.0
+            # Phrase matches
+            if query_lower in name_lower:
+                score += 100.0
+            if query_lower in summary_lower:
+                score += 50.0
+
+            # Keyword matches
+            for kw in keywords:
+                if kw in name_lower:
+                    score += 10.0
+                if kw in summary_lower:
+                    score += 5.0
+
+            # Confidence boost
+            if score > 0:
+                score += confidence * 20.0
+
+            scored_rows.append((score, confidence, row, filtered_evidence))
+
+        # Sort by score DESC, confidence DESC
+        scored_rows.sort(key=lambda x: (x[0], x[1]), reverse=True)
+
+        results = []
+        for score, confidence, row, filtered_evidence in scored_rows:
+            if score <= 0:
+                continue
+            name = row.get("name", "")
+            type_val = row.get("type", "")
+            summary = row.get("summary", "")
+            quality_class = row.get("quality_class", "")
+
+            # Recalculate first_chapter if needed
+            chaps = []
+            for ev in filtered_evidence:
+                ch_num = ev.get("chapter_number")
+                if ch_num is not None:
+                    try:
+                        chaps.append(int(ch_num))
+                    except (ValueError, TypeError):
+                        pass
+            first_ch = min(chaps) if chaps else row.get("first_chapter")
+
+            results.append({
+                "title": name,
+                "name": name,
+                "type": type_val,
+                "category": type_val,
+                "summary": summary,
+                "source": "provisional_library",
+                "quality_class": quality_class,
+                "confidence": confidence,
+                "evidence": filtered_evidence,
+                "first_chapter": first_ch
+            })
+
+        return results[:limit]
+    except Exception as e:
+        print(f"Error searching provisional library: {e}")
+        return []
+
+
+def merge_oracle_knowledge_results(
+    wiki_results: list[dict],
+    provisional_results: list[dict],
+    limit: int = 5
+) -> list[dict]:
+    """
+    Merges wiki_entries and provisional_library search results.
+    Prioritises wiki_entries (canon) and deduplicates by normalized name.
+    """
+    merged = []
+    seen_names = set()
+
+    def norm(n: str) -> str:
+        return re.sub(r"\s+", "", n.lower().strip())
+
+    for r in wiki_results:
+        name_val = r.get("title") or r.get("name") or ""
+        if name_val:
+            seen_names.add(norm(name_val))
+        merged.append(r)
+
+    for r in provisional_results:
+        name_val = r.get("title") or r.get("name") or ""
+        if norm(name_val) in seen_names:
+            continue
+        merged.append(r)
+
+    return merged[:limit]
