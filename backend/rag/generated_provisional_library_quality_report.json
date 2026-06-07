@@ -1,0 +1,104 @@
+{
+  "total": 4198,
+  "high_confidence": 756,
+  "medium_confidence": 508,
+  "weak_evidence": 2145,
+  "discard_candidate": 789,
+  "by_type": {
+    "entity": 3420,
+    "event": 326,
+    "relationship": 163,
+    "ability": 11,
+    "item": 9,
+    "faction": 2,
+    "chapter_summary": 257,
+    "location": 10
+  },
+  "top_high_confidence": [
+    {
+      "id": "f3ff0ec2e1d834983db4c2ec55054557",
+      "name": "Hàn Phong",
+      "type": "entity",
+      "confidence": 1.0,
+      "evidence_count": 919,
+      "quality_score": 21.0
+    },
+    {
+      "id": "32997171e910c4a73f73fd989443188b",
+      "name": "Ngô Soái",
+      "type": "entity",
+      "confidence": 1.0,
+      "evidence_count": 432,
+      "quality_score": 21.0
+    },
+    {
+      "id": "988c8d3373731216bc9f1ab603650fec",
+      "name": "Tường Vi",
+      "type": "entity",
+      "confidence": 1.0,
+      "evidence_count": 240,
+      "quality_score": 21.0
+    },
+    {
+      "id": "6ea6a2ad7aa45f2708b325429bc7b063",
+      "name": "Hi Vọng",
+      "type": "entity",
+      "confidence": 1.0,
+      "evidence_count": 231,
+      "quality_score": 21.0
+    },
+    {
+      "id": "7dbc14d3a7471d0256a384832cea0915",
+      "name": "Chu Vấn",
+      "type": "entity",
+      "confidence": 1.0,
+      "evidence_count": 199,
+      "quality_score": 21.0
+    },
+    {
+      "id": "f543a365b45b86e5d70349a0f18a34f4",
+      "name": "Liễu Huyên",
+      "type": "entity",
+      "confidence": 1.0,
+      "evidence_count": 184,
+      "quality_score": 21.0
+    },
+    {
+      "id": "22baa2eb8b88831f6ae598b02052a1c0",
+      "name": "Phương Tường",
+      "type": "entity",
+      "confidence": 1.0,
+      "evidence_count": 164,
+      "quality_score": 21.0
+    },
+    {
+      "id": "d49cef2c75324c6cff9048d781f9c82c",
+      "name": "Châu Lam",
+      "type": "entity",
+      "confidence": 1.0,
+      "evidence_count": 155,
+      "quality_score": 21.0
+    },
+    {
+      "id": "f44d6ae33dc9b806c307d15ed912c876",
+      "name": "Mã Mộng Đình",
+      "type": "entity",
+      "confidence": 1.0,
+      "evidence_count": 144,
+      "quality_score": 21.0
+    },
+    {
+      "id": "a8b534f9fb06930ed9577117c3182bc7",
+      "name": "Thanh Hà",
+      "type": "entity",
+      "confidence": 1.0,
+      "evidence_count": 127,
+      "quality_score": 21.0
+    }
+  ],
+  "top_discard_reasons": {
+    "noise_name": 783,
+    "duplicate_weaker": 6,
+    "name_too_long": 1
+  }
+}
