@@ -68,6 +68,7 @@ export default function AdminWikiCandidatesPage() {
   const [editedCandidates, setEditedCandidates] = useState<Record<string, Partial<WikiCandidate>>>({});
   const [newAlias, setNewAlias] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = useState<'editor' | 'json_preview'>('editor');
+  const [saving, setSaving] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     loadCandidates();
@@ -183,6 +184,62 @@ export default function AdminWikiCandidatesPage() {
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
+  };
+
+  const handleSaveDraft = async (original: WikiCandidate) => {
+    const id = original.correction_id;
+    setSaving(prev => ({ ...prev, [id]: true }));
+    setError(null);
+    setSuccess(null);
+
+    const updated = getUpdatedCandidate(original);
+
+    const proposedPayload = {
+      entity_name: updated.entity_name,
+      entity_type: updated.entity_type === "Nhân vật" ? "character" :
+                   updated.entity_type === "Sinh vật" ? "concept" :
+                   updated.entity_type === "Thế lực" ? "faction" :
+                   updated.entity_type === "Vật phẩm" ? "item" :
+                   updated.entity_type === "Địa điểm" ? "location" : "unknown",
+      summary: updated.summary,
+      content: updated.content,
+      aliases: updated.aliases,
+      evidence: updated.evidence,
+      source: "admin_edited_wiki_candidate",
+      human_review_required: true,
+      notes: "Edited by admin; not applied to wiki_entries."
+    };
+
+    try {
+      const res = await fetch(`/api/oracle/corrections/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          status: "accepted", // maps to "approved" in database
+          reviewer_note: "wiki candidate edited; not applied to wiki_entries",
+          proposed_content: JSON.stringify(proposedPayload)
+        })
+      });
+
+      if (res.ok) {
+        setSuccess(`Đã lưu bản nháp của thực thể "${updated.entity_name}" thành công!`);
+        setTimeout(() => setSuccess(null), 3000);
+      } else {
+        if (res.status === 401) {
+          setIsUnauthorized(true);
+          setError("Bạn cần đăng nhập admin");
+        } else {
+          const err = await res.json().catch(() => ({}));
+          setError(err.error || "Lỗi khi lưu bản nháp.");
+        }
+      }
+    } catch (err) {
+      setError("Lỗi kết nối server khi lưu bản nháp.");
+    } finally {
+      setSaving(prev => ({ ...prev, [id]: false }));
+    }
   };
 
   return (
@@ -466,6 +523,18 @@ export default function AdminWikiCandidatesPage() {
 
                       <div className="space-y-2">
                         <button
+                          onClick={() => handleSaveDraft(original)}
+                          disabled={saving[original.correction_id]}
+                          className="w-full flex items-center justify-center gap-2 py-2.5 bg-yellow-950/30 text-yellow-400 hover:bg-yellow-900/40 border border-yellow-800/40 rounded text-[11px] font-bold tracking-wider transition-colors cursor-pointer disabled:opacity-50"
+                        >
+                          {saving[original.correction_id] ? (
+                            <Loader2 className="animate-spin" size={12} />
+                          ) : (
+                            <CheckCircle2 size={12} />
+                          )}
+                          LƯU BẢN NHÁP
+                        </button>
+                        <button
                           onClick={() => handleCopyJSON(original)}
                           className="w-full flex items-center justify-center gap-2 py-2.5 bg-green-950/30 text-green-400 hover:bg-green-900/40 border border-green-800/40 rounded text-[11px] font-bold tracking-wider transition-colors cursor-pointer"
                         >
@@ -480,7 +549,7 @@ export default function AdminWikiCandidatesPage() {
                       </div>
 
                       <div className="text-[10px] text-gray-600 italic leading-snug border-t border-gray-900 pt-3">
-                        Lưu ý: Không có nút "Apply to wiki". Các chỉnh sửa trên trang này chỉ lưu ở local UI nhằm mục đích sinh payload chuẩn cho admin sao chép.
+                        Lưu ý: Không có nút "Apply to wiki". Các chỉnh sửa trên trang này sẽ được lưu lại vào bản nháp tri thức của hệ thống (RAG Corrections) khi nhấn "Lưu bản nháp".
                       </div>
                     </div>
                   </div>

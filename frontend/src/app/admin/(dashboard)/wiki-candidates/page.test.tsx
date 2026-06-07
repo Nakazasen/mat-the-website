@@ -188,6 +188,120 @@ describe("AdminWikiCandidatesPage Dashboard", () => {
     expect(copiedJSON.status).toBe("ready_for_review"); // Status is updated dynamically!
   });
 
+  it("calls backend API with mapped proposed_content when clicking Save Draft", async () => {
+    const mockCandidates = [
+      {
+        correction_id: "corr-123",
+        entity_name: "Tinh thể zombie",
+        entity_type: "Vật phẩm",
+        summary: "",
+        content: "",
+        aliases: ["Tinh thể"],
+        evidence: [],
+        source: "rag_corrections",
+        status: "needs_human_fill",
+        human_review_required: true,
+        notes: "test notes"
+      }
+    ];
+
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockCandidates,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ ok: true, correction_id: "corr-123", status: "approved" }),
+      });
+    global.fetch = fetchMock as typeof fetch;
+
+    render(<AdminWikiCandidatesPage />);
+
+    await screen.findByText("Tinh thể zombie");
+
+    // Edit summary & content
+    const summaryInput = screen.getByPlaceholderText("Nhập tóm tắt một câu của thực thể...");
+    fireEvent.change(summaryInput, { target: { value: "Tóm tắt mới từ admin." } });
+
+    const contentInput = screen.getByPlaceholderText("Nhập chi tiết về thực thể, vai trò, thuộc tính...");
+    fireEvent.change(contentInput, { target: { value: "Chi tiết đầy đủ từ admin." } });
+
+    // Click Save Draft
+    const saveBtn = screen.getByRole("button", { name: "LƯU BẢN NHÁP" });
+    fireEvent.click(saveBtn);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    const patchCall = fetchMock.mock.calls[1];
+    expect(patchCall?.[0]).toBe("/api/oracle/corrections/corr-123");
+
+    const options = patchCall?.[1];
+    expect(options?.method).toBe("PATCH");
+
+    const body = JSON.parse(options?.body as string);
+    expect(body.status).toBe("accepted");
+    expect(body.reviewer_note).toBe("wiki candidate edited; not applied to wiki_entries");
+
+    // Verify mapped proposed_content payload details
+    const proposed = JSON.parse(body.proposed_content);
+    expect(proposed.entity_name).toBe("Tinh thể zombie");
+    expect(proposed.entity_type).toBe("item"); // mapped back from "Vật phẩm"
+    expect(proposed.summary).toBe("Tóm tắt mới từ admin.");
+    expect(proposed.content).toBe("Chi tiết đầy đủ từ admin.");
+    expect(proposed.aliases).toEqual(["Tinh thể"]);
+
+    // Success message displayed
+    await screen.findByText(/Đã lưu bản nháp của thực thể "Tinh thể zombie" thành công!/);
+  });
+
+  it("handles server errors gracefully and displays error message on Save Draft failure", async () => {
+    const mockCandidates = [
+      {
+        correction_id: "corr-123",
+        entity_name: "Tinh thể zombie",
+        entity_type: "Vật phẩm",
+        summary: "",
+        content: "",
+        aliases: [],
+        evidence: [],
+        source: "rag_corrections",
+        status: "needs_human_fill",
+        human_review_required: true,
+        notes: "test notes"
+      }
+    ];
+
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockCandidates,
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        json: async () => ({ error: "Database save error on server" }),
+      });
+    global.fetch = fetchMock as typeof fetch;
+
+    render(<AdminWikiCandidatesPage />);
+
+    await screen.findByText("Tinh thể zombie");
+
+    // Click Save Draft
+    const saveBtn = screen.getByRole("button", { name: "LƯU BẢN NHÁP" });
+    fireEvent.click(saveBtn);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    // Error message displayed
+    await screen.findByText("Database save error on server");
+  });
+
   it("checks navigation sidebar contains link to wiki-candidates page", async () => {
     render(<AdminNav />);
 

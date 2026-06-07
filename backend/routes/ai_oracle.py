@@ -1382,6 +1382,7 @@ async def review_oracle_feedback(
 class CorrectionReviewRequest(BaseModel):
     status: Literal["reviewed", "accepted", "rejected", "resolved", "needs_more_info"]
     reviewer_note: Optional[str] = Field(None, max_length=2000)
+    proposed_content: Optional[str] = Field(None)
 
 
 class CorrectionReviewResponse(BaseModel):
@@ -1461,16 +1462,31 @@ async def review_oracle_correction(
         raise HTTPException(status_code=400, detail=f"Invalid status transition: {body.status}")
 
     try:
-        # Check if correction exists
-        existing = supabase.table("rag_corrections").select("id").eq("id", correction_id).execute()
+        # Check if correction exists and get its type
+        existing = supabase.table("rag_corrections").select("id, correction_type").eq("id", correction_id).execute()
         if not existing.data:
             raise HTTPException(status_code=404, detail="Correction not found")
+
+        corr_type = existing.data[0].get("correction_type")
 
         update_data = {
             "status": db_status,
             "reviewer_note": body.reviewer_note,
             "updated_at": datetime.now(timezone.utc).isoformat()
         }
+
+        if body.proposed_content is not None:
+            if corr_type != "entity_profile":
+                raise HTTPException(status_code=400, detail="Only entity_profile corrections can have their proposed content updated")
+            try:
+                import json
+                parsed = json.loads(body.proposed_content)
+                if not isinstance(parsed, dict):
+                    raise HTTPException(status_code=400, detail="proposed_content must be a JSON object")
+            except (json.JSONDecodeError, TypeError):
+                raise HTTPException(status_code=400, detail="proposed_content must be a valid JSON string")
+
+            update_data["proposed_content"] = body.proposed_content
 
         res = supabase.table("rag_corrections").update(update_data).eq("id", correction_id).execute()
         if not res.data:

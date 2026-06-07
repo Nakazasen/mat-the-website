@@ -65,6 +65,7 @@ export async function PATCH(
       body: JSON.stringify({
         status: body.status,
         reviewer_note: body.reviewer_note,
+        proposed_content: body.proposed_content,
       }),
     });
 
