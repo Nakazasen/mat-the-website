@@ -203,3 +203,21 @@ def build_patch_payloads(
         })
 
     return patches
+
+
+def patch_dedupe_key(payload: Dict[str, Any]) -> str:
+    """
+    Generates a unique deduplication key for a patch payload.
+    Normalizes keys: target_type, target_id, target_name, query_pattern, patch_type.
+    """
+    tt = str(payload.get("target_type") or "").strip().lower()
+    tid = str(payload.get("target_id") or "").strip().lower()
+    tn = str(payload.get("target_name") or "").strip().lower()
+    qp = str(payload.get("query_pattern") or "").strip().lower()
+    pt = str(payload.get("patch_type") or "").strip().lower()
+
+    # Normalize whitespace
+    tn_norm = " ".join(tn.split())
+    qp_norm = " ".join(qp.split())
+
+    return f"{tt}:{tid}:{tn_norm}:{qp_norm}:{pt}"

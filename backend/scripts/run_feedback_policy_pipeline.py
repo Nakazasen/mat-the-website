@@ -1,0 +1,236 @@
+import os
+import sys
+import json
+import argparse
+from typing import Dict, List, Any
+
+# Ensure correct path resolution
+backend_path = r"D:\Sandbox\Web_matthesinhhoanguyco\mat-the-website\backend"
+if backend_path not in sys.path:
+    sys.path.insert(0, backend_path)
+parent_path = r"D:\Sandbox\Web_matthesinhhoanguyco\mat-the-website"
+if parent_path not in sys.path:
+    sys.path.insert(0, parent_path)
+
+try:
+    from main import supabase
+except ImportError:
+    from backend.main import supabase
+
+from backend.rag.provisional_feedback_aggregator import summarize_feedback
+from backend.rag.effective_patch_engine import build_patch_payloads, patch_dedupe_key
+
+def print_safe(text):
+    """Safely print text on Windows consoles to prevent encoding errors."""
+    try:
+        print(text)
+    except UnicodeEncodeError:
+        print(text.encode('ascii', errors='backslashreplace').decode('ascii'))
+
+def fetch_feedback_records(limit: int, since_hours: int = None) -> List[Dict[str, Any]]:
+    try:
+        query = supabase.table("provisional_library_feedback").select("*")
+        if since_hours:
+            import datetime
+            cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=since_hours)
+            query = query.gte("created_at", cutoff.isoformat())
+        res = query.limit(limit).execute()
+        return res.data or []
+    except Exception as e:
+        print_safe(f"Error fetching feedback from Supabase: {e}")
+        return []
+
+def fetch_provisional_records(pids: List[str]) -> Dict[str, Dict[str, Any]]:
+    if not pids:
+        return {}
+    try:
+        records = {}
+        batch_size = 100
+        for i in range(0, len(pids), batch_size):
+            batch = pids[i:i+batch_size]
+            res = supabase.table("provisional_library").select("*").in_("id", batch).execute()
+            for r in (res.data or []):
+                if r.get("id"):
+                    records[r["id"]] = r
+        return records
+    except Exception as e:
+        print_safe(f"Error fetching provisional records: {e}")
+        return {}
+
+def fetch_existing_active_patches() -> List[Dict[str, Any]]:
+    try:
+        res = supabase.table("provisional_library_effective_patches").select("*").eq("effective_status", "active").execute()
+        return res.data or []
+    except Exception as e:
+        print_safe(f"Error fetching existing active patches: {e}")
+        return []
+
+def write_summaries(summaries: List[Dict[str, Any]], dry_run: bool) -> Dict[str, Any]:
+    stats = {"upserted": 0, "failed": 0, "errors": []}
+    if not summaries:
+        return stats
+
+    if dry_run:
+        stats["upserted"] = len(summaries)
+        return stats
+
+    batch_size = 100
+    for i in range(0, len(summaries), batch_size):
+        batch = summaries[i:i+batch_size]
+        try:
+            res = supabase.table("provisional_library_feedback_summary").upsert(batch).execute()
+            stats["upserted"] += len(res.data or [])
+        except Exception as e:
+            stats["failed"] += len(batch)
+            stats["errors"].append(str(e))
+            
+    return stats
+
+def write_patches(patches: List[Dict[str, Any]], dry_run: bool) -> Dict[str, Any]:
+    stats = {"upserted": 0, "failed": 0, "errors": []}
+    if not patches:
+        return stats
+
+    if dry_run:
+        stats["upserted"] = len(patches)
+        return stats
+
+    cleaned_patches = []
+    for p in patches:
+        clean = dict(p)
+        for k, v in clean.items():
+            if isinstance(v, set):
+                clean[k] = list(v)
+        cleaned_patches.append(clean)
+
+    batch_size = 100
+    for i in range(0, len(cleaned_patches), batch_size):
+        batch = cleaned_patches[i:i+batch_size]
+        try:
+            res = supabase.table("provisional_library_effective_patches").insert(batch).execute()
+            stats["upserted"] += len(res.data or [])
+        except Exception as e:
+            stats["failed"] += len(batch)
+            stats["errors"].append(str(e))
+            
+    return stats
+
+def clear_selective_oracle_cache(target_names: List[str], dry_run: bool) -> int:
+    if not target_names:
+        return 0
+    try:
+        # Fetch all cache entries
+        res = supabase.table("oracle_cache").select("id, response").execute()
+        cache_entries = res.data or []
+        
+        ids_to_delete = []
+        for entry in cache_entries:
+            resp = (entry.get("response") or "").lower()
+            for name in target_names:
+                if name.lower() in resp:
+                    ids_to_delete.append(entry["id"])
+                    break
+        
+        if ids_to_delete and not dry_run:
+            batch_size = 100
+            for i in range(0, len(ids_to_delete), batch_size):
+                batch = ids_to_delete[i:i+batch_size]
+                supabase.table("oracle_cache").delete().in_("id", batch).execute()
+                
+        return len(ids_to_delete)
+    except Exception as e:
+        print_safe(f"Error clearing cache selectively: {e}")
+        return 0
+
+def main():
+    parser = argparse.ArgumentParser(description="Run feedback summary, patch building, and cache invalidation pipeline.")
+    parser.add_argument("--dry-run", action="store_true", help="Perform dry-run (no DB write).")
+    parser.add_argument("--write", action="store_true", help="Commit summaries and patches to the database.")
+    parser.add_argument("--limit", type=int, default=5000, help="Limit maximum feedback rows to fetch.")
+    parser.add_argument("--json", action="store_true", help="Format console summary output as JSON.")
+    parser.add_argument("--clear-cache", action="store_true", help="Selectively clear oracle cache for patched entities.")
+    parser.add_argument("--since-hours", type=int, help="Limit feedback records to those created within since-hours.")
+    
+    args = parser.parse_args()
+    
+    dry_run = True
+    if args.write and not args.dry_run:
+        dry_run = False
+
+    # 1. Fetch Feedback
+    feedback_rows = fetch_feedback_records(args.limit, args.since_hours)
+    
+    # 2. Build Feedback Summaries
+    summaries = summarize_feedback(feedback_rows)
+    
+    # 3. Fetch target provisional records
+    pids = list(set(str(row["provisional_id"]) for row in feedback_rows if row.get("provisional_id")))
+    provisional_records = fetch_provisional_records(pids)
+    
+    # 4. Build Knowledge Patches
+    generated_patches = build_patch_payloads(feedback_rows, provisional_records)
+    
+    # 5. Idempotency Check
+    existing_patches = fetch_existing_active_patches()
+    existing_keys = {patch_dedupe_key(p) for p in existing_patches}
+    
+    new_patches = []
+    for p in generated_patches:
+        key = patch_dedupe_key(p)
+        if key not in existing_keys:
+            new_patches.append(p)
+            existing_keys.add(key)  # Avoid adding duplicates within the same run
+
+    # 6. Database Writes
+    summary_stats = write_summaries(summaries, dry_run=dry_run)
+    patch_stats = write_patches(new_patches, dry_run=dry_run)
+    
+    # 7. Collect names for cache clearing
+    target_names_to_clear = set()
+    for p in generated_patches:
+        tn = p.get("target_name")
+        if tn and len(tn) >= 2:
+            target_names_to_clear.add(tn)
+        
+        qp = p.get("query_pattern")
+        if qp:
+            # Extract basic entity name from patterns like "Hàn Phong là ai?"
+            clean_qp = qp.replace(" là ai?", "").replace(" là gì?", "").strip()
+            if len(clean_qp) >= 2:
+                target_names_to_clear.add(clean_qp)
+
+    # 8. Cache Invalidation
+    cache_deleted = 0
+    if args.clear_cache and target_names_to_clear:
+        cache_deleted = clear_selective_oracle_cache(list(target_names_to_clear), dry_run=dry_run)
+    elif args.clear_cache:
+        print_safe("Cache clearing requested but no target patched names found. Skipping cache invalidation.")
+        
+    report = {
+        "feedback_rows_read": len(feedback_rows),
+        "summary_rows_built": len(summaries),
+        "summary_rows_written": summary_stats["upserted"],
+        "patches_built": len(generated_patches),
+        "patches_written": patch_stats["upserted"],
+        "cache_rows_deleted": cache_deleted,
+        "dry_run": dry_run
+    }
+    
+    if args.json:
+        print_safe(json.dumps(report, indent=2))
+    else:
+        print_safe("-" * 60)
+        print_safe("FEEDBACK POLICY PIPELINE REPORT:")
+        print_safe(f"Mode: {'DRY-RUN' if dry_run else 'WRITE'}")
+        print_safe(f"Feedback rows read: {report['feedback_rows_read']}")
+        print_safe(f"Summaries built: {report['summary_rows_built']} (written: {report['summary_rows_written']})")
+        print_safe(f"Patches generated: {report['patches_built']} (written: {report['patches_written']})")
+        print_safe(f"Cache rows deleted: {report['cache_rows_deleted']}")
+        if summary_stats["errors"]:
+            print_safe(f"Summary Errors: {summary_stats['errors']}")
+        if patch_stats["errors"]:
+            print_safe(f"Patch Errors: {patch_stats['errors']}")
+        print_safe("-" * 60)
+
+if __name__ == "__main__":
+    main()
