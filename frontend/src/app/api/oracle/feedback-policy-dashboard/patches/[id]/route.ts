@@ -1,0 +1,149 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getServerAdminClient } from "@/lib/supabase-server";
+
+/**
+ * PATCH /api/oracle/feedback-policy-dashboard/patches/[id]
+ * Disables or restores an effective patch.
+ * Requires admin session.
+ */
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+
+    // 1. Verify Supabase admin session
+    const supabase = await getServerAdminClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json(
+        { error: "Unauthorized: Vui lòng đăng nhập admin" },
+        { status: 401 }
+      );
+    }
+
+    // 2. Parse request body
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { error: "Invalid JSON body" },
+        { status: 400 }
+      );
+    }
+
+    const { action, reviewer_note } = body;
+
+    // 3. Validate request parameters
+    if (action !== "disable" && action !== "restore") {
+      return NextResponse.json(
+        { error: "Action must be 'disable' or 'restore'" },
+        { status: 400 }
+      );
+    }
+
+    if (typeof reviewer_note !== "string") {
+      return NextResponse.json(
+        { error: "Reviewer note must be a string" },
+        { status: 400 }
+      );
+    }
+
+    // 4. Fetch the target patch to check existence and retrieve target details
+    const { data: patch, error: fetchErr } = await supabase
+      .from("provisional_library_effective_patches")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (fetchErr || !patch) {
+      return NextResponse.json(
+        { error: "Patch not found" },
+        { status: 404 }
+      );
+    }
+
+    // 5. Calculate new status and reason
+    const newStatus = action === "disable" ? "disabled" : "active";
+    
+    // Append or construct the reviewer note
+    let newReason = patch.reason || "";
+    const prefix = action === "disable" ? "Disabled" : "Restored";
+    const noteText = reviewer_note.trim() ? `: ${reviewer_note.trim()}` : "";
+    const formattedNote = `[Admin ${prefix}${noteText}]`;
+    newReason = newReason.trim() ? `${newReason} | ${formattedNote}` : formattedNote;
+
+    // 6. Update the patch in database
+    const { error: updateErr } = await supabase
+      .from("provisional_library_effective_patches")
+      .update({
+        effective_status: newStatus,
+        reason: newReason,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", id);
+
+    if (updateErr) {
+      return NextResponse.json(
+        { error: `Database update failed: ${updateErr.message}` },
+        { status: 500 }
+      );
+    }
+
+    // 7. Clear selective oracle_cache based on target_name / query_pattern
+    const targetsToClear: string[] = [];
+    if (patch.target_name) {
+      targetsToClear.push(patch.target_name);
+    }
+    if (patch.query_pattern) {
+      targetsToClear.push(patch.query_pattern);
+    }
+
+    let cacheClearedCount = 0;
+    if (targetsToClear.length > 0) {
+      const { data: cacheEntries, error: cacheErr } = await supabase
+        .from("oracle_cache")
+        .select("id, response");
+
+      if (!cacheErr && cacheEntries) {
+        const idsToDelete: number[] = [];
+        for (const entry of cacheEntries) {
+          const responseText = (entry.response || "").toLowerCase();
+          for (const target of targetsToClear) {
+            if (responseText.includes(target.toLowerCase())) {
+              idsToDelete.push(entry.id);
+              break;
+            }
+          }
+        }
+
+        if (idsToDelete.length > 0) {
+          const { error: deleteErr } = await supabase
+            .from("oracle_cache")
+            .delete()
+            .in("id", idsToDelete);
+          
+          if (!deleteErr) {
+            cacheClearedCount = idsToDelete.length;
+          }
+        }
+      }
+    }
+
+    return NextResponse.json({
+      ok: true,
+      patch_id: id,
+      status: newStatus,
+      cache_cleared_count: cacheClearedCount
+    });
+
+  } catch (error: any) {
+    console.error("Error in patch status update route:", error);
+    return NextResponse.json(
+      { error: error.message || "Internal server error" },
+      { status: 500 }
+    );
+  }
+}

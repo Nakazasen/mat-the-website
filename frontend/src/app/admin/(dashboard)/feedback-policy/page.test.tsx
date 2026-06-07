@@ -167,4 +167,135 @@ describe("AdminFeedbackPolicyDashboard Page", () => {
     expect(screen.queryByRole("button", { name: /áp dụng/i })).not.toBeInTheDocument();
     expect(screen.queryByPlaceholderText(/token/i)).not.toBeInTheDocument();
   });
+
+  it("allows admin to disable and restore patches with a reviewer note", async () => {
+    const mockData = {
+      feedback_recent: [],
+      summaries: [],
+      patches: [
+        {
+          id: "patch-111",
+          target_type: "query",
+          target_id: null,
+          target_name: "Hàn Phong",
+          query_pattern: "Hàn Phong là ai?",
+          patch_type: "suppress_related_for_identity_query",
+          effective_status: "active",
+          oracle_policy: "allow",
+          effective_summary: null,
+          effective_content: null,
+          effective_type: null,
+          evidence: [],
+          feedback_ids: ["feed-222"],
+          confidence: 1.0,
+          reason: "Ẩn các bản ghi gây nhiễu Hàn Phong đang, đệ Hàn Phong",
+          created_by: "community_rag_policy_engine",
+          created_at: "2026-06-07T13:00:00Z"
+        },
+        {
+          id: "patch-222",
+          target_type: "query",
+          target_id: null,
+          target_name: "Zombie",
+          query_pattern: "Zombie",
+          patch_type: "suppress_related_for_identity_query",
+          effective_status: "disabled",
+          oracle_policy: "allow",
+          effective_summary: null,
+          effective_content: null,
+          effective_type: null,
+          evidence: [],
+          feedback_ids: ["feed-333"],
+          confidence: 1.0,
+          reason: "Sai lệch tóm tắt",
+          created_by: "community_rag_policy_engine",
+          created_at: "2026-06-07T13:00:00Z"
+        }
+      ],
+      stats: {
+        feedback_total: 0,
+        summary_total: 0,
+        patch_active: 1,
+        warn_count: 0,
+        block_count: 0
+      }
+    };
+
+    let fetchCount = 0;
+    const fetchMock = vi.fn().mockImplementation(async (url, init) => {
+      fetchCount++;
+      // Initial load or refresh load
+      if (url === "/api/oracle/feedback-policy-dashboard") {
+        return {
+          ok: true,
+          json: async () => JSON.parse(JSON.stringify(mockData))
+        };
+      }
+      // Mutation PATCH call
+      if (url.startsWith("/api/oracle/feedback-policy-dashboard/patches/")) {
+        const body = JSON.parse(init.body);
+        expect(init.method).toBe("PATCH");
+        expect(body.reviewer_note).toBe("Sai thông tin thực tế");
+        if (body.action === "disable") {
+          mockData.patches[0].effective_status = "disabled";
+        } else if (body.action === "restore") {
+          mockData.patches[1].effective_status = "active";
+        }
+        return {
+          ok: true,
+          json: async () => ({ ok: true, patch_id: "patch-xxx", status: "success", cache_cleared_count: 1 })
+        };
+      }
+      return { ok: false, status: 500 };
+    });
+    global.fetch = fetchMock as typeof fetch;
+
+    render(<AdminFeedbackPolicyDashboard />);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalled();
+    });
+
+    // Switch to patches tab
+    const patchesTab = screen.getByRole("button", { name: /Bản vá kiến thức/ });
+    fireEvent.click(patchesTab);
+
+    // Verify filter dropdown/buttons render
+    expect(screen.getByText("Tất cả")).toBeInTheDocument();
+    expect(screen.getByText("Hoạt động")).toBeInTheDocument();
+    expect(screen.getByText("Đã tắt")).toBeInTheDocument();
+
+    // Verify active patch render with "TẮT BẢN VÁ" button
+    expect(screen.getByText("Hàn Phong")).toBeInTheDocument();
+    const disableBtn = screen.getByRole("button", { name: "TẮT BẢN VÁ" });
+    expect(disableBtn).toBeInTheDocument();
+
+    // Verify disabled patch render with "KHÔI PHỤC BẢN VÁ" button
+    expect(screen.getByText("Zombie")).toBeInTheDocument();
+    const restoreBtn = screen.getByRole("button", { name: "KHÔI PHỤC BẢN VÁ" });
+    expect(restoreBtn).toBeInTheDocument();
+
+    // Click "TẮT BẢN VÁ" to reveal input and confirmation
+    fireEvent.click(disableBtn);
+    const inputField = screen.getByPlaceholderText("Nhập lý do ngắn (bắt buộc)...");
+    expect(inputField).toBeInTheDocument();
+
+    // Fill in reviewer note and confirm
+    fireEvent.change(inputField, { target: { value: "Sai thông tin thực tế" } });
+    const confirmBtn = screen.getByRole("button", { name: "XÁC NHẬN TẮT" });
+    fireEvent.click(confirmBtn);
+
+    // Verify patch update status call
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/api/oracle/feedback-policy-dashboard/patches/patch-111"),
+        expect.objectContaining({
+          method: "PATCH"
+        })
+      );
+    });
+
+    // Verify alert message
+    await screen.findByText(/Đã tắt bản vá thành công/);
+  });
 });

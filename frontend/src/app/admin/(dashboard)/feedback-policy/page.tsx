@@ -96,7 +96,9 @@ const POLICY_BADGES: Record<string, { label: string; style: string }> = {
   deprioritize: { label: "Deprioritize (Hạ độ ưu tiên)", style: "text-orange-400 bg-orange-950/20 border-orange-800/40" },
   needs_review: { label: "Needs Review (Cần xem xét)", style: "text-orange-400 bg-orange-950/20 border-orange-800/40" },
   block: { label: "Block (Chặn hiển thị)", style: "text-red-400 bg-red-950/20 border-red-800/40" },
-  hidden_from_oracle: { label: "Hidden (Ẩn khỏi Oracle)", style: "text-red-400 bg-red-950/20 border-red-800/40" }
+  hidden_from_oracle: { label: "Hidden (Ẩn khỏi Oracle)", style: "text-red-400 bg-red-950/20 border-red-800/40" },
+  active: { label: "Active (Hoạt động)", style: "text-green-400 bg-green-950/20 border-green-800/40" },
+  disabled: { label: "Disabled (Đã tắt)", style: "text-red-400 bg-red-950/20 border-red-800/40" }
 };
 
 export default function AdminFeedbackPolicyDashboard() {
@@ -121,6 +123,15 @@ export default function AdminFeedbackPolicyDashboard() {
   
   // Selected detail modal/expand states
   const [expandedComments, setExpandedComments] = useState<Record<string, boolean>>({});
+
+  // Patch control and filtering states
+  const [patchFilter, setPatchFilter] = useState<'all' | 'active' | 'disabled'>('all');
+  const [actioningPatchId, setActioningPatchId] = useState<string | null>(null);
+  const [reviewerNote, setReviewerNote] = useState<string>('');
+  const [actionLoading, setActionLoading] = useState<boolean>(false);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
 
   useEffect(() => {
     loadDashboardData();
@@ -167,6 +178,49 @@ export default function AdminFeedbackPolicyDashboard() {
       [id]: !prev[id]
     }));
   };
+
+  const handleUpdatePatchStatus = async (patchId: string, action: 'disable' | 'restore', note: string) => {
+    setActionLoading(true);
+    setActionError(null);
+    setActionSuccess(null);
+
+    try {
+      const res = await fetch(`/api/oracle/feedback-policy-dashboard/patches/${patchId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action,
+          reviewer_note: note,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const successMessage = action === 'disable'
+          ? `Đã tắt bản vá thành công. Vô hiệu hóa ảnh hưởng lên RAG & xóa ${data.cache_cleared_count} cache liên quan.`
+          : `Đã khôi phục hoạt động bản vá thành công & xóa ${data.cache_cleared_count} cache liên quan.`;
+
+        setActionSuccess(successMessage);
+        setActioningPatchId(null);
+        setReviewerNote('');
+
+        // Reload dashboard data to refresh UI status and counters
+        await loadDashboardData();
+
+        setTimeout(() => setActionSuccess(null), 5000);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setActionError(err.error || "Không thể cập nhật trạng thái bản vá.");
+      }
+    } catch (err) {
+      setActionError("Lỗi kết nối khi gửi yêu cầu cập nhật bản vá.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
 
   const getPolicyBadge = (policyKey: string) => {
     const badge = POLICY_BADGES[policyKey] || { label: policyKey, style: "text-gray-400 bg-gray-900 border-gray-800" };
@@ -316,6 +370,21 @@ export default function AdminFeedbackPolicyDashboard() {
           <span>{error}</span>
         </div>
       )}
+
+      {actionSuccess && (
+        <div className="flex items-center gap-2 text-green-400 bg-green-950/20 border border-green-900/50 rounded-lg p-4 text-xs font-mono animate-in fade-in duration-200">
+          <CheckCircle2 size={16} />
+          <span>{actionSuccess}</span>
+        </div>
+      )}
+
+      {actionError && (
+        <div className="flex items-center gap-2 text-red-400 bg-red-950/20 border border-red-900/50 rounded-lg p-4 text-xs font-mono animate-in fade-in duration-200">
+          <AlertTriangle size={16} />
+          <span>{actionError}</span>
+        </div>
+      )}
+
 
       {/* Tab Content Panels */}
       {loading ? (
@@ -480,72 +549,196 @@ export default function AdminFeedbackPolicyDashboard() {
           {/* TAB 3: Effective Patches */}
           {activeTab === 'patches' && (
             <div className="space-y-3 font-mono">
-              <div className="text-xs text-gray-500 px-1">
-                Các bản vá kiến thức động (Knowledge Patches) đang hoạt động điều hướng luồng truy vấn chatbot RAG.
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1">
+                <div className="text-xs text-gray-500">
+                  Các bản vá kiến thức động (Knowledge Patches) đang hoạt động điều hướng luồng truy vấn chatbot RAG.
+                </div>
+
+                {/* Status Filter */}
+                <div className="flex items-center gap-1.5 bg-[#121212] border border-gray-800 rounded p-1 text-[10px] text-gray-400 self-start sm:self-auto">
+                  <span className="pl-1 uppercase tracking-wider font-bold">Lọc:</span>
+                  <button
+                    onClick={() => setPatchFilter('all')}
+                    className={`px-2 py-0.5 rounded transition-all cursor-pointer ${
+                      patchFilter === 'all'
+                        ? 'bg-green-600 text-white font-bold'
+                        : 'hover:text-gray-200'
+                    }`}
+                  >
+                    Tất cả
+                  </button>
+                  <button
+                    onClick={() => setPatchFilter('active')}
+                    className={`px-2 py-0.5 rounded transition-all cursor-pointer ${
+                      patchFilter === 'active'
+                        ? 'bg-green-600 text-white font-bold'
+                        : 'hover:text-gray-200'
+                    }`}
+                  >
+                    Hoạt động
+                  </button>
+                  <button
+                    onClick={() => setPatchFilter('disabled')}
+                    className={`px-2 py-0.5 rounded transition-all cursor-pointer ${
+                      patchFilter === 'disabled'
+                        ? 'bg-green-600 text-white font-bold'
+                        : 'hover:text-gray-200'
+                    }`}
+                  >
+                    Đã tắt
+                  </button>
+                </div>
               </div>
 
-              {patches.length === 0 ? (
-                <div className="bg-[#181818] border border-gray-800 rounded-lg p-8 text-center text-gray-500 text-xs italic">
-                  Không tìm thấy bản vá kiến thức nào đang hoạt động.
-                </div>
-              ) : (
-                <div className="grid gap-3">
-                  {patches.map((item) => (
-                    <div
-                      key={item.id}
-                      className="bg-[#181818] border border-gray-800 rounded-lg p-5 space-y-4 hover:border-gray-700 transition-all text-xs"
-                    >
-                      {/* Patch title row */}
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="flex flex-wrap items-center gap-3">
-                          <span className="px-2 py-0.5 bg-green-950/30 text-green-400 border border-green-900/30 rounded text-[10px] uppercase font-bold tracking-wider">
-                            {item.patch_type}
-                          </span>
-                          <span className="text-gray-100 font-bold text-sm font-sans">
-                            {item.target_name || item.query_pattern || "Bản vá không tên"}
-                          </span>
-                          <span className="text-gray-600">/</span>
-                          <span className="text-gray-400">Target: {item.target_type}</span>
-                        </div>
+              {(() => {
+                const filteredPatches = patches.filter(item => {
+                  if (patchFilter === 'active') return item.effective_status === 'active';
+                  if (patchFilter === 'disabled') return item.effective_status === 'disabled';
+                  return true;
+                });
 
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span>Status:</span> {getPolicyBadge(item.effective_status)}
-                          <span className="text-gray-600">|</span>
-                          <span>Policy:</span> {getPolicyBadge(item.oracle_policy)}
-                        </div>
-                      </div>
-
-                      {/* Patch content override info */}
-                      {(item.effective_summary || item.effective_type) && (
-                        <div className="bg-[#0f0f0f] border border-gray-900 rounded p-3.5 space-y-2 text-xs leading-relaxed font-sans text-gray-300">
-                          <div className="text-[10px] font-mono text-green-500 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                            <CheckCircle2 size={12} />
-                            Nội dung bản vá điều chỉnh:
-                          </div>
-                          {item.effective_type && (
-                            <div>Phân loại điều chỉnh: <span className="font-mono text-yellow-500 text-xs">{item.effective_type}</span></div>
-                          )}
-                          {item.effective_summary && (
-                            <div>Tóm tắt điều chỉnh: <span className="text-gray-100 italic">"{item.effective_summary}"</span></div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Patch metadata footer */}
-                      <div className="flex flex-wrap items-center justify-between gap-3 text-[10px] text-gray-500 pt-2 border-t border-gray-900/60">
-                        <div>
-                          Lý do tạo: <span className="text-gray-300 font-sans italic">{item.reason || "N/A"}</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span>Tạo bởi: <span className="text-gray-400">{item.created_by}</span></span>
-                          <span>|</span>
-                          <span>{new Date(item.created_at).toLocaleString('vi-VN')}</span>
-                        </div>
-                      </div>
+                if (filteredPatches.length === 0) {
+                  return (
+                    <div className="bg-[#181818] border border-gray-800 rounded-lg p-8 text-center text-gray-500 text-xs italic">
+                      Không tìm thấy bản vá kiến thức nào phù hợp bộ lọc.
                     </div>
-                  ))}
-                </div>
-              )}
+                  );
+                }
+
+                return (
+                  <div className="grid gap-3">
+                    {filteredPatches.map((item) => (
+                      <div
+                        key={item.id}
+                        className="bg-[#181818] border border-gray-800 rounded-lg p-5 space-y-4 hover:border-gray-700 transition-all text-xs"
+                      >
+                        {/* Patch title row */}
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div className="flex flex-wrap items-center gap-3">
+                            <span className="px-2 py-0.5 bg-green-950/30 text-green-400 border border-green-900/30 rounded text-[10px] uppercase font-bold tracking-wider">
+                              {item.patch_type}
+                            </span>
+                            <span className="text-gray-100 font-bold text-sm font-sans">
+                              {item.target_name || item.query_pattern || "Bản vá không tên"}
+                            </span>
+                            <span className="text-gray-600">/</span>
+                            <span className="text-gray-400">Target: {item.target_type}</span>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span>Status:</span> {getPolicyBadge(item.effective_status)}
+                            <span className="text-gray-600">|</span>
+                            <span>Policy:</span> {getPolicyBadge(item.oracle_policy)}
+                          </div>
+                        </div>
+
+                        {/* Patch content override info */}
+                        {(item.effective_summary || item.effective_type) && (
+                          <div className="bg-[#0f0f0f] border border-gray-900 rounded p-3.5 space-y-2 text-xs leading-relaxed font-sans text-gray-300">
+                            <div className="text-[10px] font-mono text-green-500 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                              <CheckCircle2 size={12} />
+                              Nội dung bản vá điều chỉnh:
+                            </div>
+                            {item.effective_type && (
+                              <div>Phân loại điều chỉnh: <span className="font-mono text-yellow-500 text-xs">{item.effective_type}</span></div>
+                            )}
+                            {item.effective_summary && (
+                              <div>Tóm tắt điều chỉnh: <span className="text-gray-100 italic">"{item.effective_summary}"</span></div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Patch metadata footer */}
+                        <div className="flex flex-wrap items-center justify-between gap-3 text-[10px] text-gray-500 pt-2 border-t border-gray-900/60">
+                          <div>
+                            Lý do tạo: <span className="text-gray-300 font-sans italic">{item.reason || "N/A"}</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span>Tạo bởi: <span className="text-gray-400">{item.created_by}</span></span>
+                            <span>|</span>
+                            <span>{new Date(item.created_at).toLocaleString('vi-VN')}</span>
+                          </div>
+                        </div>
+
+                        {/* Inline Admin Emergency Override Controls */}
+                        <div className="pt-3 border-t border-gray-900/60 flex flex-col gap-2">
+                          {actioningPatchId === item.id ? (
+                            <div className="p-3 bg-[#121212] border border-gray-900 rounded space-y-2.5 animate-in fade-in duration-200">
+                              <div className="text-[10px] text-gray-400 uppercase tracking-wider font-bold">
+                                Ghi chú người duyệt / Lý do kiểm toán (Reviewer Note):
+                              </div>
+                              <input
+                                type="text"
+                                value={reviewerNote}
+                                onChange={(e) => setReviewerNote(e.target.value)}
+                                placeholder="Nhập lý do ngắn (bắt buộc)..."
+                                className="w-full bg-[#0c0c0c] border border-gray-800 rounded px-2.5 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-green-500 font-sans"
+                                disabled={actionLoading}
+                              />
+                              <div className="flex justify-end gap-2">
+                                <button
+                                  onClick={() => {
+                                    setActioningPatchId(null);
+                                    setReviewerNote('');
+                                  }}
+                                  className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded text-[10px] font-bold cursor-pointer transition-colors"
+                                  disabled={actionLoading}
+                                >
+                                  HỦY BỎ
+                                </button>
+                                {item.effective_status === 'disabled' ? (
+                                  <button
+                                    onClick={() => handleUpdatePatchStatus(item.id, 'restore', reviewerNote)}
+                                    disabled={!reviewerNote.trim() || actionLoading}
+                                    className="px-3 py-1 bg-green-600 hover:bg-green-500 text-white rounded text-[10px] font-bold disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors flex items-center gap-1"
+                                  >
+                                    {actionLoading && <Loader2 className="animate-spin" size={10} />}
+                                    KHÔI PHỤC BẢN VÁ
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => handleUpdatePatchStatus(item.id, 'disable', reviewerNote)}
+                                    disabled={!reviewerNote.trim() || actionLoading}
+                                    className="px-3 py-1 bg-red-600 hover:bg-red-500 text-white rounded text-[10px] font-bold disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors flex items-center gap-1"
+                                  >
+                                    {actionLoading && <Loader2 className="animate-spin" size={10} />}
+                                    XÁC NHẬN TẮT
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex justify-end">
+                              {item.effective_status === 'disabled' ? (
+                                <button
+                                  onClick={() => {
+                                    setActioningPatchId(item.id);
+                                    setReviewerNote('');
+                                  }}
+                                  className="px-3 py-1 border border-green-800/40 text-green-400 hover:bg-green-950/20 hover:border-green-600 rounded text-[10px] font-bold transition-all cursor-pointer"
+                                >
+                                  KHÔI PHỤC BẢN VÁ
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => {
+                                    setActioningPatchId(item.id);
+                                    setReviewerNote('');
+                                  }}
+                                  className="px-3 py-1 border border-red-800/40 text-red-400 hover:bg-red-950/20 hover:border-red-600 rounded text-[10px] font-bold transition-all cursor-pointer"
+                                >
+                                  TẮT BẢN VÁ
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
           )}
 
