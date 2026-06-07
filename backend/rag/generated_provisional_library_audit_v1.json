@@ -1,0 +1,90 @@
+{
+  "total_records": 1264,
+  "count_by_type": {
+    "entity": 1196,
+    "event": 28,
+    "ability": 6,
+    "item": 7,
+    "faction": 1,
+    "relationship": 26
+  },
+  "count_by_quality_class": {
+    "high_confidence": 756,
+    "medium_confidence": 508
+  },
+  "noise_examples_detected": 0,
+  "noise_examples": [],
+  "short_adjective_examples_detected": 76,
+  "short_adjective_examples": [
+    "đây đã",
+    "Hắn đưa",
+    "độc ác",
+    "Hàn Phong đang",
+    "Châu Lam đang",
+    "Hắn đã",
+    "Sử Thắng",
+    "đang định",
+    "đều đang",
+    "Hắn đang",
+    "đang ở",
+    "Ngô Soái đang",
+    "đang được",
+    "ác độc",
+    "Hắn đảo",
+    "Hắn đem",
+    "Nàng đã",
+    "ác ý",
+    "Hắn đây",
+    "Hắn đồng",
+    "đang ôm",
+    "đang đánh",
+    "Chúng Ta Là Bạn",
+    "Tôi đang",
+    "Tường Vi đang",
+    "đang ẩn",
+    "Liễu Huyên đang",
+    "Hắn đành",
+    "Hắn đánh",
+    "Hắn đầu"
+  ],
+  "examples_by_type": {
+    "entity": [
+      "đây đã",
+      "Đạo Tốc",
+      "đại địa",
+      "đạo đội",
+      "đầu đã"
+    ],
+    "event": [
+      "Phá Tâm Linh tấn công",
+      "Lý Võ Lạc xuất hiện",
+      "Lam Nhu Thuỷ xuất hiện",
+      "Hàn Phong cứu",
+      "Ngô Soái cứu"
+    ],
+    "ability": [
+      "Thao Túng Hàn Băng",
+      "Băng Ảnh",
+      "Băng Độc",
+      "Băng Nô",
+      "Còn Băng độc"
+    ],
+    "item": [
+      "Súng ống",
+      "Đường Hạ Dao",
+      "Súng Diệt Quỷ",
+      "Vũ Khí Hoá",
+      "Súng đạn"
+    ],
+    "faction": [
+      "Đại Thiên Thần"
+    ],
+    "relationship": [
+      "đồng đội",
+      "Hàn Phong và Ngô Soái",
+      "Hàn Phong và Liễu Huyên",
+      "Hàn Phong và Lý Bình",
+      "Hàn Phong và Hàn Phong đã"
+    ]
+  }
+}
