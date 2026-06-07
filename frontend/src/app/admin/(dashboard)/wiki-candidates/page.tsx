@@ -462,6 +462,15 @@ export default function AdminWikiCandidatesPage() {
 
                       {/* Editing fields */}
                       <div className="space-y-3">
+                        {isEmpty && original.human_review_required && !(edits.canon_reviewed ?? original.canon_reviewed) && updated.status === 'needs_human_fill' && (
+                          <div className="flex items-start gap-2.5 text-red-400 bg-red-950/20 border border-red-900/40 rounded p-3 text-xs leading-normal font-sans">
+                            <AlertCircle className="shrink-0 text-red-400 mt-0.5" size={14} />
+                            <span>
+                              Ứng viên này chưa có nội dung canon thật. Không thể xác nhận canon hoặc apply vào Wiki cho đến khi admin/tác giả điền summary và content đã được duyệt.
+                            </span>
+                          </div>
+                        )}
+
                         <div className="space-y-1.5">
                           <label className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">
                             Tóm tắt ngắn (Summary)
@@ -582,21 +591,26 @@ export default function AdminWikiCandidatesPage() {
 
                       <div className="space-y-2">
                         {/* Checkbox canon_reviewed */}
-                        <div className="flex items-start gap-2 p-2 bg-[#0a0a0a]/40 border border-gray-900 rounded mb-2">
-                          <input
-                            type="checkbox"
-                            id={`canon-reviewed-${original.correction_id}`}
-                            checked={isCheckboxDisabled ? false : (edits.canon_reviewed ?? false)}
-                            disabled={isCheckboxDisabled}
-                            onChange={(e) => updateField(original.correction_id, 'canon_reviewed', e.target.checked)}
-                            className="mt-0.5 cursor-pointer accent-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                          />
-                          <label
-                            htmlFor={`canon-reviewed-${original.correction_id}`}
-                            className={`text-[10px] select-none cursor-pointer leading-tight ${isCheckboxDisabled ? 'text-gray-600 cursor-not-allowed' : 'text-gray-300 hover:text-gray-200'}`}
-                          >
-                            Tôi xác nhận nội dung này là canon đã duyệt
-                          </label>
+                        <div className="flex flex-col gap-1.5 p-2 bg-[#0a0a0a]/40 border border-gray-900 rounded mb-2">
+                          <div className="flex items-start gap-2">
+                            <input
+                              type="checkbox"
+                              id={`canon-reviewed-${original.correction_id}`}
+                              checked={isCheckboxDisabled ? false : (edits.canon_reviewed ?? false)}
+                              disabled={isCheckboxDisabled}
+                              onChange={(e) => updateField(original.correction_id, 'canon_reviewed', e.target.checked)}
+                              className="mt-0.5 cursor-pointer accent-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                            />
+                            <label
+                              htmlFor={`canon-reviewed-${original.correction_id}`}
+                              className={`text-[10px] select-none cursor-pointer leading-tight ${isCheckboxDisabled ? 'text-gray-600 cursor-not-allowed' : 'text-gray-300 hover:text-gray-200'}`}
+                            >
+                              Tôi xác nhận nội dung này là canon đã duyệt
+                            </label>
+                          </div>
+                          <div className="text-[9px] text-gray-500 pl-5 font-sans leading-relaxed">
+                            Chỉ tick khi nội dung đã được kiểm chứng từ canon truyện/tác giả. Không tick với placeholder, test, hoặc nội dung AI tự viết.
+                          </div>
                         </div>
                         {isCheckboxDisabled && (
                           <div className="text-[9px] text-gray-500 italic mt-1 font-sans mb-2">

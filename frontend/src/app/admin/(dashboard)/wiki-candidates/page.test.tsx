@@ -464,4 +464,52 @@ describe("AdminWikiCandidatesPage Dashboard", () => {
 
     await screen.findByText("Nội dung còn chứa dấu hiệu test/placeholder, chưa thể xác nhận canon.");
   });
+
+  it("renders a high-visibility warning when candidate has empty summary/content and human review is required, shows helper text near checkbox, and ensures no apply button or raw token input", async () => {
+    const mockCandidates = [
+      {
+        correction_id: "corr-123",
+        entity_name: "Tinh thể zombie",
+        entity_type: "Vật phẩm",
+        summary: "",
+        content: "",
+        aliases: [],
+        evidence: [],
+        source: "rag_corrections",
+        status: "needs_human_fill",
+        human_review_required: true,
+        notes: "Ghi chú"
+      }
+    ];
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => mockCandidates,
+    });
+    global.fetch = fetchMock as typeof fetch;
+
+    render(<AdminWikiCandidatesPage />);
+
+    // 1. Wait for candidate to load
+    await screen.findByText("Tinh thể zombie");
+
+    // 2. High-visibility warning should be displayed
+    const warningText = "Ứng viên này chưa có nội dung canon thật. Không thể xác nhận canon hoặc apply vào Wiki cho đến khi admin/tác giả điền summary và content đã được duyệt.";
+    expect(screen.getByText(warningText)).toBeInTheDocument();
+
+    // 3. Checkbox should be disabled
+    const checkbox = screen.getByLabelText("Tôi xác nhận nội dung này là canon đã duyệt") as HTMLInputElement;
+    expect(checkbox).toBeDisabled();
+
+    // 4. Helper text should be displayed near the checkbox
+    const helperText = "Chỉ tick khi nội dung đã được kiểm chứng từ canon truyện/tác giả. Không tick với placeholder, test, hoặc nội dung AI tự viết.";
+    expect(screen.getByText(helperText)).toBeInTheDocument();
+
+    // 5. No "Apply to wiki" button should exist
+    expect(screen.queryByRole("button", { name: /apply.*wiki/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /áp dụng/i })).not.toBeInTheDocument();
+
+    // 6. No raw token input should exist
+    expect(screen.queryByPlaceholderText(/token/i)).not.toBeInTheDocument();
+  });
 });
