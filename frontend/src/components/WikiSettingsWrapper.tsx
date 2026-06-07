@@ -1,8 +1,8 @@
 "use client";
 
+import React, { ReactNode } from "react";
 import { useTheme } from "@/context/ThemeContext";
 import ReaderSettingsPanel from "@/components/ReaderSettingsPanel";
-import { ReactNode } from "react";
 
 export default function WikiSettingsWrapper({ children }: { children: ReactNode }) {
     const { theme, fontFamily, fontSize } = useTheme();

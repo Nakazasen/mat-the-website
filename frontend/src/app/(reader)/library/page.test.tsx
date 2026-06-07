@@ -17,6 +17,20 @@ vi.mock("next/navigation", () => ({
   }
 }));
 
+// Mock @/context/ThemeContext
+vi.mock("@/context/ThemeContext", () => ({
+  useTheme() {
+    return {
+      theme: "dark",
+      fontFamily: "sans",
+      fontSize: 18,
+      setTheme: vi.fn(),
+      setFontSize: vi.fn(),
+      setFontFamily: vi.fn(),
+    };
+  }
+}));
+
 describe("PublicProvisionalLibraryPage", () => {
   const originalFetch = global.fetch;
 
