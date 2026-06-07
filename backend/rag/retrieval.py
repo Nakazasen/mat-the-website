@@ -421,6 +421,80 @@ def search_story_chunks_hybrid_lexical(
     return merge_retrieval_results(result_lists, query, limit)
 
 
+def normalize_vietnamese_text(text: str) -> str:
+    """Lowercase, strip diacritics, and collapse whitespace for matching."""
+    import unicodedata
+    if not text:
+        return ""
+    nfkd = unicodedata.normalize("NFKD", text.lower().strip())
+    base = "".join(c for c in nfkd if not unicodedata.combining(c))
+    base = re.sub(r"[^\w\s]", "", base)
+    return re.sub(r"\s+", " ", base).strip()
+
+
+def is_identity_question(question: str) -> bool:
+    """Detects whether a question is an identity/entity identification query."""
+    q = question.lower().strip()
+    q = re.sub(r"[?\s]+$", "", q)
+
+    suffixes = (
+        " là ai", " la ai",
+        " là gì", " la gi",
+        " là vật phẩm gì", " la vat pham gi",
+        " là thực thể gì", " la thuc the gi",
+        " là sinh vật gì", " la sinh vat gi",
+        " là tổ chức gì", " la to chuc gi",
+        " là kỹ năng gì", " la ky nang gi",
+        " là nhân vật nào", " la nhan vat nao"
+    )
+    if q.endswith(suffixes):
+        return True
+
+    prefixes = (
+        "ai là ", "ai la ",
+        "giới thiệu ", "gioi thieu ",
+        "thông tin về ", "thong tin ve ",
+        "nhân vật ", "nhan vat "
+    )
+    if q.startswith(prefixes):
+        return True
+
+    return False
+
+
+def extract_entity_name(question: str) -> str:
+    """Extracts potential entity/character name from an identity question."""
+    q = question.strip()
+    q = re.sub(r"[?\s]+$", "", q)
+    q_lower = q.lower()
+
+    suffixes = [
+        " là vật phẩm gì", " la vat pham gi",
+        " là thực thể gì", " la thuc the gi",
+        " là sinh vật gì", " la sinh vat gi",
+        " là nhân vật nào", " la nhan vat nao",
+        " là tổ chức gì", " la to chuc gi",
+        " là kỹ năng gì", " la ky nang gi",
+        " là ai", " la ai",
+        " là gì", " la gi"
+    ]
+    for suffix in suffixes:
+        if q_lower.endswith(suffix):
+            return q[:-len(suffix)].strip()
+
+    prefixes = [
+        "thông tin về ", "thong tin ve ",
+        "giới thiệu ", "gioi thieu ",
+        "nhân vật ", "nhan vat ",
+        "ai là ", "ai la "
+    ]
+    for prefix in prefixes:
+        if q_lower.startswith(prefix):
+            return q[len(prefix):].strip()
+
+    return q
+
+
 def search_wiki_entries(
     supabase,
     query: str,
@@ -588,23 +662,66 @@ def search_provisional_library(
             name_lower = name.lower()
             summary_lower = summary.lower()
 
+            is_identity = is_identity_question(query)
             score = 0.0
-            # Phrase matches
-            if query_lower in name_lower:
-                score += 100.0
-            if query_lower in summary_lower:
-                score += 50.0
 
-            # Keyword matches
-            for kw in keywords:
-                if kw in name_lower:
-                    score += 10.0
-                if kw in summary_lower:
-                    score += 5.0
+            if is_identity:
+                entity_name = extract_entity_name(query)
+                norm_query_entity = normalize_vietnamese_text(entity_name)
+                norm_record_name = normalize_vietnamese_text(name)
 
-            # Confidence boost
-            if score > 0:
-                score += confidence * 20.0
+                # Tokenize and compute coverage
+                query_tokens = [t for t in norm_query_entity.split() if t]
+                record_tokens = [t for t in norm_record_name.split() if t]
+
+                important_query_tokens = [t for t in query_tokens if t not in STOP_WORDS]
+                important_record_tokens = [t for t in record_tokens if t not in STOP_WORDS]
+
+                overlap_tokens = set(important_query_tokens) & set(important_record_tokens)
+                token_coverage = len(overlap_tokens) / len(important_query_tokens) if important_query_tokens else 0.0
+
+                # Precision gates
+                is_exact = (norm_query_entity == norm_record_name)
+                is_near = (norm_query_entity in norm_record_name or norm_record_name in norm_query_entity)
+                is_coverage = (token_coverage >= 0.75 and len(overlap_tokens) >= 2)
+
+                if is_exact or is_near or is_coverage:
+                    if is_exact:
+                        score = 200.0
+                    else:
+                        score = 100.0 + token_coverage * 50.0
+
+                    # Type match bonus
+                    type_val = row.get("type", "").lower()
+                    type_matched = False
+                    if type_val == "item" and any(k in query_lower for k in ["vật phẩm", "vat pham", "tinh thể", "tinh the"]):
+                        type_matched = True
+                    elif type_val == "ability" and any(k in query_lower for k in ["kỹ năng", "ky nang", "dị năng", "di nang"]):
+                        type_matched = True
+                    elif type_val == "entity" and any(k in query_lower for k in ["nhân vật", "nhan vat", "zombie"]):
+                        type_matched = True
+
+                    if type_matched:
+                        score += 30.0
+
+                    score += confidence * 20.0
+            else:
+                # Phrase matches
+                if query_lower in name_lower:
+                    score += 100.0
+                if query_lower in summary_lower:
+                    score += 50.0
+
+                # Keyword matches
+                for kw in keywords:
+                    if kw in name_lower:
+                        score += 10.0
+                    if kw in summary_lower:
+                        score += 5.0
+
+                # Confidence boost
+                if score > 0:
+                    score += confidence * 20.0
 
             scored_rows.append((score, confidence, row, filtered_evidence))
 

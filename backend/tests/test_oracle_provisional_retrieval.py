@@ -99,14 +99,14 @@ def test_search_wiki_entries():
         ]
     }
     client = MockSupabase(mock_data)
-    
+
     # Check simple search without chapter cap
     results = search_wiki_entries(client, "Hàn Phong", limit=5)
     assert len(results) == 1
     assert results[0]["title"] == "Hàn Phong"
     assert results[0]["source"] == "wiki_entries"
     assert results[0]["quality_class"] == "canon"
-    
+
     # Check search matches title properly
     results = search_wiki_entries(client, "zombie", limit=5)
     assert len(results) == 1
@@ -144,28 +144,74 @@ def test_search_provisional_library():
         ]
     }
     client = MockSupabase(mock_data)
-    
+
     # Quality gate test: only high/medium confidence
     results = search_provisional_library(client, "Bàng Lâm", limit=5)
     assert len(results) == 1
     assert results[0]["name"] == "Bàng Lâm"
     assert results[0]["quality_class"] == "high_confidence"
-    
+
     results = search_provisional_library(client, "tinh thể", limit=5)
     assert len(results) == 0  # weak_evidence is skipped
-    
+
     # Spoiler filtering on evidence list test
     results = search_provisional_library(client, "Bàng Lâm", chapter_cap=3, limit=5)
     assert len(results) == 1
     assert len(results[0]["evidence"]) == 1  # Chapter 6 evidence is filtered out
     assert results[0]["evidence"][0]["chapter_number"] == 2
     assert results[0]["first_chapter"] == 2
-    
+
     # Spoiler filtering out the entire record if no evidence remains or first_chapter > cap
     results = search_provisional_library(client, "Bàng Lâm", chapter_cap=1, limit=5)
     assert len(results) == 0  # first_chapter is 2, cap is 1
 
-# 3. Test merge_oracle_knowledge_results
+# 3. Precision tests for provisional library search
+def test_search_provisional_library_precision():
+    mock_data = {
+        "provisional_library": [
+            {
+                "id": "1",
+                "name": "Phá Tâm Linh",
+                "type": "ability",
+                "summary": "Kỹ năng dị năng giả",
+                "confidence": 0.9,
+                "quality_class": "high_confidence",
+                "first_chapter": 5,
+                "evidence": [
+                    {"chapter_number": 5, "content_preview": "Hàn Phong học được Phá Tâm Linh"}
+                ]
+            },
+            {
+                "id": "2",
+                "name": "Tinh thể zombie",
+                "type": "item",
+                "summary": "Vật phẩm nâng cấp",
+                "confidence": 0.8,
+                "quality_class": "medium_confidence",
+                "first_chapter": 4,
+                "evidence": [
+                    {"chapter_number": 4, "content_preview": "Hàn Phong tìm thấy tinh thể zombie"}
+                ]
+            }
+        ]
+    }
+    client = MockSupabase(mock_data)
+
+    # 1. Query "Tinh thể zombie là gì?" should NOT return "Phá Tâm Linh"
+    results = search_provisional_library(client, "Tinh thể zombie là gì?", limit=5)
+    assert len(results) == 1
+    assert results[0]["name"] == "Tinh thể zombie"
+
+    # 2. Query "Phá Tâm Linh là gì?" should return "Phá Tâm Linh"
+    results = search_provisional_library(client, "Phá Tâm Linh là gì?", limit=5)
+    assert len(results) == 1
+    assert results[0]["name"] == "Phá Tâm Linh"
+
+    # 3. Unrelated query like "Vũ khí đột biến là gì?" should return 0 since names do not match
+    results = search_provisional_library(client, "Vũ khí đột biến là gì?", limit=5)
+    assert len(results) == 0
+
+# 4. Test merge_oracle_knowledge_results
 def test_merge_oracle_knowledge_results():
     wiki_results = [
         {
@@ -195,23 +241,23 @@ def test_merge_oracle_knowledge_results():
             "quality_class": "medium_confidence"
         }
     ]
-    
+
     # Merge should prioritize canon and deduplicate
     merged = merge_oracle_knowledge_results(wiki_results, provisional_results, limit=5)
     assert len(merged) == 2
     assert merged[0]["source"] == "wiki_entries"  # Canon version preserved
     assert merged[1]["source"] == "provisional_library"  # Tinh thể zombie included
 
-# 4. Test warning instructions in prompt templates
+# 5. Test warning instructions in prompt templates
 def test_prompt_warnings():
     assert "THƯ VIỆN TỰ ĐỘNG" in SYSTEM_PROMPT_TEMPLATE
     assert "chưa phải canon wiki chính thức" in SYSTEM_PROMPT_TEMPLATE
-    
+
     prompt = build_rag_answer_prompt("question", "entity", "story", 10)
     assert "THƯ VIỆN TỰ ĐỘNG" in prompt
     assert "chưa phải canon wiki chính thức" in prompt
 
-# 5. Test ask_oracle local wiki response warning appending
+# 6. Test ask_oracle local wiki response warning appending
 @pytest.mark.asyncio
 async def test_ask_oracle_local_wiki_warning():
     try:
@@ -220,21 +266,21 @@ async def test_ask_oracle_local_wiki_warning():
         from backend.main import app
     from fastapi.testclient import TestClient
     client = TestClient(app)
-    
+
     # We patch get_wiki_context to return a string containing provisional prefix
     prov_context = "[THƯ VIỆN TỰ ĐỘNG - high_confidence] Tinh thể zombie: Dùng để nâng cấp. Evidence: Chương 5"
-    
+
     with patch_oracle_func("check_cache", return_value=None), \
          patch_oracle_func("get_wiki_context", return_value=prov_context), \
          patch_oracle_func("get_chapter_context", return_value=""), \
          patch_oracle_func("check_rate_limit", return_value=True), \
          patch_oracle_func("store_cache", return_value=None):
-         
+
          response = client.post("/oracle/ask", json={
              "question": "Tinh thể zombie",
              "chapter_progress": 10
          })
-         
+
          assert response.status_code == 200
          data = response.json()
          assert data["source"] == "local_wiki"
