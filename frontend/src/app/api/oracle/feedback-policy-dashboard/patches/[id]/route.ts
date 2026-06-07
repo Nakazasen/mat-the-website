@@ -25,9 +25,14 @@ export async function PATCH(
     }
 
     // 2. Create Service Role client to bypass RLS for administrative updates
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+    
+    // Log key length to debug if it is loaded on Vercel (safe log, no actual key exposure)
+    console.log("DB update client initialized with key length:", serviceRoleKey.length, "prefix:", serviceRoleKey.substring(0, 10));
+
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      serviceRoleKey,
       {
         cookies: {
           getAll() {
