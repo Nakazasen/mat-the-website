@@ -3,9 +3,12 @@
     "correction_id": "a4be616b-576d-4f7d-b83a-310c638751f4",
     "entity_name": "Tinh thể zombie",
     "entity_type": "Vật phẩm",
-    "summary": "",
-    "content": "",
-    "aliases": [],
+    "summary": "SMOKE TEST UNICODE - Tinh thể zombie là vật phẩm cần người duyệt xác nhận.",
+    "content": "SMOKE TEST UNICODE - Nội dung này chỉ dùng để kiểm thử lưu bản nháp tiếng Việt có dấu, chưa apply vào wiki canon.",
+    "aliases": [
+      "Tinh thể zombie",
+      "Tinh thể"
+    ],
     "evidence": [
       {
         "preview": "Tiếng nói chuyện vẫn trầm đều, giấy tờ xào xạc, nhưng sự tương phản giữa không khí chuyên nghiệp và trang phục quái đản khiến căn phòng trở nên có chút siêu thực. Ánh trăng lấp lánh từ ô cửa sổ trên c...",
@@ -16,7 +19,7 @@
       }
     ],
     "source": "rag_corrections",
-    "status": "needs_human_fill",
+    "status": "ready_for_review",
     "human_review_required": true,
     "notes": "Generated from approved rag_corrections; not applied to wiki_entries."
   }
