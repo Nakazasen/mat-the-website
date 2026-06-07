@@ -103,6 +103,7 @@ export default function Header() {
         { id: "home", href: "/", label: dictionary.common.home, icon: Home },
         { id: "chapters", href: "/chapters", label: dictionary.common.chapters, icon: List },
         { id: "wiki", href: "/wiki", label: dictionary.common.wiki, icon: BookOpen },
+        { id: "library", href: "/library", label: locale === "vi" ? "Thư viện" : "Library", icon: BookOpen },
         { id: "leaderboard", href: "/leaderboard", label: dictionary.common.leaderboard, icon: Trophy },
         { id: "map", href: "/map", label: dictionary.common.map, icon: MapIcon },
         { id: "hq", href: "/headquarters", label: dictionary.common.headquarters, icon: Zap },
