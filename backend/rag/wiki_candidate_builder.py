@@ -93,7 +93,7 @@ def build_wiki_candidate_from_correction(correction: dict) -> dict:
         "source": "rag_corrections",
         "status": status,
         "human_review_required": True,
-        "notes": "Generated from approved rag_corrections; not applied to wiki_entries."
+        "notes": parsed_content.get("notes") or "Generated from approved rag_corrections."
     }
     if "canon_reviewed" in parsed_content:
         res["canon_reviewed"] = parsed_content["canon_reviewed"]
