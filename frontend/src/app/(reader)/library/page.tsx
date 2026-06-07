@@ -242,7 +242,7 @@ export default function PublicProvisionalLibraryPage() {
         </div>
 
         {/* Warning banner */}
-        <div className="flex items-start gap-3 text-amber-800 dark:text-amber-500 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/30 rounded-xl p-4 text-xs font-mono leading-relaxed max-w-4xl mx-auto">
+        <div className="flex items-start gap-3 text-amber-950 dark:text-amber-400 bg-amber-100/50 dark:bg-amber-950/30 border border-amber-300/60 dark:border-amber-900/30 rounded-xl p-4 text-xs font-mono leading-relaxed max-w-4xl mx-auto">
           <AlertTriangle className="shrink-0 mt-0.5" size={16} />
           <div>
             <span className="font-bold uppercase">Lưu ý quan trọng:</span> Đây là dữ liệu nháp (provisional) được thu thập tự động bằng thuật toán.
@@ -313,7 +313,7 @@ export default function PublicProvisionalLibraryPage() {
           {/* List of items */}
           <div className="flex-1 space-y-4">
             {error && (
-              <div className="flex items-center gap-2 text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 rounded-xl p-4 text-xs font-mono">
+              <div className="flex items-center gap-2 text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 rounded-xl p-4 text-xs font-mono">
                 <AlertTriangle size={16} />
                 <span>{error}</span>
               </div>
@@ -360,12 +360,12 @@ export default function PublicProvisionalLibraryPage() {
                               {qLabel}
                             </span>
                             {(item.patch_type === "hide_record" || item.patch_type === "deprioritize_record" || item.oracle_policy === "block" || item.oracle_policy === "deprioritize") ? (
-                              <span className="px-2 py-0.5 border border-red-500/30 dark:border-red-500/20 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/20 rounded-full text-[9px] uppercase font-bold tracking-wider">
+                              <span className="px-2 py-0.5 border border-red-200 dark:border-red-900/30 text-red-700 dark:text-red-400 bg-red-50/50 dark:bg-red-950/30 rounded-full text-[9px] uppercase font-bold tracking-wider">
                                 Đã bị cộng đồng/RAG hạ độ tin cậy
                               </span>
                             ) : (
                               item.effective_status && item.effective_status !== "trusted" && (
-                                <span className="px-2 py-0.5 border border-yellow-500/30 dark:border-yellow-500/20 text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-950/20 rounded-full text-[9px] uppercase font-bold tracking-wider">
+                                <span className="px-2 py-0.5 border border-amber-200 dark:border-amber-900/30 text-amber-800 dark:text-amber-400 bg-amber-50/50 dark:bg-amber-950/30 rounded-full text-[9px] uppercase font-bold tracking-wider">
                                   Đang bị cộng đồng báo lỗi
                                 </span>
                               )
@@ -394,7 +394,7 @@ export default function PublicProvisionalLibraryPage() {
                               </div>
                             ) : (
                               item.effective_status && item.effective_status !== "trusted" && (
-                                <div className="flex items-center gap-1.5 text-yellow-600 dark:text-yellow-400 font-bold mb-2 text-[10px] tracking-wider uppercase">
+                                <div className="flex items-center gap-1.5 text-amber-800 dark:text-amber-400 font-bold mb-2 text-[10px] tracking-wider uppercase">
                                   <AlertTriangle size={12} className="shrink-0" />
                                   <span>Cảnh báo: Mục này đang bị cộng đồng báo lỗi (Disputed)</span>
                                 </div>
@@ -406,7 +406,7 @@ export default function PublicProvisionalLibraryPage() {
 
                         {/* Success Message Banner */}
                         {isSubmitted && (
-                          <div className="bg-green-500/10 border border-green-500/20 text-green-600 dark:text-green-400 p-3.5 rounded-lg text-xs flex items-center gap-2 font-sans">
+                          <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900/30 text-green-800 dark:text-green-400 p-3.5 rounded-lg text-xs flex items-center gap-2 font-sans">
                             <CheckCircle2 size={16} className="shrink-0" />
                             <span>Cảm ơn bạn đã gửi đóng góp ý kiến! Ý kiến của bạn đã được ghi nhận để kiểm chứng.</span>
                           </div>
@@ -425,7 +425,7 @@ export default function PublicProvisionalLibraryPage() {
                             </div>
 
                             {feedbackError && (
-                              <div className="bg-red-500/10 border border-red-500/20 text-red-500 p-2.5 rounded text-xs flex items-center gap-2">
+                              <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 text-red-700 dark:text-red-400 p-2.5 rounded text-xs flex items-center gap-2">
                                 <AlertTriangle size={14} className="shrink-0" />
                                 <span>{feedbackError}</span>
                               </div>
@@ -534,7 +534,7 @@ export default function PublicProvisionalLibraryPage() {
                             {!isSubmitted && !isFeedbackOpen && (
                               <button
                                 onClick={() => handleOpenFeedback(item)}
-                                className="flex items-center gap-1.5 px-3 py-1 bg-red-950/20 hover:bg-red-950/40 border border-red-900/30 text-[10px] text-red-600 dark:text-red-400 font-bold rounded tracking-wider transition-colors cursor-pointer"
+                                className="flex items-center gap-1.5 px-3 py-1 bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-950/50 border border-red-300 dark:border-red-900/40 text-[10px] text-red-700 dark:text-red-400 font-bold rounded tracking-wider transition-colors cursor-pointer"
                               >
                                 BÁO LỖI MỤC NÀY
                               </button>
