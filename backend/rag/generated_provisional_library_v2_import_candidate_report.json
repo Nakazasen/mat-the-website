@@ -1,0 +1,276 @@
+{
+  "V1_current_production_count": 1264,
+  "V2_dry_run_total_records": 9155,
+  "V2_import_candidate_count": 2646,
+  "accepted_count": 2646,
+  "rejected_count": 6509,
+  "accepted_by_category": {
+    "character": 990,
+    "zombie_species": 2,
+    "mutated_creature": 4,
+    "location_base": 12,
+    "organization_faction": 11,
+    "weapon": 42,
+    "item": 2,
+    "crystal_core": 16,
+    "ability_skill": 308,
+    "skill_book": 15,
+    "event": 328,
+    "relationship": 87,
+    "chapter_summary": 829
+  },
+  "rejected_by_reason": {
+    "weak_evidence": 5493,
+    "character_insufficient_evidence": 544,
+    "character_contains_adjective": 10,
+    "character_contains_verb": 11,
+    "contains_pronoun_noise": 74,
+    "character_starts_with_generic_noun": 6,
+    "name_too_long": 353,
+    "crystal_missing_keywords": 3,
+    "ability_contains_action": 7,
+    "ability_looks_like_clause": 8
+  },
+  "accepted_examples_by_category": {
+    "character": [
+      "Hàn Phong",
+      "Phương Tường",
+      "Liễu Huyên",
+      "Lý Bình",
+      "Lưu Thanh",
+      "Ngô Soái",
+      "Không Kỹ",
+      "Không Điểm",
+      "Bàng Lâm",
+      "Tô Tâm"
+    ],
+    "zombie_species": [
+      "Cường Hóa Biến Thể",
+      "Hố Vực Xác Sống"
+    ],
+    "mutated_creature": [
+      "Bình Thuốc Biến Dị",
+      "Cua Biến Dị",
+      "Rùa Biến Dị",
+      "Hổ Biến Dị"
+    ],
+    "location_base": [
+      "Lý Khuê",
+      "Can Trường",
+      "Áo Khoác Phòng Hộ",
+      "Áo Khoác Tận Thế",
+      "Trường Thi",
+      "Khu B Vân Minh",
+      "Công Tôn Trường Thanh",
+      "Khuếch Đại",
+      "Khu Đông",
+      "Trường Hoả Thương"
+    ],
+    "organization_faction": [
+      "Đại Thiên Thần",
+      "Tam Lang Hội",
+      "Hội Bạch Đường",
+      "Hội Kỵ Sĩ Đền Thánh",
+      "Khánh Hội",
+      "Big Bang",
+      "Bang Tử Thiền",
+      "Bang Vuốt Đông",
+      "Liên Bang Xô Viết",
+      "Giáo Hội"
+    ],
+    "weapon": [
+      "Vũ Khí Hoá",
+      "Thanh Phong Đao",
+      "Phong Đao",
+      "Trảm Mã Đao",
+      "Súng diệt quỷ",
+      "Thánh Quang Kiếm",
+      "Pháo Không Khí",
+      "Đao Khí Tăng Cường",
+      "Hoả Đao",
+      "Hạ Dao"
+    ],
+    "item": [
+      "Thẻ Thăng Giai",
+      "Thẻ Chức Nghiệp"
+    ],
+    "crystal_core": [
+      "Tinh Thạch An Toàn",
+      "Thiết Thạch",
+      "Tinh Thạch Nguyện Ước",
+      "Trấn Thiết Thạch",
+      "Mộc Thạch",
+      "Ngọc Thạch Biến Dị",
+      "Thạch Lâm",
+      "Tinh Thạch Khai Phá",
+      "Hi Vọng Hạ Sa Thiết Thạch",
+      "Thạch Lựu"
+    ],
+    "ability_skill": [
+      "Kỹ năng chủ động",
+      "Kỹ năng bị động",
+      "Kỹ năng thư ngẫu nhiên",
+      "Kỹ năng chủ động nhị giai",
+      "Kỹ năng thuộc tính",
+      "Kỹ năng nhị giai",
+      "Kỹ năng bị động nhất giai",
+      "Kỹ năng sao",
+      "Kỹ năng chủ động nhất giai",
+      "Kỹ năng cộng thêm"
+    ],
+    "skill_book": [
+      "Sách kỹ năng tam giai",
+      "Sách kỹ năng cho Chu Vấn",
+      "Sách kỹ năng các loại",
+      "Sách kỹ năng nhị giai",
+      "Sách kỹ năng cho Nhạc Sơn",
+      "Sách kỹ năng nhất giai",
+      "Sách kỹ năng trên bàn",
+      "Sách kỹ năng trân quý",
+      "Sách kỹ năng lục giai",
+      "Sách kỹ năng tứ giai"
+    ],
+    "event": [
+      "Liễu Huyên tiến vào",
+      "Hàn Phong xuất hiện",
+      "Hàn Phong cứu",
+      "Hàn Phong phát hiện",
+      "Hàn Phong thăng cấp",
+      "Thanh Hà cứu",
+      "Hàn Phong tấn công",
+      "Hàn Phong tiến vào",
+      "Phương Tường tiến vào",
+      "Liễu Huyên xuất hiện"
+    ],
+    "relationship": [
+      "Hàn Phong và Lý Bình",
+      "Hàn Phong và Liễu Huyên",
+      "Hàn Phong và Phương Tường",
+      "Ngô Soái và Nhạc Liên",
+      "Hàn Phong và Hứa Dương",
+      "Hàn Phong và Ngô Soái",
+      "Nhạc Liên và Triệu Hà Vân",
+      "Hàn Phong và Tiêu Minh",
+      "Chu Vấn và Châu Lam",
+      "Lục Đại Nguyên và Nhạc Sơn"
+    ],
+    "chapter_summary": [
+      "Chương 1: Đầu lâu khổng lồ ngoài cửa sổ",
+      "Chương 2: Tận thế hàng lâm",
+      "Chương 3: Thuộc tính thân thể",
+      "Chương 4: Trinh sát nhãn",
+      "Chương 5: Thẻ vật phẩm",
+      "Chương 6: Thăng cấp kỹ năng",
+      "Chương 7: Nguy cơ",
+      "Chương 8: Phân phối chiến lợi phẩm",
+      "Chương 9: Thoát đi",
+      "Chương 10: Tiếp nhận nhiệm vụ"
+    ]
+  },
+  "rejected_examples_by_reason": {
+    "weak_evidence": [
+      "Ngô Hồng",
+      "Cổ Chính",
+      "Lý Dương",
+      "Huyên Huyên",
+      "Cả Phương Tường",
+      "Phập Trảm",
+      "Mà Phương Tường",
+      "Thành Đô",
+      "Tứ Quý",
+      "Hoa Phượng"
+    ],
+    "character_insufficient_evidence": [
+      "Hồ Hán Thương",
+      "Tô Minh",
+      "Lưu Bình",
+      "Lý Huyên",
+      "Lão Phương",
+      "Nhìn Phương Tường",
+      "Lâm Phàm",
+      "Là Chu Vấn",
+      "Độc Lực",
+      "Tam Lang Gia"
+    ],
+    "character_contains_adjective": [
+      "Cao Trác",
+      "Áp Thấp Nhiệt Đới",
+      "Nhanh Nhẹn Biến",
+      "Cao Thành Nhân",
+      "Cao Chính",
+      "Thu Nhỏ Phản Công",
+      "Xuân Hà Cao Chính",
+      "Diễn Giang Cao Thành Nhân",
+      "Liora Vynethia Cao Quý",
+      "Cao Vũ Lâm"
+    ],
+    "character_contains_verb": [
+      "Tiểu Hỏi Chấm",
+      "Hoa Ăn Thịt",
+      "Nhát Chém Tịnh Hoá",
+      "Ngục Giam Tham Ăn",
+      "Găng Xích Áp Đảo",
+      "Búp Bê Biết Nói",
+      "Áp Đảo",
+      "Dù Ai Nói Ngả Nói Nghiêng",
+      "Thiên Định Bất Diệt",
+      "Lều Định Mệnh"
+    ],
+    "contains_pronoun_noise": [
+      "Chúng Ta Là Bạn",
+      "Họ Cổ",
+      "Họ La",
+      "Họ Hàn",
+      "Họ Triệu",
+      "Nhằm Vào Ta",
+      "Họ Tào",
+      "Họ Mộc",
+      "Họ Lê",
+      "Họ Trần"
+    ],
+    "character_starts_with_generic_noun": [
+      "Con Rối U Linh",
+      "Người Tam Giang",
+      "Người Đại Xuyên",
+      "Người Xuân Hà",
+      "Người Bất Tử",
+      "Người Lập Mệnh"
+    ],
+    "name_too_long": [
+      "Thái Tử Của Đế Quốc Mặt Trời",
+      "Ai Thông Minh Hơn Học Sinh Lớp Năm",
+      "Tín Sứ Của Năng Lượng Thanh Tĩnh",
+      "Hộ Đạo Giả Của Dũng Sĩ Cự Nhân",
+      "Đích Đến Nguyện Cầu Của Mọi Sinh Linh",
+      "Tín Sứ Lưu Giữ Chân Diện Mục",
+      "Kỹ năng sẽ thu được tác dụng gì",
+      "Kỹ năng sẽ nâng cao uy lực kỹ năng",
+      "Kỹ năng chỉ có thể học tập một lần",
+      "Kỹ năng nhất giai hệ trị liệu"
+    ],
+    "crystal_missing_keywords": [
+      "Nguyện Ước",
+      "Khai Phá",
+      "Trấn Nguyện Ước"
+    ],
+    "ability_contains_action": [
+      "Kỹ năng kích hoạt",
+      "Kỹ năng gia tăng",
+      "Kỹ năng đao khí tăng cường",
+      "Kỹ năng tăng cường thuộc tính",
+      "Kỹ năng Tăng Cường Thể Lực",
+      "Kỹ năng đạt",
+      "Kỹ năng sử dụng"
+    ],
+    "ability_looks_like_clause": [
+      "Kỹ năng cho Chu Vấn",
+      "Kỹ năng làm lạnh",
+      "Kỹ năng cho Nhạc Sơn",
+      "Kỹ năng cửu giai để học",
+      "Kỹ năng sẽ",
+      "Kỹ năng sẽ dần biến dạng",
+      "Kỹ năng vừa được ban thưởng",
+      "Kỹ năng không dùng được nữa"
+    ]
+  }
+}

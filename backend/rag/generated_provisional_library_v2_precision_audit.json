@@ -1,0 +1,1413 @@
+{
+  "by_category": {
+    "character": 3204,
+    "zombie_species": 2,
+    "mutated_creature": 7,
+    "location_base": 33,
+    "organization_faction": 24,
+    "weapon": 66,
+    "item": 3,
+    "crystal_core": 34,
+    "ability_skill": 3547,
+    "skill_book": 217,
+    "event": 778,
+    "relationship": 411
+  },
+  "by_quality": {
+    "high_confidence": 1526,
+    "weak_evidence": 5493,
+    "medium_confidence": 1307
+  },
+  "by_evidence_bucket": {
+    "1": 5493,
+    "2": 1307,
+    "3-5": 722,
+    "6-10": 312,
+    "10+": 492
+  },
+  "feature_counts": {
+    "starts_with_verb": 1,
+    "contains_sentence_punctuation": 0,
+    "too_many_words": 4214,
+    "lowercase_phrase": 3475,
+    "pronoun_fragment": 240,
+    "generic_noun": 277,
+    "action_phrase": 4759,
+    "description_phrase": 288
+  },
+  "suspicious_examples": [
+    {
+      "name": "Ảnh Chiếu Ánh Trăng Hàn Phong",
+      "category": "character",
+      "score": 4,
+      "features": [
+        "too_many_words",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Tiểu Hỏi Chấm Chu Vấn",
+      "category": "character",
+      "score": 4,
+      "features": [
+        "too_many_words",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Con Thể Thao Túng Manipulate",
+      "category": "character",
+      "score": 4,
+      "features": [
+        "too_many_words",
+        "generic_noun"
+      ]
+    },
+    {
+      "name": "Tứ Giai Nhát Chém Tịnh Hoá",
+      "category": "character",
+      "score": 4,
+      "features": [
+        "too_many_words",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Trả Ngục Giam Tham Ăn",
+      "category": "character",
+      "score": 4,
+      "features": [
+        "too_many_words",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Đài Tưởng Niệm Hi Vọng",
+      "category": "character",
+      "score": 4,
+      "features": [
+        "too_many_words",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Ai Thông Minh Hơn Học Sinh Lớp Năm",
+      "category": "character",
+      "score": 4,
+      "features": [
+        "too_many_words",
+        "description_phrase"
+      ]
+    },
+    {
+      "name": "Dù Ai Nói Ngả Nói Nghiêng",
+      "category": "character",
+      "score": 4,
+      "features": [
+        "too_many_words",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Biến Người Biết Ta",
+      "category": "character",
+      "score": 4,
+      "features": [
+        "pronoun_fragment",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Diễn Giang Cao Thành Nhân",
+      "category": "character",
+      "score": 4,
+      "features": [
+        "too_many_words",
+        "description_phrase"
+      ]
+    },
+    {
+      "name": "Tín Sứ Của Năng Lượng Thanh Tĩnh",
+      "category": "character",
+      "score": 4,
+      "features": [
+        "too_many_words",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Người Đưa Thư",
+      "category": "character",
+      "score": 4,
+      "features": [
+        "generic_noun",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Lưới Đánh Cá Vạn Năng",
+      "category": "character",
+      "score": 4,
+      "features": [
+        "too_many_words",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Cao Đoàn Trưởng",
+      "category": "character",
+      "score": 4,
+      "features": [
+        "action_phrase",
+        "description_phrase"
+      ]
+    },
+    {
+      "name": "Ném Khắc Nhập Khắc Xuất",
+      "category": "character",
+      "score": 4,
+      "features": [
+        "too_many_words",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Người Phúc Đăng Hỏa",
+      "category": "character",
+      "score": 4,
+      "features": [
+        "generic_noun",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Lửa Nhỏ Đốt Đỏ Cánh Rừng",
+      "category": "character",
+      "score": 4,
+      "features": [
+        "too_many_words",
+        "description_phrase"
+      ]
+    },
+    {
+      "name": "Người Dẫn Đạo Sinh Mệnh Lực",
+      "category": "character",
+      "score": 4,
+      "features": [
+        "too_many_words",
+        "generic_noun"
+      ]
+    },
+    {
+      "name": "Họ Đinh",
+      "category": "character",
+      "score": 4,
+      "features": [
+        "pronoun_fragment",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Nguyện Băng Thuẫn Vĩnh Tâm",
+      "category": "character",
+      "score": 4,
+      "features": [
+        "too_many_words",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Vạn Lý Trường Thành Trong Tư Tưởng Trung Hoa",
+      "category": "location_base",
+      "score": 4,
+      "features": [
+        "too_many_words",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Hán Cao Tổ Lưu Bang",
+      "category": "organization_faction",
+      "score": 4,
+      "features": [
+        "too_many_words",
+        "description_phrase"
+      ]
+    },
+    {
+      "name": "Cái Tôi Xã Hội",
+      "category": "organization_faction",
+      "score": 4,
+      "features": [
+        "pronoun_fragment",
+        "generic_noun"
+      ]
+    },
+    {
+      "name": "Súng diệt quỷ",
+      "category": "weapon",
+      "score": 5,
+      "features": [
+        "lowercase_phrase",
+        "generic_noun"
+      ]
+    },
+    {
+      "name": "Dao Găm Nguỵ Huyền Cơ",
+      "category": "weapon",
+      "score": 4,
+      "features": [
+        "too_many_words",
+        "generic_noun"
+      ]
+    },
+    {
+      "name": "Băng Bộc Song Trùng Kiếm",
+      "category": "weapon",
+      "score": 4,
+      "features": [
+        "too_many_words",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Biết Dao Găm",
+      "category": "weapon",
+      "score": 3,
+      "features": [
+        "starts_with_verb"
+      ]
+    },
+    {
+      "name": "Thẻ Thăng Giai",
+      "category": "item",
+      "score": 4,
+      "features": [
+        "generic_noun",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng chủ động",
+      "category": "ability_skill",
+      "score": 5,
+      "features": [
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng bị động",
+      "category": "ability_skill",
+      "score": 5,
+      "features": [
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng kia làm sao sử dụng",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng thư ngẫu nhiên từ nhất giai tới tam giai",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng thư ngẫu nhiên",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng thư hẳn sẽ là lựa chọn hợp lý nhất",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng chủ động nhị giai",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng thuộc tính",
+      "category": "ability_skill",
+      "score": 5,
+      "features": [
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng kích hoạt",
+      "category": "ability_skill",
+      "score": 5,
+      "features": [
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng duy trì mỗi",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng này tuy rằng hắn không có hiểu rõ",
+      "category": "ability_skill",
+      "score": 9,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "pronoun_fragment",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng nhị giai",
+      "category": "ability_skill",
+      "score": 5,
+      "features": [
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng sẽ thu được tác dụng gì",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng sẽ nâng cao uy lực kỹ năng",
+      "category": "ability_skill",
+      "score": 9,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase",
+        "description_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng nhất giai cần",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng nhị giai cần",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng tam giai cần",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng kia của hắn cũng chưa có dùng được",
+      "category": "ability_skill",
+      "score": 9,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "pronoun_fragment",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng mới có thể tăng cường",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng bị động nhất giai",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng thật tốt",
+      "category": "ability_skill",
+      "score": 5,
+      "features": [
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng sao",
+      "category": "ability_skill",
+      "score": 5,
+      "features": [
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng điều khiển hàn băng",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng hoàn tất",
+      "category": "ability_skill",
+      "score": 5,
+      "features": [
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng gia tăng",
+      "category": "ability_skill",
+      "score": 5,
+      "features": [
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng cộng được một lượt",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng chỉ có thể học tập một lần",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng nào đó hoặc vật phẩm nào đó hơn",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng cùng một thẻ bài lên",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng chủ động nhất giai",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng cộng thêm",
+      "category": "ability_skill",
+      "score": 5,
+      "features": [
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng nhất giai hệ trị liệu",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng chủ động hồi tức",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng điều tức ném cho nàng ta",
+      "category": "ability_skill",
+      "score": 9,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "pronoun_fragment",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng hồi tức cho Liễu Huyên",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng tăng cường nhanh nhẹn",
+      "category": "ability_skill",
+      "score": 9,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase",
+        "description_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng tuyệt diệu",
+      "category": "ability_skill",
+      "score": 5,
+      "features": [
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng cùng gậy",
+      "category": "ability_skill",
+      "score": 5,
+      "features": [
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng thao túng hàn băng",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng của Phương Tường đánh rớt",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng tam giai sẽ có bộ dáng gì",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng này ném cho Phương Tường",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng này",
+      "category": "ability_skill",
+      "score": 5,
+      "features": [
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng cùng thẻ vật phẩm còn lại",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng không thể lặp lại",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng bị động tăng cường chống chịu kia học tập",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng lôi cầu",
+      "category": "ability_skill",
+      "score": 5,
+      "features": [
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng ngẫu nhiên từ nhất giai tới tam giai",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng cấp cao nào",
+      "category": "ability_skill",
+      "score": 9,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase",
+        "description_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng tam giai",
+      "category": "ability_skill",
+      "score": 5,
+      "features": [
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng thao túng hàn băng cho ta",
+      "category": "ability_skill",
+      "score": 9,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "pronoun_fragment",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng nhị giai thao túng hàn băng",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng tăng thêm",
+      "category": "ability_skill",
+      "score": 5,
+      "features": [
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng cùng điểm tiềm năng tăng thêm",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng vào balo",
+      "category": "ability_skill",
+      "score": 5,
+      "features": [
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng chủ động của đệ là gì",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng tam giai Cự Nhân Biến",
+      "category": "ability_skill",
+      "score": 4,
+      "features": [
+        "too_many_words",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng tam giai thực sự là ngưu bức mà",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng khoẻ mạnh kép nhất giai của Phương Tường",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng nhất giai lôi cầu",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng thư cho nàng ta",
+      "category": "ability_skill",
+      "score": 9,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "pronoun_fragment",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng nhất giai chưa được cộng chút nào",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng gia tăng chống chịu",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng cường hoá kép của ngươi",
+      "category": "ability_skill",
+      "score": 9,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "pronoun_fragment",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng tốt hơn sẽ cộng",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng thư",
+      "category": "ability_skill",
+      "score": 5,
+      "features": [
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng tam giai quả thật là ngưu bức",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng chủ động tam giai",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng cường hoá nhanh nhẹn",
+      "category": "ability_skill",
+      "score": 9,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase",
+        "description_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng tam giai đầu tiên cho mình",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng bị động cường hoá nhanh nhẹn",
+      "category": "ability_skill",
+      "score": 9,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase",
+        "description_phrase"
+      ]
+    },
+    {
+      "name": "Kỹ năng không thể học tập trùng lặp",
+      "category": "ability_skill",
+      "score": 7,
+      "features": [
+        "too_many_words",
+        "lowercase_phrase",
+        "action_phrase"
+      ]
+    }
+  ],
+  "top_examples_risky": {
+    "character": [
+      "Hàn Phong",
+      "Phương Tường",
+      "Liễu Huyên",
+      "Lý Bình",
+      "Lưu Thanh",
+      "Ngô Soái",
+      "Ngô Hồng",
+      "Không Kỹ",
+      "Không Điểm",
+      "Bàng Lâm",
+      "Hồ Hán Thương",
+      "Tô Minh",
+      "Tô Tâm",
+      "Lưu Bình",
+      "Bình An",
+      "Cổ Chính",
+      "Mà Liễu Huyên",
+      "Phương Liễu",
+      "Lý Dương",
+      "Phương Tường Liễu Huyên",
+      "Huyên Huyên",
+      "Phương Tưởng",
+      "Thanh Hà",
+      "Cả Phương Tường",
+      "Lý Huyên",
+      "Phập Trảm",
+      "Nhìn Liễu Huyên",
+      "Mà Phương Tường",
+      "Ford Raptor",
+      "Lão Phương",
+      "Thành Đô",
+      "Tứ Quý",
+      "Hoa Phượng",
+      "Hoa Thuỷ Tiên",
+      "Mã Mộng Đình",
+      "Đinh Tịnh Nhi",
+      "Đinh Vũ",
+      "Chiếc Ford Raptor",
+      "Hoa Hồng",
+      "Tịnh Nhi",
+      "Lão Hàn",
+      "Cự Nhân Biến",
+      "Liễu Tuyết",
+      "Phương Mã",
+      "Tiểu Vũ",
+      "Mã Mộng Đinh",
+      "Mà Mã Mộng Đình",
+      "Nhạc Liên",
+      "Triệu Hà Vân",
+      "Chào Hàn",
+      "Hàn Liễu",
+      "Lão Tường",
+      "Phương Lương",
+      "Nhìn Phương Tường",
+      "Usal Bolt",
+      "Hứa Dương",
+      "Mà Ngô Soái",
+      "Rékkkk Ngay",
+      "Phương Hoa",
+      "Tiểu Soái",
+      "Siêu Hồi Phục",
+      "Tiêu Minh",
+      "Mộ Thi Thi",
+      "Châu Lam",
+      "Bằng Thành",
+      "Mà Diệp Thanh Kỳ",
+      "Lam Lam",
+      "Thi Thi",
+      "Tiểu Phong Phong",
+      "Diệp Thanh Kỳ",
+      "Bàng Thành",
+      "Mà Châu Lam",
+      "Đường Hiếu",
+      "Chu Vấn",
+      "Đào Đại Tư",
+      "Thể Thôn Phệ",
+      "Ngoài Ngô Soái",
+      "Réckkkkkk Bóng",
+      "Réckkkkkkkk Một",
+      "Réckkkkkk Một",
+      "Réckkkkkk Thể",
+      "Sơn Thuỷ",
+      "Là Liễu Huyên",
+      "Xuân Hà",
+      "Liễu Lâm",
+      "Tam Giang",
+      "Lệ Trì",
+      "Thanh Phong",
+      "Lâm Bình",
+      "Lâm Phàm",
+      "Còn Chu Vấn",
+      "Gieo Hạt",
+      "Hồi Tức",
+      "Đại Tư",
+      "Là Chu Vấn",
+      "Gạt Liễu Huyên",
+      "Tường Vi",
+      "Mà Hàn Phong",
+      "Độc Lực",
+      "Lý Hạ Vân"
+    ],
+    "ability_skill": [
+      "Kỹ năng chủ động",
+      "Kỹ năng bị động",
+      "Kỹ năng kia làm sao sử dụng",
+      "Kỹ năng thư ngẫu nhiên từ nhất giai tới tam giai",
+      "Kỹ năng thư ngẫu nhiên",
+      "Kỹ năng thư hẳn sẽ là lựa chọn hợp lý nhất",
+      "Kỹ năng chủ động nhị giai",
+      "Kỹ năng thuộc tính",
+      "Kỹ năng kích hoạt",
+      "Kỹ năng duy trì mỗi",
+      "Kỹ năng này tuy rằng hắn không có hiểu rõ",
+      "Kỹ năng nhị giai",
+      "Kỹ năng sẽ thu được tác dụng gì",
+      "Kỹ năng sẽ nâng cao uy lực kỹ năng",
+      "Kỹ năng nhất giai cần",
+      "Kỹ năng nhị giai cần",
+      "Kỹ năng tam giai cần",
+      "Kỹ năng kia của hắn cũng chưa có dùng được",
+      "Kỹ năng mới có thể tăng cường",
+      "Kỹ năng bị động nhất giai",
+      "Kỹ năng thật tốt",
+      "Kỹ năng sao",
+      "Kỹ năng điều khiển hàn băng",
+      "Kỹ năng hoàn tất",
+      "Kỹ năng gia tăng",
+      "Kỹ năng cộng được một lượt",
+      "Kỹ năng chỉ có thể học tập một lần",
+      "Kỹ năng nào đó hoặc vật phẩm nào đó hơn",
+      "Kỹ năng cùng một thẻ bài lên",
+      "Kỹ năng chủ động nhất giai",
+      "Kỹ năng cộng thêm",
+      "Kỹ năng nhất giai hệ trị liệu",
+      "Kỹ năng chủ động hồi tức",
+      "Kỹ năng điều tức ném cho nàng ta",
+      "Kỹ năng hồi tức cho Liễu Huyên",
+      "Kỹ năng tăng cường nhanh nhẹn",
+      "Kỹ năng tuyệt diệu",
+      "Kỹ năng cùng gậy",
+      "Kỹ năng thao túng hàn băng",
+      "Kỹ năng của Phương Tường đánh rớt",
+      "Kỹ năng tam giai sẽ có bộ dáng gì",
+      "Kỹ năng này ném cho Phương Tường",
+      "Kỹ năng này",
+      "Kỹ năng cùng thẻ vật phẩm còn lại",
+      "Kỹ năng không thể lặp lại",
+      "Kỹ năng bị động tăng cường chống chịu kia học tập",
+      "Kỹ năng lôi cầu",
+      "Kỹ năng ngẫu nhiên từ nhất giai tới tam giai",
+      "Kỹ năng cấp cao nào",
+      "Kỹ năng tam giai",
+      "Kỹ năng thao túng hàn băng cho ta",
+      "Kỹ năng nhị giai thao túng hàn băng",
+      "Kỹ năng tăng thêm",
+      "Kỹ năng cùng điểm tiềm năng tăng thêm",
+      "Kỹ năng vào balo",
+      "Kỹ năng chủ động của đệ là gì",
+      "Kỹ năng tam giai Cự Nhân Biến",
+      "Kỹ năng tam giai thực sự là ngưu bức mà",
+      "Kỹ năng khoẻ mạnh kép nhất giai của Phương Tường",
+      "Kỹ năng nhất giai lôi cầu",
+      "Kỹ năng thư cho nàng ta",
+      "Kỹ năng nhất giai chưa được cộng chút nào",
+      "Kỹ năng gia tăng chống chịu",
+      "Kỹ năng cường hoá kép của ngươi",
+      "Kỹ năng tốt hơn sẽ cộng",
+      "Kỹ năng thư",
+      "Kỹ năng tam giai quả thật là ngưu bức",
+      "Kỹ năng chủ động tam giai",
+      "Kỹ năng cường hoá nhanh nhẹn",
+      "Kỹ năng tam giai đầu tiên cho mình",
+      "Kỹ năng bị động cường hoá nhanh nhẹn",
+      "Kỹ năng không thể học tập trùng lặp",
+      "Kỹ năng thuộc vào dạng cao cấp",
+      "Kỹ năng hồi tức",
+      "Kỹ năng chiến đấu",
+      "Kỹ năng phụ trợ",
+      "Kỹ năng trên",
+      "Kỹ năng hoả đao nhất giai",
+      "Kỹ năng nhắm thẳng vào quái vật",
+      "Kỹ năng cao giai",
+      "Kỹ năng thao túng hàn băng của hắn đã được thăng cấp",
+      "Kỹ năng tam giai mang lại sao",
+      "Kỹ năng tam giai không phải không có trả giá",
+      "Kỹ năng bị động tam giai",
+      "Kỹ năng tiêu hao",
+      "Kỹ năng quyết định bởi chỉ số sức mạnh",
+      "Kỹ năng nhảy vọt",
+      "Kỹ năng nhất giai",
+      "Kỹ năng nào",
+      "Kỹ năng tam giai Siêu Hồi Phục cầm lên",
+      "Kỹ năng này hơn vũ khí hoá",
+      "Kỹ năng tam giai Siêu Hồi Phục còn lớn hơn",
+      "Kỹ năng hoả đao kia",
+      "Kỹ năng hoả đao từ chỗ anh đây",
+      "Kỹ năng phản lực càng giá trị hơn nhiều",
+      "Kỹ năng tam giai lấy tĩnh chế động",
+      "Kỹ năng lấy tĩnh chế động",
+      "Kỹ năng trói buộc",
+      "Kỹ năng nàng vẫn luôn muốn tìm kiếm sao",
+      "Kỹ năng có sức chiến đấu một chút"
+    ],
+    "event": [
+      "Liễu Huyên tiến vào",
+      "Hàn Phong xuất hiện",
+      "Hàn Phong cứu",
+      "Lưu Thanh tấn công",
+      "Lưu Thanh cứu",
+      "Hàn Phong phát hiện",
+      "Hàn Phong thăng cấp",
+      "Thanh Hà cứu",
+      "Hàn Phong tấn công",
+      "Hàn Phong tiến vào",
+      "Phương Tường tiến vào",
+      "Liễu Huyên xuất hiện",
+      "Phương Tường xuất hiện",
+      "Ngô Soái cứu",
+      "Ngô Soái tấn công",
+      "Mã Mộng Đình xuất hiện",
+      "Ngô Soái xuất hiện",
+      "Ngô Soái tiến vào",
+      "Mã Mộng Đình tấn công",
+      "Hứa Dương tấn công",
+      "Liễu Huyên thăng cấp",
+      "Hứa Dương cứu",
+      "Tiêu Minh xuất hiện",
+      "Bằng Thành tấn công",
+      "Chu Vấn xuất hiện",
+      "Đường Hiếu cứu",
+      "Chu Vấn cứu",
+      "Châu Lam cứu",
+      "Tiêu Minh cứu",
+      "Tường Vi cứu",
+      "Nhạc Sơn xuất hiện",
+      "Tần Kha xuất hiện",
+      "Nhạc Sơn cứu",
+      "Tam Lang xuất hiện",
+      "Tam Lang cứu",
+      "Lang Kế Nhị xuất hiện",
+      "Lục Đại Nguyên xuất hiện",
+      "Hi Vọng xuất hiện",
+      "Tam Giang cứu",
+      "Thanh Hà tiến vào",
+      "Ngô Soái phát hiện",
+      "Xuân Thu xuất hiện",
+      "Xuân Hoa tấn công",
+      "Phương Tường cứu",
+      "Quan Bình tấn công",
+      "Quan Bình cứu",
+      "Trần Diệu Âm xuất hiện",
+      "Xuân Hoa tiến vào",
+      "Liễu Huyên cứu",
+      "Thanh Hà tấn công",
+      "Xuân Hoa xuất hiện",
+      "Tường Vi xuất hiện",
+      "Ngưu Bàng tấn công",
+      "Chu Vấn thăng cấp",
+      "Liễu Lâm xuất hiện",
+      "Xuân Hoa Xuân Thu tiến vào",
+      "Châu Lam xuất hiện",
+      "Long Trảo Thủ tấn công",
+      "Cự Nhân Biến tiến vào",
+      "Đào Đại Tư xuất hiện",
+      "Siêu Hồi Phục xuất hiện",
+      "Can Trường cứu",
+      "Phương Tường phát hiện",
+      "Hi Vọng phát hiện",
+      "Ngô Soái thăng cấp",
+      "Đào Đại Tư tấn công",
+      "Từ Thôi tiến vào",
+      "Liễu Lâm cứu",
+      "Đổng Thành cứu",
+      "Bành Lực tấn công",
+      "Bành Lực cứu",
+      "Bành Lực tiến vào",
+      "Đổng Thành xuất hiện",
+      "Nhạc Sơn tấn công",
+      "Lý Võ Lạc xuất hiện",
+      "Lý Võ Lạc cứu",
+      "Liễu Lâm tấn công",
+      "Xuân Lê tấn công",
+      "Đổng Thành tiến vào",
+      "Tường Vi phát hiện",
+      "Tiểu Phàm cứu",
+      "Kha Thành xuất hiện",
+      "La Sơn cứu",
+      "Kiều Ti Vân xuất hiện",
+      "Thao Túng Hàn Băng thăng cấp",
+      "Phá Tâm Linh tấn công",
+      "Làm Hàn Phong cứu",
+      "Lệ Giang cứu",
+      "Kha Thành thăng cấp",
+      "Hứa Dương thăng cấp",
+      "La Sơn phát hiện",
+      "Đổng Thành phát hiện",
+      "Trần Diệu Âm tấn công",
+      "Bành Lực phát hiện",
+      "Chu Vấn tấn công",
+      "Hà Tam tiến vào",
+      "Hi Vọng cứu",
+      "Lý Võ Lạc tấn công",
+      "Cấp Cứu",
+      "Cấp Cứu cứu"
+    ],
+    "relationship": [
+      "Hàn Phong và Lý Bình",
+      "Hàn Phong và Mã Mộng Đình",
+      "Hàn Phong và Liễu Huyên",
+      "Liễu Huyên và Ngô Soái",
+      "Hàn Phong và Phương Tường",
+      "Ngô Soái và Nhạc Liên",
+      "Hàn Phong và Hứa Dương",
+      "Hàn Phong và Ngô Soái",
+      "Lam Lam và Mộ Thi Thi",
+      "Nhạc Liên và Triệu Hà Vân",
+      "Chu Vấn và Thanh Phong",
+      "Châu Lam và Liễu Huyên",
+      "Hàn Phong và Tiêu Minh",
+      "Chu Vấn và Châu Lam",
+      "Lang Bạo Tam và Lang Kế Nhị",
+      "Nhạc Sơn và Thanh Hà",
+      "Lang Kế Nhị và Lục Đại Nguyên",
+      "Cẩu Tử và Hàn Phong",
+      "Lục Đại Nguyên và Nhạc Sơn",
+      "Hàn Phong và Liễu Lâm",
+      "Cao Trác và Lý Hạ Vân",
+      "Châu Lam và Ngô Soái",
+      "Hàn Phong và Xuân Thu",
+      "Chu Vấn và Thương Nhai",
+      "Cố Mạn và Cố Mạn Như",
+      "Hứa Dương và Tiêu Minh",
+      "Châu Lam và Hàn Phong",
+      "Phương Tường và Tạ Hàm Hương",
+      "Châu Lam và Quan Bình",
+      "Kha Mã và Quan Bình",
+      "Hàn Phong và Xuân Hoa",
+      "Ngô Soái và Nhưng Ngô Soái",
+      "Lý Võ Lạc và Quan Bình",
+      "Hi Vọng và Hàn Phong",
+      "Liễu Hà và Liễu Lâm",
+      "Bành Lực và Ngô Soái",
+      "Chu Vấn và Hứa Dương",
+      "Liễu Lâm và Xuân Lê",
+      "Hàn Phong và Lấy Tĩnh Chế Động",
+      "Hi Vọng và Xuân Lê",
+      "La Sơn và Đám La Sơn",
+      "Hàn Phong và Làm Hàn Phong",
+      "Cấp Cứu và Trị Liệu Thương Thế",
+      "Hàn Phong và Tam Giang",
+      "Hàn Phong và Tường Vi",
+      "Lý Võ Lạc và Trần Diệu Âm",
+      "Hồi Tức và Thiết Huyết Ca",
+      "Chúng Ta Là Bạn và Phá Tâm Linh",
+      "Hàn Phong và Kha Thành",
+      "Hi Vọng và Sử Thắng",
+      "Sóng Âm và Xuyên Thần",
+      "Thần Tốc và Đạo Tốc",
+      "Chu Vấn và Hàn Phong",
+      "Hàn Phong và Lý Võ Lạc",
+      "Quang Giáp và Thao Túng Trọng Lực",
+      "Chu Vấn và Trần Diệu Âm",
+      "Cấp Cứu và Hàn Phong",
+      "Băng Ảnh và Hi Vọng",
+      "Hi Vọng và Tam Giang",
+      "Hi Vọng và Ngô Soái",
+      "Ngô Soái và Tường Vi",
+      "Hi Vọng và Trấn Hi Vọng",
+      "Ngoài Ngô Soái và Ngô Soái",
+      "Hàn Phong và Đại Hắc Cẩu",
+      "Chúng Ta Là Bạn và Hàn Phong",
+      "Hồn Áp và Quang Giáp",
+      "Liễu Huyên và Tường Vi",
+      "Lý Võ Lạc và Tam Giang",
+      "Cấp Cứu và Quang Giáp",
+      "Hàn Phong và Tưởng Vi",
+      "Hàn Phong và Đổng Thành",
+      "Hàn Phong và Xuân Lê",
+      "Tường Vi và Đổng Thành",
+      "Hoả Dực và Hoả Thân",
+      "Hàn Phong và Hồn Áp",
+      "Hàn Phong và Kim Nguyệt Huyễn",
+      "Chuyển Dời Thương Tổn và Châu Lam",
+      "Hi Vọng và Đổng Thành",
+      "Huyền Hồ Tế Thế và Hàn Phong",
+      "Hàn Phong và Triệu Nhược Pháp",
+      "Hi Vọng và Lý Hạ Vân",
+      "Can Trường và Huyền Hồ Tế Thế",
+      "Hàn Phong và Lam Nhu Thuỷ",
+      "Hoàng Khải và Tam Giang",
+      "Cự Nhân Biến và Ngô Soái",
+      "Ngô Soái và Phiên Dịch Đa Năng",
+      "Hi Vọng và Liễu Lâm",
+      "Hàn Phong và Hương Vẫn Tình",
+      "Xuân Hoa và Xuân Thu",
+      "Liên Dung và Đổng Thành",
+      "Nhưng Phá Tâm Linh và Phá Tâm Linh",
+      "Hoàng Khải và Hàn Phong",
+      "Hàn Phong và Lạc Thanh Thuỷ",
+      "Chúng Ta Là Bạn và Hồn Áp",
+      "Bạc Thanh và Hàn Phong",
+      "Tam Giang và Vương Tốn",
+      "Hồn Áp và Ngô Soái",
+      "Hồn Áp và Thây Ma Hoá",
+      "Hàn Phong và Nhẫn Áp Đặt",
+      "Hàn Phong và Thể Thao Túng"
+    ]
+  }
+}
