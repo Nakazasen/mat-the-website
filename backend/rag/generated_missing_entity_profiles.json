@@ -1,0 +1,626 @@
+[
+  {
+    "entity_name": "Công ty Đại Thiên Thần",
+    "entity_type": "character",
+    "summary": "",
+    "content": "",
+    "status": "draft",
+    "priority": "low",
+    "evidence": [
+      {
+        "chapter_number": 1,
+        "chapter_title": "Đầu lâu khổng lồ ngoài cửa sổ",
+        "chunk_index": 0,
+        "content_hash": "1fef1e79f09917398be489262c7c334626bc0374c7d198bda81240778e71846a",
+        "preview": "Công ty Đại Thiên Thần. - Chết tiệt thật, tên khốn ngươi không biết cách làm người sao? Hàn Phong đứng trước bàn giám đốc, khuôn mặt cúi gằm, ánh mắt nhẫn nhịn nhìn mũi giày, im lặng lắng nghe những c..."
+      },
+      {
+        "chapter_number": 1,
+        "chapter_title": "Đầu lâu khổng lồ ngoài cửa sổ",
+        "chunk_index": 1,
+        "content_hash": "2c809485f7c3d50e6d5b1c497546925471bc33f27626539f02d22664cf339ebf",
+        "preview": "Hàn Phong vội quay qua bên cạnh, chẳng biết từ khi nào, 2 tên to con đã đứng sẵn chờ hắn tại hành lang. Hàn Phong khuôn mặt tái xanh chợt mềm giọng cầu khẩn:\n- Lý đại ca, ta hôm trước mới trả một khoả..."
+      },
+      {
+        "chapter_number": 231,
+        "chapter_title": "Trí tướng",
+        "chunk_index": 0,
+        "content_hash": "a6db8b517ab4f6ab783a2d88befdd84b12dd8cab88b90e4b8eed730e5373c5b8",
+        "preview": "13–16 minutes\nTiếp sau đó, hai người Hạ Quân, Quan Bình trao đổi thêm về quá trình tiếp đón. Bọn họ có lẽ sẽ chọn con đường từ trung tâm huyện Tam Giang đi qua đường PT992 tới thẳng cầu Liễu Hà, từ cầ..."
+      },
+      {
+        "chapter_number": 586,
+        "chapter_title": "Chuẩn bị trước chiến",
+        "chunk_index": 3,
+        "content_hash": "cbd6b6d327233ce549a27b201689c6d2d26c11ef8d3e228e2036f445298c9f6b",
+        "preview": "Cách làm việc kiểu công tư phân minh ái tình dứt khoát này, thực sự đã giảm tải được rất nhiều áp lực hậu cần và áp lực chiêu mộ nhân thủ cho cao tầng, càng giảm tải được rất nhiều áp lực phải ứng xử ..."
+      },
+      {
+        "chapter_number": 589,
+        "chapter_title": "Thể Tốc Độ đột kích",
+        "chunk_index": 1,
+        "content_hash": "e9f673d8e79804c05c0ed9180e6d7f5fbf8d349ade066062e21ffe565f5368c0",
+        "preview": "\"Thủ ɖâʍ tinh thần để giảm đau.\"\nĐây chính là cách giải khống chế bằng biện pháp tự thân vận động mà thủ lĩnh trấn Hi Vọng nghĩ ra và muốn áp dụng. Về phần biện pháp giải khống chế bằng tác động ngoại..."
+      }
+    ],
+    "source": "missing_entity_failure_report",
+    "human_review_required": true
+  },
+  {
+    "entity_name": "Dị năng giả",
+    "entity_type": "character",
+    "summary": "",
+    "content": "",
+    "status": "draft",
+    "priority": "low",
+    "evidence": [
+      {
+        "chapter_number": 32,
+        "chapter_title": "Radio từ chính phủ.",
+        "chunk_index": 1,
+        "content_hash": "d9c74216fae30ccb7b1eb798148547eaf496f034b3af02d1ee4176141e6a2aa8",
+        "preview": "Hàn Phong tiếp nhận bình nước từ chỗ Mã Mộng Đình, đổ hết lên bên trên tinh hạch kia, đem máu cùng dịch nhầy rửa sạch. Hắn không dám chạm vào, chỉ dám dùng trảm mã đao chọc chọc nhẹ, cảm nhận vật kia ..."
+      },
+      {
+        "chapter_number": 178,
+        "chapter_title": "Trước đại chiến (2)",
+        "chunk_index": 1,
+        "content_hash": "6c09b01156ae24e6d8e272a4309bf947dd105a4138ab83fc87310e9ce4de3691",
+        "preview": "Những người ở đây đều hai mắt sáng lên, sau đó hơi thở nhanh chóng trở nên nặng nề. Đây là lợi ích thực chất nhất, có thể nhìn thấy, có thể cầm nắm, có thể sử dụng. Cây ớt kia quả nhiên vẫn có thể tiế..."
+      },
+      {
+        "chapter_number": 215,
+        "chapter_title": "Thao túng",
+        "chunk_index": 2,
+        "content_hash": "cf32e0583f6e255eb43a85bb544eb06e6c9a8aaf383ab1393bd9d8c819254c23",
+        "preview": "- Hi vọng mấy người đừng có để cho tôi thất vọng.\n\n5 phút sau, tất cả tiểu đội trưởng, đội viên phi phàm giả và người sống sót thường dân đã tập trung đầy đủ.\n\nSố lượng phi phàm giả trên cấp 7 đã đạt ..."
+      },
+      {
+        "chapter_number": 224,
+        "chapter_title": "Lừa toàn bộ",
+        "chunk_index": 0,
+        "content_hash": "236be648280ae4dcfad8eb8184d8320411925761209af4dc878b6d42126cf475",
+        "preview": "9–12 minutes\nHàn Phong đang nằm co ro không chút nhúc nhích trong một hố sâu, cả người lây dính đầy máu đen xen lẫn với dịch não tuỷ cùng mảnh thịt nát bét. Xung quanh hắn là vô số mảnh băng vụn vỡ cù..."
+      },
+      {
+        "chapter_number": 377,
+        "chapter_title": "Chuẩn bị xong xuôi.",
+        "chunk_index": 1,
+        "content_hash": "a6effa7bcefde959d47735ed0c175b066f2036811409ba6eb2b6f7a68d004e05",
+        "preview": "Chương Lãm nghe lệnh thì cúi người xác nhận, sau đó cả người hắn dần hoá thành một cái bóng đen kịt rồi chảy ra ngoài cửa, hoàn toàn biến mất tung tích. Nhìn người dưới trướng rời đi, Bạc Thanh lúc nà..."
+      }
+    ],
+    "source": "missing_entity_failure_report",
+    "human_review_required": true
+  },
+  {
+    "entity_name": "Dị năng hệ băng",
+    "entity_type": "character",
+    "summary": "",
+    "content": "",
+    "status": "draft",
+    "priority": "low",
+    "evidence": [
+      {
+        "chapter_number": 48,
+        "chapter_title": "Tam Lang hội",
+        "chunk_index": 2,
+        "content_hash": "026a14ee42521e0bb6a5cc5d85942be91697bff235329bcd0b8cc93475cdf1bf",
+        "preview": "Tần Kha nghe Nhạc Sơn nói, khuôn mặt càng xuất hiện khó coi. Một tên “cảnh sát” bên cạnh Tần Kha không nhịn được nữa quát lên:\n- Tần đại ca, lảm nhảm với bọn này làm gì, tốt nhất nam thì giết sạch, nữ..."
+      },
+      {
+        "chapter_number": 68,
+        "chapter_title": "Món thịt người.",
+        "chunk_index": 0,
+        "content_hash": "d1dd7889d418b336ccdafc3cae01ab1caf2d06accf6896e9ae9eeb959df05203",
+        "preview": "9–12 minutes\nHàn Phong khoé miệng nhếch lên, ngày này cuối cùng cũng tới. Hắn bình thản ra lệnh:\n- Cộng 2 điểm trí lực, 1 nhanh nhẹn, 1 thể lực. Điều tr.a bảng thuộc tính. “Ký chủ Hàn Phong. Nhân tộc ..."
+      },
+      {
+        "chapter_number": 178,
+        "chapter_title": "Trước đại chiến (2)",
+        "chunk_index": 0,
+        "content_hash": "9ad30b350d072ca222b404cffe479e459af977ea3fb1168eabeaffd45c52b17b",
+        "preview": "10–12 minutes\nHàn Phong dừng một chút rồi lại trầm giọng nói:\n- Các vị nên đốc thúc đội viên chấp hành cho nghiêm chỉnh, tốt nhất đừng để tôi phải tự mình ra tay. Nghe thấy âm điệu lạnh nhạt của Hàn P..."
+      },
+      {
+        "chapter_number": 194,
+        "chapter_title": "Giải phóng Thanh Liễu. Tấn cấp 14.",
+        "chunk_index": 1,
+        "content_hash": "9984847f6104cccd8382488f6109962a7c5d4552e85496c37ce42c053e829966",
+        "preview": "Vật cực tất phản, thứ gì cũng có điểm mạnh và điểm yếu riêng. Điểm mạnh nhất của thể phòng hộ là khả năng phòng hộ, nhưng một khi mất đi lớp phòng hộ này, chúng nó lại yếu ớt tới đáng thương. Khiên nă..."
+      },
+      {
+        "chapter_number": 269,
+        "chapter_title": "Chặn đường ám sát",
+        "chunk_index": 1,
+        "content_hash": "d12ca5d735a1b6ba63bd937e02209c9e167a79998c820454cfde9bb2ae221031",
+        "preview": "Đi kèm với đó là ba khoả cầu lửa o o bay lượn vòng quanh, lúc xa lúc gần, quỷ dị đa đoan, càng khiến cho địch nhân không biết né thế nào, chỉ có thể chịu đựng. Thao Túng Hoả Diễm do nhân loại sử dụng ..."
+      }
+    ],
+    "source": "missing_entity_failure_report",
+    "human_review_required": true
+  },
+  {
+    "entity_name": "Dịch thể cường hóa",
+    "entity_type": "character",
+    "summary": "",
+    "content": "",
+    "status": "draft",
+    "priority": "low",
+    "evidence": [
+      {
+        "chapter_number": 676,
+        "chapter_title": "Vùng an toàn giữa lòng Tam Giang",
+        "chunk_index": 6,
+        "content_hash": "0965b8bc0ad6fd23c84cbc7fedc3767f9cd0df617a9a3e53fa1b0700a7cdf2d0",
+        "preview": "Hôn một cái thôi.\n\nSau khi hôn xong, người ta sẽ đi ngay.\n\nHàn Phong lại một lần nữa thở dài.\n\nNữ tử này khéo quá.\n\nMột khi hắn hôn nàng ta, vậy chắc chắn sẽ bị hớp hồn tới không dứt ra được.\n\nĐến lúc..."
+      },
+      {
+        "chapter_number": 732,
+        "chapter_title": "Bước đầu xây dựng kết nối xã hội",
+        "chunk_index": 1,
+        "content_hash": "fda8567e608af13cd41d9edd2a2845c940d51524e365a945c284005b2834e0db",
+        "preview": "Hàn Phong đứng tại một bên quan sát vào trung tâm khu cách đấu, hắn hôm nay \"mời\" Nhạc Vũ đến là muốn thử thách năng lực của 18 đội viên chăm chỉ này một chút. Đây đồng thời cũng là hành động để thúc ..."
+      },
+      {
+        "chapter_number": 732,
+        "chapter_title": "Bước đầu xây dựng kết nối xã hội",
+        "chunk_index": 2,
+        "content_hash": "5a88f12eb480ed3ca423a20b1cc0d55cc41ec2e59f8d1c2d73e980514ee7a38e",
+        "preview": "Hắn ta phóng to chân phải bằng cách gia tăng tầng hàn băng bao phủ, nhìn bề ngoài hệt như Cường Hóa Biến Thể vậy, sau đó lại xả mạnh thể lực để tận dụng đầy đủ 100 điểm nhanh nhẹn, tạo thành tàn ảnh t..."
+      },
+      {
+        "chapter_number": 732,
+        "chapter_title": "Bước đầu xây dựng kết nối xã hội",
+        "chunk_index": 4,
+        "content_hash": "15da6bdfd07c0eca5b612d97ec10c3f253d4b025dbc4c01beb9f8e9eabfe59cf",
+        "preview": "Chẳng qua không dùng chân thì không đủ áp lực, Nhạc Vũ rất dễ dàng né qua bằng Thu Nhỏ Phản Công, luồn ra sau lưng Chu Mịch, tiện chân sút một phát vào lưng gã, cười lớn:\n- Tức hả, khóc đi, khóc to lê..."
+      },
+      {
+        "chapter_number": 747,
+        "chapter_title": "Tấn cấp 27: Băng Hồi và Entropy!",
+        "chunk_index": 8,
+        "content_hash": "9e552cddcecfa712d998d4de65afc4a23f6b2f41003b88834c002f931f8dcc6d",
+        "preview": "- Cái này, tôi nghĩ là có khả năng nhất định đó, bởi vì rõ ràng tôi \"nhớ\" được cấu trúc của mình mà, Băng Nhãn cũng lưu trữ được thông tin mà, và các thể phi phàm chính là trường thông tin đó. - Thứ h..."
+      }
+    ],
+    "source": "missing_entity_failure_report",
+    "human_review_required": true
+  },
+  {
+    "entity_name": "Giám đốc công ty của Hàn Phong",
+    "entity_type": "character",
+    "summary": "",
+    "content": "",
+    "status": "draft",
+    "priority": "low",
+    "evidence": [
+      {
+        "chapter_number": 382,
+        "chapter_title": "Báo cáo công việc (2)",
+        "chunk_index": 0,
+        "content_hash": "67419de31cecb1aa41e4d2f76b6af9c97a812c0c70e9b51caf238a2ac9ba0f9d",
+        "preview": "10–13 minutes\nChửi bới phát tiết một hồi, Hàn Phong cuối cùng vẫn là đọc sơ qua một lượt rồi nhắm mắt ký bừa cả tám phiếu xuất kho. Trong số này có phiếu xuất thực phẩm cho thành viên Dao Găm. Có phiế..."
+      },
+      {
+        "chapter_number": 1,
+        "chapter_title": "Đầu lâu khổng lồ ngoài cửa sổ",
+        "chunk_index": 0,
+        "content_hash": "1fef1e79f09917398be489262c7c334626bc0374c7d198bda81240778e71846a",
+        "preview": "Công ty Đại Thiên Thần. - Chết tiệt thật, tên khốn ngươi không biết cách làm người sao? Hàn Phong đứng trước bàn giám đốc, khuôn mặt cúi gằm, ánh mắt nhẫn nhịn nhìn mũi giày, im lặng lắng nghe những c..."
+      },
+      {
+        "chapter_number": 1,
+        "chapter_title": "Đầu lâu khổng lồ ngoài cửa sổ",
+        "chunk_index": 1,
+        "content_hash": "2c809485f7c3d50e6d5b1c497546925471bc33f27626539f02d22664cf339ebf",
+        "preview": "Hàn Phong vội quay qua bên cạnh, chẳng biết từ khi nào, 2 tên to con đã đứng sẵn chờ hắn tại hành lang. Hàn Phong khuôn mặt tái xanh chợt mềm giọng cầu khẩn:\n- Lý đại ca, ta hôm trước mới trả một khoả..."
+      },
+      {
+        "chapter_number": 4,
+        "chapter_title": "Trinh sát nhãn",
+        "chunk_index": 0,
+        "content_hash": "4713ab4331438c250719c35486f61568378cfe3c25723ee0d317da8528931fbe",
+        "preview": "Nhìn thời gian trên đồng hồ, 4h chiều, Hàn Phong đem điện thoại ném vào túi quần, đứng lên vươn vai một cái. Thể lực hồi phục tới 10/12, trí lực cũng hoàn trả về 9/10, xem ra giấc ngủ ngắn đúng là phụ..."
+      },
+      {
+        "chapter_number": 5,
+        "chapter_title": "Thẻ vật phẩm",
+        "chunk_index": 1,
+        "content_hash": "06953c3d796abb3f0d06cbe964117ce4eac49cbe606c7778b35152e131a1717b",
+        "preview": "Một cái thẻ bài màu bạc lớn chừng lòng bàn tay cũng theo đó rơi ra bên cạnh thân xác Lý Bình. Hàn Phong vận khí không tệ chút nào, Lý Bình vừa rồi là ngã sấp mặt. Nếu gã ngã ngửa ra, hai tay có khả nă..."
+      }
+    ],
+    "source": "missing_entity_failure_report",
+    "human_review_required": true
+  },
+  {
+    "entity_name": "Hệ thống sinh tồn",
+    "entity_type": "character",
+    "summary": "",
+    "content": "",
+    "status": "draft",
+    "priority": "low",
+    "evidence": [
+      {
+        "chapter_number": 75,
+        "chapter_title": "Hệ thống chức nghiệp",
+        "chunk_index": 2,
+        "content_hash": "a7963a2099fd0230582c8c80404fe7a62e8ae1001d119f5d1bef2a36ed028657",
+        "preview": "Thẻ chức nghiệp cũng chỉ có một, hắn chỉ có thể chọn một mà thôi. Hắn chú ý tới chức nghiệp “thông thức giả” cung cấp kỹ năng “chế tác”, có thể lợi dụng tài liệu ma dược tiến hành chế tác thành ma dượ..."
+      },
+      {
+        "chapter_number": 815,
+        "chapter_title": "Trấn Thanh Nham.",
+        "chunk_index": 10,
+        "content_hash": "476d9ad0af345aab241bfd1f2cd1e0d5fae24da4b21526294153b0adc49f2c5b",
+        "preview": "Dê núi hoang dã phải tự lực sinh tồn nên có khả năng chịu thiếu muối khá tốt. Nhưng con trước mắt rõ ràng xuất thân từ dê nhà, vốn quen được con người bổ sung muối khoáng, bản năng tìm muối đã suy yếu..."
+      },
+      {
+        "chapter_number": 826,
+        "chapter_title": "Thiên Đường!",
+        "chunk_index": 10,
+        "content_hash": "c0e52e5edc0ba80821bac77c30c10c52da5293ad262e22d3513796b295d6ebc3",
+        "preview": "- Hứa bí thư, xét theo cơ chế điều hành khẩn cấp hiện hành, ba phần đơn xin thôi việc của đám người Mộc Quang Hiển quả thật không tồn tại vấn đề về mặt quy trình tiếp nhận.\n\n- Tuy nhiên, trong trạng t..."
+      },
+      {
+        "chapter_number": 827,
+        "chapter_title": "Tôi đoán là...",
+        "chunk_index": 0,
+        "content_hash": "9bef2c7f274312811c9221b5a747f507cc9da6e545cbe45ee40335fae6be481f",
+        "preview": "06:17p ngày thứ 66 hậu dị biến.\n\nTam Giang - Diễn Giang.\n\nTrời âm u, mưa phùn rả rích, nhiệt độ hạ thấp xuống dưới ngưỡng 2°C.\n\nTiền cảnh thế giới mỗi lúc một thêm cực đoan tà dị.\n\nThời tiết thất thườ..."
+      },
+      {
+        "chapter_number": 29,
+        "chapter_title": "Chuẩn bị mồi câu",
+        "chunk_index": 1,
+        "content_hash": "b8d0b399764e2d4692b39ca62f0f79a7729dc79282ea2b714305929d7ba23593",
+        "preview": "Hàn Phong lắc đầu cười nói:\n- Chỉ cần mọi việc thuận lợi, đệ ngay cả cơ hội chạm vào nó cũng không có. Nếu thất bại, e rằng chỉ vừa đối chiến, chúng ta sẽ bị giết sạch sau mấy chục giây…\nHàn Phong đi ..."
+      }
+    ],
+    "source": "missing_entity_failure_report",
+    "human_review_required": true
+  },
+  {
+    "entity_name": "Hộp thực phẩm hệ thống",
+    "entity_type": "character",
+    "summary": "",
+    "content": "",
+    "status": "draft",
+    "priority": "low",
+    "evidence": [
+      {
+        "chapter_number": 77,
+        "chapter_title": "Trang bị level 4",
+        "chunk_index": 2,
+        "content_hash": "775f1333c5d0bcf88902e71afc0ff5064c5fbb77ccae6b51a286735e68f1cb1e",
+        "preview": "- Dạ. Xuân Hoa thấy đối phương rõ ràng có nhìn qua bản thân lại còn làm như không thấy, trong lòng thầm nghĩ, lần sau liền thay loại mỏng hơn xem sao. Nàng ta dẫn đầu tiến lên cầm lấy thẻ vật phẩm, sa..."
+      },
+      {
+        "chapter_number": 79,
+        "chapter_title": "Đã qua sử dụng",
+        "chunk_index": 1,
+        "content_hash": "de7f769d764a487f73a3f179fa4646218d4a067fa0e43665f5aab9b10f11671c",
+        "preview": "Hàn Phong chính khí lẫm nhiên đáp lại:\n- Tôi luôn cố gắng vì mục tiêu này. Hắn nói xong, lập tức đổi chủ đề:\n- Cũng muộn rồi, tôi muốn trở về dùng bữa tối. Tường Vi từ tốn gật đầu, sau đó đột nhiên hỏ..."
+      },
+      {
+        "chapter_number": 79,
+        "chapter_title": "Đã qua sử dụng",
+        "chunk_index": 2,
+        "content_hash": "0c395ae288ecc0814c994814a3baa06d99f1f65dfbd42fd188f44de5e7bba0ba",
+        "preview": "Mỗi ngày 2 lần vào trưa và tối, trấn Hi Vọng sẽ họp bàn công tác, tổng kết chiến quả, chiến tổn, sau đó phân chia nhiệm vụ. Tận thế ập tới, thực lực của mỗi người biến đổi từng ngày, thậm chí từng giờ..."
+      },
+      {
+        "chapter_number": 100,
+        "chapter_title": "Thảo luận kế hoạch tác chiến",
+        "chunk_index": 0,
+        "content_hash": "85e23af2dd12656e3f32d297c921e7b088b25c95345dddcd93b719b530235b6b",
+        "preview": "10–12 minutes\nCao Trác túng quẫn gãi đầu, sau đó thở dài thườn thượt:\n- Aizzz…\nHắn không than vãn thêm nữa. Hắn trước tận thế là công tử ca hàng thật giá thật, xung quanh người có bao nhiêu là nữ nhân..."
+      },
+      {
+        "chapter_number": 114,
+        "chapter_title": "Bảo bối.",
+        "chunk_index": 1,
+        "content_hash": "0bde182c59f5b9dffeb08571854dc100defd4d62b37249be01738b548a5de2ba",
+        "preview": "Ngay cạnh quầy đồ hộp là quầy dầu ăn, muối, nước tương, bơ, gia vị... Tiếp phía sau là một hàng dài những bao gạo 10kg xếp chồng lên nhau cao tới 4 mét. Hàn Phong hai mắt toả sáng, chừng này phải có í..."
+      }
+    ],
+    "source": "missing_entity_failure_report",
+    "human_review_required": true
+  },
+  {
+    "entity_name": "Lâm Nhã Vy",
+    "entity_type": "character",
+    "summary": "",
+    "content": "",
+    "status": "needs_review",
+    "priority": "low",
+    "evidence": [],
+    "source": "missing_entity_failure_report",
+    "human_review_required": true
+  },
+  {
+    "entity_name": "Lý Đức",
+    "entity_type": "character",
+    "summary": "",
+    "content": "",
+    "status": "draft",
+    "priority": "low",
+    "evidence": [
+      {
+        "chapter_number": 128,
+        "chapter_title": "Được cả người cả vật.",
+        "chunk_index": 1,
+        "content_hash": "736ca1bc3e4d0b22ef489032b1908eeef59e98b47de1707a9073024bc57ea0b5",
+        "preview": "Ân, chỉ là khứu giác giống chó thôi. Ngô Soái thì bốc một cái kỹ năng nhị giai Gầm Thét lên nhanh chóng học tập. Kỹ năng này tiêu hao 4 trí lực, một khi kích hoạt có thể tạo ra một cỗ sóng âm hồi cho ..."
+      },
+      {
+        "chapter_number": 128,
+        "chapter_title": "Được cả người cả vật.",
+        "chunk_index": 2,
+        "content_hash": "56faf03bc99d02bca19fc28d43e51efb0756ad3605c056da383e9a7fc4446a16",
+        "preview": "Tôi sẽ cung cấp vũ trang cho các anh, còn cung cấp hậu cần ăn uống nghỉ ngơi an toàn, chế độ đãi ngộ tương đương toàn quân. Tất nhiên, an toàn của các anh trước các sinh vật mạnh mẽ cũng sẽ được đảm b..."
+      },
+      {
+        "chapter_number": 206,
+        "chapter_title": "Một mũi tên trúng ba đích",
+        "chunk_index": 1,
+        "content_hash": "af4cfdcc25ebd9b1b3b2ff4c2251107670eedada6d45bac315e50d57f15a7485",
+        "preview": "Không chỉ là thử thách với những con người yếu nhược kia, đây còn là thử thách với hắn, với người trực tiếp ra mệnh lệnh, lựa chọn những người đó. Điều này chẳng khác nào hắn biết rõ phía trước có một..."
+      },
+      {
+        "chapter_number": 312,
+        "chapter_title": "Xử lý công việc",
+        "chunk_index": 2,
+        "content_hash": "6aab0ac89b5ab9aab151aafc70389f14ccb83e6aa6bf0c2ce5f19e3368aceea0",
+        "preview": "Thật ra hắn lấy thẻ trang bị ngẫu nhiên chỉ để một lát nữa tìm lại cảm giác hồi hộp và thoả mãn khi quay báu vật mà thôi, bộ trang bị hiện tại của hắn đã tương đối toàn diện rồi, tạm thời cũng không c..."
+      },
+      {
+        "chapter_number": 159,
+        "chapter_title": "Lợn siêu nạc",
+        "chunk_index": 2,
+        "content_hash": "a9a4c5f2e6ae26b752fb6579d0ad1be674c7c6407b1de1feca134e175d96b8d9",
+        "preview": "Tiếp đó là 11, 12, 13 điểm phục hồi thì cơ thể lại đáp ứng thế nào. Nếu chịu vết thương nặng thì cần điểm phục hồi bao nhiêu để trong thời gian ngắn lành lại. Nếu chịu vết thương nhẹ thì sao. Tiếp đó,..."
+      }
+    ],
+    "source": "missing_entity_failure_report",
+    "human_review_required": true
+  },
+  {
+    "entity_name": "Thẻ triệu hồi",
+    "entity_type": "character",
+    "summary": "",
+    "content": "",
+    "status": "draft",
+    "priority": "low",
+    "evidence": [
+      {
+        "chapter_number": 792,
+        "chapter_title": "Sức mạnh tri thức",
+        "chunk_index": 8,
+        "content_hash": "7bdf284619722477ff3b51eea2e6927cad3bb44e2fe5294fdfcdf23c912ecb5f",
+        "preview": "- Hai cái này do tôi trực tiếp mở thẻ rơi ra, thuộc về vật phẩm tư hữu. Tôi nói thẳng, tôi không dùng được hai món này, nhưng cũng không có ý định đem ra trao đổi một cách tuỳ tiện như vừa rồi.\n\n- Hiệ..."
+      },
+      {
+        "chapter_number": 811,
+        "chapter_title": "Tranh cãi trong chiếc lồng khép kín",
+        "chunk_index": 1,
+        "content_hash": "78032ea9fcb2af2e7001e3ca9ddb3189fa07ec05dc275610768cb767ce3d8bed",
+        "preview": "Trang bị level 5 như một con bài tẩy, trấn trấn chi bảo, như một tâm ma mà ai cũng khao khát. Nói nó như vũ khí hạt nhân trước tận thế cũng không ngoa chút nào. Bất kỳ nước nào có tham vọng hùng cường..."
+      },
+      {
+        "chapter_number": 9,
+        "chapter_title": "Thoát đi",
+        "chunk_index": 2,
+        "content_hash": "3427fbf3aad783ef780ceae529a586db802bbd68d05520a1279663402af587d3",
+        "preview": "Thời gian làm lạnh: 1 phút. Lưu ý: uy lực cùng thời gian duy trì quyết định bởi số lượng điểm kỹ năng cộng thêm.”\n- Kỹ năng nhất giai vẫn còn khá nhiều hạn chế cho với nhị giai. Kỹ năng hệ chiến đấu c..."
+      },
+      {
+        "chapter_number": 74,
+        "chapter_title": "Cá biến dị",
+        "chunk_index": 1,
+        "content_hash": "5c68c5cebfaa638d52d0321f7f6e48a4022906159714037339e26890f4dc11cb",
+        "preview": "Cá biến dị há miệng tuôn ra vô số niêm dịch ăn mòn, lại bị Hàn Phong phất tay, đám niêm dịch lập tức hoá thành băng đá rớt xuống. Nó giãy dụa thêm mấy giây thì yếu dần, sau đó là nằm im bất động. Một ..."
+      },
+      {
+        "chapter_number": 75,
+        "chapter_title": "Hệ thống chức nghiệp",
+        "chunk_index": 2,
+        "content_hash": "a7963a2099fd0230582c8c80404fe7a62e8ae1001d119f5d1bef2a36ed028657",
+        "preview": "Thẻ chức nghiệp cũng chỉ có một, hắn chỉ có thể chọn một mà thôi. Hắn chú ý tới chức nghiệp “thông thức giả” cung cấp kỹ năng “chế tác”, có thể lợi dụng tài liệu ma dược tiến hành chế tác thành ma dượ..."
+      }
+    ],
+    "source": "missing_entity_failure_report",
+    "human_review_required": true
+  },
+  {
+    "entity_name": "Tinh thể zombie",
+    "entity_type": "item",
+    "summary": "",
+    "content": "",
+    "status": "draft",
+    "priority": "low",
+    "evidence": [
+      {
+        "chapter_number": 734,
+        "chapter_title": "Phủ vải lụa lên đồ đao",
+        "chunk_index": 8,
+        "content_hash": "96aec3cad29b40dfe6f6c51d30ac1e974671c42ff4b020c6e6257f28ddee152e",
+        "preview": "Tiếng nói chuyện vẫn trầm đều, giấy tờ xào xạc, nhưng sự tương phản giữa không khí chuyên nghiệp và trang phục quái đản khiến căn phòng trở nên có chút siêu thực. Ánh trăng lấp lánh từ ô cửa sổ trên c..."
+      }
+    ],
+    "source": "missing_entity_failure_report",
+    "human_review_required": true
+  },
+  {
+    "entity_name": "Trương Hạo",
+    "entity_type": "character",
+    "summary": "",
+    "content": "",
+    "status": "draft",
+    "priority": "low",
+    "evidence": [
+      {
+        "chapter_number": 786,
+        "chapter_title": "Bản chất lộ ra dưới ánh sáng cường quyền (1)",
+        "chunk_index": 23,
+        "content_hash": "d695611bc999b94f55661f9a62e07780d0b430e306cc947d6c6cda1b5ce652f3",
+        "preview": "Hàn Phong hít sâu một hơi, như muốn đem toàn bộ không khí ngột ngạt của căn phòng nén xuống tận đáy phổi. Hắn ngẩng đầu, ánh mắt chậm rãi lướt dọc theo dãy ghế trên đài cao. Không phải là cái nhìn thá..."
+      },
+      {
+        "chapter_number": 780,
+        "chapter_title": "Sự khủng bố của huyết mạch thế gia",
+        "chunk_index": 13,
+        "content_hash": "7b55665eaeb3db42ca276917ca8b9b83e56a32128deaf64f52640daa020bcd11",
+        "preview": "\"Nó đang gặp phải hạn chế gì à?\"\n\n\"Theo tiểu thuyết tu tiên, cái này giống như kiểu người từ tiên giới muốn hạ phàm xuống hạ giới thì phải tự áp chế tu vi...\"\n\n\"Hay là theo khoa huyễn tây phương, đây ..."
+      },
+      {
+        "chapter_number": 788,
+        "chapter_title": "Nhân loại và vũ trụ",
+        "chunk_index": 23,
+        "content_hash": "0237e73b790c3289d31459fd1b3c8df2a2a3a29ac328299fff6444197274a375",
+        "preview": "- Ta... Ta...\n\nSử Thắng nhìn qua cỗ bù nhìn bị thiêu cháy tàn lụi bên kia, âm thầm gật đầu.\n\nTám điểm rưỡi.\n\nĐây là một mầm mống rất tốt.\n\nHắn ta lúc này mới quay qua đám binh lính phía dưới, lại quay..."
+      },
+      {
+        "chapter_number": 788,
+        "chapter_title": "Nhân loại và vũ trụ",
+        "chunk_index": 24,
+        "content_hash": "8ba04ff13431a898f736ce89f38c0046e58684b9af3b8d3f76a462591aa61f8d",
+        "preview": "Lời của Sử Thắng phủ xuống toàn trường, sau khoảng mười giây chờ đợi, hiện trường liền lâm vào im thít.\n\nTrong khi đó, Ngô Kiện đứng phía trước mặt mũi có chút tái nhợt, bởi vì hắn cảm giác bản thân v..."
+      }
+    ],
+    "source": "missing_entity_failure_report",
+    "human_review_required": true
+  },
+  {
+    "entity_name": "Tác dụng của dịch thể cường hóa gen",
+    "entity_type": "character",
+    "summary": "",
+    "content": "",
+    "status": "draft",
+    "priority": "low",
+    "evidence": [
+      {
+        "chapter_number": 261,
+        "chapter_title": "Con bài tẩy của Đổng Thành",
+        "chunk_index": 1,
+        "content_hash": "f53bd750cd9b7ec698b95bb9cc83d1473c3dc445c88ff545475296f290f7ee5a",
+        "preview": "Từng chiếc ô tô con được đẩy tới, chặn lại tất cả đường nhánh, bịt kín tất cả ngã rẽ, uốn cong cả lộ tuyến di chuyển theo dự đoán của thây ma. Tất cả để đảm bảo chúng nó sẽ đi vào trận địa bom xăng tạ..."
+      },
+      {
+        "chapter_number": 376,
+        "chapter_title": "Chiến thắng",
+        "chunk_index": 1,
+        "content_hash": "3a7f061c57e2f8fba23ebd881fabbd6df74aca0f44317c06222aee34bc2c1860",
+        "preview": "Băng nô khởi đầu chức nghiệp, băng ảnh có thể kết nối bản thể với băng nô để đổi chỗ hai bên cho nhau, khắc phục điểm yếu về tốc độ của Pháp Sư Băng, băng độc có thể gia tăng sức mạnh của băng nô bằng..."
+      },
+      {
+        "chapter_number": 261,
+        "chapter_title": "Con bài tẩy của Đổng Thành",
+        "chunk_index": 2,
+        "content_hash": "4000b881e36e7bd60caaeeb99bedca09873c4aa04ce17b934859e794c70afad0",
+        "preview": "Kỹ năng này triệu hồi những lưỡi đao gió sắc bén đủ để chém đứt đầu thây ma, cũng khó có thể phát hiện, khi chiến đấu có thể khiến cho địch thủ phải chật vật né tránh. Hàn Phong quan sát chiến trường ..."
+      },
+      {
+        "chapter_number": 6,
+        "chapter_title": "Thăng cấp kỹ năng",
+        "chunk_index": 0,
+        "content_hash": "801a122220a0c349b62027cb986aeff27d318ff88810d31603e3a5efe056406c",
+        "preview": "Sau khi đạt thành nhận thức chung, Hàn Phong lập tức nói:\n- Hai người chuẩn bị một chút, thu dọn tất thảy đồ ăn thức uống, cũng mặc thêm y phục, che chắn bản thân cho tốt. Về phần những thứ vô dụng kh..."
+      },
+      {
+        "chapter_number": 260,
+        "chapter_title": "Lột trần bí mật",
+        "chunk_index": 1,
+        "content_hash": "bcd5fd86f015f83999799a11180333299123394d351ea99da38b4b6f06e2b0d8",
+        "preview": "Lấy ví dụ đơn giản khi chạm vào vật nóng thì sẽ gây ra phản ứng rụt tay, khi gặp lạnh sẽ run rẩy nổi gai ốc, hẳn là khi đó thể tâm trí tại tay sẽ rung động theo bản năng…\nTường Vi nghe kiến giải của H..."
+      }
+    ],
+    "source": "missing_entity_failure_report",
+    "human_review_required": true
+  },
+  {
+    "entity_name": "Tên thành phố xảy ra mạt thế sinh hóa",
+    "entity_type": "location",
+    "summary": "",
+    "content": "",
+    "status": "draft",
+    "priority": "low",
+    "evidence": [
+      {
+        "chapter_number": 6,
+        "chapter_title": "Thăng cấp kỹ năng",
+        "chunk_index": 1,
+        "content_hash": "1f3fd2409f870ae0508bd1815ebac7fdb04702354cb80156628669b1db3a1a71",
+        "preview": "Bên cạnh phòng giám đốc là phòng làm việc số 2. Lúc này cửa phòng hé mở, từ cách xa 2 mét đã nghe thấy âm thanh khò khè cùng tiếng cắn nuốt xác thịt ghê rợn. Hàn Phong ra hiệu cho hai người phía sau d..."
+      },
+      {
+        "chapter_number": 261,
+        "chapter_title": "Con bài tẩy của Đổng Thành",
+        "chunk_index": 0,
+        "content_hash": "548c8b440f393c4830f75dcac32c916b422ee5d61fc959f2d58b845fb185338e",
+        "preview": "9–12 minutes\nVài phút sau, Lý Võ Lạc đã mang theo một tập tài liệu tới tìm Hàn Phong báo cáo:\n- Thủ lĩnh, đây là kế hoạch tác chiến buổi chiều, mời thủ lĩnh cho ý kiến và phê duyệt. Hàn Phong đưa tay ..."
+      }
+    ],
+    "source": "missing_entity_failure_report",
+    "human_review_required": true
+  },
+  {
+    "entity_name": "Vương Mạnh",
+    "entity_type": "character",
+    "summary": "",
+    "content": "",
+    "status": "draft",
+    "priority": "low",
+    "evidence": [
+      {
+        "chapter_number": 324,
+        "chapter_title": "Chương 324",
+        "chunk_index": 0,
+        "content_hash": "5681d413c445cf76e3e09f8ae33ff0674c4fc9ce9cc44dffe401307579ecde10",
+        "preview": "10–12 minutes\n“Thật ra tôi chính là cái đầu thể thao túng đã tấn công đồng đội của anh đây.” Bởi vì không có Tường Vi bên cạnh, Hàn Phong rất tuỳ tiện mà nghĩ thầm một câu trong lòng, hắn lúc này chỉ ..."
+      },
+      {
+        "chapter_number": 330,
+        "chapter_title": "Chương 330",
+        "chunk_index": 1,
+        "content_hash": "dfe6742ea9ac74b42560ddc3f24dfb9dc9ebbe01853ce9f9f74de40e9802dba3",
+        "preview": "- Thật sự là đủ khó khăn ha… Quá não tàn…\nLẩm bẩm một câu tự giễu, Hàn Phong đem tất cả thông tin này ghi chép cẩn thận một lượt. Ngày mai hắn sẽ ném cho Ngô Soái, để cho thằng nhóc kia đi xác nhận tí..."
+      },
+      {
+        "chapter_number": 13,
+        "chapter_title": "Phối hợp hành động",
+        "chunk_index": 0,
+        "content_hash": "cd95560867086d37fd0566080e95e170bc95016130b3bb9126cef357e3bdb851",
+        "preview": "Hàn Phong nhướng mày. Xem ra những ai tranh thủ được thời gian ban đầu thăng cấp mới có thể nhận thưởng. Phải chăng khi đạt cấp 5, nhận được nhiệm vụ kia cũng sẽ có giới hạn thời gian? Xem ra việc tăn..."
+      },
+      {
+        "chapter_number": 199,
+        "chapter_title": "Tình nhân tìm tới cửa",
+        "chunk_index": 0,
+        "content_hash": "332af631abe12f16e5548f35d47268f581733e9555be5ad2644bb7856e429902",
+        "preview": "9–12 minutes\nĐây chính là tiếng hú trong đêm mà Hàn Phong từng nghe thấy vào hôm trước. Tiếng hú mang theo thê lương, tức giận, hận thù, khát máu, và còn cả uỷ khuất vô hạn. Tiếp theo đó là âm thanh s..."
+      },
+      {
+        "chapter_number": 319,
+        "chapter_title": "Chương 319",
+        "chunk_index": 3,
+        "content_hash": "c105fe17c5e08fc360c587b370c4c11b877713567eb4bb5f27468ad2d48ad4dc",
+        "preview": "Lại là một “hack” nữa được đưa ra trong cuộc họp tối qua.\n\nLợi dụng đặc tính đạn diệt quỷ duy trì được 60 phút hiệu ứng khi để bên ngoài, 9 viên đạn của lượt thứ nhất sẽ được lấy ra khỏi súng, 9 viên ..."
+      }
+    ],
+    "source": "missing_entity_failure_report",
+    "human_review_required": true
+  },
+  {
+    "entity_name": "Zombie đột biến cấp 1",
+    "entity_type": "unknown",
+    "summary": "",
+    "content": "",
+    "status": "needs_review",
+    "priority": "low",
+    "evidence": [],
+    "source": "missing_entity_failure_report",
+    "human_review_required": true
+  }
+]
