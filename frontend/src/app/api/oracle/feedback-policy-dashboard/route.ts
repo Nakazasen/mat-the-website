@@ -27,7 +27,10 @@ export async function GET(request: NextRequest) {
       totalSummaryRes,
       activePatchesRes,
       warnCountRes,
-      blockCountRes
+      blockCountRes,
+      latestRunRes,
+      failuresRes,
+      pendingFeedbackRes
     ] = await Promise.all([
       // Fetch 50 most recent community feedbacks
       supabase
@@ -69,7 +72,26 @@ export async function GET(request: NextRequest) {
       supabase
         .from("provisional_library_feedback_summary")
         .select("provisional_id", { count: "exact", head: true })
-        .eq("oracle_policy", "block")
+        .eq("oracle_policy", "block"),
+
+      // Observability: latest run
+      supabase
+        .from("feedback_policy_pipeline_runs")
+        .select("*")
+        .order("started_at", { ascending: false })
+        .limit(1),
+
+      // Observability: total failures
+      supabase
+        .from("feedback_policy_pipeline_runs")
+        .select("id", { count: "exact", head: true })
+        .eq("ok", false),
+
+      // Observability: pending feedback count
+      supabase
+        .from("provisional_library_feedback")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending")
     ]);
 
     // 3. Check for errors
@@ -77,7 +99,35 @@ export async function GET(request: NextRequest) {
     if (summariesRes.error) throw new Error(summariesRes.error.message);
     if (patchesRes.error) throw new Error(patchesRes.error.message);
 
-    // 4. Return formatted data
+    // 4. Calculate health block
+    const latestRun = latestRunRes.data && latestRunRes.data.length > 0 ? latestRunRes.data[0] : null;
+    let last_run_at: string | null = null;
+    let last_run_ok = true;
+    let last_run_errors: string[] = [];
+    let hours_since_last_run = 999;
+    let pipeline_stale = true;
+    let last_run_feedback_read = 0;
+    let last_run_summaries_written = 0;
+    let last_run_patches_written = 0;
+    let last_run_cache_deleted = 0;
+    let last_run_dry_run = false;
+
+    if (latestRun) {
+      last_run_at = latestRun.started_at;
+      last_run_ok = latestRun.ok;
+      last_run_errors = latestRun.errors || [];
+      last_run_feedback_read = latestRun.feedback_rows_read || 0;
+      last_run_summaries_written = latestRun.summary_rows_written || 0;
+      last_run_patches_written = latestRun.patches_written || 0;
+      last_run_cache_deleted = latestRun.cache_rows_deleted || 0;
+      last_run_dry_run = latestRun.dry_run || false;
+
+      const elapsedMs = Date.now() - new Date(latestRun.started_at).getTime();
+      hours_since_last_run = elapsedMs / (1000 * 60 * 60);
+      pipeline_stale = hours_since_last_run > 3;
+    }
+
+    // 5. Return formatted data
     return NextResponse.json({
       feedback_recent: recentFeedbackRes.data || [],
       summaries: summariesRes.data || [],
@@ -88,6 +138,20 @@ export async function GET(request: NextRequest) {
         patch_active: activePatchesRes.count || 0,
         warn_count: warnCountRes.count || 0,
         block_count: blockCountRes.count || 0
+      },
+      health: {
+        last_run_at,
+        last_run_ok,
+        last_run_errors,
+        hours_since_last_run,
+        pipeline_stale,
+        recent_failures: failuresRes.count || 0,
+        pending_feedbacks: pendingFeedbackRes.count || 0,
+        last_run_feedback_read,
+        last_run_summaries_written,
+        last_run_patches_written,
+        last_run_cache_deleted,
+        last_run_dry_run
       }
     });
 

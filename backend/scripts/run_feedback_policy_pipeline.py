@@ -156,6 +156,8 @@ def main():
     parser.add_argument("--json", action="store_true", help="Format console summary output as JSON.")
     parser.add_argument("--clear-cache", action="store_true", help="Selectively clear oracle cache for patched entities.")
     parser.add_argument("--since-hours", type=int, help="Limit feedback records to those created within since-hours.")
+    parser.add_argument("--log-run", action="store_true", help="Log pipeline run status in database.")
+    parser.add_argument("--trigger-source", choices=["github_actions", "manual", "cron_endpoint", "local"], default="local", help="Pipeline execution trigger source.")
     
     args = parser.parse_args()
     
@@ -168,7 +170,9 @@ def main():
         dry_run=dry_run,
         limit=args.limit,
         clear_cache=args.clear_cache,
-        since_hours=args.since_hours
+        since_hours=args.since_hours,
+        log_run=args.log_run,
+        trigger_source=args.trigger_source
     )
 
     if args.json:
@@ -190,64 +194,128 @@ def run_feedback_policy_pipeline(
     dry_run: bool,
     limit: int = 5000,
     clear_cache: bool = True,
-    since_hours: int = None
+    since_hours: int = None,
+    log_run: bool = False,
+    trigger_source: str = "unknown"
 ) -> dict:
-    # 1. Fetch Feedback
-    feedback_rows = fetch_feedback_records(limit, since_hours, supabase_client=supabase_client)
+    import datetime
+    started_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
     
-    # 2. Build Feedback Summaries
-    summaries = summarize_feedback(feedback_rows)
-    
-    # 3. Fetch target provisional records
-    pids = list(set(str(row["provisional_id"]) for row in feedback_rows if row.get("provisional_id")))
-    provisional_records = fetch_provisional_records(pids, supabase_client=supabase_client)
-    
-    # 4. Build Knowledge Patches
-    generated_patches = build_patch_payloads(feedback_rows, provisional_records)
-    
-    # 5. Idempotency Check
-    existing_patches = fetch_existing_active_patches(supabase_client=supabase_client)
-    existing_keys = {patch_dedupe_key(p) for p in existing_patches}
-    
-    new_patches = []
-    for p in generated_patches:
-        key = patch_dedupe_key(p)
-        if key not in existing_keys:
-            new_patches.append(p)
-            existing_keys.add(key)  # Avoid adding duplicates within the same run
+    errors = []
+    feedback_rows_read = 0
+    summary_rows_written = 0
+    patches_written = 0
+    cache_rows_deleted = 0
+    summaries_built = 0
+    patches_built = 0
+    ok = False
+    report = {}
 
-    # 6. Database Writes
-    summary_stats = write_summaries(summaries, dry_run=dry_run, supabase_client=supabase_client)
-    patch_stats = write_patches(new_patches, dry_run=dry_run, supabase_client=supabase_client)
-    
-    # 7. Collect names for cache clearing
-    target_names_to_clear = set()
-    for p in generated_patches:
-        tn = p.get("target_name")
-        if tn and len(tn) >= 2:
-            target_names_to_clear.add(tn)
-        
-        qp = p.get("query_pattern")
-        if qp:
-            # Extract basic entity name from patterns like "Hàn Phong là ai?"
-            clean_qp = qp.replace(" là ai?", "").replace(" là gì?", "").strip()
-            if len(clean_qp) >= 2:
-                target_names_to_clear.add(clean_qp)
+    try:
+        # 1. Fetch Feedback
+        feedback_rows = fetch_feedback_records(limit, since_hours, supabase_client=supabase_client)
+        feedback_rows_read = len(feedback_rows)
 
-    # 8. Cache Invalidation
-    cache_deleted = 0
-    if clear_cache and target_names_to_clear:
-        cache_deleted = clear_selective_oracle_cache(list(target_names_to_clear), dry_run=dry_run, supabase_client=supabase_client)
-        
-    return {
-        "feedback_rows_read": len(feedback_rows),
-        "summary_rows_built": len(summaries),
-        "summary_rows_written": summary_stats["upserted"],
-        "patches_built": len(generated_patches),
-        "patches_written": patch_stats["upserted"],
-        "cache_rows_deleted": cache_deleted,
-        "dry_run": dry_run
-    }
+        # 2. Build Feedback Summaries
+        summaries = summarize_feedback(feedback_rows)
+        summaries_built = len(summaries)
+
+        # 3. Fetch target provisional records
+        pids = list(set(str(row["provisional_id"]) for row in feedback_rows if row.get("provisional_id")))
+        provisional_records = fetch_provisional_records(pids, supabase_client=supabase_client)
+
+        # 4. Build Knowledge Patches
+        generated_patches = build_patch_payloads(feedback_rows, provisional_records)
+        patches_built = len(generated_patches)
+
+        # 5. Idempotency Check
+        existing_patches = fetch_existing_active_patches(supabase_client=supabase_client)
+        existing_keys = {patch_dedupe_key(p) for p in existing_patches}
+
+        new_patches = []
+        for p in generated_patches:
+            key = patch_dedupe_key(p)
+            if key not in existing_keys:
+                new_patches.append(p)
+                existing_keys.add(key)  # Avoid adding duplicates within the same run
+
+        # 6. Database Writes
+        summary_stats = write_summaries(summaries, dry_run=dry_run, supabase_client=supabase_client)
+        summary_rows_written = summary_stats["upserted"]
+        if summary_stats.get("errors"):
+            errors.extend(summary_stats["errors"])
+
+        patch_stats = write_patches(new_patches, dry_run=dry_run, supabase_client=supabase_client)
+        patches_written = patch_stats["upserted"]
+        if patch_stats.get("errors"):
+            errors.extend(patch_stats["errors"])
+
+        # 7. Collect names for cache clearing
+        target_names_to_clear = set()
+        for p in generated_patches:
+            tn = p.get("target_name")
+            if tn and len(tn) >= 2:
+                target_names_to_clear.add(tn)
+
+            qp = p.get("query_pattern")
+            if qp:
+                # Extract basic entity name from patterns like "Hàn Phong là ai?"
+                clean_qp = qp.replace(" là ai?", "").replace(" là gì?", "").strip()
+                if len(clean_qp) >= 2:
+                    target_names_to_clear.add(clean_qp)
+
+        # 8. Cache Invalidation
+        if clear_cache and target_names_to_clear:
+            cache_rows_deleted = clear_selective_oracle_cache(list(target_names_to_clear), dry_run=dry_run, supabase_client=supabase_client)
+
+        ok = len(errors) == 0
+        report = {
+            "feedback_rows_read": feedback_rows_read,
+            "summary_rows_built": summaries_built,
+            "summary_rows_written": summary_rows_written,
+            "patches_built": patches_built,
+            "patches_written": patches_written,
+            "cache_rows_deleted": cache_rows_deleted,
+            "dry_run": dry_run
+        }
+    except Exception as e:
+        errors.append(str(e))
+        ok = False
+        report = {
+            "feedback_rows_read": feedback_rows_read,
+            "summary_rows_built": 0,
+            "summary_rows_written": 0,
+            "patches_built": 0,
+            "patches_written": 0,
+            "cache_rows_deleted": 0,
+            "dry_run": dry_run
+        }
+    finally:
+        finished_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        if log_run:
+            try:
+                run_payload = {
+                    "started_at": started_at,
+                    "finished_at": finished_at,
+                    "trigger_source": trigger_source,
+                    "dry_run": dry_run,
+                    "clear_cache": clear_cache,
+                    "feedback_rows_read": feedback_rows_read,
+                    "summary_rows_written": summary_rows_written,
+                    "patches_written": patches_written,
+                    "cache_rows_deleted": cache_rows_deleted,
+                    "ok": ok,
+                    "errors": errors,
+                    "report": report
+                }
+                supabase_client.table("feedback_policy_pipeline_runs").insert(run_payload).execute()
+            except Exception as log_err:
+                print_safe(f"Failed to log pipeline run: {log_err}")
+
+    if not ok and errors:
+        raise RuntimeError(f"Pipeline finished with errors: {', '.join(errors)}")
+
+    return report
 
 if __name__ == "__main__":
     main()

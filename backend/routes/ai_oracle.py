@@ -1682,6 +1682,7 @@ class RunPipelineRequest(BaseModel):
 
 @router.post("/admin/run-feedback-policy-pipeline")
 async def run_pipeline_cron(
+    request: Request,
     body: RunPipelineRequest = RunPipelineRequest(),
     x_oracle_pipeline_cron_token: Optional[str] = Header(None, alias="X-Oracle-Pipeline-Cron-Token")
 ):
@@ -1696,6 +1697,13 @@ async def run_pipeline_cron(
             status_code=403,
             detail="Invalid pipeline cron token."
         )
+
+    # Resolve trigger source based on headers and user-agent
+    trigger_source = request.headers.get("X-Oracle-Pipeline-Trigger-Source", "cron_endpoint")
+    if trigger_source == "cron_endpoint":
+        user_agent = request.headers.get("user-agent", "").lower()
+        if "github" in user_agent or "curl" in user_agent:
+            trigger_source = "github_actions"
 
     try:
         from main import supabase
@@ -1715,7 +1723,9 @@ async def run_pipeline_cron(
             dry_run=body.dry_run,
             limit=limit,
             clear_cache=body.clear_cache,
-            since_hours=body.since_hours
+            since_hours=body.since_hours,
+            log_run=True,
+            trigger_source=trigger_source
         )
         return {
             "ok": True,

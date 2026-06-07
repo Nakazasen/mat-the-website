@@ -298,4 +298,68 @@ describe("AdminFeedbackPolicyDashboard Page", () => {
     // Verify alert message
     await screen.findByText(/Đã tắt bản vá thành công/);
   });
+
+  it("renders pipeline observability health panel, stale warning, and failure messages correctly", async () => {
+    const mockHealthData = {
+      feedback_recent: [],
+      summaries: [],
+      patches: [],
+      stats: {
+        feedback_total: 10,
+        summary_total: 2,
+        patch_active: 1,
+        warn_count: 1,
+        block_count: 0
+      },
+      health: {
+        last_run_at: "2026-06-08T01:00:00Z",
+        last_run_ok: false,
+        last_run_errors: ["Database timeout error", "API connection refused"],
+        hours_since_last_run: 4.5,
+        pipeline_stale: true,
+        recent_failures: 2,
+        pending_feedbacks: 5,
+        last_run_feedback_read: 15,
+        last_run_summaries_written: 3,
+        last_run_patches_written: 1,
+        last_run_cache_deleted: 2,
+        last_run_dry_run: false
+      }
+    };
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => mockHealthData
+    });
+    global.fetch = fetchMock as typeof fetch;
+
+    render(<AdminFeedbackPolicyDashboard />);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalled();
+    });
+
+    // Verify Observability Header and state card renders
+    await screen.findByText("Tình trạng pipeline tự học");
+    expect(screen.getByText("FAIL")).toBeInTheDocument();
+
+    // Verify Stale Warning renders with elapsed hours
+    expect(screen.getByText(/CẢNH BÁO PIPELINE BỊ ĐÌNH TRỆ:/)).toBeInTheDocument();
+    expect(screen.getByText(/4.5 giờ qua/)).toBeInTheDocument();
+
+    // Verify Failure Warning renders and lists logs
+    expect(screen.getByText(/LỖI PIPELINE GẦN NHẤT:/)).toBeInTheDocument();
+    expect(screen.getByText("Database timeout error")).toBeInTheDocument();
+    expect(screen.getByText("API connection refused")).toBeInTheDocument();
+
+    // Verify detail stats grid elements
+    expect(screen.getByText("15 rows")).toBeInTheDocument(); // feedback read
+    expect(screen.getByText("3 rows")).toBeInTheDocument();  // summaries written
+    expect(screen.getByText("+1 patches")).toBeInTheDocument(); // patches written
+    expect(screen.getByText("Đã xóa 2")).toBeInTheDocument(); // cache cleared
+
+    // Verify safeguards: no Apply to Wiki or token inputs
+    expect(screen.queryByRole("button", { name: /apply.*wiki/i })).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/token/i)).not.toBeInTheDocument();
+  });
 });

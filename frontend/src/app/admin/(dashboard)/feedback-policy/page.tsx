@@ -101,6 +101,21 @@ const POLICY_BADGES: Record<string, { label: string; style: string }> = {
   disabled: { label: "Disabled (Đã tắt)", style: "text-red-400 bg-red-950/20 border-red-800/40" }
 };
 
+interface PipelineHealth {
+  last_run_at: string | null;
+  last_run_ok: boolean;
+  last_run_errors: string[];
+  hours_since_last_run: number;
+  pipeline_stale: boolean;
+  recent_failures: number;
+  pending_feedbacks: number;
+  last_run_feedback_read: number;
+  last_run_summaries_written: number;
+  last_run_patches_written: number;
+  last_run_cache_deleted: number;
+  last_run_dry_run: boolean;
+}
+
 export default function AdminFeedbackPolicyDashboard() {
   const router = useRouter();
 
@@ -115,6 +130,7 @@ export default function AdminFeedbackPolicyDashboard() {
     warn_count: 0,
     block_count: 0
   });
+  const [health, setHealth] = useState<PipelineHealth | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -156,6 +172,7 @@ export default function AdminFeedbackPolicyDashboard() {
           warn_count: 0,
           block_count: 0
         });
+        setHealth(data.health || null);
       } else {
         if (res.status === 401) {
           setIsUnauthorized(true);
@@ -275,6 +292,110 @@ export default function AdminFeedbackPolicyDashboard() {
           Không tích hợp nút apply vào `wiki_entries` hay chỉnh sửa trực tiếp cơ sở dữ liệu `provisional_library` để tuân thủ quy tắc an toàn canon.
         </div>
       </div>
+
+      {/* Pipeline Observability / Health Section */}
+      {health && (
+        <div className="bg-[#181818] border border-gray-800 rounded-lg p-5 font-mono text-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-gray-900 pb-3">
+            <h2 className="text-sm font-bold text-gray-200 tracking-wider flex items-center gap-2 uppercase">
+              <Cpu className={health.last_run_ok && !health.pipeline_stale ? "text-green-500 animate-pulse" : "text-red-500"} size={16} />
+              Tình trạng pipeline tự học
+            </h2>
+            <div className="flex items-center gap-2">
+              <span className="text-gray-500">Lần chạy gần nhất:</span>
+              {health.last_run_at ? (
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                  health.last_run_ok
+                    ? "bg-green-950/40 text-green-400 border border-green-900/30"
+                    : "bg-red-950/40 text-red-400 border border-red-900/30"
+                }`}>
+                  {health.last_run_ok ? "OK" : "FAIL"}
+                </span>
+              ) : (
+                <span className="text-gray-400 italic">Chưa có dữ liệu</span>
+              )}
+            </div>
+          </div>
+
+          {/* Stale Alert */}
+          {health.pipeline_stale && (
+            <div className="flex items-start gap-2.5 text-red-400 bg-red-950/20 border border-red-900/40 rounded p-3 leading-relaxed">
+              <AlertTriangle className="shrink-0 mt-0.5" size={16} />
+              <div>
+                <span className="font-bold uppercase">CẢNH BÁO PIPELINE BỊ ĐÌNH TRỆ:</span> Pipeline tự học đã không hoạt động trong {health.hours_since_last_run ? health.hours_since_last_run.toFixed(1) : "N/A"} giờ qua (lần chạy cuối: {health.last_run_at ? new Date(health.last_run_at).toLocaleString('vi-VN') : 'N/A'}). Vui lòng kiểm tra lại scheduled workflow trên GitHub Actions.
+              </div>
+            </div>
+          )}
+
+          {/* Failure Alert */}
+          {!health.last_run_ok && health.last_run_errors.length > 0 && (
+            <div className="flex items-start gap-2.5 text-red-400 bg-red-950/20 border border-red-900/40 rounded p-3 leading-relaxed">
+              <ShieldAlert className="shrink-0 mt-0.5" size={16} />
+              <div>
+                <span className="font-bold uppercase">LỖI PIPELINE GẦN NHẤT:</span> Lần chạy cuối gặp sự cố nghiêm trọng:
+                <ul className="list-disc pl-4 mt-1 space-y-1">
+                  {health.last_run_errors.map((err, idx) => (
+                    <li key={idx} className="select-all">{err}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+
+          {/* Details Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-4">
+            <div className="bg-[#0f0f0f] border border-gray-900 rounded p-3">
+              <div className="text-[10px] text-gray-500 uppercase tracking-wider">Lần chạy cuối</div>
+              <div className="text-gray-200 mt-1 font-bold">
+                {health.last_run_at ? new Date(health.last_run_at).toLocaleTimeString('vi-VN') : "N/A"}
+              </div>
+              <div className="text-[9px] text-gray-600 mt-0.5">
+                {health.last_run_at ? new Date(health.last_run_at).toLocaleDateString('vi-VN') : ""}
+              </div>
+            </div>
+
+            <div className="bg-[#0f0f0f] border border-gray-900 rounded p-3">
+              <div className="text-[10px] text-gray-500 uppercase tracking-wider">Feedback đã đọc</div>
+              <div className="text-gray-200 mt-1 font-bold text-sm">
+                {health.last_run_feedback_read} rows
+              </div>
+              <div className="text-[9px] text-gray-600 mt-0.5">
+                Chờ xử lý: {health.pending_feedbacks}
+              </div>
+            </div>
+
+            <div className="bg-[#0f0f0f] border border-gray-900 rounded p-3">
+              <div className="text-[10px] text-gray-500 uppercase tracking-wider">Summary đã ghi</div>
+              <div className="text-gray-200 mt-1 font-bold text-sm">
+                {health.last_run_summaries_written} rows
+              </div>
+              <div className="text-[9px] text-gray-600 mt-0.5">
+                Mode: {health.last_run_dry_run ? "Simulated" : "Supabase Commit"}
+              </div>
+            </div>
+
+            <div className="bg-[#0f0f0f] border border-gray-900 rounded p-3">
+              <div className="text-[10px] text-gray-500 uppercase tracking-wider">Bản vá (Patch) mới</div>
+              <div className="text-green-400 mt-1 font-bold text-sm">
+                +{health.last_run_patches_written} patches
+              </div>
+              <div className="text-[9px] text-gray-600 mt-0.5">
+                Tổng active: {stats.patch_active}
+              </div>
+            </div>
+
+            <div className="bg-[#0f0f0f] border border-gray-900 rounded p-3 col-span-2 sm:col-span-1">
+              <div className="text-[10px] text-gray-500 uppercase tracking-wider">Xóa RAG Cache</div>
+              <div className="text-gray-200 mt-1 font-bold text-sm">
+                {health.last_run_cache_deleted > 0 ? `Đã xóa ${health.last_run_cache_deleted}` : "Không xóa"}
+              </div>
+              <div className="text-[9px] text-gray-600 mt-0.5">
+                {health.last_run_dry_run ? "Dry-run bypass" : "Dynamic target clear"}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
