@@ -27,9 +27,10 @@ def print_safe(text):
     except UnicodeEncodeError:
         print(text.encode('ascii', errors='backslashreplace').decode('ascii'))
 
-def fetch_feedback_records(limit: int, since_hours: int = None) -> List[Dict[str, Any]]:
+def fetch_feedback_records(limit: int, since_hours: int = None, supabase_client=None) -> List[Dict[str, Any]]:
+    client = supabase_client if supabase_client is not None else supabase
     try:
-        query = supabase.table("provisional_library_feedback").select("*")
+        query = client.table("provisional_library_feedback").select("*")
         if since_hours:
             import datetime
             cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=since_hours)
@@ -40,15 +41,16 @@ def fetch_feedback_records(limit: int, since_hours: int = None) -> List[Dict[str
         print_safe(f"Error fetching feedback from Supabase: {e}")
         return []
 
-def fetch_provisional_records(pids: List[str]) -> Dict[str, Dict[str, Any]]:
+def fetch_provisional_records(pids: List[str], supabase_client=None) -> Dict[str, Dict[str, Any]]:
     if not pids:
         return {}
+    client = supabase_client if supabase_client is not None else supabase
     try:
         records = {}
         batch_size = 100
         for i in range(0, len(pids), batch_size):
             batch = pids[i:i+batch_size]
-            res = supabase.table("provisional_library").select("*").in_("id", batch).execute()
+            res = client.table("provisional_library").select("*").in_("id", batch).execute()
             for r in (res.data or []):
                 if r.get("id"):
                     records[r["id"]] = r
@@ -57,15 +59,16 @@ def fetch_provisional_records(pids: List[str]) -> Dict[str, Dict[str, Any]]:
         print_safe(f"Error fetching provisional records: {e}")
         return {}
 
-def fetch_existing_active_patches() -> List[Dict[str, Any]]:
+def fetch_existing_active_patches(supabase_client=None) -> List[Dict[str, Any]]:
+    client = supabase_client if supabase_client is not None else supabase
     try:
-        res = supabase.table("provisional_library_effective_patches").select("*").eq("effective_status", "active").execute()
+        res = client.table("provisional_library_effective_patches").select("*").eq("effective_status", "active").execute()
         return res.data or []
     except Exception as e:
         print_safe(f"Error fetching existing active patches: {e}")
         return []
 
-def write_summaries(summaries: List[Dict[str, Any]], dry_run: bool) -> Dict[str, Any]:
+def write_summaries(summaries: List[Dict[str, Any]], dry_run: bool, supabase_client=None) -> Dict[str, Any]:
     stats = {"upserted": 0, "failed": 0, "errors": []}
     if not summaries:
         return stats
@@ -74,11 +77,12 @@ def write_summaries(summaries: List[Dict[str, Any]], dry_run: bool) -> Dict[str,
         stats["upserted"] = len(summaries)
         return stats
 
+    client = supabase_client if supabase_client is not None else supabase
     batch_size = 100
     for i in range(0, len(summaries), batch_size):
         batch = summaries[i:i+batch_size]
         try:
-            res = supabase.table("provisional_library_feedback_summary").upsert(batch).execute()
+            res = client.table("provisional_library_feedback_summary").upsert(batch).execute()
             stats["upserted"] += len(res.data or [])
         except Exception as e:
             stats["failed"] += len(batch)
@@ -86,7 +90,7 @@ def write_summaries(summaries: List[Dict[str, Any]], dry_run: bool) -> Dict[str,
             
     return stats
 
-def write_patches(patches: List[Dict[str, Any]], dry_run: bool) -> Dict[str, Any]:
+def write_patches(patches: List[Dict[str, Any]], dry_run: bool, supabase_client=None) -> Dict[str, Any]:
     stats = {"upserted": 0, "failed": 0, "errors": []}
     if not patches:
         return stats
@@ -95,6 +99,7 @@ def write_patches(patches: List[Dict[str, Any]], dry_run: bool) -> Dict[str, Any
         stats["upserted"] = len(patches)
         return stats
 
+    client = supabase_client if supabase_client is not None else supabase
     cleaned_patches = []
     for p in patches:
         clean = dict(p)
@@ -107,7 +112,7 @@ def write_patches(patches: List[Dict[str, Any]], dry_run: bool) -> Dict[str, Any
     for i in range(0, len(cleaned_patches), batch_size):
         batch = cleaned_patches[i:i+batch_size]
         try:
-            res = supabase.table("provisional_library_effective_patches").insert(batch).execute()
+            res = client.table("provisional_library_effective_patches").insert(batch).execute()
             stats["upserted"] += len(res.data or [])
         except Exception as e:
             stats["failed"] += len(batch)
@@ -115,12 +120,13 @@ def write_patches(patches: List[Dict[str, Any]], dry_run: bool) -> Dict[str, Any
             
     return stats
 
-def clear_selective_oracle_cache(target_names: List[str], dry_run: bool) -> int:
+def clear_selective_oracle_cache(target_names: List[str], dry_run: bool, supabase_client=None) -> int:
     if not target_names:
         return 0
+    client = supabase_client if supabase_client is not None else supabase
     try:
         # Fetch all cache entries
-        res = supabase.table("oracle_cache").select("id, response").execute()
+        res = client.table("oracle_cache").select("id, response").execute()
         cache_entries = res.data or []
         
         ids_to_delete = []
@@ -135,7 +141,7 @@ def clear_selective_oracle_cache(target_names: List[str], dry_run: bool) -> int:
             batch_size = 100
             for i in range(0, len(ids_to_delete), batch_size):
                 batch = ids_to_delete[i:i+batch_size]
-                supabase.table("oracle_cache").delete().in_("id", batch).execute()
+                client.table("oracle_cache").delete().in_("id", batch).execute()
                 
         return len(ids_to_delete)
     except Exception as e:
@@ -157,21 +163,50 @@ def main():
     if args.write and not args.dry_run:
         dry_run = False
 
+    report = run_feedback_policy_pipeline(
+        supabase,
+        dry_run=dry_run,
+        limit=args.limit,
+        clear_cache=args.clear_cache,
+        since_hours=args.since_hours
+    )
+
+    if args.json:
+        print_safe(json.dumps(report, indent=2))
+    else:
+        status_label = "WOULD WRITE" if dry_run else "WRITTEN"
+        cache_label = "WOULD DELETE" if dry_run else "DELETED"
+        print_safe("-" * 60)
+        print_safe("FEEDBACK POLICY PIPELINE REPORT:")
+        print_safe(f"Mode: {'DRY-RUN (Simulated)' if dry_run else 'WRITE (Supabase Commit)'}")
+        print_safe(f"Feedback rows read: {report['feedback_rows_read']}")
+        print_safe(f"Summaries built: {report['summary_rows_built']} ({status_label}: {report['summary_rows_written']})")
+        print_safe(f"Patches generated: {report['patches_built']} ({status_label}: {report['patches_written']})")
+        print_safe(f"Cache rows deleted: {report['cache_rows_deleted']} ({cache_label})")
+        print_safe("-" * 60)
+
+def run_feedback_policy_pipeline(
+    supabase_client,
+    dry_run: bool,
+    limit: int = 5000,
+    clear_cache: bool = True,
+    since_hours: int = None
+) -> dict:
     # 1. Fetch Feedback
-    feedback_rows = fetch_feedback_records(args.limit, args.since_hours)
+    feedback_rows = fetch_feedback_records(limit, since_hours, supabase_client=supabase_client)
     
     # 2. Build Feedback Summaries
     summaries = summarize_feedback(feedback_rows)
     
     # 3. Fetch target provisional records
     pids = list(set(str(row["provisional_id"]) for row in feedback_rows if row.get("provisional_id")))
-    provisional_records = fetch_provisional_records(pids)
+    provisional_records = fetch_provisional_records(pids, supabase_client=supabase_client)
     
     # 4. Build Knowledge Patches
     generated_patches = build_patch_payloads(feedback_rows, provisional_records)
     
     # 5. Idempotency Check
-    existing_patches = fetch_existing_active_patches()
+    existing_patches = fetch_existing_active_patches(supabase_client=supabase_client)
     existing_keys = {patch_dedupe_key(p) for p in existing_patches}
     
     new_patches = []
@@ -182,8 +217,8 @@ def main():
             existing_keys.add(key)  # Avoid adding duplicates within the same run
 
     # 6. Database Writes
-    summary_stats = write_summaries(summaries, dry_run=dry_run)
-    patch_stats = write_patches(new_patches, dry_run=dry_run)
+    summary_stats = write_summaries(summaries, dry_run=dry_run, supabase_client=supabase_client)
+    patch_stats = write_patches(new_patches, dry_run=dry_run, supabase_client=supabase_client)
     
     # 7. Collect names for cache clearing
     target_names_to_clear = set()
@@ -201,12 +236,10 @@ def main():
 
     # 8. Cache Invalidation
     cache_deleted = 0
-    if args.clear_cache and target_names_to_clear:
-        cache_deleted = clear_selective_oracle_cache(list(target_names_to_clear), dry_run=dry_run)
-    elif args.clear_cache:
-        print_safe("Cache clearing requested but no target patched names found. Skipping cache invalidation.")
+    if clear_cache and target_names_to_clear:
+        cache_deleted = clear_selective_oracle_cache(list(target_names_to_clear), dry_run=dry_run, supabase_client=supabase_client)
         
-    report = {
+    return {
         "feedback_rows_read": len(feedback_rows),
         "summary_rows_built": len(summaries),
         "summary_rows_written": summary_stats["upserted"],
@@ -215,24 +248,6 @@ def main():
         "cache_rows_deleted": cache_deleted,
         "dry_run": dry_run
     }
-    
-    if args.json:
-        print_safe(json.dumps(report, indent=2))
-    else:
-        status_label = "WOULD WRITE" if dry_run else "WRITTEN"
-        cache_label = "WOULD DELETE" if dry_run else "DELETED"
-        print_safe("-" * 60)
-        print_safe("FEEDBACK POLICY PIPELINE REPORT:")
-        print_safe(f"Mode: {'DRY-RUN (Simulated)' if dry_run else 'WRITE (Supabase Commit)'}")
-        print_safe(f"Feedback rows read: {report['feedback_rows_read']}")
-        print_safe(f"Summaries built: {report['summary_rows_built']} ({status_label}: {report['summary_rows_written']})")
-        print_safe(f"Patches generated: {report['patches_built']} ({status_label}: {report['patches_written']})")
-        print_safe(f"Cache rows deleted: {report['cache_rows_deleted']} ({cache_label})")
-        if summary_stats["errors"]:
-            print_safe(f"Summary Errors: {summary_stats['errors']}")
-        if patch_stats["errors"]:
-            print_safe(f"Patch Errors: {patch_stats['errors']}")
-        print_safe("-" * 60)
 
 if __name__ == "__main__":
     main()

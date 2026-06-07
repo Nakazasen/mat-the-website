@@ -1672,3 +1672,55 @@ async def review_oracle_correction(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
+
+class RunPipelineRequest(BaseModel):
+    dry_run: bool = False
+    clear_cache: bool = True
+    limit: int = Field(5000, ge=1, le=20000)
+    since_hours: Optional[int] = None
+
+
+@router.post("/admin/run-feedback-policy-pipeline")
+async def run_pipeline_cron(
+    body: RunPipelineRequest = RunPipelineRequest(),
+    x_oracle_pipeline_cron_token: Optional[str] = Header(None, alias="X-Oracle-Pipeline-Cron-Token")
+):
+    cron_token = os.getenv("ORACLE_FEEDBACK_PIPELINE_CRON_TOKEN")
+    if not cron_token:
+        raise HTTPException(
+            status_code=503,
+            detail="Pipeline cron token is not configured on the server."
+        )
+    if not x_oracle_pipeline_cron_token or x_oracle_pipeline_cron_token != cron_token:
+        raise HTTPException(
+            status_code=403,
+            detail="Invalid pipeline cron token."
+        )
+
+    try:
+        from main import supabase
+    except ImportError:
+        from backend.main import supabase
+
+    try:
+        try:
+            from backend.scripts.run_feedback_policy_pipeline import run_feedback_policy_pipeline
+        except ImportError:
+            from scripts.run_feedback_policy_pipeline import run_feedback_policy_pipeline
+
+        limit = min(body.limit, 20000)
+
+        report = run_feedback_policy_pipeline(
+            supabase_client=supabase,
+            dry_run=body.dry_run,
+            limit=limit,
+            clear_cache=body.clear_cache,
+            since_hours=body.since_hours
+        )
+        return {
+            "ok": True,
+            "dry_run": body.dry_run,
+            "report": report
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Pipeline execution failed: {str(e)}")
