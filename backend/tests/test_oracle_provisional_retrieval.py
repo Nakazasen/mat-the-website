@@ -42,6 +42,50 @@ def patch_oracle_func(func_name, **kwargs):
 class MockSupabase:
     def __init__(self, data):
         self.data = data
+import pytest
+from unittest.mock import patch, MagicMock, AsyncMock
+from contextlib import contextmanager
+
+from backend.rag.retrieval import (
+    search_wiki_entries,
+    search_provisional_library,
+    merge_oracle_knowledge_results
+)
+from backend.routes.ai_oracle import SYSTEM_PROMPT_TEMPLATE, build_rag_answer_prompt
+
+@contextmanager
+def patch_oracle_func(func_name, **kwargs):
+    import sys
+    patched = []
+    targets = []
+    for mod_name in list(sys.modules.keys()):
+        if mod_name.endswith("routes.ai_oracle"):
+            targets.append(f"{mod_name}.{func_name}")
+    if not targets:
+        targets = [f"routes.ai_oracle.{func_name}", f"backend.routes.ai_oracle.{func_name}"]
+
+    is_async = func_name not in ("get_rag_context_for_oracle",)
+    mock_obj = AsyncMock(**kwargs) if is_async else MagicMock(**kwargs)
+    for target in targets:
+        try:
+            p = patch(target, mock_obj)
+            p.start()
+            patched.append(p)
+        except Exception:
+            pass
+    try:
+        yield mock_obj
+    finally:
+        for p in patched:
+            try:
+                p.stop()
+            except Exception:
+                pass
+
+# Mocking Supabase query execution
+class MockSupabase:
+    def __init__(self, data):
+        self.data = data
         self.queries = []
 
     def table(self, table_name):
@@ -70,6 +114,10 @@ class MockQueryBuilder:
         self.filters[f"in_{field}"] = values
         return self
 
+    def eq(self, field, value):
+        self.filters[f"eq_{field}"] = value
+        return self
+
     def limit(self, value):
         self.filters["limit"] = value
         return self
@@ -78,7 +126,25 @@ class MockQueryBuilder:
         class MockResponse:
             def __init__(self, data):
                 self.data = data
-        return MockResponse(self.client.data.get(self.table_name, []))
+        raw_data = self.client.data.get(self.table_name, [])
+        filtered = []
+        for row in raw_data:
+            keep = True
+            for k, v in self.filters.items():
+                if k.startswith("in_"):
+                    field = k[3:]
+                    # If field is provisional_id, and row's provisional_id or id matches
+                    val = row.get(field) or row.get("id")
+                    if val not in v:
+                        keep = False
+                elif k.startswith("eq_"):
+                    field = k[3:]
+                    val = row.get(field) or row.get("id")
+                    if val != v:
+                        keep = False
+            if keep:
+                filtered.append(row)
+        return MockResponse(filtered)
 
 # 1. Test search_wiki_entries
 def test_search_wiki_entries():
@@ -332,3 +398,151 @@ async def test_get_wiki_context_abstention_clarification():
     res_exact = await get_wiki_context(client_exact, "Hàn Phong là ai?", chapter_cap=10)
     assert "[CHƯA CÓ MỤC ĐỊNH DANH CHÍNH XÁC]" not in res_exact
     assert "[CANON WIKI] Hàn Phong" in res_exact
+
+
+def test_search_provisional_library_feedback_policies():
+    mock_data = {
+        "provisional_library": [
+            {
+                "id": "pid-block",
+                "name": "Zombie Block",
+                "type": "entity",
+                "summary": "Block description",
+                "confidence": 0.8,
+                "quality_class": "high_confidence",
+                "first_chapter": 1,
+                "evidence": [{"chapter_number": 1, "preview": "ev"}]
+            },
+            {
+                "id": "pid-deprioritize",
+                "name": "Zombie Deprioritize",
+                "type": "entity",
+                "summary": "Deprioritize description",
+                "confidence": 0.8,
+                "quality_class": "high_confidence",
+                "first_chapter": 1,
+                "evidence": [{"chapter_number": 1, "preview": "ev"}]
+            },
+            {
+                "id": "pid-warn",
+                "name": "Zombie Warn",
+                "type": "entity",
+                "summary": "Warn description",
+                "confidence": 0.8,
+                "quality_class": "high_confidence",
+                "first_chapter": 1,
+                "evidence": [{"chapter_number": 1, "preview": "ev"}]
+            },
+            {
+                "id": "pid-trusted",
+                "name": "Zombie Trusted",
+                "type": "entity",
+                "summary": "Trusted description",
+                "confidence": 0.8,
+                "quality_class": "high_confidence",
+                "first_chapter": 1,
+                "evidence": [{"chapter_number": 1, "preview": "ev"}]
+            }
+        ],
+        "provisional_library_feedback_summary": [
+            {
+                "provisional_id": "pid-block",
+                "effective_status": "hidden_from_oracle",
+                "oracle_policy": "block"
+            },
+            {
+                "provisional_id": "pid-deprioritize",
+                "effective_status": "needs_review",
+                "oracle_policy": "deprioritize"
+            },
+            {
+                "provisional_id": "pid-warn",
+                "effective_status": "disputed",
+                "oracle_policy": "warn"
+            }
+            # pid-trusted has no feedback summary
+        ]
+    }
+    client = MockSupabase(mock_data)
+
+    # 1. Block: should not return pid-block
+    results = search_provisional_library(client, "Zombie Block", limit=5)
+    assert not any(r["name"] == "Zombie Block" for r in results)
+
+    # 2. Warn: should return but prepend warning
+    results = search_provisional_library(client, "Zombie Warn", limit=5)
+    warn_record = next((r for r in results if r["name"] == "Zombie Warn"), None)
+    assert warn_record is not None
+    assert "[CẢNH BÁO CỘNG ĐỒNG: mục này đang bị báo lỗi]" in warn_record["summary"]
+
+    # 3. Trusted: should return normally
+    results = search_provisional_library(client, "Zombie Trusted", limit=5)
+    trusted_record = next((r for r in results if r["name"] == "Zombie Trusted"), None)
+    assert trusted_record is not None
+    assert "[CẢNH BÁO CỘNG ĐỒNG: mục này đang bị báo lỗi]" not in trusted_record["summary"]
+
+    # 4. Deprioritize: score is scaled down compared to trusted
+    res_trusted = search_provisional_library(client, "Zombie Trusted", limit=5)
+    # Let's perform a query that matches both deprioritize and trusted to compare scores
+    # Since they match by query "Zombie", they both return
+    res_both = search_provisional_library(client, "Zombie", limit=5)
+    # Find their mapped scores/positions. The sorted order will put Trusted first because Deprioritize has score * 0.5
+    assert len(res_both) == 3 # Warn, Trusted, Deprioritize (Block is skipped)
+    assert res_both[0]["name"] == "Zombie Warn"
+    assert res_both[1]["name"] == "Zombie Trusted"
+    assert res_both[2]["name"] == "Zombie Deprioritize"
+
+
+@pytest.mark.asyncio
+async def test_get_entity_context_for_oracle_feedback_policies():
+    from backend.routes.ai_oracle import get_entity_context_for_oracle
+    mock_data = {
+        "provisional_library": [
+            {
+                "id": "pid-block",
+                "name": "Bàng Lâm",
+                "type": "entity",
+                "summary": "Block description",
+                "confidence": 0.8,
+                "quality_class": "high_confidence",
+                "first_chapter": 1,
+                "evidence": [{"chapter_number": 1, "preview": "ev"}]
+            }
+        ],
+        "provisional_library_feedback_summary": [
+            {
+                "provisional_id": "pid-block",
+                "effective_status": "hidden_from_oracle",
+                "oracle_policy": "block"
+            }
+        ]
+    }
+    client = MockSupabase(mock_data)
+    res = await get_entity_context_for_oracle(client, "Bàng Lâm là ai?", chapter_cap=10)
+    assert res is None
+
+    mock_data_warn = {
+        "provisional_library": [
+            {
+                "id": "pid-warn",
+                "name": "Bàng Lâm",
+                "type": "entity",
+                "summary": "Warn description",
+                "confidence": 0.8,
+                "quality_class": "high_confidence",
+                "first_chapter": 1,
+                "evidence": [{"chapter_number": 1, "preview": "ev"}]
+            }
+        ],
+        "provisional_library_feedback_summary": [
+            {
+                "provisional_id": "pid-warn",
+                "effective_status": "disputed",
+                "oracle_policy": "warn"
+            }
+        ]
+    }
+    client_warn = MockSupabase(mock_data_warn)
+    res_warn = await get_entity_context_for_oracle(client_warn, "Bàng Lâm là ai?", chapter_cap=10)
+    assert res_warn is not None
+    assert "[CẢNH BÁO CỘNG ĐỒNG: mục này đang bị báo lỗi]" in res_warn["context_text"]

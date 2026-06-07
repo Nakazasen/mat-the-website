@@ -58,8 +58,36 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const items = data || [];
+    const ids = items.map((item: any) => item.id).filter(Boolean);
+
+    const summaries: Record<string, any> = {};
+    if (ids.length > 0) {
+      const { data: summaryData, error: summaryError } = await supabase
+        .from("provisional_library_feedback_summary")
+        .select("provisional_id, effective_status, oracle_policy, dispute_score, total_feedback")
+        .in("provisional_id", ids);
+
+      if (!summaryError && summaryData) {
+        summaryData.forEach((s: any) => {
+          summaries[s.provisional_id] = s;
+        });
+      }
+    }
+
+    const mappedItems = items.map((item: any) => {
+      const summary = summaries[item.id] || {};
+      return {
+        ...item,
+        effective_status: summary.effective_status || "trusted",
+        oracle_policy: summary.oracle_policy || "allow",
+        dispute_score: summary.dispute_score ?? 0,
+        total_feedback: summary.total_feedback ?? 0
+      };
+    });
+
     return NextResponse.json({
-      items: data || [],
+      items: mappedItems,
       total: count || 0,
       page,
       page_size: pageSize

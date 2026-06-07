@@ -67,10 +67,38 @@ describe("PublicProvisionalLibraryPage", () => {
           chapter_numbers: [8],
           first_chapter: 8,
           last_chapter: 8,
-          created_at: "2026-06-07T12:00:00Z"
+          created_at: "2026-06-07T12:00:00Z",
+          effective_status: "trusted",
+          oracle_policy: "allow"
+        },
+        {
+          id: "item-disputed",
+          name: "Dị năng hỏa hệ lỗi",
+          type: "ability",
+          summary: "Dị năng phun lửa.",
+          evidence: [
+            {
+              chapter_number: 10,
+              chapter_title: "Bí cảnh hỏa diệm",
+              chunk_index: 1,
+              content_hash: "hash-10",
+              preview: "Phun lửa mạnh mẽ..."
+            }
+          ],
+          confidence: 0.7,
+          quality_class: "high_confidence",
+          status: "provisional",
+          source: "story_chunks_auto_extract",
+          feedback_score: 5,
+          chapter_numbers: [10],
+          first_chapter: 10,
+          last_chapter: 10,
+          created_at: "2026-06-07T12:05:00Z",
+          effective_status: "disputed",
+          oracle_policy: "block"
         }
       ],
-      total: 1,
+      total: 2,
       page: 1,
       page_size: 20
     };
@@ -108,8 +136,14 @@ describe("PublicProvisionalLibraryPage", () => {
     expect(screen.getByText("Tin cậy trung bình")).toBeInTheDocument();
     expect(screen.getByText("0.5")).toBeInTheDocument();
 
+    // 3b. Render disputed item details & badges
+    expect(screen.getByText("Dị năng hỏa hệ lỗi")).toBeInTheDocument();
+    expect(screen.getByText("Đang bị cộng đồng báo lỗi")).toBeInTheDocument();
+    expect(screen.getByText("Không khuyến nghị dùng cho Oracle")).toBeInTheDocument();
+    expect(screen.getByText("Cảnh báo: Mục này đang bị cộng đồng báo lỗi (Disputed)")).toBeInTheDocument();
+
     // 4. Evidence expansion
-    const expandBtn = screen.getByRole("button", { name: /XEM TRÍCH ĐOẠN/ });
+    const expandBtn = screen.getAllByRole("button", { name: /XEM TRÍCH ĐOẠN/ })[0];
     expect(expandBtn).toBeInTheDocument();
     fireEvent.click(expandBtn);
 
@@ -125,7 +159,7 @@ describe("PublicProvisionalLibraryPage", () => {
     expect(screen.queryByPlaceholderText(/token/i)).not.toBeInTheDocument();
 
     // 7. Feedback inline form render
-    const feedbackBtn = screen.getByRole("button", { name: /BÁO LỖI MỤC NÀY/ });
+    const feedbackBtn = screen.getAllByRole("button", { name: /BÁO LỖI MỤC NÀY/ })[0];
     expect(feedbackBtn).toBeInTheDocument();
     fireEvent.click(feedbackBtn);
 

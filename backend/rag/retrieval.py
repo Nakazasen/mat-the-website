@@ -648,9 +648,37 @@ def search_provisional_library(
         resp = q.limit(100).execute()
         rows = resp.data or []
 
+        # Batch-fetch summaries for the retrieved provisional candidates
+        pids = [row.get("id") for row in rows if row.get("id")]
+        summaries = {}
+        if pids:
+            try:
+                sum_resp = supabase.table("provisional_library_feedback_summary").select("*").in_("provisional_id", pids).execute()
+                for s in (sum_resp.data or []):
+                    summaries[s.get("provisional_id")] = s
+            except Exception as e:
+                print(f"Error fetching provisional feedback summaries: {e}")
+
         scored_rows = []
         query_lower = query.lower().strip()
         for row in rows:
+            pid = row.get("id")
+            summary_info = summaries.get(pid) if pid else None
+
+            effective_status = "trusted"
+            oracle_policy = "allow"
+            dispute_score = 0.0
+            total_feedback = 0
+
+            if summary_info:
+                effective_status = summary_info.get("effective_status", "trusted")
+                oracle_policy = summary_info.get("oracle_policy", "allow")
+                dispute_score = float(summary_info.get("dispute_score", 0.0))
+                total_feedback = int(summary_info.get("total_feedback", 0))
+
+            if oracle_policy == "block" or effective_status == "hidden_from_oracle":
+                continue
+
             quality_class = row.get("quality_class", "")
             if quality_class not in ["high_confidence", "medium_confidence"]:
                 continue
@@ -746,13 +774,16 @@ def search_provisional_library(
                 if score > 0:
                     score += confidence * 20.0
 
-            scored_rows.append((score, confidence, row, filtered_evidence))
+            if oracle_policy == "deprioritize":
+                score = score * 0.5
+
+            scored_rows.append((score, confidence, row, filtered_evidence, effective_status, oracle_policy, dispute_score, total_feedback))
 
         # Sort by score DESC, confidence DESC
         scored_rows.sort(key=lambda x: (x[0], x[1]), reverse=True)
 
         results = []
-        for score, confidence, row, filtered_evidence in scored_rows:
+        for score, confidence, row, filtered_evidence, eff_status, pol, disp_score, tot_fb in scored_rows:
             if score <= 0:
                 continue
             name = row.get("name", "")
@@ -771,17 +802,25 @@ def search_provisional_library(
                         pass
             first_ch = min(chaps) if chaps else row.get("first_chapter")
 
+            display_summary = summary
+            if pol == "warn" or eff_status in ("disputed", "duplicate_suspected", "needs_review"):
+                display_summary = f"[CẢNH BÁO CỘNG ĐỒNG: mục này đang bị báo lỗi] {summary}"
+
             results.append({
                 "title": name,
                 "name": name,
                 "type": type_val,
                 "category": type_val,
-                "summary": summary,
+                "summary": display_summary,
                 "source": "provisional_library",
                 "quality_class": quality_class,
                 "confidence": confidence,
                 "evidence": filtered_evidence,
-                "first_chapter": first_ch
+                "first_chapter": first_ch,
+                "effective_status": eff_status,
+                "oracle_policy": pol,
+                "dispute_score": disp_score,
+                "total_feedback": tot_fb
             })
 
         return results[:limit]

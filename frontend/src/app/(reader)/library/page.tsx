@@ -39,6 +39,10 @@ interface ProvisionalItem {
   first_chapter: number | null;
   last_chapter: number | null;
   created_at: string;
+  effective_status?: string;
+  oracle_policy?: string;
+  dispute_score?: number;
+  total_feedback?: number;
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -352,6 +356,16 @@ export default function PublicProvisionalLibraryPage() {
                             <span className={`px-2 py-0.5 border rounded-full text-[9px] uppercase font-bold tracking-wider ${qBadgeClass}`}>
                               {qLabel}
                             </span>
+                            {item.effective_status && item.effective_status !== "trusted" && (
+                              <span className="px-2 py-0.5 border border-yellow-500/30 dark:border-yellow-500/20 text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-950/20 rounded-full text-[9px] uppercase font-bold tracking-wider">
+                                Đang bị cộng đồng báo lỗi
+                              </span>
+                            )}
+                            {item.oracle_policy === "block" && (
+                              <span className="px-2 py-0.5 border border-red-500/30 dark:border-red-500/20 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/20 rounded-full text-[9px] uppercase font-bold tracking-wider">
+                                Không khuyến nghị dùng cho Oracle
+                              </span>
+                            )}
                           </div>
 
                           <div className="flex items-center gap-4 text-[11px] text-reader-muted">
@@ -369,6 +383,12 @@ export default function PublicProvisionalLibraryPage() {
                         {/* Summary Text */}
                         {item.summary && (
                           <div className="bg-reader-bg/60 border border-reader-border rounded-lg p-3.5 text-xs leading-relaxed font-sans text-reader-text">
+                            {item.effective_status && item.effective_status !== "trusted" && (
+                              <div className="flex items-center gap-1.5 text-yellow-600 dark:text-yellow-400 font-bold mb-2 text-[10px] tracking-wider uppercase">
+                                <AlertTriangle size={12} className="shrink-0" />
+                                <span>Cảnh báo: Mục này đang bị cộng đồng báo lỗi (Disputed)</span>
+                              </div>
+                            )}
                             {item.summary}
                           </div>
                         )}

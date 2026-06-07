@@ -236,12 +236,32 @@ async def get_entity_context_for_oracle(supabase, question: str, chapter_cap: in
         if prov_result.data:
             row = prov_result.data[0]
             name = row.get("name", "")
+            pid = row.get("id")
             if is_exact_or_near_match(name, entity_name):
+                # Check feedback summary policies
+                effective_status = "trusted"
+                oracle_policy = "allow"
+                if pid:
+                    try:
+                        sum_resp = supabase.table("provisional_library_feedback_summary").select("*").eq("provisional_id", pid).limit(1).execute()
+                        if sum_resp.data:
+                            s = sum_resp.data[0]
+                            effective_status = s.get("effective_status", "trusted")
+                            oracle_policy = s.get("oracle_policy", "allow")
+                    except Exception as e:
+                        print(f"Warning: failed to query feedback summary: {e}")
+
+                if oracle_policy == "block" or effective_status == "hidden_from_oracle":
+                    return None
+
                 first_ch = row.get("first_chapter")
                 if chapter_cap is None or first_ch is None or first_ch <= chapter_cap:
                     type_val = row.get("type", "") or ""
                     summary = row.get("summary", "") or ""
                     quality_class = row.get("quality_class", "")
+
+                    if oracle_policy == "warn" or effective_status in ("disputed", "duplicate_suspected", "needs_review"):
+                        summary = f"[CẢNH BÁO CỘNG ĐỒNG: mục này đang bị báo lỗi] {summary}"
 
                     ev_str = f" Evidence: Chương {first_ch}" if first_ch is not None else ""
                     context_text = f"[THƯ VIỆN TỰ ĐỘNG - {quality_class}] {name}"
