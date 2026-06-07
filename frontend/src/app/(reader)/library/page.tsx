@@ -96,6 +96,7 @@ export default function PublicProvisionalLibraryPage() {
   const [feedbackType, setFeedbackType] = useState('wrong_info');
   const [userComment, setUserComment] = useState('');
   const [suggestedCorrection, setSuggestedCorrection] = useState('');
+  const [website, setWebsite] = useState(''); // Honeypot
   const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
   const [submittedFeedbackIds, setSubmittedFeedbackIds] = useState<Record<string, boolean>>({});
@@ -156,11 +157,13 @@ export default function PublicProvisionalLibraryPage() {
     setFeedbackType('wrong_info');
     setUserComment('');
     setSuggestedCorrection('');
+    setWebsite(''); // Reset honeypot
     setFeedbackError(null);
   };
 
   const handleCancelFeedback = () => {
     setActiveFeedbackId(null);
+    setWebsite(''); // Reset honeypot
     setFeedbackError(null);
   };
 
@@ -186,7 +189,8 @@ export default function PublicProvisionalLibraryPage() {
         feedback_type: feedbackType,
         user_comment: trimmedComment,
         suggested_correction: suggestedCorrection.trim(),
-        page_url: window.location.href
+        page_url: window.location.href,
+        website: website.trim() // Honeypot field
       };
 
       const res = await fetch('/api/public/provisional-library/feedback', {
@@ -380,8 +384,13 @@ export default function PublicProvisionalLibraryPage() {
                         {/* Inline Feedback Form */}
                         {isFeedbackOpen && (
                           <div className="bg-reader-bg/50 border border-reader-border/80 rounded-lg p-4 space-y-3.5 animate-in fade-in duration-200 font-sans">
-                            <div className="text-xs font-mono font-bold text-reader-accent uppercase tracking-wider">
-                              Báo lỗi / Góp ý mục: {item.name}
+                            <div className="space-y-1">
+                              <div className="text-xs font-mono font-bold text-reader-accent uppercase tracking-wider">
+                                Báo lỗi / Góp ý mục: {item.name}
+                              </div>
+                              <div className="text-[11px] text-reader-muted font-sans leading-relaxed">
+                                Vui lòng mô tả lỗi cụ thể, tránh spam hoặc gửi nhiều lần cùng nội dung.
+                              </div>
                             </div>
 
                             {feedbackError && (
@@ -405,6 +414,20 @@ export default function PublicProvisionalLibraryPage() {
                                     <option key={k} value={k} className="bg-reader-bg text-reader-text">{v}</option>
                                   ))}
                                 </select>
+                              </div>
+
+                              {/* Honeypot field (hidden from users) */}
+                              <div className="hidden" aria-hidden="true">
+                                <label htmlFor={`website-${item.id}`}>Website</label>
+                                <input
+                                  id={`website-${item.id}`}
+                                  type="text"
+                                  name="website"
+                                  value={website}
+                                  onChange={(e) => setWebsite(e.target.value)}
+                                  tabIndex={-1}
+                                  autoComplete="off"
+                                />
                               </div>
 
                               {/* User Comment Textarea */}

@@ -131,6 +131,12 @@ describe("PublicProvisionalLibraryPage", () => {
 
     // Form fields presence
     expect(screen.getByText("Báo lỗi / Góp ý mục: Tinh thể zombie")).toBeInTheDocument();
+    expect(screen.getByText("Vui lòng mô tả lỗi cụ thể, tránh spam hoặc gửi nhiều lần cùng nội dung.")).toBeInTheDocument();
+
+    const websiteInput = screen.getByLabelText("Website") as HTMLInputElement;
+    expect(websiteInput).toBeInTheDocument();
+    expect(websiteInput.value).toBe("");
+
     const selectType = screen.getByRole("combobox", { name: /loại lỗi/i }) as HTMLSelectElement;
     expect(selectType).toBeInTheDocument();
     expect(selectType.value).toBe("wrong_info");
@@ -171,6 +177,7 @@ describe("PublicProvisionalLibraryPage", () => {
     expect(requestBody.feedback_type).toBe("wrong_info");
     expect(requestBody.user_comment).toBe("Bằng chứng này bị sai lệch.");
     expect(requestBody.suggested_correction).toBe("Đề xuất sửa thành đúng chương 8.");
+    expect(requestBody.website).toBe(""); // honeypot is empty
 
     // Success thank you banner displays
     await screen.findByText(/Cảm ơn bạn đã gửi đóng góp ý kiến!/);
