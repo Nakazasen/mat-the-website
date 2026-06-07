@@ -121,8 +121,41 @@ def detect_existing_wiki_entry(supabase, title: str, slug: str) -> dict:
         print(f"Warning: detect_existing_wiki_entry failed: {e}")
         return {"duplicate_title": False, "duplicate_slug": False, "exists": False}
 
+def is_unsafe_content(text: str) -> bool:
+    """Checks if text contains test/mock/placeholder keywords."""
+    if not text:
+        return False
+    t = text.lower()
+    blacklist = [
+        "smoke test",
+        "test",
+        "mock",
+        "placeholder",
+        "todo",
+        "chỉ dùng để kiểm thử",
+        "not applied to wiki_entries",
+        "needs human fill"
+    ]
+    for item in blacklist:
+        if item in t:
+            return True
+    return False
+
+def check_unsafe_candidate(candidate: dict) -> bool:
+    """Checks if any candidate metadata fields contain unsafe content."""
+    for field in ["entity_name", "summary", "content", "notes"]:
+        if is_unsafe_content(candidate.get(field)):
+            return True
+
+    aliases = candidate.get("aliases") or []
+    for alias in aliases:
+        if is_unsafe_content(alias):
+            return True
+
+    return False
+
 def build_apply_plan(candidates: list[dict], supabase=None) -> dict:
-    """Evaluates candidates and constructs a comprehensive dry-run import plan."""
+    """Evaluates candidates and constructs a comprehensive dry-run import plan with safety gates."""
     plan_entries = []
     
     total = 0
@@ -150,10 +183,36 @@ def build_apply_plan(candidates: list[dict], supabase=None) -> dict:
             })
             continue
             
-        # 2. Build payload
+        # 2. Check for unsafe test/mock/placeholder content
+        if check_unsafe_candidate(candidate):
+            ineligible_count += 1
+            plan_entries.append({
+                "correction_id": corr_id,
+                "entity_name": entity_name,
+                "eligible": False,
+                "reason": "unsafe_test_or_placeholder_content",
+                "payload": None
+            })
+            continue
+
+        # 3. Human Review Gate
+        human_review_req = candidate.get("human_review_required", True)
+        canon_reviewed = candidate.get("canon_reviewed", False)
+        if human_review_req is True and canon_reviewed is not True:
+            ineligible_count += 1
+            plan_entries.append({
+                "correction_id": corr_id,
+                "entity_name": entity_name,
+                "eligible": False,
+                "reason": "canon_review_required",
+                "payload": None
+            })
+            continue
+
+        # 4. Build payload
         payload = build_wiki_entry_payload(candidate)
         
-        # 3. Validate payload
+        # 5. Validate payload
         val_res = validate_wiki_entry_payload(payload)
         if not val_res["valid"]:
             ineligible_count += 1
@@ -166,7 +225,7 @@ def build_apply_plan(candidates: list[dict], supabase=None) -> dict:
             })
             continue
             
-        # 4. Check duplicates in DB if connection provided
+        # 6. Check duplicates in DB if connection provided
         if supabase:
             dup_res = detect_existing_wiki_entry(supabase, payload["title"], payload["slug"])
             if dup_res["exists"]:

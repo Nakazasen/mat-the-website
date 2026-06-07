@@ -1,29 +1,18 @@
 {
-  "timestamp": "2026-06-07T06:38:42.387585+00:00",
+  "timestamp": "2026-06-07T06:52:14.625222+00:00",
   "summary": {
     "total_candidates": 1,
-    "eligible_count": 1,
-    "ineligible_count": 0,
+    "eligible_count": 0,
+    "ineligible_count": 1,
     "duplicate_count": 0
   },
   "plan_entries": [
     {
       "correction_id": "a4be616b-576d-4f7d-b83a-310c638751f4",
       "entity_name": "Tinh thể zombie",
-      "eligible": true,
-      "payload": {
-        "title": "Tinh thể zombie",
-        "category": "Vật phẩm",
-        "slug": "tinh-the-zombie",
-        "summary": "SMOKE TEST UNICODE - Tinh thể zombie là vật phẩm cần người duyệt xác nhận.",
-        "content": "SMOKE TEST UNICODE - Nội dung này chỉ dùng để kiểm thử lưu bản nháp tiếng Việt có dấu, chưa apply vào wiki canon.",
-        "tags": [
-          "Tinh thể zombie",
-          "Tinh thể"
-        ],
-        "is_main_character": false,
-        "sort_order": 999
-      }
+      "eligible": false,
+      "reason": "unsafe_test_or_placeholder_content",
+      "payload": null
     }
   ]
 }

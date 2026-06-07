@@ -161,7 +161,7 @@ def test_detect_existing_wiki_entry_duplicate_slug():
 
 def test_build_apply_plan_behavior():
     candidates = [
-        # 1. Eligible candidate
+        # 1. Eligible candidate (requires canon_reviewed: True or human_review_required: False)
         {
             "correction_id": "corr-1",
             "entity_name": "Tinh thể zombie",
@@ -169,7 +169,8 @@ def test_build_apply_plan_behavior():
             "summary": "Tóm tắt",
             "content": "Nội dung",
             "aliases": ["Tinh thể"],
-            "status": "ready_for_review"
+            "status": "ready_for_review",
+            "human_review_required": False
         },
         # 2. Ineligible (missing summary/content)
         {
@@ -178,7 +179,8 @@ def test_build_apply_plan_behavior():
             "entity_type": "Sinh vật",
             "summary": "",
             "content": "",
-            "status": "needs_human_fill"
+            "status": "needs_human_fill",
+            "human_review_required": False
         }
     ]
     
@@ -207,7 +209,8 @@ def test_build_apply_plan_duplicate_detection():
             "entity_type": "Vật phẩm",
             "summary": "Tóm tắt",
             "content": "Chi tiết",
-            "status": "ready_for_review"
+            "status": "ready_for_review",
+            "human_review_required": False
         }
     ]
     
@@ -238,7 +241,8 @@ def test_json_serializable():
             "entity_type": "Vật phẩm",
             "summary": "Tóm tắt",
             "content": "Nội dung",
-            "status": "ready_for_review"
+            "status": "ready_for_review",
+            "human_review_required": False
         }
     ]
     plan = build_apply_plan(candidates)
@@ -257,7 +261,8 @@ def test_dry_run_safety():
             "entity_type": "Vật phẩm",
             "summary": "Tóm tắt",
             "content": "Nội dung",
-            "status": "ready_for_review"
+            "status": "ready_for_review",
+            "human_review_required": False
         }
     ]
     mock_supabase = MagicMock()
@@ -270,3 +275,84 @@ def test_dry_run_safety():
     assert not mock_supabase.table.return_value.update.called
     assert not mock_supabase.table.return_value.upsert.called
     assert not mock_supabase.table.return_value.delete.called
+
+# New Safety Gate and Human Review Gate tests for Phase 6E
+
+def test_safety_gate_smoke_test_blacklist():
+    # 1. Title contains SMOKE TEST
+    c1 = {
+        "correction_id": "c1",
+        "entity_name": "SMOKE TEST - Tinh thể",
+        "entity_type": "Vật phẩm",
+        "summary": "Tóm tắt sạch",
+        "content": "Nội dung sạch",
+        "human_review_required": False
+    }
+    plan = build_apply_plan([c1])
+    assert plan["plan_entries"][0]["eligible"] is False
+    assert plan["plan_entries"][0]["reason"] == "unsafe_test_or_placeholder_content"
+
+    # 2. Content contains placeholder/TODO
+    c2 = {
+        "correction_id": "c2",
+        "entity_name": "Rìu sắt",
+        "entity_type": "Vật phẩm",
+        "summary": "TODO: Thêm tóm tắt sau",
+        "content": "Chi tiết rìu",
+        "human_review_required": False
+    }
+    plan = build_apply_plan([c2])
+    assert plan["plan_entries"][0]["eligible"] is False
+    assert plan["plan_entries"][0]["reason"] == "unsafe_test_or_placeholder_content"
+
+    # 3. Summary contains "chỉ dùng để kiểm thử"
+    c3 = {
+        "correction_id": "c3",
+        "entity_name": "Rìu sắt",
+        "entity_type": "Vật phẩm",
+        "summary": "Rìu sắt cổ xưa",
+        "content": "Nội dung này chỉ dùng để kiểm thử hành vi.",
+        "human_review_required": False
+    }
+    plan = build_apply_plan([c3])
+    assert plan["plan_entries"][0]["eligible"] is False
+    assert plan["plan_entries"][0]["reason"] == "unsafe_test_or_placeholder_content"
+
+def test_human_review_gate_requirements():
+    # 1. human_review_required = True, and no canon_reviewed -> blocked
+    c1 = {
+        "correction_id": "c1",
+        "entity_name": "Hàn Phong",
+        "entity_type": "Nhân vật",
+        "summary": "Tóm tắt sạch",
+        "content": "Nội dung sạch",
+        "human_review_required": True
+    }
+    plan = build_apply_plan([c1])
+    assert plan["plan_entries"][0]["eligible"] is False
+    assert plan["plan_entries"][0]["reason"] == "canon_review_required"
+
+    # 2. human_review_required = True, but canon_reviewed = True -> approved
+    c2 = {
+        "correction_id": "c2",
+        "entity_name": "Hàn Phong",
+        "entity_type": "Nhân vật",
+        "summary": "Tóm tắt sạch",
+        "content": "Nội dung sạch",
+        "human_review_required": True,
+        "canon_reviewed": True
+    }
+    plan = build_apply_plan([c2])
+    assert plan["plan_entries"][0]["eligible"] is True
+
+    # 3. human_review_required = False -> approved automatically
+    c3 = {
+        "correction_id": "c3",
+        "entity_name": "Hàn Phong",
+        "entity_type": "Nhân vật",
+        "summary": "Tóm tắt sạch",
+        "content": "Nội dung sạch",
+        "human_review_required": False
+    }
+    plan = build_apply_plan([c3])
+    assert plan["plan_entries"][0]["eligible"] is True
