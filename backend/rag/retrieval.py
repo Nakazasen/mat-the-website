@@ -495,6 +495,29 @@ def extract_entity_name(question: str) -> str:
     return q
 
 
+def is_exact_or_near_match(record_name: str, entity_name: str) -> bool:
+    """Checks if a record name is an exact or near match for the queried entity name."""
+    norm_query_entity = normalize_vietnamese_text(entity_name)
+    norm_record_name = normalize_vietnamese_text(record_name)
+    if not norm_query_entity or not norm_record_name:
+        return False
+    is_exact = (norm_query_entity == norm_record_name)
+    is_near = (norm_query_entity in norm_record_name or norm_record_name in norm_query_entity)
+    if is_exact or is_near:
+        return True
+
+    # Tokenize and compute coverage
+    query_tokens = [t for t in norm_query_entity.split() if t]
+    record_tokens = [t for t in norm_record_name.split() if t]
+
+    important_query_tokens = [t for t in query_tokens if t not in STOP_WORDS]
+    important_record_tokens = [t for t in record_tokens if t not in STOP_WORDS]
+
+    overlap_tokens = set(important_query_tokens) & set(important_record_tokens)
+    token_coverage = len(overlap_tokens) / len(important_query_tokens) if important_query_tokens else 0.0
+    return (token_coverage >= 0.75 and len(overlap_tokens) >= 2)
+
+
 def search_wiki_entries(
     supabase,
     query: str,

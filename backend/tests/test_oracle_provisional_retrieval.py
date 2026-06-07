@@ -285,3 +285,50 @@ async def test_ask_oracle_local_wiki_warning():
          data = response.json()
          assert data["source"] == "local_wiki"
          assert "Lưu ý: Dữ liệu trên được trích xuất tự động từ truyện, chưa phải canon wiki chính thức." in data["answer"]
+
+
+def test_is_exact_or_near_match_logic():
+    from backend.rag.retrieval import is_exact_or_near_match
+    assert is_exact_or_near_match("Hàn Phong", "Hàn Phong là ai?") is True
+    assert is_exact_or_near_match("Tinh thể zombie", "Tinh thể zombie là gì?") is True
+    assert is_exact_or_near_match("Zombie Cấp 3 (Biến Thể)", "Tinh thể zombie là gì?") is False
+    assert is_exact_or_near_match("Phá Tâm Linh", "Phá Tâm Linh là gì?") is True
+
+
+@pytest.mark.asyncio
+async def test_get_wiki_context_abstention_clarification():
+    from backend.routes.ai_oracle import get_wiki_context
+    mock_data = {
+        "wiki_entries": [
+            {
+                "title": "Zombie Cấp 3 (Biến Thể)",
+                "category": "Sinh vật",
+                "summary": "Một loại zombie nguy hiểm.",
+                "content": "Xuất hiện nhiều ở thành phố."
+            }
+        ],
+        "provisional_library": []
+    }
+    client = MockSupabase(mock_data)
+
+    res = await get_wiki_context(client, "Tinh thể zombie là gì?", chapter_cap=10)
+    assert "[CHƯA CÓ MỤC ĐỊNH DANH CHÍNH XÁC]" in res
+    assert "Chưa tìm thấy mục chính xác cho 'Tinh thể zombie'" in res
+    assert "Các mục liên quan tìm thấy:" in res
+    assert "[CANON WIKI] Zombie Cấp 3 (Biến Thể)" in res
+
+    mock_data_exact = {
+        "wiki_entries": [
+            {
+                "title": "Hàn Phong",
+                "category": "Nhân vật",
+                "summary": "Đoàn trưởng",
+                "content": ""
+            }
+        ],
+        "provisional_library": []
+    }
+    client_exact = MockSupabase(mock_data_exact)
+    res_exact = await get_wiki_context(client_exact, "Hàn Phong là ai?", chapter_cap=10)
+    assert "[CHƯA CÓ MỤC ĐỊNH DANH CHÍNH XÁC]" not in res_exact
+    assert "[CANON WIKI] Hàn Phong" in res_exact

@@ -185,6 +185,7 @@ async def get_entity_context_for_oracle(supabase, question: str, chapter_cap: in
         return None
 
     try:
+        from backend.rag.retrieval import is_exact_or_near_match
         # 1. Search wiki_entries
         result = (
             supabase.table("wiki_entries")
@@ -195,32 +196,33 @@ async def get_entity_context_for_oracle(supabase, question: str, chapter_cap: in
         )
         if result.data:
             row = result.data[0]
-            chapter_introduced = row.get("chapter_introduced")
-            if chapter_cap is None or chapter_introduced is None or chapter_introduced <= chapter_cap:
-                title = row.get("title", "")
-                category = row.get("category", "") or ""
-                summary = row.get("summary", "") or ""
-                content = row.get("content", "") or ""
+            title = row.get("title", "")
+            if is_exact_or_near_match(title, entity_name):
+                chapter_introduced = row.get("chapter_introduced")
+                if chapter_cap is None or chapter_introduced is None or chapter_introduced <= chapter_cap:
+                    category = row.get("category", "") or ""
+                    summary = row.get("summary", "") or ""
+                    content = row.get("content", "") or ""
 
-                desc = summary if summary else content
-                desc = desc.strip()
+                    desc = summary if summary else content
+                    desc = desc.strip()
 
-                context_text = f"[CANON WIKI] {title}"
-                if category:
-                    context_text += f" (Phân loại: {category})"
-                context_text += f": {desc}"
+                    context_text = f"[CANON WIKI] {title}"
+                    if category:
+                        context_text += f" (Phân loại: {category})"
+                    context_text += f": {desc}"
 
-                citation = {
-                    "title": title,
-                    "category": category,
-                    "source": "wiki_entries"
-                }
+                    citation = {
+                        "title": title,
+                        "category": category,
+                        "source": "wiki_entries"
+                    }
 
-                return {
-                    "context_text": context_text,
-                    "citations": [citation],
-                    "source": "entity_profile"
-                }
+                    return {
+                        "context_text": context_text,
+                        "citations": [citation],
+                        "source": "entity_profile"
+                    }
 
         # 2. Fallback to provisional_library
         prov_result = (
@@ -233,31 +235,32 @@ async def get_entity_context_for_oracle(supabase, question: str, chapter_cap: in
         )
         if prov_result.data:
             row = prov_result.data[0]
-            first_ch = row.get("first_chapter")
-            if chapter_cap is None or first_ch is None or first_ch <= chapter_cap:
-                name = row.get("name", "")
-                type_val = row.get("type", "") or ""
-                summary = row.get("summary", "") or ""
-                quality_class = row.get("quality_class", "")
+            name = row.get("name", "")
+            if is_exact_or_near_match(name, entity_name):
+                first_ch = row.get("first_chapter")
+                if chapter_cap is None or first_ch is None or first_ch <= chapter_cap:
+                    type_val = row.get("type", "") or ""
+                    summary = row.get("summary", "") or ""
+                    quality_class = row.get("quality_class", "")
 
-                ev_str = f" Evidence: Chương {first_ch}" if first_ch is not None else ""
-                context_text = f"[THƯ VIỆN TỰ ĐỘNG - {quality_class}] {name}"
-                if type_val:
-                    context_text += f" (Phân loại: {type_val})"
-                context_text += f": {summary}.{ev_str}"
+                    ev_str = f" Evidence: Chương {first_ch}" if first_ch is not None else ""
+                    context_text = f"[THƯ VIỆN TỰ ĐỘNG - {quality_class}] {name}"
+                    if type_val:
+                        context_text += f" (Phân loại: {type_val})"
+                    context_text += f": {summary}.{ev_str}"
 
-                citation = {
-                    "title": name,
-                    "category": type_val,
-                    "source": "provisional_library",
-                    "quality_class": quality_class
-                }
+                    citation = {
+                        "title": name,
+                        "category": type_val,
+                        "source": "provisional_library",
+                        "quality_class": quality_class
+                    }
 
-                return {
-                    "context_text": context_text,
-                    "citations": [citation],
-                    "source": "entity_profile"
-                }
+                    return {
+                        "context_text": context_text,
+                        "citations": [citation],
+                        "source": "entity_profile"
+                    }
     except Exception as e:
         print(f"Warning: get_entity_context_for_oracle failed: {e}")
     return None
@@ -458,25 +461,62 @@ async def get_wiki_context(supabase, question: str, chapter_cap: int) -> str:
             search_wiki_entries,
             search_provisional_library,
             merge_oracle_knowledge_results,
+            is_identity_question,
+            extract_entity_name,
+            is_exact_or_near_match,
         )
         wiki_res = search_wiki_entries(supabase, question, chapter_cap, limit=3)
         prov_res = search_provisional_library(supabase, question, chapter_cap, limit=3)
         merged = merge_oracle_knowledge_results(wiki_res, prov_res, limit=5)
 
+        is_ident = is_identity_question(question)
+        entity_name = extract_entity_name(question) if is_ident else ""
+
+        exact_near_matches = []
+        related_matches = []
+        if is_ident and entity_name:
+            for r in merged:
+                name_val = r.get("title") or r.get("name") or ""
+                if is_exact_or_near_match(name_val, entity_name):
+                    exact_near_matches.append(r)
+                else:
+                    related_matches.append(r)
+        else:
+            exact_near_matches = merged
+            related_matches = []
+
         context_parts = []
-        for r in merged:
-            if r["source"] == "wiki_entries":
-                desc = (r.get("summary") or "").strip()
-                cat = r.get("category") or ""
-                cat_str = f" (Phân loại: {cat})" if cat else ""
-                context_parts.append(f"[CANON WIKI] {r['title']}{cat_str}: {desc[:400]}")
-            else:
-                desc = (r.get("summary") or "").strip()
-                cat = r.get("type") or r.get("category") or ""
-                cat_str = f" (Phân loại: {cat})" if cat else ""
-                first_ch = r.get("first_chapter")
-                ev_str = f" Evidence: Chương {first_ch}" if first_ch is not None else ""
-                context_parts.append(f"[THƯ VIỆN TỰ ĐỘNG - {r['quality_class']}] {r['name']}{cat_str}: {desc[:400]}.{ev_str}")
+        if is_ident and entity_name and not exact_near_matches:
+            context_parts.append(f"[CHƯA CÓ MỤC ĐỊNH DANH CHÍNH XÁC] Chưa tìm thấy mục chính xác cho '{entity_name}'.")
+            if related_matches:
+                context_parts.append("Các mục liên quan tìm thấy:")
+                for r in related_matches:
+                    if r["source"] == "wiki_entries":
+                        desc = (r.get("summary") or "").strip()
+                        cat = r.get("category") or ""
+                        cat_str = f" (Phân loại: {cat})" if cat else ""
+                        context_parts.append(f"[CANON WIKI] {r['title']}{cat_str}: {desc[:400]}")
+                    else:
+                        desc = (r.get("summary") or "").strip()
+                        cat = r.get("type") or r.get("category") or ""
+                        cat_str = f" (Phân loại: {cat})" if cat else ""
+                        first_ch = r.get("first_chapter")
+                        ev_str = f" Evidence: Chương {first_ch}" if first_ch is not None else ""
+                        context_parts.append(f"[THƯ VIỆN TỰ ĐỘNG - {r['quality_class']}] {r['name']}{cat_str}: {desc[:400]}.{ev_str}")
+        else:
+            for r in exact_near_matches:
+                if r["source"] == "wiki_entries":
+                    desc = (r.get("summary") or "").strip()
+                    cat = r.get("category") or ""
+                    cat_str = f" (Phân loại: {cat})" if cat else ""
+                    context_parts.append(f"[CANON WIKI] {r['title']}{cat_str}: {desc[:400]}")
+                else:
+                    desc = (r.get("summary") or "").strip()
+                    cat = r.get("type") or r.get("category") or ""
+                    cat_str = f" (Phân loại: {cat})" if cat else ""
+                    first_ch = r.get("first_chapter")
+                    ev_str = f" Evidence: Chương {first_ch}" if first_ch is not None else ""
+                    context_parts.append(f"[THƯ VIỆN TỰ ĐỘNG - {r['quality_class']}] {r['name']}{cat_str}: {desc[:400]}.{ev_str}")
 
         return "\n".join(context_parts) or WIKI_EMPTY_CONTEXT
     except Exception as e:
