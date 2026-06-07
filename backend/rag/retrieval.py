@@ -659,6 +659,14 @@ def search_provisional_library(
             except Exception as e:
                 print(f"Error fetching provisional feedback summaries: {e}")
 
+        # Batch-fetch active patches
+        patches = []
+        try:
+            patch_resp = supabase.table("provisional_library_effective_patches").select("*").eq("effective_status", "active").execute()
+            patches = patch_resp.data or []
+        except Exception as e:
+            print(f"Error fetching provisional knowledge patches: {e}")
+
         scored_rows = []
         query_lower = query.lower().strip()
         for row in rows:
@@ -679,11 +687,60 @@ def search_provisional_library(
             if oracle_policy == "block" or effective_status == "hidden_from_oracle":
                 continue
 
+            # Apply patches early
+            summary_override = None
+            type_override = None
+            hide_record = False
+            deprioritize_record = False
+            warn_record = False
+
+            query_norm = " ".join(query.lower().split())
+            is_identity = is_identity_question(query)
+            entity_name = extract_entity_name(query) if is_identity else ""
+            entity_name_norm = " ".join(entity_name.lower().split()) if entity_name else ""
+
+            for patch in patches:
+                ptype = patch.get("patch_type")
+                target_id = patch.get("target_id")
+                target_name = patch.get("target_name")
+                qp = patch.get("query_pattern")
+
+                matches_pid = (target_id == pid)
+
+                if ptype == "hide_record" and matches_pid:
+                    hide_record = True
+                elif ptype == "deprioritize_record" and matches_pid:
+                    deprioritize_record = True
+                elif ptype == "warn_record" and matches_pid:
+                    warn_record = True
+                if matches_pid:
+                    if patch.get("effective_summary"):
+                        summary_override = patch.get("effective_summary")
+                    if patch.get("effective_type"):
+                        type_override = patch.get("effective_type")
+                elif ptype == "suppress_related_for_identity_query":
+                    matches_query = False
+                    if qp and query_norm == " ".join(qp.lower().split()):
+                        matches_query = True
+                    elif is_identity and target_name and entity_name_norm == " ".join(target_name.lower().split()):
+                        matches_query = True
+
+                    if matches_query:
+                        suppressed_ids = patch.get("suppress_record_ids") or []
+                        suppressed_patterns = patch.get("suppress_name_patterns") or []
+                        if pid in suppressed_ids:
+                            hide_record = True
+                        elif any(pat.lower() in row.get("name", "").lower() for pat in suppressed_patterns if pat):
+                            hide_record = True
+
+            if hide_record:
+                continue
+
             quality_class = row.get("quality_class", "")
             if quality_class not in ["high_confidence", "medium_confidence"]:
                 continue
             name = (row.get("name") or "").strip()
-            summary = (row.get("summary") or "").strip()
+            summary = summary_override if summary_override else (row.get("summary") or "").strip()
             confidence = float(row.get("confidence", 0.0))
             first_ch = row.get("first_chapter")
 
@@ -713,11 +770,9 @@ def search_provisional_library(
             name_lower = name.lower()
             summary_lower = summary.lower()
 
-            is_identity = is_identity_question(query)
             score = 0.0
 
             if is_identity:
-                entity_name = extract_entity_name(query)
                 norm_query_entity = normalize_vietnamese_text(entity_name)
                 norm_record_name = normalize_vietnamese_text(name)
 
@@ -743,13 +798,14 @@ def search_provisional_library(
                         score = 100.0 + token_coverage * 50.0
 
                     # Type match bonus
-                    type_val = row.get("type", "").lower()
+                    type_val = type_override if type_override else row.get("type", "")
+                    type_val_lower = type_val.lower()
                     type_matched = False
-                    if type_val == "item" and any(k in query_lower for k in ["vật phẩm", "vat pham", "tinh thể", "tinh the"]):
+                    if type_val_lower == "item" and any(k in query_lower for k in ["vật phẩm", "vat pham", "tinh thể", "tinh the"]):
                         type_matched = True
-                    elif type_val == "ability" and any(k in query_lower for k in ["kỹ năng", "ky nang", "dị năng", "di nang"]):
+                    elif type_val_lower == "ability" and any(k in query_lower for k in ["kỹ năng", "ky nang", "dị năng", "di nang"]):
                         type_matched = True
-                    elif type_val == "entity" and any(k in query_lower for k in ["nhân vật", "nhan vat", "zombie"]):
+                    elif type_val_lower == "entity" and any(k in query_lower for k in ["nhân vật", "nhan vat", "zombie"]):
                         type_matched = True
 
                     if type_matched:
@@ -774,21 +830,23 @@ def search_provisional_library(
                 if score > 0:
                     score += confidence * 20.0
 
-            if oracle_policy == "deprioritize":
+            if deprioritize_record:
+                score = score * 0.2
+            elif oracle_policy == "deprioritize":
                 score = score * 0.5
 
-            scored_rows.append((score, confidence, row, filtered_evidence, effective_status, oracle_policy, dispute_score, total_feedback))
+            scored_rows.append((score, confidence, row, filtered_evidence, effective_status, oracle_policy, dispute_score, total_feedback, summary_override, type_override, warn_record))
 
         # Sort by score DESC, confidence DESC
         scored_rows.sort(key=lambda x: (x[0], x[1]), reverse=True)
 
         results = []
-        for score, confidence, row, filtered_evidence, eff_status, pol, disp_score, tot_fb in scored_rows:
+        for score, confidence, row, filtered_evidence, eff_status, pol, disp_score, tot_fb, sum_ovr, typ_ovr, warn_rec in scored_rows:
             if score <= 0:
                 continue
             name = row.get("name", "")
-            type_val = row.get("type", "")
-            summary = row.get("summary", "")
+            type_val = typ_ovr if typ_ovr else row.get("type", "")
+            summary = sum_ovr if sum_ovr else row.get("summary", "")
             quality_class = row.get("quality_class", "")
 
             # Recalculate first_chapter if needed
@@ -803,7 +861,7 @@ def search_provisional_library(
             first_ch = min(chaps) if chaps else row.get("first_chapter")
 
             display_summary = summary
-            if pol == "warn" or eff_status in ("disputed", "duplicate_suspected", "needs_review"):
+            if pol == "warn" or eff_status in ("disputed", "duplicate_suspected", "needs_review") or warn_rec:
                 display_summary = f"[CẢNH BÁO CỘNG ĐỒNG: mục này đang bị báo lỗi] {summary}"
 
             results.append({
@@ -820,7 +878,8 @@ def search_provisional_library(
                 "effective_status": eff_status,
                 "oracle_policy": pol,
                 "dispute_score": disp_score,
-                "total_feedback": tot_fb
+                "total_feedback": tot_fb,
+                "patch_type": "effective_summary" if sum_ovr else ("effective_type" if typ_ovr else ("warn_record" if warn_rec else None))
             })
 
         return results[:limit]

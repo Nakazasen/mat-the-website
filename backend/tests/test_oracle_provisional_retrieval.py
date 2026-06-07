@@ -546,3 +546,218 @@ async def test_get_entity_context_for_oracle_feedback_policies():
     res_warn = await get_entity_context_for_oracle(client_warn, "Bàng Lâm là ai?", chapter_cap=10)
     assert res_warn is not None
     assert "[CẢNH BÁO CỘNG ĐỒNG: mục này đang bị báo lỗi]" in res_warn["context_text"]
+
+
+def test_search_provisional_library_with_effective_patches():
+    mock_data = {
+        "provisional_library": [
+            {
+                "id": "pid-hide",
+                "name": "Bàng Lâm",
+                "type": "entity",
+                "summary": "Phản phái",
+                "confidence": 0.8,
+                "quality_class": "high_confidence",
+                "first_chapter": 1,
+                "evidence": [{"chapter_number": 1, "preview": "ev"}]
+            },
+            {
+                "id": "pid-deprio",
+                "name": "Hàn Phong",
+                "type": "entity",
+                "summary": "Nhân vật chính",
+                "confidence": 0.9,
+                "quality_class": "high_confidence",
+                "first_chapter": 1,
+                "evidence": [{"chapter_number": 1, "preview": "ev"}]
+            },
+            {
+                "id": "pid-warn",
+                "name": "Dị năng hệ hoả",
+                "type": "ability",
+                "summary": "Khả năng phóng lửa",
+                "confidence": 0.85,
+                "quality_class": "high_confidence",
+                "first_chapter": 1,
+                "evidence": [{"chapter_number": 1, "preview": "ev"}]
+            },
+            {
+                "id": "pid-override",
+                "name": "Căn cứ Nam Kinh",
+                "type": "location",
+                "summary": "Căn cứ quân sự cũ",
+                "confidence": 0.75,
+                "quality_class": "high_confidence",
+                "first_chapter": 1,
+                "evidence": [{"chapter_number": 1, "preview": "ev"}]
+            }
+        ],
+        "provisional_library_effective_patches": [
+            {
+                "target_type": "provisional_record",
+                "target_id": "pid-hide",
+                "patch_type": "hide_record",
+                "effective_status": "active",
+                "oracle_policy": "block"
+            },
+            {
+                "target_type": "provisional_record",
+                "target_id": "pid-deprio",
+                "patch_type": "deprioritize_record",
+                "effective_status": "active",
+                "oracle_policy": "deprioritize"
+            },
+            {
+                "target_type": "provisional_record",
+                "target_id": "pid-warn",
+                "patch_type": "warn_record",
+                "effective_status": "active",
+                "oracle_policy": "warn"
+            },
+            {
+                "target_type": "provisional_record",
+                "target_id": "pid-override",
+                "patch_type": "effective_summary",
+                "effective_status": "active",
+                "oracle_policy": "allow",
+                "effective_summary": "Tóm tắt đã hiệu chỉnh cho căn cứ",
+                "effective_type": "faction"
+            }
+        ]
+    }
+    client = MockSupabase(mock_data)
+
+    # 1. Verify hide_record patch removes "Bàng Lâm"
+    results = search_provisional_library(client, "Bàng Lâm", limit=5)
+    assert not any(r["name"] == "Bàng Lâm" for r in results)
+
+    # 2. Verify warn_record prepends community warning
+    results = search_provisional_library(client, "Dị năng hệ hoả", limit=5)
+    warn_rec = next(r for r in results if r["name"] == "Dị năng hệ hoả")
+    assert "[CẢNH BÁO CỘNG ĐỒNG: mục này đang bị báo lỗi]" in warn_rec["summary"]
+
+    # 3. Verify effective_summary and effective_type override values
+    results = search_provisional_library(client, "Căn cứ Nam Kinh", limit=5)
+    over_rec = next(r for r in results if r["name"] == "Căn cứ Nam Kinh")
+    assert over_rec["summary"] == "Tóm tắt đã hiệu chỉnh cho căn cứ"
+    assert over_rec["type"] == "faction"
+
+
+def test_suppress_related_for_identity_query():
+    mock_data = {
+        "provisional_library": [
+            {
+                "id": "pid-hanphong",
+                "name": "Hàn Phong",
+                "type": "entity",
+                "summary": "Nhân vật chính",
+                "confidence": 0.95,
+                "quality_class": "high_confidence",
+                "first_chapter": 1,
+                "evidence": [{"chapter_number": 1, "preview": "ev"}]
+            },
+            {
+                "id": "pid-dang",
+                "name": "Hàn Phong đang",
+                "type": "entity",
+                "summary": "Hàn Phong đang đi săn zombie",
+                "confidence": 0.8,
+                "quality_class": "high_confidence",
+                "first_chapter": 2,
+                "evidence": [{"chapter_number": 2, "preview": "ev"}]
+            },
+            {
+                "id": "pid-de",
+                "name": "đệ Hàn Phong",
+                "type": "entity",
+                "summary": "Mục miêu tả về đệ tử Hàn Phong",
+                "confidence": 0.78,
+                "quality_class": "high_confidence",
+                "first_chapter": 3,
+                "evidence": [{"chapter_number": 3, "preview": "ev"}]
+            },
+            {
+                "id": "pid-nhin",
+                "name": "Hàn Phong nhìn",
+                "type": "entity",
+                "summary": "Hàn Phong nhìn về phía xa",
+                "confidence": 0.82,
+                "quality_class": "high_confidence",
+                "first_chapter": 2,
+                "evidence": [{"chapter_number": 2, "preview": "ev"}]
+            }
+        ],
+        "provisional_library_effective_patches": [
+            {
+                "target_type": "query",
+                "target_name": "Hàn Phong",
+                "query_pattern": "Hàn Phong là ai?",
+                "patch_type": "suppress_related_for_identity_query",
+                "effective_status": "active",
+                "oracle_policy": "allow",
+                "suppress_record_ids": ["pid-dang", "pid-de", "pid-nhin"]
+            }
+        ]
+    }
+    client = MockSupabase(mock_data)
+
+    # Search for "Hàn Phong là ai?" - is_identity matches query pattern
+    results = search_provisional_library(client, "Hàn Phong là ai?", limit=5)
+
+    # Assert that only the exact entity Hàn Phong is retrieved, and others are suppressed
+    names = [r["name"] for r in results]
+    assert "Hàn Phong" in names
+    assert "Hàn Phong đang" not in names
+    assert "đệ Hàn Phong" not in names
+    assert "Hàn Phong nhìn" not in names
+
+
+@pytest.mark.asyncio
+async def test_get_entity_context_for_oracle_with_patches():
+    from backend.routes.ai_oracle import get_entity_context_for_oracle
+    mock_data = {
+        "provisional_library": [
+            {
+                "id": "pid-exact",
+                "name": "Hàn Phong",
+                "type": "entity",
+                "summary": "Nhân vật chính",
+                "confidence": 0.95,
+                "quality_class": "high_confidence",
+                "first_chapter": 1,
+                "evidence": [{"chapter_number": 1, "preview": "ev"}]
+            },
+            {
+                "id": "pid-noisy",
+                "name": "Hàn Phong đang",
+                "type": "entity",
+                "summary": "Nhiễu",
+                "confidence": 0.8,
+                "quality_class": "high_confidence",
+                "first_chapter": 1,
+                "evidence": [{"chapter_number": 1, "preview": "ev"}]
+            }
+        ],
+        "provisional_library_effective_patches": [
+            {
+                "target_type": "query",
+                "target_name": "Hàn Phong",
+                "query_pattern": "Hàn Phong là ai?",
+                "patch_type": "suppress_related_for_identity_query",
+                "effective_status": "active",
+                "oracle_policy": "allow",
+                "suppress_record_ids": ["pid-noisy"]
+            }
+        ]
+    }
+    client = MockSupabase(mock_data)
+
+    # Query exact name
+    res = await get_entity_context_for_oracle(client, "Hàn Phong là ai?", chapter_cap=10)
+    assert res is not None
+    assert "Hàn Phong" in res["context_text"]
+
+    # Check if the noisy one is blocked / not selected
+    # Wait, get_entity_context_for_oracle filters candidates by matches query.
+    # If we query "Hàn Phong đang", does it return it? Since there is no suppress query patch for "Hàn Phong đang", yes.
+    # But for "Hàn Phong là ai?", only "Hàn Phong" should match.

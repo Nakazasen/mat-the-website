@@ -43,6 +43,9 @@ interface ProvisionalItem {
   oracle_policy?: string;
   dispute_score?: number;
   total_feedback?: number;
+  patch_type?: string | null;
+  reason?: string | null;
+  effective_summary?: string | null;
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -356,15 +359,16 @@ export default function PublicProvisionalLibraryPage() {
                             <span className={`px-2 py-0.5 border rounded-full text-[9px] uppercase font-bold tracking-wider ${qBadgeClass}`}>
                               {qLabel}
                             </span>
-                            {item.effective_status && item.effective_status !== "trusted" && (
-                              <span className="px-2 py-0.5 border border-yellow-500/30 dark:border-yellow-500/20 text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-950/20 rounded-full text-[9px] uppercase font-bold tracking-wider">
-                                Đang bị cộng đồng báo lỗi
-                              </span>
-                            )}
-                            {item.oracle_policy === "block" && (
+                            {(item.patch_type === "hide_record" || item.patch_type === "deprioritize_record" || item.oracle_policy === "block" || item.oracle_policy === "deprioritize") ? (
                               <span className="px-2 py-0.5 border border-red-500/30 dark:border-red-500/20 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/20 rounded-full text-[9px] uppercase font-bold tracking-wider">
-                                Không khuyến nghị dùng cho Oracle
+                                Đã bị cộng đồng/RAG hạ độ tin cậy
                               </span>
+                            ) : (
+                              item.effective_status && item.effective_status !== "trusted" && (
+                                <span className="px-2 py-0.5 border border-yellow-500/30 dark:border-yellow-500/20 text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-950/20 rounded-full text-[9px] uppercase font-bold tracking-wider">
+                                  Đang bị cộng đồng báo lỗi
+                                </span>
+                              )
                             )}
                           </div>
 
@@ -381,15 +385,22 @@ export default function PublicProvisionalLibraryPage() {
                         </div>
 
                         {/* Summary Text */}
-                        {item.summary && (
+                        {(item.effective_summary || item.summary) && (
                           <div className="bg-reader-bg/60 border border-reader-border rounded-lg p-3.5 text-xs leading-relaxed font-sans text-reader-text">
-                            {item.effective_status && item.effective_status !== "trusted" && (
-                              <div className="flex items-center gap-1.5 text-yellow-600 dark:text-yellow-400 font-bold mb-2 text-[10px] tracking-wider uppercase">
-                                <AlertTriangle size={12} className="shrink-0" />
-                                <span>Cảnh báo: Mục này đang bị cộng đồng báo lỗi (Disputed)</span>
+                            {item.effective_summary ? (
+                              <div className="flex items-center gap-1.5 text-green-600 dark:text-toxic-green-DEFAULT font-bold mb-2 text-[10px] tracking-wider uppercase">
+                                <CheckCircle2 size={12} className="shrink-0" />
+                                <span>Tóm tắt đã được hiệu chỉnh</span>
                               </div>
+                            ) : (
+                              item.effective_status && item.effective_status !== "trusted" && (
+                                <div className="flex items-center gap-1.5 text-yellow-600 dark:text-yellow-400 font-bold mb-2 text-[10px] tracking-wider uppercase">
+                                  <AlertTriangle size={12} className="shrink-0" />
+                                  <span>Cảnh báo: Mục này đang bị cộng đồng báo lỗi (Disputed)</span>
+                                </div>
+                              )
                             )}
-                            {item.summary}
+                            {item.effective_summary || item.summary}
                           </div>
                         )}
 

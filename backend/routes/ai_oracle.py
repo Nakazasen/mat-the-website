@@ -251,16 +251,67 @@ async def get_entity_context_for_oracle(supabase, question: str, chapter_cap: in
                     except Exception as e:
                         print(f"Warning: failed to query feedback summary: {e}")
 
-                if oracle_policy == "block" or effective_status == "hidden_from_oracle":
+                # Load active patches
+                patches = []
+                try:
+                    patch_resp = supabase.table("provisional_library_effective_patches").select("*").eq("effective_status", "active").execute()
+                    patches = patch_resp.data or []
+                except Exception as e:
+                    print(f"Warning: failed to query effective patches: {e}")
+
+                summary_override = None
+                type_override = None
+                hide_record = False
+                warn_record = False
+
+                query_norm = " ".join(question.lower().split())
+                is_ident = is_identity_question(question)
+                entity_name_norm = " ".join(entity_name.lower().split()) if entity_name else ""
+
+                for patch in patches:
+                    ptype = patch.get("patch_type")
+                    target_id = patch.get("target_id")
+                    target_name = patch.get("target_name")
+                    qp = patch.get("query_pattern")
+
+                    matches_pid = (target_id == pid)
+
+                    if ptype == "hide_record" and matches_pid:
+                        hide_record = True
+                    elif ptype == "deprioritize_record" and matches_pid:
+                        pass
+                    elif ptype == "warn_record" and matches_pid:
+                        warn_record = True
+                    if matches_pid:
+                        if patch.get("effective_summary"):
+                            summary_override = patch.get("effective_summary")
+                        if patch.get("effective_type"):
+                            type_override = patch.get("effective_type")
+                    elif ptype == "suppress_related_for_identity_query":
+                        matches_query = False
+                        if qp and query_norm == " ".join(qp.lower().split()):
+                            matches_query = True
+                        elif is_ident and target_name and entity_name_norm == " ".join(target_name.lower().split()):
+                            matches_query = True
+
+                        if matches_query:
+                            suppressed_ids = patch.get("suppress_record_ids") or []
+                            suppressed_patterns = patch.get("suppress_name_patterns") or []
+                            if pid in suppressed_ids:
+                                hide_record = True
+                            elif any(pat.lower() in name.lower() for pat in suppressed_patterns if pat):
+                                hide_record = True
+
+                if oracle_policy == "block" or effective_status == "hidden_from_oracle" or hide_record:
                     return None
 
                 first_ch = row.get("first_chapter")
                 if chapter_cap is None or first_ch is None or first_ch <= chapter_cap:
-                    type_val = row.get("type", "") or ""
-                    summary = row.get("summary", "") or ""
+                    type_val = type_override if type_override else (row.get("type", "") or "")
+                    summary = summary_override if summary_override else (row.get("summary", "") or "")
                     quality_class = row.get("quality_class", "")
 
-                    if oracle_policy == "warn" or effective_status in ("disputed", "duplicate_suspected", "needs_review"):
+                    if oracle_policy == "warn" or effective_status in ("disputed", "duplicate_suspected", "needs_review") or warn_record:
                         summary = f"[CẢNH BÁO CỘNG ĐỒNG: mục này đang bị báo lỗi] {summary}"
 
                     ev_str = f" Evidence: Chương {first_ch}" if first_ch is not None else ""

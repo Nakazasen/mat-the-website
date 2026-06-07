@@ -75,14 +75,34 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const activePatches: Record<string, any> = {};
+    if (ids.length > 0) {
+      const { data: patchData, error: patchError } = await supabase
+        .from("provisional_library_effective_patches")
+        .select("target_id, patch_type, oracle_policy, effective_status, reason, effective_summary")
+        .eq("effective_status", "active")
+        .eq("target_type", "provisional_record")
+        .in("target_id", ids);
+
+      if (!patchError && patchData) {
+        patchData.forEach((p: any) => {
+          activePatches[p.target_id] = p;
+        });
+      }
+    }
+
     const mappedItems = items.map((item: any) => {
       const summary = summaries[item.id] || {};
+      const patch = activePatches[item.id] || {};
       return {
         ...item,
-        effective_status: summary.effective_status || "trusted",
-        oracle_policy: summary.oracle_policy || "allow",
+        effective_status: patch.effective_status || summary.effective_status || "trusted",
+        oracle_policy: patch.oracle_policy || summary.oracle_policy || "allow",
         dispute_score: summary.dispute_score ?? 0,
-        total_feedback: summary.total_feedback ?? 0
+        total_feedback: summary.total_feedback ?? 0,
+        patch_type: patch.patch_type || null,
+        reason: patch.reason || null,
+        effective_summary: patch.effective_summary || null
       };
     });
 

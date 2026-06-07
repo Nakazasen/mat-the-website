@@ -96,9 +96,29 @@ describe("PublicProvisionalLibraryPage", () => {
           created_at: "2026-06-07T12:05:00Z",
           effective_status: "disputed",
           oracle_policy: "block"
+        },
+        {
+          id: "item-patched-summary",
+          name: "Vật phẩm hiệu chỉnh",
+          type: "item",
+          summary: "Tóm tắt gốc.",
+          evidence: [],
+          confidence: 0.8,
+          quality_class: "high_confidence",
+          status: "provisional",
+          source: "story_chunks_auto_extract",
+          feedback_score: 1,
+          chapter_numbers: [11],
+          first_chapter: 11,
+          last_chapter: 11,
+          created_at: "2026-06-07T12:10:00Z",
+          effective_status: "trusted",
+          oracle_policy: "allow",
+          patch_type: "effective_summary",
+          effective_summary: "Tóm tắt mới đã hiệu chỉnh hoàn toàn."
         }
       ],
-      total: 2,
+      total: 3,
       page: 1,
       page_size: 20
     };
@@ -138,9 +158,12 @@ describe("PublicProvisionalLibraryPage", () => {
 
     // 3b. Render disputed item details & badges
     expect(screen.getByText("Dị năng hỏa hệ lỗi")).toBeInTheDocument();
-    expect(screen.getByText("Đang bị cộng đồng báo lỗi")).toBeInTheDocument();
-    expect(screen.getByText("Không khuyến nghị dùng cho Oracle")).toBeInTheDocument();
-    expect(screen.getByText("Cảnh báo: Mục này đang bị cộng đồng báo lỗi (Disputed)")).toBeInTheDocument();
+    expect(screen.getByText("Đã bị cộng đồng/RAG hạ độ tin cậy")).toBeInTheDocument();
+
+    // 3c. Render patched summary item & badge
+    expect(screen.getByText("Vật phẩm hiệu chỉnh")).toBeInTheDocument();
+    expect(screen.getByText("Tóm tắt đã được hiệu chỉnh")).toBeInTheDocument();
+    expect(screen.getByText("Tóm tắt mới đã hiệu chỉnh hoàn toàn.")).toBeInTheDocument();
 
     // 4. Evidence expansion
     const expandBtn = screen.getAllByRole("button", { name: /XEM TRÍCH ĐOẠN/ })[0];
