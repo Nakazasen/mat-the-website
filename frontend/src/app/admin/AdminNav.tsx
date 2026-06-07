@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { BookOpen, Settings, LogOut, BarChart3, Home, LibraryBig, Users, Map as MapIcon, FileText, Menu, X, MessageSquare, Cpu, AlertCircle } from 'lucide-react';
 import { createAdminClient } from '@/lib/supabase-admin';
 
@@ -16,6 +16,7 @@ const navItems = [
     { href: '/admin/comments', label: 'Bình Luận', icon: MessageSquare },
     { href: '/admin/feedback', label: 'Báo lỗi Oracle', icon: AlertCircle },
     { href: '/admin/corrections', label: 'Bản nháp Oracle', icon: FileText },
+    { href: '/admin/wiki-candidates', label: 'Ứng viên Wiki', icon: LibraryBig },
     { href: '/admin/wiki', label: 'Wiki / Bách Khoa', icon: LibraryBig },
     { href: '/admin/ai', label: 'Cấu hình AI', icon: Cpu, superadminOnly: true },
     { href: '/admin/personnel', label: 'Nhân Sự', icon: Users, superadminOnly: true },
