@@ -86,31 +86,51 @@ curl -X POST "https://mat-the-website.onrender.com/oracle/admin/run-feedback-pol
 
 ---
 
-## 4. Scheduled Runner Setup
+## 4. GitHub Actions Scheduled Runner Setup
 
-It is recommended to run this cron endpoint periodically using an external scheduler (e.g. GitHub Actions, Cron-Job.org, or Cloudflare Workers) depending on traffic:
+We have integrated an automated workflow in `.github/workflows/feedback-policy-pipeline.yml` to call the cron endpoint periodically.
 
-- **High Traffic**: Every 15 minutes (`*/15 * * * *`).
-- **Low Traffic / Standard**: Every 1 hour (`0 * * * *`).
+### A. How to Configure GitHub Repo Secret
 
-### Example GitHub Action Workflow (`.github/workflows/feedback_pipeline.yml`)
+To authenticate the workflow with the production API, you must configure the cron token secret in your GitHub repository:
+1. Navigate to your GitHub repository dashboard.
+2. In the top tabs, select **Settings**.
+3. In the left sidebar, click **Secrets and variables** -> **Actions**.
+4. Click **New repository secret** (the green button).
+5. Enter the following details:
+   - **Name**: `ORACLE_FEEDBACK_PIPELINE_CRON_TOKEN`
+   - **Secret**: *(Paste the exact same token value set in your Render dashboard environment variables)*
+6. Click **Add secret**.
 
-```yaml
-name: Scheduled Feedback Pipeline
+### B. Triggering Manual Executions (workflow_dispatch)
 
-on:
-  schedule:
-    - cron: '0 * * * *' # Run hourly
-  workflow_dispatch: # Allow manual triggering
+You can trigger a dry-run check or manual pipeline execution directly from GitHub:
+1. Go to the **Actions** tab at the top of your GitHub repository.
+2. In the left sidebar under "Workflows", select **Feedback Policy Pipeline Cron**.
+3. On the right-hand side, click the **Run workflow** dropdown button.
+4. Configure the trigger parameters:
+   - **dry_run**: Tick/untick (default: `true` for safety). Set to `false` to write patches to production DB.
+   - **clear_cache**: Tick/untick (default: `true`).
+   - **limit**: Maximum feedback records to process (default: `5000`).
+5. Click **Run workflow** to queue and start the execution.
 
-jobs:
-  run-pipeline:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Trigger Feedback Pipeline Cron
-        run: |
-          curl -s -X POST "${{ secrets.BACKEND_API_URL }}/oracle/admin/run-feedback-policy-pipeline" \
-            -H "Content-Type: application/json" \
-            -H "X-Oracle-Pipeline-Cron-Token: ${{ secrets.ORACLE_FEEDBACK_PIPELINE_CRON_TOKEN }}" \
-            -d '{"dry_run": false, "clear_cache": true, "limit": 5000}'
-```
+### C. Scheduled Write Mode Cadence
+
+- **Schedule Cadence**: Runs automatically **every hour** (`0 * * * *` cron) in **active write mode** (`dry_run: false`).
+- **Cadence recommendation**: Every hour is proposed in the initial stages to ensure prompt cache invalidation and patch application without overloading the DB.
+- **Workflow configuration file**: [.github/workflows/feedback-policy-pipeline.yml](file:///.github/workflows/feedback-policy-pipeline.yml).
+
+### D. Viewing Execution Reports & Logs
+
+1. Click on the completed workflow run inside the **Actions** tab.
+2. Expand the `run-pipeline` job, and select the **Call Pipeline Endpoint** step.
+3. Review the printed JSON report summarizing the run statistics (`feedback_rows_read`, `summary_rows_written`, `patches_written`, `cache_rows_deleted`).
+4. *Security note*: All cron tokens are encrypted and masked, preventing them from being exposed in actions logs.
+
+### E. How to Disable the Runner on Incident
+
+If there is a database issue, API downtime, or feedback spam attack:
+1. Navigate to **Actions** -> **Feedback Policy Pipeline Cron**.
+2. Click the `...` menu on the right.
+3. Select **Disable workflow** to halt all future scheduled executions.
+4. Click **Enable workflow** to resume schedule once the issue is resolved.
