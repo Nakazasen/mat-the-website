@@ -1486,6 +1486,29 @@ async def review_oracle_correction(
             except (json.JSONDecodeError, TypeError):
                 raise HTTPException(status_code=400, detail="proposed_content must be a valid JSON string")
 
+            if parsed.get("canon_reviewed") is True:
+                summary = parsed.get("summary")
+                content = parsed.get("content")
+                if not summary or not isinstance(summary, str) or not summary.strip() or not content or not isinstance(content, str) or not content.strip():
+                    raise HTTPException(status_code=400, detail="Nội dung còn chứa dấu hiệu test/placeholder, chưa thể xác nhận canon.")
+
+                try:
+                    from backend.rag.wiki_apply_dry_run import is_unsafe_content
+                except ImportError:
+                    from rag.wiki_apply_dry_run import is_unsafe_content
+
+                fields_to_check = ["entity_name", "summary", "content", "notes"]
+                for f in fields_to_check:
+                    val = parsed.get(f)
+                    if val and isinstance(val, str) and is_unsafe_content(val):
+                        raise HTTPException(status_code=400, detail="Nội dung còn chứa dấu hiệu test/placeholder, chưa thể xác nhận canon.")
+
+                aliases = parsed.get("aliases") or []
+                if isinstance(aliases, list):
+                    for alias in aliases:
+                        if alias and isinstance(alias, str) and is_unsafe_content(alias):
+                            raise HTTPException(status_code=400, detail="Nội dung còn chứa dấu hiệu test/placeholder, chưa thể xác nhận canon.")
+
             update_data["proposed_content"] = body.proposed_content
 
         res = supabase.table("rag_corrections").update(update_data).eq("id", correction_id).execute()

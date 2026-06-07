@@ -39,6 +39,8 @@ interface WikiCandidate {
   status: 'ready_for_review' | 'needs_human_fill' | 'invalid' | string;
   human_review_required: boolean;
   notes: string;
+  canon_reviewed?: boolean;
+  canon_reviewed_at?: string;
 }
 
 // Map db categories to Vietnamese labels
@@ -55,6 +57,23 @@ const STATUS_COLORS: Record<string, string> = {
   needs_human_fill: "text-yellow-500 bg-yellow-950/20 border-yellow-800/40",
   invalid: "text-red-400 bg-red-950/20 border-red-800/40"
 };
+
+const UNSAFE_KEYWORDS = [
+  "smoke test",
+  "test",
+  "mock",
+  "placeholder",
+  "todo",
+  "chỉ dùng để kiểm thử",
+  "not applied to wiki_entries",
+  "needs human fill"
+];
+
+function hasUnsafeContent(text: string | null | undefined): boolean {
+  if (!text) return false;
+  const t = text.toLowerCase();
+  return UNSAFE_KEYWORDS.some(kw => t.includes(kw));
+}
 
 export default function AdminWikiCandidatesPage() {
   const router = useRouter();
@@ -93,7 +112,8 @@ export default function AdminWikiCandidatesPage() {
             entity_type: item.entity_type,
             summary: item.summary,
             content: item.content,
-            aliases: [...item.aliases]
+            aliases: [...item.aliases],
+            canon_reviewed: item.canon_reviewed ?? false
           };
         });
         setEditedCandidates(initialEdits);
@@ -192,9 +212,30 @@ export default function AdminWikiCandidatesPage() {
     setError(null);
     setSuccess(null);
 
+    const edits = editedCandidates[id] || {};
+    const isCanonReviewed = edits.canon_reviewed ?? false;
+
+    const currentSummary = edits.summary !== undefined ? edits.summary : original.summary;
+    const currentContent = edits.content !== undefined ? edits.content : original.content;
+    const currentAliases = edits.aliases !== undefined ? edits.aliases : original.aliases;
+
+    const hasUnsafe = hasUnsafeContent(original.entity_name) ||
+                      hasUnsafeContent(currentSummary) ||
+                      hasUnsafeContent(currentContent) ||
+                      hasUnsafeContent(original.notes) ||
+                      (currentAliases && currentAliases.some(alias => hasUnsafeContent(alias)));
+
+    const isEmpty = !currentSummary?.trim() || !currentContent?.trim();
+
+    if (isCanonReviewed && (isEmpty || hasUnsafe)) {
+      setError("Nội dung còn chứa dấu hiệu test/placeholder, chưa thể xác nhận canon.");
+      setSaving(prev => ({ ...prev, [id]: false }));
+      return;
+    }
+
     const updated = getUpdatedCandidate(original);
 
-    const proposedPayload = {
+    const proposedPayload: Record<string, any> = {
       entity_name: updated.entity_name,
       entity_type: updated.entity_type === "Nhân vật" ? "character" :
                    updated.entity_type === "Sinh vật" ? "concept" :
@@ -209,6 +250,11 @@ export default function AdminWikiCandidatesPage() {
       human_review_required: true,
       notes: "Edited by admin; not applied to wiki_entries."
     };
+
+    if (isCanonReviewed) {
+      proposedPayload.canon_reviewed = true;
+      proposedPayload.canon_reviewed_at = new Date().toISOString();
+    }
 
     try {
       const res = await fetch(`/api/oracle/corrections/${id}`, {
@@ -338,6 +384,19 @@ export default function AdminWikiCandidatesPage() {
                 const statusColor = STATUS_COLORS[updated.status] || "text-gray-400 bg-gray-900 border-gray-800";
 
                 const isNeedsFill = !updated.summary || !updated.content;
+
+                const currentSummary = edits.summary !== undefined ? edits.summary : original.summary;
+                const currentContent = edits.content !== undefined ? edits.content : original.content;
+                const currentAliases = edits.aliases !== undefined ? edits.aliases : original.aliases;
+
+                const hasUnsafe = hasUnsafeContent(original.entity_name) ||
+                                  hasUnsafeContent(currentSummary) ||
+                                  hasUnsafeContent(currentContent) ||
+                                  hasUnsafeContent(original.notes) ||
+                                  (currentAliases && currentAliases.some(alias => hasUnsafeContent(alias)));
+
+                const isEmpty = !currentSummary?.trim() || !currentContent?.trim();
+                const isCheckboxDisabled = isEmpty || hasUnsafe;
 
                 if (activeTab === 'json_preview') {
                   return (
@@ -522,6 +581,28 @@ export default function AdminWikiCandidatesPage() {
                       </div>
 
                       <div className="space-y-2">
+                        {/* Checkbox canon_reviewed */}
+                        <div className="flex items-start gap-2 p-2 bg-[#0a0a0a]/40 border border-gray-900 rounded mb-2">
+                          <input
+                            type="checkbox"
+                            id={`canon-reviewed-${original.correction_id}`}
+                            checked={isCheckboxDisabled ? false : (edits.canon_reviewed ?? false)}
+                            disabled={isCheckboxDisabled}
+                            onChange={(e) => updateField(original.correction_id, 'canon_reviewed', e.target.checked)}
+                            className="mt-0.5 cursor-pointer accent-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                          />
+                          <label
+                            htmlFor={`canon-reviewed-${original.correction_id}`}
+                            className={`text-[10px] select-none cursor-pointer leading-tight ${isCheckboxDisabled ? 'text-gray-600 cursor-not-allowed' : 'text-gray-300 hover:text-gray-200'}`}
+                          >
+                            Tôi xác nhận nội dung này là canon đã duyệt
+                          </label>
+                        </div>
+                        {isCheckboxDisabled && (
+                          <div className="text-[9px] text-gray-500 italic mt-1 font-sans mb-2">
+                            * Nội dung còn rỗng hoặc chứa từ khóa test/placeholder, chưa thể xác nhận canon.
+                          </div>
+                        )}
                         <button
                           onClick={() => handleSaveDraft(original)}
                           disabled={saving[original.correction_id]}

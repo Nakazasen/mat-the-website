@@ -309,4 +309,159 @@ describe("AdminWikiCandidatesPage Dashboard", () => {
     expect(navLink).toBeInTheDocument();
     expect(navLink.getAttribute("href")).toBe("/admin/wiki-candidates");
   });
+
+  it("renders the canon review checkbox and disables it if summary or content is empty", async () => {
+    const mockCandidates = [
+      {
+        correction_id: "corr-123",
+        entity_name: "Tinh thể zombie",
+        entity_type: "Vật phẩm",
+        summary: "",
+        content: "",
+        aliases: [],
+        evidence: [],
+        source: "rag_corrections",
+        status: "needs_human_fill",
+        human_review_required: true,
+        notes: "Ghi chú sạch"
+      }
+    ];
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => mockCandidates,
+    });
+    global.fetch = fetchMock as typeof fetch;
+
+    render(<AdminWikiCandidatesPage />);
+
+    await screen.findByText("Tinh thể zombie");
+
+    const checkbox = screen.getByLabelText("Tôi xác nhận nội dung này là canon đã duyệt") as HTMLInputElement;
+    expect(checkbox).toBeInTheDocument();
+    expect(checkbox).toBeDisabled();
+    expect(checkbox.checked).toBe(false);
+  });
+
+  it("disables the checkbox if content is unsafe", async () => {
+    const mockCandidates = [
+      {
+        correction_id: "corr-123",
+        entity_name: "Tinh thể zombie",
+        entity_type: "Vật phẩm",
+        summary: "SMOKE TEST",
+        content: "Chi tiết",
+        aliases: [],
+        evidence: [],
+        source: "rag_corrections",
+        status: "ready_for_review",
+        human_review_required: true,
+        notes: "Ghi chú sạch"
+      }
+    ];
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => mockCandidates,
+    });
+    global.fetch = fetchMock as typeof fetch;
+
+    render(<AdminWikiCandidatesPage />);
+
+    await screen.findByText("Tinh thể zombie");
+
+    const checkbox = screen.getByLabelText("Tôi xác nhận nội dung này là canon đã duyệt") as HTMLInputElement;
+    expect(checkbox).toBeDisabled();
+  });
+
+  it("saves canon_reviewed=true in proposed_content when ticked and content is clean", async () => {
+    const mockCandidates = [
+      {
+        correction_id: "corr-123",
+        entity_name: "Tinh thể zombie",
+        entity_type: "Vật phẩm",
+        summary: "Tóm tắt sạch",
+        content: "Nội dung sạch",
+        aliases: [],
+        evidence: [],
+        source: "rag_corrections",
+        status: "ready_for_review",
+        human_review_required: true,
+        notes: "Ghi chú sạch"
+      }
+    ];
+
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockCandidates,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ ok: true, correction_id: "corr-123", status: "approved" }),
+      });
+    global.fetch = fetchMock as typeof fetch;
+
+    render(<AdminWikiCandidatesPage />);
+
+    await screen.findByText("Tinh thể zombie");
+
+    const checkbox = screen.getByLabelText("Tôi xác nhận nội dung này là canon đã duyệt") as HTMLInputElement;
+    expect(checkbox).not.toBeDisabled();
+    fireEvent.click(checkbox);
+    expect(checkbox.checked).toBe(true);
+
+    const saveBtn = screen.getByRole("button", { name: "LƯU BẢN NHÁP" });
+    fireEvent.click(saveBtn);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    const patchCall = fetchMock.mock.calls[1];
+    const body = JSON.parse(patchCall?.[1]?.body as string);
+    const proposed = JSON.parse(body.proposed_content);
+    expect(proposed.canon_reviewed).toBe(true);
+    expect(proposed.canon_reviewed_at).toBeDefined();
+  });
+
+  it("blocks saving and shows error message if ticked but content is unsafe", async () => {
+    const mockCandidates = [
+      {
+        correction_id: "corr-123",
+        entity_name: "Tinh thể zombie",
+        entity_type: "Vật phẩm",
+        summary: "Tóm tắt sạch",
+        content: "Nội dung sạch",
+        aliases: [],
+        evidence: [],
+        source: "rag_corrections",
+        status: "ready_for_review",
+        human_review_required: true,
+        notes: "Ghi chú sạch"
+      }
+    ];
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => mockCandidates,
+    });
+    global.fetch = fetchMock as typeof fetch;
+
+    render(<AdminWikiCandidatesPage />);
+
+    await screen.findByText("Tinh thể zombie");
+
+    const checkbox = screen.getByLabelText("Tôi xác nhận nội dung này là canon đã duyệt") as HTMLInputElement;
+    fireEvent.click(checkbox);
+
+    // Edit content to make it unsafe
+    const contentInput = screen.getByPlaceholderText("Nhập chi tiết về thực thể, vai trò, thuộc tính...");
+    fireEvent.change(contentInput, { target: { value: "Nội dung này có chữ MOCK" } });
+
+    const saveBtn = screen.getByRole("button", { name: "LƯU BẢN NHÁP" });
+    fireEvent.click(saveBtn);
+
+    await screen.findByText("Nội dung còn chứa dấu hiệu test/placeholder, chưa thể xác nhận canon.");
+  });
 });

@@ -152,3 +152,89 @@ def test_patch_reject_invalid_json_proposed_content(mock_supabase_backend, mock_
     }, headers=headers)
     assert response.status_code == 400
     assert "must be a json object" in response.json()["detail"].lower()
+
+@patch("main.supabase", create=True)
+@patch("backend.main.supabase", create=True)
+def test_patch_canon_reviewed_valid(mock_supabase_backend, mock_supabase_main):
+    for mock_supabase in [mock_supabase_backend, mock_supabase_main]:
+        mock_select = MagicMock()
+        mock_select.execute.return_value.data = [{"id": "uuid-123", "correction_type": "entity_profile"}]
+
+        mock_update = MagicMock()
+        mock_update.execute.return_value.data = [{"id": "uuid-123", "status": "approved"}]
+
+        mock_supabase.table.return_value.select.return_value.eq.return_value = mock_select
+        mock_supabase.table.return_value.update.return_value.eq.return_value = mock_update
+
+    proposed_json = json.dumps({
+        "entity_name": "Tinh thể sạch",
+        "entity_type": "item",
+        "summary": "Tóm tắt sạch hoàn toàn.",
+        "content": "Nội dung sạch hoàn toàn.",
+        "aliases": ["Sạch"],
+        "canon_reviewed": True,
+        "canon_reviewed_at": "2026-06-07T00:00:00Z"
+    })
+
+    headers = {"X-Oracle-Feedback-Admin-Token": ADMIN_TOKEN}
+    response = client.patch("/oracle/corrections/uuid-123", json={
+        "status": "accepted",
+        "reviewer_note": "Approved canon",
+        "proposed_content": proposed_json
+    }, headers=headers)
+
+    assert response.status_code == 200
+    assert response.json()["ok"] is True
+
+@patch("main.supabase", create=True)
+@patch("backend.main.supabase", create=True)
+def test_patch_canon_reviewed_invalid_unsafe(mock_supabase_backend, mock_supabase_main):
+    for mock_supabase in [mock_supabase_backend, mock_supabase_main]:
+        mock_select = MagicMock()
+        mock_select.execute.return_value.data = [{"id": "uuid-123", "correction_type": "entity_profile"}]
+        mock_supabase.table.return_value.select.return_value.eq.return_value = mock_select
+
+    # Contains SMOKE TEST
+    proposed_json = json.dumps({
+        "entity_name": "Tinh thể zombie",
+        "entity_type": "item",
+        "summary": "SMOKE TEST - tóm tắt",
+        "content": "Nội dung",
+        "canon_reviewed": True
+    })
+
+    headers = {"X-Oracle-Feedback-Admin-Token": ADMIN_TOKEN}
+    response = client.patch("/oracle/corrections/uuid-123", json={
+        "status": "accepted",
+        "reviewer_note": "Approved canon",
+        "proposed_content": proposed_json
+    }, headers=headers)
+
+    assert response.status_code == 400
+    assert "chứa dấu hiệu test/placeholder" in response.json()["detail"]
+
+@patch("main.supabase", create=True)
+@patch("backend.main.supabase", create=True)
+def test_patch_canon_reviewed_invalid_empty(mock_supabase_backend, mock_supabase_main):
+    for mock_supabase in [mock_supabase_backend, mock_supabase_main]:
+        mock_select = MagicMock()
+        mock_select.execute.return_value.data = [{"id": "uuid-123", "correction_type": "entity_profile"}]
+        mock_supabase.table.return_value.select.return_value.eq.return_value = mock_select
+
+    # Empty summary
+    proposed_json = json.dumps({
+        "entity_name": "Tinh thể",
+        "entity_type": "item",
+        "summary": "",
+        "content": "Nội dung sạch",
+        "canon_reviewed": True
+    })
+
+    headers = {"X-Oracle-Feedback-Admin-Token": ADMIN_TOKEN}
+    response = client.patch("/oracle/corrections/uuid-123", json={
+        "status": "accepted",
+        "proposed_content": proposed_json
+    }, headers=headers)
+
+    assert response.status_code == 400
+    assert "chứa dấu hiệu test/placeholder" in response.json()["detail"]

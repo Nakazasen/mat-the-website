@@ -82,7 +82,7 @@ def build_wiki_candidate_from_correction(correction: dict) -> dict:
     else:
         status = "ready_for_review"
         
-    return {
+    res = {
         "correction_id": correction_id,
         "entity_name": entity_name,
         "entity_type": entity_type,
@@ -95,6 +95,12 @@ def build_wiki_candidate_from_correction(correction: dict) -> dict:
         "human_review_required": True,
         "notes": "Generated from approved rag_corrections; not applied to wiki_entries."
     }
+    if "canon_reviewed" in parsed_content:
+        res["canon_reviewed"] = parsed_content["canon_reviewed"]
+    if "canon_reviewed_at" in parsed_content:
+        res["canon_reviewed_at"] = parsed_content["canon_reviewed_at"]
+
+    return res
 
 def validate_wiki_candidate(candidate: dict) -> dict:
     """Validates schema fields of a wiki candidate payload."""
