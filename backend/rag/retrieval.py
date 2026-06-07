@@ -645,7 +645,7 @@ def search_provisional_library(
         if or_parts:
             q = q.or_(",".join(or_parts))
 
-        resp = q.limit(100).execute()
+        resp = q.limit(1000).execute()
         rows = resp.data or []
 
         # Batch-fetch summaries for the retrieved provisional candidates
