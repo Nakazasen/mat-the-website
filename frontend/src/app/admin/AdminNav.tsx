@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
-import { BookOpen, Settings, LogOut, BarChart3, Home, LibraryBig, Users, Map as MapIcon, FileText, Menu, X, MessageSquare, Cpu, AlertCircle, Database } from 'lucide-react';
+import { BookOpen, Settings, LogOut, BarChart3, Home, LibraryBig, Users, Map as MapIcon, FileText, Menu, X, MessageSquare, Cpu, AlertCircle, Database, RefreshCw } from 'lucide-react';
 import { createAdminClient } from '@/lib/supabase-admin';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -18,6 +18,7 @@ const navItems = [
     { href: '/admin/corrections', label: 'Bản nháp Oracle', icon: FileText },
     { href: '/admin/wiki-candidates', label: 'Ứng viên Wiki', icon: LibraryBig },
     { href: '/admin/provisional-library', label: 'Thư viện tự động', icon: Database },
+    { href: '/admin/feedback-policy', label: 'Vòng tự học', icon: RefreshCw },
     { href: '/admin/wiki', label: 'Wiki / Bách Khoa', icon: LibraryBig },
     { href: '/admin/ai', label: 'Cấu hình AI', icon: Cpu, superadminOnly: true },
     { href: '/admin/personnel', label: 'Nhân Sự', icon: Users, superadminOnly: true },
