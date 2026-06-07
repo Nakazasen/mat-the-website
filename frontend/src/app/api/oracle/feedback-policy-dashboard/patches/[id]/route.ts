@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerAdminClient } from "@/lib/supabase-server";
+import { createServerClient } from "@supabase/ssr";
 
 /**
  * PATCH /api/oracle/feedback-policy-dashboard/patches/[id]
@@ -13,15 +14,32 @@ export async function PATCH(
   try {
     const { id } = await params;
 
-    // 1. Verify Supabase admin session
-    const supabase = await getServerAdminClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    // 1. Verify Supabase admin session (Anon client is used to check the user cookie)
+    const supabaseAnon = await getServerAdminClient();
+    const { data: { user } } = await supabaseAnon.auth.getUser();
     if (!user) {
       return NextResponse.json(
         { error: "Unauthorized: Vui lòng đăng nhập admin" },
         { status: 401 }
       );
     }
+
+    // 2. Create Service Role client to bypass RLS for administrative updates
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return [];
+          },
+          setAll() {
+            // No-op for service role client
+          },
+        },
+      }
+    );
+
 
     // 2. Parse request body
     let body;

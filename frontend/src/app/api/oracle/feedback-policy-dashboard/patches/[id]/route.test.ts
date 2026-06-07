@@ -3,19 +3,15 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { PATCH } from "./route";
 
 const mocks = vi.hoisted(() => {
-  return {
-    mockGetUser: vi.fn(),
-    mockSingle: vi.fn(),
-    mockUpdate: vi.fn(),
-    mockDelete: vi.fn(),
-    mockIn: vi.fn(),
-  };
-});
+  const mockGetUser = vi.fn();
+  const mockSingle = vi.fn();
+  const mockUpdate = vi.fn();
+  const mockDelete = vi.fn();
+  const mockIn = vi.fn();
 
-vi.mock("@/lib/supabase-server", () => {
   const mockSupabase = {
     auth: {
-      getUser: mocks.mockGetUser,
+      getUser: mockGetUser,
     },
     from: vi.fn().mockImplementation((table) => {
       if (table === "provisional_library_effective_patches") {
@@ -24,21 +20,21 @@ vi.mock("@/lib/supabase-server", () => {
           eq: vi.fn().mockImplementation((col, val) => {
             if (col === "id") {
               return {
-                single: mocks.mockSingle,
+                single: mockSingle,
               };
             }
             return {
               single: vi.fn(),
             };
           }),
-          update: mocks.mockUpdate,
+          update: mockUpdate,
         };
       }
       if (table === "oracle_cache") {
         const mockDelChain = {
-          in: mocks.mockIn,
+          in: mockIn,
         };
-        mocks.mockDelete.mockReturnValue(mockDelChain);
+        mockDelete.mockReturnValue(mockDelChain);
         return {
           select: vi.fn().mockReturnValue({
             data: [
@@ -47,7 +43,7 @@ vi.mock("@/lib/supabase-server", () => {
             ],
             error: null,
           }),
-          delete: mocks.mockDelete,
+          delete: mockDelete,
         };
       }
       return {};
@@ -55,9 +51,27 @@ vi.mock("@/lib/supabase-server", () => {
   };
 
   return {
-    getServerAdminClient: vi.fn().mockResolvedValue(mockSupabase),
+    mockGetUser,
+    mockSingle,
+    mockUpdate,
+    mockDelete,
+    mockIn,
+    mockSupabase,
   };
 });
+
+vi.mock("@/lib/supabase-server", () => {
+  return {
+    getServerAdminClient: vi.fn().mockResolvedValue(mocks.mockSupabase),
+  };
+});
+
+vi.mock("@supabase/ssr", () => {
+  return {
+    createServerClient: vi.fn().mockReturnValue(mocks.mockSupabase),
+  };
+});
+
 
 describe("PATCH /api/oracle/feedback-policy-dashboard/patches/[id]", () => {
   beforeEach(() => {
