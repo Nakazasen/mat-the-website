@@ -75,16 +75,23 @@ describe("PublicProvisionalLibraryPage", () => {
       page_size: 20
     };
 
-    const fetchMock = vi.fn().mockImplementation(() => {
+    const fetchMock = vi.fn().mockImplementation((url) => {
+      if (url.includes("/api/public/provisional-library?")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => mockData
+        });
+      }
       return Promise.resolve({
         ok: true,
-        json: async () => mockData
+        json: async () => ({ ok: true, feedback_id: "feedback-123" })
       });
     });
     global.fetch = fetchMock as typeof fetch;
 
     render(<PublicProvisionalLibraryPage />);
 
+    // Wait for retrieval load
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalled();
     });
@@ -116,5 +123,56 @@ describe("PublicProvisionalLibraryPage", () => {
 
     // 6. No token input
     expect(screen.queryByPlaceholderText(/token/i)).not.toBeInTheDocument();
+
+    // 7. Feedback inline form render
+    const feedbackBtn = screen.getByRole("button", { name: /BÁO LỖI MỤC NÀY/ });
+    expect(feedbackBtn).toBeInTheDocument();
+    fireEvent.click(feedbackBtn);
+
+    // Form fields presence
+    expect(screen.getByText("Báo lỗi / Góp ý mục: Tinh thể zombie")).toBeInTheDocument();
+    const selectType = screen.getByRole("combobox", { name: /loại lỗi/i }) as HTMLSelectElement;
+    expect(selectType).toBeInTheDocument();
+    expect(selectType.value).toBe("wrong_info");
+
+    const commentInput = screen.getByPlaceholderText(/Nhập ý kiến đóng góp của bạn/i) as HTMLTextAreaElement;
+    expect(commentInput).toBeInTheDocument();
+
+    const correctionInput = screen.getByPlaceholderText(/Đề xuất thông tin sửa đổi/i) as HTMLTextAreaElement;
+    expect(correctionInput).toBeInTheDocument();
+
+    // Client side validation check (empty comment)
+    const submitBtn = screen.getByRole("button", { name: /GỬI BÁO LỖI/ });
+    fireEvent.click(submitBtn);
+    expect(screen.getByText("Ý kiến đóng góp không được trống.")).toBeInTheDocument();
+
+    // Client side validation check (short comment)
+    fireEvent.change(commentInput, { target: { value: "hi" } });
+    fireEvent.click(submitBtn);
+    expect(screen.getByText("Ý kiến đóng góp quá ngắn (tối thiểu 3 ký tự).")).toBeInTheDocument();
+
+    // Valid submit
+    fireEvent.change(commentInput, { target: { value: "Bằng chứng này bị sai lệch." } });
+    fireEvent.change(correctionInput, { target: { value: "Đề xuất sửa thành đúng chương 8." } });
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    // Check payload passed to POST fetch
+    const lastCall = fetchMock.mock.calls[1];
+    expect(lastCall[0]).toBe("/api/public/provisional-library/feedback");
+    const callOpts = lastCall[1];
+    expect(callOpts.method).toBe("POST");
+    const requestBody = JSON.parse(callOpts.body);
+    expect(requestBody.provisional_id).toBe("item-789");
+    expect(requestBody.record_name).toBe("Tinh thể zombie");
+    expect(requestBody.feedback_type).toBe("wrong_info");
+    expect(requestBody.user_comment).toBe("Bằng chứng này bị sai lệch.");
+    expect(requestBody.suggested_correction).toBe("Đề xuất sửa thành đúng chương 8.");
+
+    // Success thank you banner displays
+    await screen.findByText(/Cảm ơn bạn đã gửi đóng góp ý kiến!/);
   });
 });

@@ -11,7 +11,8 @@ import {
   BookOpen,
   ChevronDown,
   ChevronUp,
-  MessageSquareWarning
+  MessageSquareWarning,
+  CheckCircle2
 } from 'lucide-react';
 import WikiSettingsWrapper from '@/components/WikiSettingsWrapper';
 
@@ -61,6 +62,16 @@ const QUALITY_BADGE_CLASSES: Record<string, string> = {
   medium_confidence: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800/40"
 };
 
+const FEEDBACK_TYPE_LABELS: Record<string, string> = {
+  wrong_info: "Sai thông tin",
+  wrong_type: "Sai phân loại",
+  wrong_evidence: "Sai bằng chứng",
+  duplicate: "Trùng mục",
+  spoiler: "Sai mức spoiler / chương",
+  missing_info: "Thiếu thông tin",
+  other: "Ý kiến khác"
+};
+
 export default function PublicProvisionalLibraryPage() {
   const [items, setItems] = useState<ProvisionalItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -79,6 +90,15 @@ export default function PublicProvisionalLibraryPage() {
 
   // Expandable evidence state
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
+
+  // Feedback States
+  const [activeFeedbackId, setActiveFeedbackId] = useState<string | null>(null);
+  const [feedbackType, setFeedbackType] = useState('wrong_info');
+  const [userComment, setUserComment] = useState('');
+  const [suggestedCorrection, setSuggestedCorrection] = useState('');
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
+  const [submittedFeedbackIds, setSubmittedFeedbackIds] = useState<Record<string, boolean>>({});
 
   // Debounce search input
   useEffect(() => {
@@ -129,6 +149,66 @@ export default function PublicProvisionalLibraryPage() {
       ...prev,
       [id]: !prev[id]
     }));
+  };
+
+  const handleOpenFeedback = (item: ProvisionalItem) => {
+    setActiveFeedbackId(item.id);
+    setFeedbackType('wrong_info');
+    setUserComment('');
+    setSuggestedCorrection('');
+    setFeedbackError(null);
+  };
+
+  const handleCancelFeedback = () => {
+    setActiveFeedbackId(null);
+    setFeedbackError(null);
+  };
+
+  const handleSubmitFeedback = async (item: ProvisionalItem) => {
+    setFeedbackError(null);
+
+    const trimmedComment = userComment.trim();
+    if (!trimmedComment) {
+      setFeedbackError("Ý kiến đóng góp không được trống.");
+      return;
+    }
+    if (trimmedComment.length < 3) {
+      setFeedbackError("Ý kiến đóng góp quá ngắn (tối thiểu 3 ký tự).");
+      return;
+    }
+
+    setFeedbackSubmitting(true);
+
+    try {
+      const payload = {
+        provisional_id: item.id,
+        record_name: item.name,
+        feedback_type: feedbackType,
+        user_comment: trimmedComment,
+        suggested_correction: suggestedCorrection.trim(),
+        page_url: window.location.href
+      };
+
+      const res = await fetch('/api/public/provisional-library/feedback', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        setSubmittedFeedbackIds(prev => ({ ...prev, [item.id]: true }));
+        setActiveFeedbackId(null);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setFeedbackError(err.error || "Gửi ý kiến thất bại. Vui lòng thử lại.");
+      }
+    } catch (err) {
+      setFeedbackError("Lỗi kết nối khi gửi ý kiến đóng góp.");
+    } finally {
+      setFeedbackSubmitting(false);
+    }
   };
 
   const totalPages = Math.ceil(totalCount / pageSize) || 1;
@@ -250,6 +330,8 @@ export default function PublicProvisionalLibraryPage() {
                     const qBadgeClass = QUALITY_BADGE_CLASSES[item.quality_class] || "text-reader-muted bg-reader-bg border-reader-border";
                     const qLabel = QUALITY_LABELS[item.quality_class] || item.quality_class;
                     const isExpanded = expandedItems[item.id] || false;
+                    const isFeedbackOpen = activeFeedbackId === item.id;
+                    const isSubmitted = submittedFeedbackIds[item.id] || false;
 
                     return (
                       <div
@@ -287,6 +369,94 @@ export default function PublicProvisionalLibraryPage() {
                           </div>
                         )}
 
+                        {/* Success Message Banner */}
+                        {isSubmitted && (
+                          <div className="bg-green-500/10 border border-green-500/20 text-green-600 dark:text-green-400 p-3.5 rounded-lg text-xs flex items-center gap-2 font-sans">
+                            <CheckCircle2 size={16} className="shrink-0" />
+                            <span>Cảm ơn bạn đã gửi đóng góp ý kiến! Ý kiến của bạn đã được ghi nhận để kiểm chứng.</span>
+                          </div>
+                        )}
+
+                        {/* Inline Feedback Form */}
+                        {isFeedbackOpen && (
+                          <div className="bg-reader-bg/50 border border-reader-border/80 rounded-lg p-4 space-y-3.5 animate-in fade-in duration-200 font-sans">
+                            <div className="text-xs font-mono font-bold text-reader-accent uppercase tracking-wider">
+                              Báo lỗi / Góp ý mục: {item.name}
+                            </div>
+
+                            {feedbackError && (
+                              <div className="bg-red-500/10 border border-red-500/20 text-red-500 p-2.5 rounded text-xs flex items-center gap-2">
+                                <AlertTriangle size={14} className="shrink-0" />
+                                <span>{feedbackError}</span>
+                              </div>
+                            )}
+
+                            <div className="space-y-3">
+                              {/* Feedback Type Dropdown */}
+                              <div className="space-y-1">
+                                <label htmlFor={`feedback-type-${item.id}`} className="text-[10px] font-mono text-reader-muted uppercase tracking-wider">Loại lỗi / Góp ý</label>
+                                <select
+                                  id={`feedback-type-${item.id}`}
+                                  value={feedbackType}
+                                  onChange={(e) => setFeedbackType(e.target.value)}
+                                  className="w-full bg-reader-bg border border-reader-border rounded px-3 py-1.5 text-xs text-reader-text outline-none focus:border-reader-accent transition-all cursor-pointer font-sans"
+                                >
+                                  {Object.entries(FEEDBACK_TYPE_LABELS).map(([k, v]) => (
+                                    <option key={k} value={k} className="bg-reader-bg text-reader-text">{v}</option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              {/* User Comment Textarea */}
+                              <div className="space-y-1">
+                                <label htmlFor={`user-comment-${item.id}`} className="text-[10px] font-mono text-reader-muted uppercase tracking-wider">Ý kiến người đọc (Bắt buộc)</label>
+                                <textarea
+                                  id={`user-comment-${item.id}`}
+                                  placeholder="Nhập ý kiến đóng góp của bạn (tối thiểu 3 ký tự, tối đa 2000)..."
+                                  value={userComment}
+                                  onChange={(e) => setUserComment(e.target.value)}
+                                  rows={3}
+                                  maxLength={2000}
+                                  className="w-full bg-reader-bg border border-reader-border rounded p-2.5 text-xs text-reader-text outline-none focus:border-reader-accent transition-all resize-none font-sans"
+                                />
+                              </div>
+
+                              {/* Suggested Correction Textarea */}
+                              <div className="space-y-1">
+                                <label htmlFor={`suggested-correction-${item.id}`} className="text-[10px] font-mono text-reader-muted uppercase tracking-wider">Đề xuất sửa đổi (Tùy chọn)</label>
+                                <textarea
+                                  id={`suggested-correction-${item.id}`}
+                                  placeholder="Đề xuất thông tin sửa đổi chính xác nếu có (tối đa 4000)..."
+                                  value={suggestedCorrection}
+                                  onChange={(e) => setSuggestedCorrection(e.target.value)}
+                                  rows={2}
+                                  maxLength={4000}
+                                  className="w-full bg-reader-bg border border-reader-border rounded p-2.5 text-xs text-reader-text outline-none focus:border-reader-accent transition-all resize-none font-sans"
+                                />
+                              </div>
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="flex items-center justify-end gap-2 pt-1">
+                              <button
+                                onClick={handleCancelFeedback}
+                                disabled={feedbackSubmitting}
+                                className="px-3 py-1.5 bg-reader-bg/40 hover:bg-reader-bg/80 border border-reader-border text-xs text-reader-text rounded transition-all cursor-pointer disabled:opacity-40"
+                              >
+                                HỦY
+                              </button>
+                              <button
+                                onClick={() => handleSubmitFeedback(item)}
+                                disabled={feedbackSubmitting}
+                                className="px-4 py-1.5 bg-reader-accent hover:bg-reader-accent/90 border border-reader-accent text-xs text-black font-bold rounded transition-all cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
+                              >
+                                {feedbackSubmitting && <Loader2 size={12} className="animate-spin" />}
+                                GỬI BÁO LỖI
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
                         {/* Evidence citation footer */}
                         <div className="flex items-center justify-between pt-2 border-t border-reader-border/40 text-xs">
                           <div className="text-reader-muted flex flex-wrap items-center gap-2">
@@ -306,20 +476,31 @@ export default function PublicProvisionalLibraryPage() {
                             </div>
                           </div>
 
-                          <button
-                            onClick={() => toggleExpand(item.id)}
-                            className="flex items-center gap-1.5 px-3 py-1 bg-reader-bg/40 hover:bg-reader-bg/80 border border-reader-border text-[10px] text-reader-text font-bold rounded tracking-wider transition-colors cursor-pointer"
-                          >
-                            {isExpanded ? (
-                              <>
-                                ẨN TRÍCH ĐOẠN <ChevronUp size={12} />
-                              </>
-                            ) : (
-                              <>
-                                XEM TRÍCH ĐOẠN ({item.evidence?.length || 0}) <ChevronDown size={12} />
-                              </>
+                          <div className="flex items-center gap-2">
+                            {!isSubmitted && !isFeedbackOpen && (
+                              <button
+                                onClick={() => handleOpenFeedback(item)}
+                                className="flex items-center gap-1.5 px-3 py-1 bg-red-950/20 hover:bg-red-950/40 border border-red-900/30 text-[10px] text-red-600 dark:text-red-400 font-bold rounded tracking-wider transition-colors cursor-pointer"
+                              >
+                                BÁO LỖI MỤC NÀY
+                              </button>
                             )}
-                          </button>
+
+                            <button
+                              onClick={() => toggleExpand(item.id)}
+                              className="flex items-center gap-1.5 px-3 py-1 bg-reader-bg/40 hover:bg-reader-bg/80 border border-reader-border text-[10px] text-reader-text font-bold rounded tracking-wider transition-colors cursor-pointer"
+                            >
+                              {isExpanded ? (
+                                <>
+                                  ẨN TRÍCH ĐOẠN <ChevronUp size={12} />
+                                </>
+                              ) : (
+                                <>
+                                  XEM TRÍCH ĐOẠN ({item.evidence?.length || 0}) <ChevronDown size={12} />
+                                </>
+                              )}
+                            </button>
+                          </div>
                         </div>
 
                         {/* Collapsible evidence details */}
