@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerAdminClient } from "@/lib/supabase-server";
 
 const RAW_BACKEND_URL = process.env.NEXT_PUBLIC_API_URL?.trim() ?? "";
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
@@ -21,11 +22,22 @@ function getBackendUrl(): string | null {
  */
 export async function GET(request: NextRequest) {
   try {
-    const adminToken = request.headers.get("X-Oracle-Feedback-Admin-Token");
-    if (!adminToken) {
+    // 1. Verify Supabase admin session
+    const supabase = await getServerAdminClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
       return NextResponse.json(
-        { error: "Forbidden: Missing admin token" },
-        { status: 403 }
+        { error: "Unauthorized: Vui lòng đăng nhập admin" },
+        { status: 401 }
+      );
+    }
+
+    // 2. Read admin token from environment
+    const adminToken = process.env.ORACLE_FEEDBACK_ADMIN_TOKEN;
+    if (!adminToken || !adminToken.trim()) {
+      return NextResponse.json(
+        { error: "Admin feedback token is not configured on server" },
+        { status: 503 }
       );
     }
 
@@ -40,7 +52,7 @@ export async function GET(request: NextRequest) {
     const res = await fetch(`${backendUrl}/oracle/feedback/pending`, {
       method: "GET",
       headers: {
-        "X-Oracle-Feedback-Admin-Token": adminToken,
+        "X-Oracle-Feedback-Admin-Token": adminToken.trim(),
       },
     });
 

@@ -4,90 +4,49 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import AdminFeedbackPage from "./page";
 
-// Mock sessionStorage
-const sessionStorageMock = (() => {
-  let store: Record<string, string> = {};
-  return {
-    getItem: (key: string) => store[key] || null,
-    setItem: (key: string, value: string) => {
-      store[key] = value.toString();
-    },
-    removeItem: (key: string) => {
-      delete store[key];
-    },
-    clear: () => {
-      store = {};
-    },
-  };
-})();
-Object.defineProperty(window, "sessionStorage", {
-  value: sessionStorageMock,
-});
+// Mock next/navigation
+vi.mock("next/navigation", () => ({
+  useRouter() {
+    return {
+      push: vi.fn(),
+    };
+  },
+}));
 
 describe("AdminFeedbackPage Dashboard", () => {
   const originalFetch = global.fetch;
 
   beforeEach(() => {
     vi.restoreAllMocks();
-    sessionStorageMock.clear();
   });
 
   afterEach(() => {
     global.fetch = originalFetch;
   });
 
-  it("renders authentication token form initially", () => {
-    render(<AdminFeedbackPage />);
-    
-    expect(screen.getByText("YÊU CẦU XÁC THỰC ADMIN")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("Nhập X-Oracle-Feedback-Admin-Token...")).toBeInTheDocument();
-    
-    const verifyBtn = screen.getByRole("button", { name: "XÁC THỰC & TẢI PHẢN HỒI" });
-    expect(verifyBtn).toBeInTheDocument();
-    expect(verifyBtn).toBeDisabled();
-  });
-
-  it("enables the fetch button when token is entered", () => {
-    render(<AdminFeedbackPage />);
-    
-    const input = screen.getByPlaceholderText("Nhập X-Oracle-Feedback-Admin-Token...");
-    const verifyBtn = screen.getByRole("button", { name: "XÁC THỰC & TẢI PHẢN HỒI" });
-    
-    fireEvent.change(input, { target: { value: "test-token-123" } });
-    
-    expect(verifyBtn).not.toBeDisabled();
-  });
-
-  it("handles authentication failure and displays invalid token error", async () => {
+  it("handles 401 Unauthorized and displays sign-in requirement UI", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: false,
-      json: async () => ({ error: "Forbidden: Invalid admin token" }),
+      status: 401,
+      json: async () => ({ error: "Unauthorized: Vui lòng đăng nhập admin" }),
     });
     global.fetch = fetchMock as typeof fetch;
 
     render(<AdminFeedbackPage />);
-    
-    const input = screen.getByPlaceholderText("Nhập X-Oracle-Feedback-Admin-Token...");
-    const verifyBtn = screen.getByRole("button", { name: "XÁC THỰC & TẢI PHẢN HỒI" });
-    
-    fireEvent.change(input, { target: { value: "wrong-token" } });
-    fireEvent.click(verifyBtn);
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
-    // Check request url and headers
     expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/oracle/feedback/pending");
-    const headers = fetchMock.mock.calls[0]?.[1]?.headers as Record<string, string>;
-    expect(headers?.["X-Oracle-Feedback-Admin-Token"]).toBe("wrong-token");
 
-    // Display error message
-    await screen.findByText("Forbidden: Invalid admin token");
-    expect(screen.queryByText("Đã xác thực Admin Token")).not.toBeInTheDocument();
+    // Displays authorization request
+    await screen.findByText("YÊU CẦU XÁC THỰC ADMIN");
+    expect(screen.getByText("Bạn cần đăng nhập bằng tài khoản Admin để truy cập trang này.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "ĐẾN TRANG ĐĂNG NHẬP" })).toBeInTheDocument();
   });
 
-  it("loads and renders pending feedbacks when token authentication succeeds", async () => {
+  it("loads and renders pending feedbacks when API call succeeds", async () => {
     const mockFeedbacks = [
       {
         id: "fb-1",
@@ -110,22 +69,19 @@ describe("AdminFeedbackPage Dashboard", () => {
     global.fetch = fetchMock as typeof fetch;
 
     render(<AdminFeedbackPage />);
-    
-    const input = screen.getByPlaceholderText("Nhập X-Oracle-Feedback-Admin-Token...");
-    const verifyBtn = screen.getByRole("button", { name: "XÁC THỰC & TẢI PHẢN HỒI" });
-    
-    fireEvent.change(input, { target: { value: "valid-token" } });
-    fireEvent.click(verifyBtn);
 
-    // Verify session verification bar is displayed
-    await screen.findByText(/Đã xác thực Admin Token/i);
-    expect(screen.getByText("1")).toBeInTheDocument(); // pending count
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    // Verify feedbacks are rendered
+    await screen.findByText("Hàn Phong là ai?");
+    expect(screen.getByText("1")).toBeInTheDocument(); // pending count in bar
 
     // Verify item fields render
     expect(screen.getByText("Sai kiến thức")).toBeInTheDocument();
     expect(screen.getByText("Chương 15")).toBeInTheDocument();
     expect(screen.getByText("local_wiki")).toBeInTheDocument();
-    expect(screen.getByText("Hàn Phong là ai?")).toBeInTheDocument();
     expect(screen.getByText("Hàn Phong là đoàn trưởng.")).toBeInTheDocument();
     expect(screen.getByText("Thiếu tên đầy đủ.")).toBeInTheDocument();
     expect(screen.getByText("Hàn Phong là Đoàn Trưởng Hàn Phong.")).toBeInTheDocument();
@@ -167,12 +123,6 @@ describe("AdminFeedbackPage Dashboard", () => {
     global.fetch = fetchMock as typeof fetch;
 
     render(<AdminFeedbackPage />);
-    
-    // Auth
-    const input = screen.getByPlaceholderText("Nhập X-Oracle-Feedback-Admin-Token...");
-    const verifyBtn = screen.getByRole("button", { name: "XÁC THỰC & TẢI PHẢN HỒI" });
-    fireEvent.change(input, { target: { value: "valid-token" } });
-    fireEvent.click(verifyBtn);
 
     // Wait for render
     await screen.findByText("Q1");
@@ -196,8 +146,9 @@ describe("AdminFeedbackPage Dashboard", () => {
     const requestOptions = patchCall?.[1];
     expect(requestOptions?.method).toBe("PATCH");
     
+    // Crucial: No raw X-Oracle-Feedback-Admin-Token header sent from the client!
     const headers = requestOptions?.headers as Record<string, string>;
-    expect(headers?.["X-Oracle-Feedback-Admin-Token"]).toBe("valid-token");
+    expect(headers?.["X-Oracle-Feedback-Admin-Token"]).toBeUndefined();
     
     const requestBody = JSON.parse(requestOptions?.body as string);
     expect(requestBody).toEqual({

@@ -51,10 +51,9 @@ export default function AdminFeedbackPage() {
   const router = useRouter();
   const [feedbacks, setFeedbacks] = useState<FeedbackItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const [token, setToken] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [isTokenVerified, setIsTokenVerified] = useState(false);
+  const [isUnauthorized, setIsUnauthorized] = useState(false);
 
   // Review notes state indexed by feedback ID
   const [reviewerNotes, setReviewerNotes] = useState<Record<string, string>>({});
@@ -62,57 +61,38 @@ export default function AdminFeedbackPage() {
   const [actionProgress, setActionProgress] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    // Load token from sessionStorage if present
-    if (typeof window !== 'undefined') {
-      const savedToken = sessionStorage.getItem("oracle_admin_token");
-      if (savedToken) {
-        setToken(savedToken);
-        loadFeedbacks(savedToken);
-      }
-    }
+    loadFeedbacks();
   }, []);
 
-  const loadFeedbacks = async (authToken = token) => {
-    if (!authToken.trim()) {
-      setError("Vui lòng nhập Admin Token.");
-      return;
-    }
-
+  const loadFeedbacks = async () => {
     setLoading(true);
     setError(null);
     setSuccess(null);
+    setIsUnauthorized(false);
 
     try {
-      const res = await fetch('/api/oracle/feedback/pending', {
-        headers: {
-          'X-Oracle-Feedback-Admin-Token': authToken.trim()
-        }
-      });
+      const res = await fetch('/api/oracle/feedback/pending');
 
       if (res.ok) {
         const data = await res.json();
         setFeedbacks(data);
-        setIsTokenVerified(true);
-        if (typeof window !== 'undefined') {
-          sessionStorage.setItem("oracle_admin_token", authToken.trim());
-        }
       } else {
-        const err = await res.json();
-        setError(err.error || "Token không hợp lệ hoặc lỗi kết nối.");
-        setIsTokenVerified(false);
+        if (res.status === 401) {
+          setIsUnauthorized(true);
+          setError("Bạn cần đăng nhập admin");
+        } else {
+          const err = await res.json().catch(() => ({}));
+          setError(err.error || "Không thể tải danh sách phản hồi.");
+        }
       }
     } catch (err) {
       setError("Lỗi kết nối server khi tải feedback.");
-      setIsTokenVerified(false);
     } finally {
       setLoading(false);
     }
   };
 
   const handleAction = async (id: string, status: 'reviewed' | 'accepted' | 'rejected' | 'resolved') => {
-    const activeToken = token.trim();
-    if (!activeToken) return;
-
     setActionProgress(prev => ({ ...prev, [id]: true }));
     setError(null);
     setSuccess(null);
@@ -123,8 +103,7 @@ export default function AdminFeedbackPage() {
       const res = await fetch(`/api/oracle/feedback/${id}`, {
         method: 'PATCH',
         headers: {
-          'Content-Type': 'application/json',
-          'X-Oracle-Feedback-Admin-Token': activeToken
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           status,
@@ -138,22 +117,18 @@ export default function AdminFeedbackPage() {
         setSuccess(`Đã cập nhật phản hồi thành công sang trạng thái: ${status.toUpperCase()}`);
         setTimeout(() => setSuccess(null), 3000);
       } else {
-        const data = await res.json();
-        setError(data.error || "Lỗi khi xử lý phản hồi");
+        if (res.status === 401) {
+          setIsUnauthorized(true);
+          setError("Bạn cần đăng nhập admin");
+        } else {
+          const data = await res.json().catch(() => ({}));
+          setError(data.error || "Lỗi khi xử lý phản hồi");
+        }
       }
     } catch (err) {
       setError("Lỗi kết nối server khi gửi cập nhật.");
     } finally {
       setActionProgress(prev => ({ ...prev, [id]: false }));
-    }
-  };
-
-  const clearToken = () => {
-    setToken('');
-    setIsTokenVerified(false);
-    setFeedbacks([]);
-    if (typeof window !== 'undefined') {
-      sessionStorage.removeItem("oracle_admin_token");
     }
   };
 
@@ -178,58 +153,48 @@ export default function AdminFeedbackPage() {
         </div>
       )}
 
-      {error && (
+      {error && !isUnauthorized && (
         <div className="flex items-center gap-2 text-red-400 bg-red-950/30 border border-red-900/50 rounded p-4 text-sm mb-6">
           <AlertTriangle size={16} />
           <span>{error}</span>
         </div>
       )}
 
-      {/* TOKEN PROTECTION HEADER */}
-      {!isTokenVerified ? (
-        <div className="bg-[#181818] border border-gray-800 rounded-lg p-6 max-w-md mx-auto mt-12 shadow-xl">
-          <h2 className="text-sm font-mono text-gray-200 uppercase tracking-widest flex items-center gap-2 mb-4">
+      {isUnauthorized ? (
+        <div className="bg-[#181818] border border-gray-800 rounded-lg p-6 max-w-md mx-auto mt-12 shadow-xl text-center">
+          <h2 className="text-sm font-mono text-gray-200 uppercase tracking-widest flex items-center justify-center gap-2 mb-4">
             <ShieldAlert className="text-red-500" size={18} />
             YÊU CẦU XÁC THỰC ADMIN
           </h2>
-          <p className="text-gray-500 text-xs font-mono mb-4">
-            Nhập Oracle RAG Admin Token để xem và xử lý các báo lỗi.
+          <p className="text-gray-400 text-xs font-mono mb-6">
+            Bạn cần đăng nhập bằng tài khoản Admin để truy cập trang này.
           </p>
-          <div className="space-y-4">
-            <input
-              type="password"
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-              placeholder="Nhập X-Oracle-Feedback-Admin-Token..."
-              className="w-full bg-[#0a0a0a] border border-gray-800 rounded p-3 text-gray-200 text-sm focus:border-green-500 outline-none transition-all"
-            />
-            <button
-              onClick={() => loadFeedbacks()}
-              disabled={loading || !token.trim()}
-              className="w-full flex items-center justify-center gap-2 py-3 bg-green-600 hover:bg-green-500 disabled:bg-gray-800 disabled:text-gray-600 text-white rounded font-mono text-xs tracking-widest transition-all"
-            >
-              {loading ? <Loader2 className="animate-spin" size={14} /> : null}
-              XÁC THỰC & TẢI PHẢN HỒI
-            </button>
-          </div>
+          <button
+            onClick={() => router.push('/admin/login')}
+            className="w-full flex items-center justify-center gap-2 py-3 bg-green-600 hover:bg-green-500 text-white rounded font-mono text-xs tracking-widest transition-all cursor-pointer"
+          >
+            ĐẾN TRANG ĐĂNG NHẬP
+          </button>
         </div>
       ) : (
         <div className="space-y-6">
-          {/* Active Token Bar */}
+          {/* Active Session Bar */}
           <div className="flex items-center justify-between bg-[#181818] border border-gray-800 px-4 py-3 rounded-lg text-xs font-mono">
             <div className="text-gray-400">
-              Đã xác thực Admin Token (Session) • Tổng số: <span className="text-green-400 font-bold">{feedbacks.length}</span> báo lỗi chờ duyệt.
+              Tổng số: <span className="text-green-400 font-bold">{feedbacks.length}</span> báo lỗi chờ duyệt.
             </div>
             <button
-              onClick={clearToken}
-              className="text-red-400 hover:text-red-300 underline cursor-pointer"
+              onClick={() => loadFeedbacks()}
+              disabled={loading}
+              className="flex items-center gap-1.5 px-3 py-1 bg-green-900/30 text-green-400 hover:bg-green-900/50 border border-green-800/40 rounded transition-colors cursor-pointer"
             >
-              Đăng xuất Token
+              {loading ? <Loader2 className="animate-spin" size={12} /> : null}
+              TẢI PHẢN HỒI
             </button>
           </div>
 
           {/* LIST */}
-          {loading ? (
+          {loading && feedbacks.length === 0 ? (
             <div className="flex justify-center py-20">
               <Loader2 className="animate-spin text-green-500" size={36} />
             </div>
@@ -319,28 +284,28 @@ export default function AdminFeedbackPage() {
                         <button
                           onClick={() => handleAction(item.id, 'reviewed')}
                           disabled={actionProgress[item.id]}
-                          className="py-2 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-[10px] text-gray-300 font-bold rounded tracking-wider transition-colors"
+                          className="py-2 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-[10px] text-gray-300 font-bold rounded tracking-wider transition-colors cursor-pointer"
                         >
                           {actionProgress[item.id] ? "..." : "REVIEWED"}
                         </button>
                         <button
                           onClick={() => handleAction(item.id, 'rejected')}
                           disabled={actionProgress[item.id]}
-                          className="py-2 bg-red-950/40 hover:bg-red-900/40 border border-red-900/60 disabled:opacity-50 text-[10px] text-red-400 font-bold rounded tracking-wider transition-colors"
+                          className="py-2 bg-red-950/40 hover:bg-red-900/40 border border-red-900/60 disabled:opacity-50 text-[10px] text-red-400 font-bold rounded tracking-wider transition-colors cursor-pointer"
                         >
                           {actionProgress[item.id] ? "..." : "REJECT"}
                         </button>
                         <button
                           onClick={() => handleAction(item.id, 'accepted')}
                           disabled={actionProgress[item.id]}
-                          className="py-2 bg-blue-950/40 hover:bg-blue-900/40 border border-blue-900/60 disabled:opacity-50 text-[10px] text-blue-400 font-bold rounded tracking-wider transition-colors"
+                          className="py-2 bg-blue-950/40 hover:bg-blue-900/40 border border-blue-900/60 disabled:opacity-50 text-[10px] text-blue-400 font-bold rounded tracking-wider transition-colors cursor-pointer"
                         >
                           {actionProgress[item.id] ? "..." : "ACCEPT"}
                         </button>
                         <button
                           onClick={() => handleAction(item.id, 'resolved')}
                           disabled={actionProgress[item.id]}
-                          className="py-2 bg-green-950/40 hover:bg-green-900/40 border border-green-900/60 disabled:opacity-50 text-[10px] text-green-400 font-bold rounded tracking-wider transition-colors"
+                          className="py-2 bg-green-950/40 hover:bg-green-900/40 border border-green-900/60 disabled:opacity-50 text-[10px] text-green-400 font-bold rounded tracking-wider transition-colors cursor-pointer"
                         >
                           {actionProgress[item.id] ? "..." : "RESOLVE"}
                         </button>
