@@ -219,13 +219,15 @@ def main():
     if args.json:
         print_safe(json.dumps(report, indent=2))
     else:
+        status_label = "WOULD WRITE" if dry_run else "WRITTEN"
+        cache_label = "WOULD DELETE" if dry_run else "DELETED"
         print_safe("-" * 60)
         print_safe("FEEDBACK POLICY PIPELINE REPORT:")
-        print_safe(f"Mode: {'DRY-RUN' if dry_run else 'WRITE'}")
+        print_safe(f"Mode: {'DRY-RUN (Simulated)' if dry_run else 'WRITE (Supabase Commit)'}")
         print_safe(f"Feedback rows read: {report['feedback_rows_read']}")
-        print_safe(f"Summaries built: {report['summary_rows_built']} (written: {report['summary_rows_written']})")
-        print_safe(f"Patches generated: {report['patches_built']} (written: {report['patches_written']})")
-        print_safe(f"Cache rows deleted: {report['cache_rows_deleted']}")
+        print_safe(f"Summaries built: {report['summary_rows_built']} ({status_label}: {report['summary_rows_written']})")
+        print_safe(f"Patches generated: {report['patches_built']} ({status_label}: {report['patches_written']})")
+        print_safe(f"Cache rows deleted: {report['cache_rows_deleted']} ({cache_label})")
         if summary_stats["errors"]:
             print_safe(f"Summary Errors: {summary_stats['errors']}")
         if patch_stats["errors"]:
