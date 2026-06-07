@@ -1,1 +1,23 @@
-[]
+[
+  {
+    "correction_id": "a4be616b-576d-4f7d-b83a-310c638751f4",
+    "entity_name": "Tinh thể zombie",
+    "entity_type": "Vật phẩm",
+    "summary": "",
+    "content": "",
+    "aliases": [],
+    "evidence": [
+      {
+        "preview": "Tiếng nói chuyện vẫn trầm đều, giấy tờ xào xạc, nhưng sự tương phản giữa không khí chuyên nghiệp và trang phục quái đản khiến căn phòng trở nên có chút siêu thực. Ánh trăng lấp lánh từ ô cửa sổ trên c...",
+        "chunk_index": 8,
+        "content_hash": "96aec3cad29b40dfe6f6c51d30ac1e974671c42ff4b020c6e6257f28ddee152e",
+        "chapter_title": "Phủ vải lụa lên đồ đao",
+        "chapter_number": 734
+      }
+    ],
+    "source": "rag_corrections",
+    "status": "needs_human_fill",
+    "human_review_required": true,
+    "notes": "Generated from approved rag_corrections; not applied to wiki_entries."
+  }
+]
