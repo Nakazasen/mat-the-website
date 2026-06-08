@@ -76,6 +76,38 @@ interface DashboardStats {
   patch_active: number;
   warn_count: number;
   block_count: number;
+  oracle_patch_active?: number;
+}
+
+interface OracleSummaryItem {
+  query_pattern: string;
+  total_feedback: number;
+  shallow_count: number;
+  misclassification_count: number;
+  irrelevant_count: number;
+  missing_entity_count: number;
+  stale_cache_count: number;
+  wrong_summary_count: number;
+  too_mechanical_count: number;
+  unknown_count: number;
+  top_comments: { comment: string; created_at: string }[];
+  updated_at: string;
+}
+
+interface OraclePatchItem {
+  id: string;
+  issue_type: string;
+  query_pattern: string;
+  target_entity: string | null;
+  target_intent: string | null;
+  patch_type: string;
+  policy: any;
+  effective_status: string;
+  confidence: number;
+  source_feedback_ids: string[];
+  reason: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 const FEEDBACK_TYPE_LABELS: Record<string, string> = {
@@ -123,19 +155,22 @@ export default function AdminFeedbackPolicyDashboard() {
   const [feedbackRecent, setFeedbackRecent] = useState<FeedbackItem[]>([]);
   const [summaries, setSummaries] = useState<SummaryItem[]>([]);
   const [patches, setPatches] = useState<PatchItem[]>([]);
+  const [oracleSummaries, setOracleSummaries] = useState<OracleSummaryItem[]>([]);
+  const [oraclePatches, setOraclePatches] = useState<OraclePatchItem[]>([]);
   const [stats, setStats] = useState<DashboardStats>({
     feedback_total: 0,
     summary_total: 0,
     patch_active: 0,
     warn_count: 0,
-    block_count: 0
+    block_count: 0,
+    oracle_patch_active: 0
   });
   const [health, setHealth] = useState<PipelineHealth | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isUnauthorized, setIsUnauthorized] = useState(false);
-  const [activeTab, setActiveTab] = useState<'feedback' | 'summaries' | 'patches'>('feedback');
+  const [activeTab, setActiveTab] = useState<'feedback' | 'summaries' | 'patches' | 'oracle_summaries' | 'oracle_patches'>('feedback');
   
   // Selected detail modal/expand states
   const [expandedComments, setExpandedComments] = useState<Record<string, boolean>>({});
@@ -165,12 +200,15 @@ export default function AdminFeedbackPolicyDashboard() {
         setFeedbackRecent(data.feedback_recent || []);
         setSummaries(data.summaries || []);
         setPatches(data.patches || []);
+        setOracleSummaries(data.oracle_summaries || []);
+        setOraclePatches(data.oracle_patches || []);
         setStats(data.stats || {
           feedback_total: 0,
           summary_total: 0,
           patch_active: 0,
           warn_count: 0,
-          block_count: 0
+          block_count: 0,
+          oracle_patch_active: 0
         });
         setHealth(data.health || null);
       } else {
@@ -398,7 +436,7 @@ export default function AdminFeedbackPolicyDashboard() {
       )}
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <div className="bg-[#181818] border border-gray-800 rounded-lg p-4 flex items-center justify-between font-mono">
           <div>
             <div className="text-[9px] text-gray-500 uppercase tracking-wider">Tổng phản hồi</div>
@@ -411,7 +449,7 @@ export default function AdminFeedbackPolicyDashboard() {
 
         <div className="bg-[#181818] border border-gray-800 rounded-lg p-4 flex items-center justify-between font-mono">
           <div>
-            <div className="text-[9px] text-gray-500 uppercase tracking-wider"> концепт tranh chấp</div>
+            <div className="text-[9px] text-gray-500 uppercase tracking-wider">Concept tranh chấp</div>
             <div className="text-xl font-bold text-yellow-400 mt-1">
               {loading ? <Loader2 className="animate-spin text-green-500 inline" size={16} /> : stats.summary_total}
             </div>
@@ -448,10 +486,20 @@ export default function AdminFeedbackPolicyDashboard() {
           </div>
           <XCircle className="text-red-500/25" size={24} />
         </div>
+
+        <div className="bg-[#181818] border border-gray-800 rounded-lg p-4 flex items-center justify-between font-mono">
+          <div>
+            <div className="text-[9px] text-gray-500 uppercase tracking-wider">Bản vá Oracle RAG</div>
+            <div className="text-xl font-bold text-blue-400 mt-1">
+              {loading ? <Loader2 className="animate-spin text-green-500 inline" size={16} /> : (stats.oracle_patch_active || 0)}
+            </div>
+          </div>
+          <Cpu className="text-blue-500/25" size={24} />
+        </div>
       </div>
 
       {/* Tab Navigation */}
-      <div className="flex border-b border-gray-800 font-mono text-xs">
+      <div className="flex flex-wrap border-b border-gray-800 font-mono text-xs">
         <button
           onClick={() => setActiveTab('feedback')}
           className={`px-4 py-2.5 font-bold transition-all border-b-2 cursor-pointer ${
@@ -470,7 +518,7 @@ export default function AdminFeedbackPolicyDashboard() {
               : 'border-transparent text-gray-500 hover:text-gray-300'
           }`}
         >
-          Tranh chấp tổng hợp ({summaries.length})
+          Tranh chấp Concept ({summaries.length})
         </button>
         <button
           onClick={() => setActiveTab('patches')}
@@ -480,7 +528,27 @@ export default function AdminFeedbackPolicyDashboard() {
               : 'border-transparent text-gray-500 hover:text-gray-300'
           }`}
         >
-          Bản vá kiến thức ({patches.length})
+          Bản vá Concept ({patches.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('oracle_summaries')}
+          className={`px-4 py-2.5 font-bold transition-all border-b-2 cursor-pointer ${
+            activeTab === 'oracle_summaries'
+              ? 'border-green-500 text-green-400 bg-green-950/10'
+              : 'border-transparent text-gray-500 hover:text-gray-300'
+          }`}
+        >
+          Tranh chấp Oracle RAG ({oracleSummaries.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('oracle_patches')}
+          className={`px-4 py-2.5 font-bold transition-all border-b-2 cursor-pointer ${
+            activeTab === 'oracle_patches'
+              ? 'border-green-500 text-green-400 bg-green-950/10'
+              : 'border-transparent text-gray-500 hover:text-gray-300'
+          }`}
+        >
+          Bản vá Oracle RAG ({oraclePatches.length})
         </button>
       </div>
 
@@ -776,6 +844,279 @@ export default function AdminFeedbackPolicyDashboard() {
                           </div>
                           <div className="flex items-center gap-3">
                             <span>Tạo bởi: <span className="text-gray-400">{item.created_by}</span></span>
+                            <span>|</span>
+                            <span>{new Date(item.created_at).toLocaleString('vi-VN')}</span>
+                          </div>
+                        </div>
+
+                        {/* Inline Admin Emergency Override Controls */}
+                        <div className="pt-3 border-t border-gray-900/60 flex flex-col gap-2">
+                          {actioningPatchId === item.id ? (
+                            <div className="p-3 bg-[#121212] border border-gray-900 rounded space-y-2.5 animate-in fade-in duration-200">
+                              <div className="text-[10px] text-gray-400 uppercase tracking-wider font-bold">
+                                Ghi chú người duyệt / Lý do kiểm toán (Reviewer Note):
+                              </div>
+                              <input
+                                type="text"
+                                value={reviewerNote}
+                                onChange={(e) => setReviewerNote(e.target.value)}
+                                placeholder="Nhập lý do ngắn (bắt buộc)..."
+                                className="w-full bg-[#0c0c0c] border border-gray-800 rounded px-2.5 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-green-500 font-sans"
+                                disabled={actionLoading}
+                              />
+                              <div className="flex justify-end gap-2">
+                                <button
+                                  onClick={() => {
+                                    setActioningPatchId(null);
+                                    setReviewerNote('');
+                                  }}
+                                  className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded text-[10px] font-bold cursor-pointer transition-colors"
+                                  disabled={actionLoading}
+                                >
+                                  HỦY BỎ
+                                </button>
+                                {item.effective_status === 'disabled' ? (
+                                  <button
+                                    onClick={() => handleUpdatePatchStatus(item.id, 'restore', reviewerNote)}
+                                    disabled={!reviewerNote.trim() || actionLoading}
+                                    className="px-3 py-1 bg-green-600 hover:bg-green-500 text-white rounded text-[10px] font-bold disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors flex items-center gap-1"
+                                  >
+                                    {actionLoading && <Loader2 className="animate-spin" size={10} />}
+                                    KHÔI PHỤC BẢN VÁ
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => handleUpdatePatchStatus(item.id, 'disable', reviewerNote)}
+                                    disabled={!reviewerNote.trim() || actionLoading}
+                                    className="px-3 py-1 bg-red-600 hover:bg-red-500 text-white rounded text-[10px] font-bold disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors flex items-center gap-1"
+                                  >
+                                    {actionLoading && <Loader2 className="animate-spin" size={10} />}
+                                    XÁC NHẬN TẮT
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex justify-end">
+                              {item.effective_status === 'disabled' ? (
+                                <button
+                                  onClick={() => {
+                                    setActioningPatchId(item.id);
+                                    setReviewerNote('');
+                                  }}
+                                  className="px-3 py-1 border border-green-800/40 text-green-400 hover:bg-green-950/20 hover:border-green-600 rounded text-[10px] font-bold transition-all cursor-pointer"
+                                >
+                                  KHÔI PHỤC BẢN VÁ
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => {
+                                    setActioningPatchId(item.id);
+                                    setReviewerNote('');
+                                  }}
+                                  className="px-3 py-1 border border-red-800/40 text-red-400 hover:bg-red-950/20 hover:border-red-600 rounded text-[10px] font-bold transition-all cursor-pointer"
+                                >
+                                  TẮT BẢN VÁ
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
+          {/* TAB 4: Oracle Summaries */}
+          {activeTab === 'oracle_summaries' && (
+            <div className="space-y-3 font-mono">
+              <div className="text-xs text-gray-500 px-1">
+                Các câu hỏi/chủ đề bị độc giả phản hồi lỗi câu trả lời RAG, được gom nhóm và phân tích.
+              </div>
+
+              {oracleSummaries.length === 0 ? (
+                <div className="bg-[#181818] border border-gray-800 rounded-lg p-8 text-center text-gray-500 text-xs italic">
+                  Không tìm thấy phản hồi Oracle RAG tổng hợp nào.
+                </div>
+              ) : (
+                <div className="grid gap-3">
+                  {oracleSummaries.map((item) => (
+                    <div
+                      key={item.query_pattern}
+                      className="bg-[#181818] border border-gray-800 rounded-lg p-5 space-y-4 hover:border-gray-700 transition-all text-xs"
+                    >
+                      {/* Query pattern header */}
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex flex-wrap items-center gap-3">
+                          <span className="text-gray-100 font-bold text-base font-sans select-all">"{item.query_pattern}"</span>
+                        </div>
+                        <div className="text-[10px] text-gray-500 flex items-center gap-1.5">
+                          <Clock size={10} />
+                          <span>Cập nhật: {new Date(item.updated_at).toLocaleString('vi-VN')}</span>
+                        </div>
+                      </div>
+
+                      {/* Issue classification counts */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-2 bg-[#0f0f0f] border border-gray-900 rounded p-3 text-[10px] text-gray-400">
+                        <div>
+                          Tổng phản hồi: <span className="text-gray-200 font-bold">{item.total_feedback}</span>
+                        </div>
+                        <div>
+                          Sơ sài: <span className="text-gray-200 font-bold">{item.shallow_count}</span>
+                        </div>
+                        <div>
+                          Sai intent: <span className="text-gray-200 font-bold">{item.misclassification_count}</span>
+                        </div>
+                        <div>
+                          Lan man: <span className="text-gray-200 font-bold">{item.irrelevant_count}</span>
+                        </div>
+                        <div>
+                          Thiếu entity: <span className="text-gray-200 font-bold">{item.missing_entity_count}</span>
+                        </div>
+                        <div>
+                          Stale cache: <span className="text-gray-200 font-bold">{item.stale_cache_count}</span>
+                        </div>
+                        <div>
+                          Máy móc: <span className="text-gray-200 font-bold">{item.too_mechanical_count}</span>
+                        </div>
+                        <div>
+                          Khác: <span className="text-gray-200 font-bold">{item.unknown_count}</span>
+                        </div>
+                      </div>
+
+                      {/* Top comments */}
+                      {item.top_comments && item.top_comments.length > 0 && (
+                        <div className="space-y-2">
+                          <div className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">Ý kiến đóng góp:</div>
+                          <div className="space-y-1.5 font-sans pl-2 border-l border-green-800/40">
+                            {item.top_comments.map((cmt, idx) => (
+                              <div key={idx} className="text-gray-300 text-xs">
+                                "{cmt.comment}"
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 5: Oracle Patches */}
+          {activeTab === 'oracle_patches' && (
+            <div className="space-y-3 font-mono">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1">
+                <div className="text-xs text-gray-500">
+                  Các bản vá (policy patches) tự học dành cho Chatbot Oracle RAG giúp tự động điều chỉnh retrieval/prompts.
+                </div>
+
+                {/* Status Filter */}
+                <div className="flex items-center gap-1.5 bg-[#121212] border border-gray-800 rounded p-1 text-[10px] text-gray-400 self-start sm:self-auto">
+                  <span className="pl-1 uppercase tracking-wider font-bold">Lọc:</span>
+                  <button
+                    onClick={() => setPatchFilter('all')}
+                    className={`px-2 py-0.5 rounded transition-all cursor-pointer ${
+                      patchFilter === 'all'
+                        ? 'bg-green-600 text-white font-bold'
+                        : 'hover:text-gray-200'
+                    }`}
+                  >
+                    Tất cả
+                  </button>
+                  <button
+                    onClick={() => setPatchFilter('active')}
+                    className={`px-2 py-0.5 rounded transition-all cursor-pointer ${
+                      patchFilter === 'active'
+                        ? 'bg-green-600 text-white font-bold'
+                        : 'hover:text-gray-200'
+                    }`}
+                  >
+                    Hoạt động
+                  </button>
+                  <button
+                    onClick={() => setPatchFilter('disabled')}
+                    className={`px-2 py-0.5 rounded transition-all cursor-pointer ${
+                      patchFilter === 'disabled'
+                        ? 'bg-green-600 text-white font-bold'
+                        : 'hover:text-gray-200'
+                    }`}
+                  >
+                    Đã tắt
+                  </button>
+                </div>
+              </div>
+
+              {(() => {
+                const filteredPatches = oraclePatches.filter(item => {
+                  if (patchFilter === 'active') return item.effective_status === 'active';
+                  if (patchFilter === 'disabled') return item.effective_status === 'disabled';
+                  return true;
+                });
+
+                if (filteredPatches.length === 0) {
+                  return (
+                    <div className="bg-[#181818] border border-gray-800 rounded-lg p-8 text-center text-gray-500 text-xs italic">
+                      Không tìm thấy bản vá Oracle nào phù hợp bộ lọc.
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="grid gap-3">
+                    {filteredPatches.map((item) => (
+                      <div
+                        key={item.id}
+                        className="bg-[#181818] border border-gray-800 rounded-lg p-5 space-y-4 hover:border-gray-700 transition-all text-xs"
+                      >
+                        {/* Patch title row */}
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div className="flex flex-wrap items-center gap-3">
+                            <span className="px-2 py-0.5 bg-blue-950/30 text-blue-400 border border-blue-900/30 rounded text-[10px] uppercase font-bold tracking-wider">
+                              {item.patch_type}
+                            </span>
+                            <span className="text-gray-100 font-bold text-sm font-sans">
+                              "{item.query_pattern}"
+                            </span>
+                            <span className="text-gray-600">/</span>
+                            <span className="text-gray-400">Issue: {item.issue_type}</span>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span>Status:</span> {getPolicyBadge(item.effective_status)}
+                            <span className="text-gray-600">|</span>
+                            <span>Confidence:</span>
+                            <span className="px-2 py-0.5 border rounded-full text-[9px] uppercase font-bold tracking-wider text-purple-400 bg-purple-950/20 border-purple-800/40">
+                              {(item.confidence * 100).toFixed(0)}%
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Policy Rules */}
+                        {item.policy && Object.keys(item.policy).length > 0 && (
+                          <div className="bg-[#0f0f0f] border border-gray-900 rounded p-3.5 space-y-2 text-xs leading-relaxed font-sans text-gray-300">
+                            <div className="text-[10px] font-mono text-green-500 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                              <CheckCircle2 size={12} />
+                              Chính sách bản vá:
+                            </div>
+                            <pre className="text-[10px] font-mono text-gray-400 bg-black/30 p-2 rounded max-h-36 overflow-auto">
+                              {JSON.stringify(item.policy, null, 2)}
+                            </pre>
+                          </div>
+                        )}
+
+                        {/* Patch metadata footer */}
+                        <div className="flex flex-wrap items-center justify-between gap-3 text-[10px] text-gray-500 pt-2 border-t border-gray-900/60">
+                          <div>
+                            Lý do tạo: <span className="text-gray-300 font-sans italic">{item.reason || "N/A"}</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span>Target: <span className="text-gray-400">{item.target_entity || item.target_intent || "N/A"}</span></span>
                             <span>|</span>
                             <span>{new Date(item.created_at).toLocaleString('vi-VN')}</span>
                           </div>

@@ -107,12 +107,48 @@ describe("AdminFeedbackPolicyDashboard Page", () => {
           created_at: "2026-06-07T13:00:00Z"
         }
       ],
+      oracle_summaries: [
+        {
+          query_pattern: "hạ huyền sương là ai",
+          total_feedback: 3,
+          shallow_count: 3,
+          misclassification_count: 0,
+          irrelevant_count: 0,
+          missing_entity_count: 0,
+          stale_cache_count: 0,
+          wrong_summary_count: 0,
+          too_mechanical_count: 0,
+          unknown_count: 0,
+          top_comments: [
+            { comment: "Câu trả lời quá sơ sài", created_at: "2026-06-07T12:00:00Z" }
+          ],
+          updated_at: "2026-06-07T12:00:00Z"
+        }
+      ],
+      oracle_patches: [
+        {
+          id: "opatch-123",
+          issue_type: "answer_quality_too_shallow",
+          query_pattern: "hạ huyền sương là ai",
+          target_entity: "Hạ Huyền Sương",
+          target_intent: null,
+          patch_type: "enrich_identity_answer_from_story_chunks",
+          policy: { enrich_from_story_chunks: true },
+          effective_status: "active",
+          confidence: 0.9,
+          source_feedback_ids: ["feed-555"],
+          reason: "Enriching Hạ Huyền Sương context",
+          created_at: "2026-06-07T12:00:00Z",
+          updated_at: "2026-06-07T12:00:00Z"
+        }
+      ],
       stats: {
         feedback_total: 45,
         summary_total: 8,
         patch_active: 5,
         warn_count: 3,
-        block_count: 2
+        block_count: 2,
+        oracle_patch_active: 1
       }
     };
 
@@ -138,6 +174,7 @@ describe("AdminFeedbackPolicyDashboard Page", () => {
     expect(screen.getByText("5")).toBeInTheDocument();  // active patches
     expect(screen.getByText("3")).toBeInTheDocument();  // warn count
     expect(screen.getByText("2")).toBeInTheDocument();  // block count
+    expect(screen.getByText("1")).toBeInTheDocument();  // oracle active patches
 
     // 3. TAB 1: Recent feedback list
     expect(screen.getByText("Tinh thể zombie")).toBeInTheDocument();
@@ -145,8 +182,8 @@ describe("AdminFeedbackPolicyDashboard Page", () => {
     expect(screen.getByText(/"Tinh thể này xuất hiện ở chương 69 chứ không phải chương 49"/)).toBeInTheDocument();
     expect(screen.getByText(/"Chỉnh sửa sang chương 69"/)).toBeInTheDocument();
 
-    // 4. Tab switching: summaries
-    const summariesTab = screen.getByRole("button", { name: /Tranh chấp tổng hợp/ });
+    // 4. Tab switching: summaries (Concept)
+    const summariesTab = screen.getByRole("button", { name: /Tranh chấp Concept/ });
     fireEvent.click(summariesTab);
     expect(screen.getByText("Phá Tâm Linh")).toBeInTheDocument();
     expect(screen.getByText("Disputed (Tranh chấp)")).toBeInTheDocument();
@@ -154,13 +191,25 @@ describe("AdminFeedbackPolicyDashboard Page", () => {
     expect(screen.getByText(/Sai thông tin:/)).toBeInTheDocument();
     expect(screen.getByText(/Dispute Score:/)).toBeInTheDocument();
 
-    // 5. Tab switching: patches
-    const patchesTab = screen.getByRole("button", { name: /Bản vá kiến thức/ });
+    // 5. Tab switching: patches (Concept)
+    const patchesTab = screen.getByRole("button", { name: /Bản vá Concept/ });
     fireEvent.click(patchesTab);
     expect(screen.getByText("Hàn Phong")).toBeInTheDocument();
     expect(screen.getByText("suppress_related_for_identity_query")).toBeInTheDocument();
     expect(screen.getByText("Lý do tạo:")).toBeInTheDocument();
     expect(screen.getByText(/Ẩn các bản ghi gây nhiễu Hàn Phong đang, đệ Hàn Phong/)).toBeInTheDocument();
+
+    // 5b. Tab switching: Oracle Summaries
+    const oracleSummariesTab = screen.getByRole("button", { name: /Tranh chấp Oracle RAG/ });
+    fireEvent.click(oracleSummariesTab);
+    expect(screen.getByText(/"hạ huyền sương là ai"/)).toBeInTheDocument();
+    expect(screen.getByText(/Sơ sài:/)).toBeInTheDocument();
+
+    // 5c. Tab switching: Oracle Patches
+    const oraclePatchesTab = screen.getByRole("button", { name: /Bản vá Oracle RAG/ });
+    fireEvent.click(oraclePatchesTab);
+    expect(screen.getByText("enrich_identity_answer_from_story_chunks")).toBeInTheDocument();
+    expect(screen.getByText("Enriching Hạ Huyền Sương context")).toBeInTheDocument();
 
     // 6. Safeguards: No "Apply to wiki" or token overrides
     expect(screen.queryByRole("button", { name: /apply.*wiki/i })).not.toBeInTheDocument();
@@ -257,7 +306,7 @@ describe("AdminFeedbackPolicyDashboard Page", () => {
     });
 
     // Switch to patches tab
-    const patchesTab = screen.getByRole("button", { name: /Bản vá kiến thức/ });
+    const patchesTab = screen.getByRole("button", { name: /Bản vá Concept/ });
     fireEvent.click(patchesTab);
 
     // Verify filter dropdown/buttons render

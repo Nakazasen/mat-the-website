@@ -75,17 +75,28 @@ export async function PATCH(
     }
 
     // 4. Fetch the target patch to check existence and retrieve target details
-    const { data: patch, error: fetchErr } = await supabase
-      .from("provisional_library_effective_patches")
+    let patchTable = "provisional_library_effective_patches";
+    let { data: patch, error: fetchErr } = await supabase
+      .from(patchTable)
       .select("*")
       .eq("id", id)
       .single();
 
     if (fetchErr || !patch) {
-      return NextResponse.json(
-        { error: "Patch not found" },
-        { status: 404 }
-      );
+      patchTable = "oracle_answer_effective_patches";
+      const { data: oPatch, error: oFetchErr } = await supabase
+        .from(patchTable)
+        .select("*")
+        .eq("id", id)
+        .single();
+
+      if (oFetchErr || !oPatch) {
+        return NextResponse.json(
+          { error: "Patch not found" },
+          { status: 404 }
+        );
+      }
+      patch = oPatch;
     }
 
     // 5. Calculate new status and reason
@@ -100,7 +111,7 @@ export async function PATCH(
 
     // 6. Update the patch in database
     const { error: updateErr } = await supabase
-      .from("provisional_library_effective_patches")
+      .from(patchTable)
       .update({
         effective_status: newStatus,
         reason: newReason,
@@ -115,13 +126,20 @@ export async function PATCH(
       );
     }
 
-    // 7. Clear selective oracle_cache based on target_name / query_pattern
+    // 7. Clear selective oracle_cache based on target_name / target_entity / query_pattern
     const targetsToClear: string[] = [];
     if (patch.target_name) {
       targetsToClear.push(patch.target_name);
     }
+    if (patch.target_entity) {
+      targetsToClear.push(patch.target_entity);
+    }
     if (patch.query_pattern) {
       targetsToClear.push(patch.query_pattern);
+      const clean = patch.query_pattern.replace(" là ai", "").replace(" là gì", "").trim();
+      if (clean.length >= 2) {
+        targetsToClear.push(clean);
+      }
     }
 
     let cacheClearedCount = 0;

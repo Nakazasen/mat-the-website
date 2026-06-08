@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => {
       getUser: mockGetUser,
     },
     from: vi.fn().mockImplementation((table) => {
-      if (table === "provisional_library_effective_patches") {
+      if (table === "provisional_library_effective_patches" || table === "oracle_answer_effective_patches") {
         return {
           select: vi.fn().mockReturnThis(),
           eq: vi.fn().mockImplementation((col, val) => {

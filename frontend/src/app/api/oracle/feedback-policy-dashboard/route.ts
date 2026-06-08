@@ -30,7 +30,10 @@ export async function GET(request: NextRequest) {
       blockCountRes,
       latestRunRes,
       failuresRes,
-      pendingFeedbackRes
+      pendingFeedbackRes,
+      oracleSummariesRes,
+      oraclePatchesRes,
+      oracleActivePatchesRes
     ] = await Promise.all([
       // Fetch 50 most recent community feedbacks
       supabase
@@ -91,7 +94,30 @@ export async function GET(request: NextRequest) {
       supabase
         .from("provisional_library_feedback")
         .select("id", { count: "exact", head: true })
-        .eq("status", "pending")
+        .eq("status", "pending"),
+
+      // Oracle Answer Summaries (graceful fallback if table doesn't exist)
+      supabase
+        .from("oracle_answer_feedback_summary")
+        .select("*")
+        .order("total_feedback", { ascending: false })
+        .limit(100)
+        .then(res => res.error ? { data: [], error: null } : res),
+
+      // Oracle Answer Patches (graceful fallback if table doesn't exist)
+      supabase
+        .from("oracle_answer_effective_patches")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(100)
+        .then(res => res.error ? { data: [], error: null } : res),
+
+      // Oracle Active Patches Count (graceful fallback if table doesn't exist)
+      supabase
+        .from("oracle_answer_effective_patches")
+        .select("id", { count: "exact", head: true })
+        .eq("effective_status", "active")
+        .then(res => res.error ? { count: 0, error: null } : res)
     ]);
 
     // 3. Check for errors
@@ -132,12 +158,15 @@ export async function GET(request: NextRequest) {
       feedback_recent: recentFeedbackRes.data || [],
       summaries: summariesRes.data || [],
       patches: patchesRes.data || [],
+      oracle_summaries: oracleSummariesRes.data || [],
+      oracle_patches: oraclePatchesRes.data || [],
       stats: {
         feedback_total: totalFeedbackRes.count || 0,
         summary_total: totalSummaryRes.count || 0,
         patch_active: activePatchesRes.count || 0,
         warn_count: warnCountRes.count || 0,
-        block_count: blockCountRes.count || 0
+        block_count: blockCountRes.count || 0,
+        oracle_patch_active: oracleActivePatchesRes.count || 0
       },
       health: {
         last_run_at,

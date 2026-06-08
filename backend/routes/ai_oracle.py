@@ -524,7 +524,7 @@ async def store_cache(
 
 # TODO: Upgrade this basic keyword-matching retrieval to a more advanced RAG system in future phases.
 # E.g., implement dense vector embeddings with pgvector or hybrid dense-sparse search to retrieve context.
-async def get_wiki_context(supabase, question: str, chapter_cap: int) -> str:
+async def get_wiki_context(supabase, question: str, chapter_cap: int, active_patches: list = None) -> str:
     if not supabase:
         return ""
     try:
@@ -536,12 +536,37 @@ async def get_wiki_context(supabase, question: str, chapter_cap: int) -> str:
             extract_entity_name,
             is_exact_or_near_match,
         )
+        # Parse active patch flags
+        suppress_irrelevant = False
+        enrich_story = False
+        prefer_chapter = False
+
+        if active_patches:
+            for patch in active_patches:
+                ptype = patch.get("patch_type")
+                if ptype == "suppress_irrelevant_entity_expansion":
+                    suppress_irrelevant = True
+                elif ptype == "enrich_identity_answer_from_story_chunks":
+                    enrich_story = True
+                elif ptype == "prefer_chapter_summary_intent":
+                    prefer_chapter = True
+
         wiki_res = search_wiki_entries(supabase, question, chapter_cap, limit=3)
         prov_res = search_provisional_library(supabase, question, chapter_cap, limit=3)
         merged = merge_oracle_knowledge_results(wiki_res, prov_res, limit=5)
 
         is_ident = is_identity_question(question)
         entity_name = extract_entity_name(question) if is_ident else ""
+
+        # Apply suppress_irrelevant_entity_expansion:
+        # filter out matches that do not exactly or nearly match the target entity
+        if suppress_irrelevant and entity_name:
+            filtered_merged = []
+            for r in merged:
+                name_val = r.get("title") or r.get("name") or ""
+                if is_exact_or_near_match(name_val, entity_name):
+                    filtered_merged.append(r)
+            merged = filtered_merged
 
         exact_near_matches = []
         related_matches = []
@@ -556,8 +581,13 @@ async def get_wiki_context(supabase, question: str, chapter_cap: int) -> str:
             exact_near_matches = merged
             related_matches = []
 
+        # If prefer_chapter_summary_intent is active, clear all entity contexts
+        if prefer_chapter:
+            related_matches = []
+            exact_near_matches = []
+
         context_parts = []
-        if is_ident and entity_name and not exact_near_matches:
+        if is_ident and entity_name and not exact_near_matches and not prefer_chapter:
             context_parts.append(f"[CHƯA CÓ MỤC ĐỊNH DANH CHÍNH XÁC] Chưa tìm thấy mục chính xác cho '{entity_name}'.")
             if related_matches:
                 context_parts.append("Các mục liên quan tìm thấy:")
@@ -588,6 +618,20 @@ async def get_wiki_context(supabase, question: str, chapter_cap: int) -> str:
                     first_ch = r.get("first_chapter")
                     ev_str = f" Evidence: Chương {first_ch}" if first_ch is not None else ""
                     context_parts.append(f"[THƯ VIỆN TỰ ĐỘNG - {r['quality_class']}] {r['name']}{cat_str}: {desc[:400]}.{ev_str}")
+
+        # Apply enrich_identity_answer_from_story_chunks:
+        # fetch related story chunks for the entity name and append them to the context
+        if enrich_story and entity_name:
+            try:
+                from backend.rag.retrieval import search_story_chunks_hybrid_lexical
+                from backend.rag.context_builder import build_rag_context_block
+                story_res = search_story_chunks_hybrid_lexical(supabase, entity_name, chapter_cap, limit=3)
+                if story_res:
+                    context_data = build_rag_context_block(story_res, max_chunks=3)
+                    if context_data and context_data.get("context_text"):
+                        context_parts.append(f"\n[BẰNG CHỨNG TỪ CỐT TRUYỆN CHO '{entity_name}']:\n{context_data['context_text']}")
+            except Exception as e:
+                print(f"Warning enriching identity answer: {e}")
 
         return "\n".join(context_parts) or WIKI_EMPTY_CONTEXT
     except Exception as e:
@@ -735,6 +779,7 @@ async def call_ai_provider_result(
     wiki_context: str,
     chapter_context: str = "",
     rag_context: str = "",
+    active_patches: list = None,
 ) -> Any:
     """Route question through the multi-provider router, returning the AIResult."""
     try:
@@ -750,6 +795,15 @@ async def call_ai_provider_result(
     )
     if rag_context:
         system_prompt += f"\n\n[RAG_CONTEXT_STORY_CHUNKS]\n{rag_context}"
+
+    # Apply formatting and intent policies on the system prompt if patches are active
+    if active_patches:
+        for patch in active_patches:
+            ptype = patch.get("patch_type")
+            if ptype == "answer_format_policy":
+                system_prompt += "\n\nQuy tắc trả lời bổ sung: Trả lời rõ ràng, ví dụ: 'Theo dữ liệu hiện có...', 'Xuất hiện ở chương...', 'Bằng chứng...', 'Chưa đủ dữ liệu để kết luận...'."
+            elif ptype == "prefer_chapter_summary_intent":
+                system_prompt += "\n\nYêu cầu đặc biệt: Người dùng đang hỏi về diễn biến/tóm tắt chương truyện. Hãy ưu tiên sử dụng nội dung chương truyện được cung cấp dưới đây để trả lời."
 
     request = AIRequest(
         text=question,
@@ -1063,10 +1117,34 @@ async def ask_oracle(body: OracleRequest, request: Request):
     if cached:
         return OracleResponse(answer=cached, source="cache", chapter_cap=chapter_cap)
 
-    wiki_context = await get_wiki_context(supabase, question, chapter_cap)
+    # Load active oracle answer patches matching this query pattern or entity
+    active_patches = []
+    try:
+        import re
+        q_norm = re.sub(r"\s+", " ", question.strip().lower())
+        q_norm = re.sub(r"[?.\s]+$", "", q_norm)
+
+        # Load active patches
+        res_patches = supabase.table("oracle_answer_effective_patches").select("*").eq("effective_status", "active").execute()
+        for p in (res_patches.data or []):
+            p_pattern = p.get("query_pattern")
+            p_entity = p.get("target_entity")
+            if (p_pattern and p_pattern == q_norm) or (p_entity and p_entity.lower() in q_norm):
+                active_patches.append(p)
+    except Exception as e:
+        print(f"Warning loading active oracle patches: {e}")
+
+    wiki_context = await get_wiki_context(supabase, question, chapter_cap, active_patches)
     chapter_context = await get_chapter_context(supabase, chapter_cap)
 
-    if wiki_context and wiki_context != WIKI_EMPTY_CONTEXT and len(question.split()) <= 12:
+    # Bypass the fast-path local lookup if prefer_chapter_summary_intent is active
+    bypass_fast_path = False
+    for p in active_patches:
+        if p.get("patch_type") == "prefer_chapter_summary_intent":
+            bypass_fast_path = True
+            break
+
+    if not bypass_fast_path and wiki_context and wiki_context != WIKI_EMPTY_CONTEXT and len(question.split()) <= 12:
         answer = f"[DỮ LIỆU HỆ THỐNG]\n{wiki_context}"
         if "[THƯ VIỆN TỰ ĐỘNG" in wiki_context:
             answer += "\n\nLưu ý: Dữ liệu trên được trích xuất tự động từ truyện, chưa phải canon wiki chính thức."
@@ -1084,7 +1162,7 @@ async def ask_oracle(body: OracleRequest, request: Request):
     rag_data = get_rag_context_for_oracle(question, chapter_cap)
     rag_context = rag_data.get("context_text", "") if rag_data else ""
 
-    result = await call_ai_provider_result(question, chapter_cap, wiki_context, chapter_context, rag_context)
+    result = await call_ai_provider_result(question, chapter_cap, wiki_context, chapter_context, rag_context, active_patches)
     if result.status == "success" and result.text:
         answer = result.text.strip()
         if answer and not is_garbage_answer(answer):
