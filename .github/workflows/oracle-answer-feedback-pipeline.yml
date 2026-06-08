@@ -1,0 +1,97 @@
+name: Oracle Answer Feedback Pipeline Cron
+
+on:
+  schedule:
+    # Run every 30 minutes
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Run pipeline in dry-run mode (no database writes)'
+        type: boolean
+        required: true
+        default: true
+      clear_cache:
+        description: 'Clear Oracle cache selectively on run'
+        type: boolean
+        required: true
+        default: true
+      limit:
+        description: 'Maximum number of feedback records to process'
+        type: number
+        required: true
+        default: 5000
+      since_hours:
+        description: 'Process feedbacks created within the last N hours (optional)'
+        type: string
+        required: false
+        default: ''
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine parameters
+        id: params
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "dry_run=${{ github.event.inputs.dry_run }}" >> $GITHUB_OUTPUT
+            echo "clear_cache=${{ github.event.inputs.clear_cache }}" >> $GITHUB_OUTPUT
+            echo "limit=${{ github.event.inputs.limit }}" >> $GITHUB_OUTPUT
+            echo "since_hours=${{ github.event.inputs.since_hours }}" >> $GITHUB_OUTPUT
+          else
+            # Default scheduled values: active write mode
+            echo "dry_run=false" >> $GITHUB_OUTPUT
+            echo "clear_cache=true" >> $GITHUB_OUTPUT
+            echo "limit=5000" >> $GITHUB_OUTPUT
+            echo "since_hours=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Call Pipeline Endpoint
+        id: call_api
+        run: |
+          DRY_RUN="${{ steps.params.outputs.dry_run }}"
+          CLEAR_CACHE="${{ steps.params.outputs.clear_cache }}"
+          LIMIT="${{ steps.params.outputs.limit }}"
+          SINCE_HOURS="${{ steps.params.outputs.since_hours }}"
+          
+          echo "Executing Oracle answer pipeline with parameters:"
+          echo "  dry_run: $DRY_RUN"
+          echo "  clear_cache: $CLEAR_CACHE"
+          echo "  limit: $LIMIT"
+          echo "  since_hours: ${SINCE_HOURS:-null}"
+          
+          if [ -n "$SINCE_HOURS" ]; then
+            PAYLOAD="{\"dry_run\": $DRY_RUN, \"clear_cache\": $CLEAR_CACHE, \"limit\": $LIMIT, \"since_hours\": $SINCE_HOURS}"
+          else
+            PAYLOAD="{\"dry_run\": $DRY_RUN, \"clear_cache\": $CLEAR_CACHE, \"limit\": $LIMIT, \"since_hours\": null}"
+          fi
+          
+          HTTP_STATUS=$(curl -s -X POST "https://mat-the-website.onrender.com/oracle/admin/run-oracle-answer-feedback-pipeline" \
+            -H "Content-Type: application/json" \
+            -H "X-Oracle-Answer-Pipeline-Cron-Token: ${{ secrets.ORACLE_ANSWER_FEEDBACK_PIPELINE_CRON_TOKEN }}" \
+            -d "$PAYLOAD" \
+            -w "%{http_code}" \
+            -o response.json)
+          
+          echo "HTTP Status Code: $HTTP_STATUS"
+          
+          if [ -f response.json ]; then
+            echo "Response Body:"
+            cat response.json | jq '.' || cat response.json
+          else
+            echo "No response body returned."
+          fi
+          
+          if [ "$HTTP_STATUS" -ne 200 ]; then
+            echo "Error: API call failed with status code $HTTP_STATUS"
+            exit 1
+          fi
+          
+          OK_FLAG=$(jq -r '.ok' response.json 2>/dev/null || echo "false")
+          if [ "$OK_FLAG" != "true" ]; then
+            echo "Error: Pipeline report indicated unsuccessful execution ('ok' is not true)."
+            exit 1
+          fi
+          
+          echo "Oracle answer pipeline executed successfully!"

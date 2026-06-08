@@ -1812,3 +1812,57 @@ async def run_pipeline_cron(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Pipeline execution failed: {str(e)}")
+
+
+class RunOracleAnswerPipelineRequest(BaseModel):
+    dry_run: bool = False
+    clear_cache: bool = True
+    limit: int = Field(5000, ge=1, le=20000)
+    since_hours: Optional[int] = None
+
+
+@router.post("/admin/run-oracle-answer-feedback-pipeline")
+async def run_oracle_answer_pipeline_cron(
+    request: Request,
+    body: RunOracleAnswerPipelineRequest = RunOracleAnswerPipelineRequest(),
+    x_oracle_answer_pipeline_cron_token: Optional[str] = Header(None, alias="X-Oracle-Answer-Pipeline-Cron-Token")
+):
+    cron_token = os.getenv("ORACLE_ANSWER_FEEDBACK_PIPELINE_CRON_TOKEN")
+    if not cron_token:
+        raise HTTPException(
+            status_code=503,
+            detail="Oracle answer pipeline cron token is not configured on the server."
+        )
+    if not x_oracle_answer_pipeline_cron_token or x_oracle_answer_pipeline_cron_token != cron_token:
+        raise HTTPException(
+            status_code=403,
+            detail="Invalid oracle answer pipeline cron token."
+        )
+
+    try:
+        from main import supabase
+    except ImportError:
+        from backend.main import supabase
+
+    try:
+        try:
+            from backend.scripts.run_oracle_answer_feedback_pipeline import run_oracle_answer_feedback_pipeline
+        except ImportError:
+            from scripts.run_oracle_answer_feedback_pipeline import run_oracle_answer_feedback_pipeline
+
+        limit = min(body.limit, 20000)
+
+        report = run_oracle_answer_feedback_pipeline(
+            supabase_client=supabase,
+            dry_run=body.dry_run,
+            limit=limit,
+            clear_cache=body.clear_cache,
+            since_hours=body.since_hours
+        )
+        return {
+            "ok": True,
+            "dry_run": body.dry_run,
+            "report": report
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Oracle answer pipeline execution failed: {str(e)}")

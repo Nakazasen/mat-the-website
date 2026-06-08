@@ -30,17 +30,23 @@ def print_safe(text):
     except UnicodeEncodeError:
         print(text.encode('ascii', errors='backslashreplace').decode('ascii'))
 
-def fetch_pending_feedbacks(limit: int = 1000) -> List[Dict[str, Any]]:
+def fetch_pending_feedbacks(limit: int = 1000, since_hours: int | None = None, supabase_client = None) -> List[Dict[str, Any]]:
+    client = supabase_client if supabase_client is not None else supabase
     try:
-        res = supabase.table("rag_feedback").select("*").eq("status", "pending").limit(limit).execute()
+        query = client.table("rag_feedback").select("*").eq("status", "pending")
+        if since_hours is not None:
+            cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=since_hours)
+            query = query.gte("created_at", cutoff.isoformat())
+        res = query.limit(limit).execute()
         return res.data or []
     except Exception as e:
         print_safe(f"Error fetching pending feedbacks: {e}")
         return []
 
-def fetch_existing_patches() -> List[Dict[str, Any]]:
+def fetch_existing_patches(supabase_client = None) -> List[Dict[str, Any]]:
+    client = supabase_client if supabase_client is not None else supabase
     try:
-        res = supabase.table("oracle_answer_effective_patches").select("*").execute()
+        res = client.table("oracle_answer_effective_patches").select("*").execute()
         return res.data or []
     except Exception as e:
         print_safe(f"Error fetching existing oracle patches: {e}")
@@ -121,12 +127,13 @@ def build_feedback_summaries(feedbacks: List[Dict[str, Any]]) -> List[Dict[str, 
         })
     return summaries
 
-def clear_oracle_cache_selectively(patterns_and_entities: List[str], dry_run: bool) -> int:
+def clear_oracle_cache_selectively(patterns_and_entities: List[str], dry_run: bool, supabase_client = None) -> int:
     if not patterns_and_entities:
         return 0
+    client = supabase_client if supabase_client is not None else supabase
     try:
         # Fetch all cache entries
-        res = supabase.table("oracle_cache").select("question_hash", "chapter_cap", "response").execute()
+        res = client.table("oracle_cache").select("question_hash", "chapter_cap", "response").execute()
         cache_entries = res.data or []
         
         deleted_count = 0
@@ -143,19 +150,27 @@ def clear_oracle_cache_selectively(patterns_and_entities: List[str], dry_run: bo
                     
             if match and qh and cc is not None:
                 if not dry_run:
-                    supabase.table("oracle_cache").delete().eq("question_hash", qh).eq("chapter_cap", cc).execute()
+                    client.table("oracle_cache").delete().eq("question_hash", qh).eq("chapter_cap", cc).execute()
                 deleted_count += 1
         return deleted_count
     except Exception as e:
         print_safe(f"Error clearing cache selectively: {e}")
         return 0
 
-def run_pipeline(dry_run: bool = True, clear_cache: bool = True) -> dict:
+def run_oracle_answer_feedback_pipeline(
+    supabase_client,
+    dry_run: bool,
+    limit: int,
+    clear_cache: bool,
+    since_hours: int | None = None
+) -> dict:
+    # Safely cap limit
+    limit = min(max(1, limit), 20000)
     started_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
     errors = []
     
     # 1. Fetch pending feedbacks
-    feedbacks = fetch_pending_feedbacks()
+    feedbacks = fetch_pending_feedbacks(limit=limit, since_hours=since_hours, supabase_client=supabase_client)
     feedback_count = len(feedbacks)
     print_safe(f"Found {feedback_count} pending feedbacks.")
     
@@ -166,7 +181,8 @@ def run_pipeline(dry_run: bool = True, clear_cache: bool = True) -> dict:
             "patches_written": 0,
             "cache_rows_deleted": 0,
             "dry_run": dry_run,
-            "ok": True
+            "ok": True,
+            "errors": []
         }
 
     # 2. Build summaries
@@ -176,7 +192,7 @@ def run_pipeline(dry_run: bool = True, clear_cache: bool = True) -> dict:
     candidate_patches = build_oracle_patches(feedbacks)
     
     # 4. Fetch existing patches to perform deduplication
-    existing = fetch_existing_patches()
+    existing = fetch_existing_patches(supabase_client=supabase_client)
     existing_keys = {(p.get("query_pattern"), p.get("patch_type")) for p in existing}
     
     new_patches = []
@@ -194,7 +210,7 @@ def run_pipeline(dry_run: bool = True, clear_cache: bool = True) -> dict:
         # A. Upsert summaries
         if summaries:
             try:
-                res = supabase.table("oracle_answer_feedback_summary").upsert(summaries).execute()
+                res = supabase_client.table("oracle_answer_feedback_summary").upsert(summaries).execute()
                 summaries_written = len(res.data or [])
             except Exception as e:
                 errors.append(f"Failed to upsert summaries: {e}")
@@ -202,7 +218,7 @@ def run_pipeline(dry_run: bool = True, clear_cache: bool = True) -> dict:
         # B. Insert new patches
         if new_patches:
             try:
-                res = supabase.table("oracle_answer_effective_patches").insert(new_patches).execute()
+                res = supabase_client.table("oracle_answer_effective_patches").insert(new_patches).execute()
                 patches_written = len(res.data or [])
             except Exception as e:
                 errors.append(f"Failed to insert patches: {e}")
@@ -211,7 +227,7 @@ def run_pipeline(dry_run: bool = True, clear_cache: bool = True) -> dict:
         feedback_ids = [fb.get("id") for fb in feedbacks if fb.get("id")]
         if feedback_ids:
             try:
-                supabase.table("rag_feedback").update({"status": "resolved"}).in_("id", feedback_ids).execute()
+                supabase_client.table("rag_feedback").update({"status": "resolved"}).in_("id", feedback_ids).execute()
             except Exception as e:
                 errors.append(f"Failed to resolve feedbacks: {e}")
     else:
@@ -229,7 +245,7 @@ def run_pipeline(dry_run: bool = True, clear_cache: bool = True) -> dict:
                 clean = p["query_pattern"].replace(" là ai", "").replace(" là gì", "").strip()
                 if len(clean) >= 2:
                     terms_to_clear.add(clean)
-        cache_cleared = clear_oracle_cache_selectively(list(terms_to_clear), dry_run=dry_run)
+        cache_cleared = clear_oracle_cache_selectively(list(terms_to_clear), dry_run=dry_run, supabase_client=supabase_client)
 
     return {
         "feedback_rows_read": feedback_count,
@@ -241,12 +257,23 @@ def run_pipeline(dry_run: bool = True, clear_cache: bool = True) -> dict:
         "errors": errors
     }
 
+def run_pipeline(dry_run: bool = True, clear_cache: bool = True) -> dict:
+    return run_oracle_answer_feedback_pipeline(
+        supabase_client=supabase,
+        dry_run=dry_run,
+        limit=5000,
+        clear_cache=clear_cache,
+        since_hours=None
+    )
+
 def main():
     parser = argparse.ArgumentParser(description="Run RAG Oracle Answer feedback loop pipeline.")
     parser.add_argument("--dry-run", action="store_true", default=False, help="Dry run simulation mode.")
     parser.add_argument("--write", action="store_true", help="Execute DB updates (disable dry-run).")
     parser.add_argument("--clear-cache", action="store_true", help="Clear oracle_cache entries selectively.")
     parser.add_argument("--json", action="store_true", help="Print result as JSON.")
+    parser.add_argument("--limit", type=int, default=5000, help="Limit number of pending feedbacks to process.")
+    parser.add_argument("--since-hours", type=int, default=None, help="Process feedbacks created within the last N hours.")
     args = parser.parse_args()
 
     # Determine dry_run flag
@@ -256,7 +283,13 @@ def main():
     elif args.dry_run:
         dry_run = True
 
-    report = run_pipeline(dry_run=dry_run, clear_cache=args.clear_cache)
+    report = run_oracle_answer_feedback_pipeline(
+        supabase_client=supabase,
+        dry_run=dry_run,
+        limit=args.limit,
+        clear_cache=args.clear_cache,
+        since_hours=args.since_hours
+    )
 
     if args.json:
         print_safe(json.dumps(report, ensure_ascii=False, indent=2))
