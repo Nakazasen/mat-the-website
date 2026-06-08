@@ -59,8 +59,13 @@ export async function GET(request: NextRequest) {
 
     // Pagination range (0-indexed, inclusive)
     const from = (page - 1) * pageSize;
-    const to = from + pageSize - 1;
-    query = query.range(from, to);
+    if (search) {
+      // Fetch more items when searching to sort/rank them in JavaScript memory
+      query = query.limit(200);
+    } else {
+      const to = from + pageSize - 1;
+      query = query.range(from, to);
+    }
 
     const { data, count, error } = await query;
     if (error) {
@@ -125,8 +130,66 @@ export async function GET(request: NextRequest) {
       return !noiseBlacklist.has(name);
     });
 
+    let finalItems = filteredItems;
+    if (search) {
+      const searchLower = search.toLowerCase().trim();
+      const normalizeText = (text: string): string => {
+        if (!text) return "";
+        return text.toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/đ/g, "d")
+          .replace(/[^\w\s]/g, "")
+          .replace(/\s+/g, " ")
+          .trim();
+      };
+      const searchNorm = normalizeText(searchLower);
+
+      const getSearchScore = (item: any) => {
+        const nameLower = (item.name || "").toLowerCase().trim();
+        const nameNorm = normalizeText(nameLower);
+        const summaryLower = (item.summary || "").toLowerCase();
+        
+        let score = 0;
+        
+        // 1. Exact name match (case-insensitive)
+        if (nameLower === searchLower || nameNorm === searchNorm) {
+          score += 1000;
+        }
+        // 2. Name starts with search term
+        else if (nameLower.startsWith(searchLower) || nameNorm.startsWith(searchNorm)) {
+          score += 500;
+        }
+        // 3. Name contains search term
+        else if (nameLower.includes(searchLower) || nameNorm.includes(searchNorm)) {
+          score += 300;
+        }
+        // 4. Summary contains search term
+        else if (summaryLower.includes(searchLower)) {
+          score += 100;
+        }
+        
+        // Add confidence weight
+        score += (item.confidence || 0) * 10;
+        
+        return score;
+      };
+
+      finalItems.sort((a: any, b: any) => {
+        const scoreA = getSearchScore(a);
+        const scoreB = getSearchScore(b);
+        if (scoreA !== scoreB) {
+          return scoreB - scoreA;
+        }
+        return (a.name || "").localeCompare(b.name || "");
+      });
+
+      // Paginate after sorting
+      finalItems = finalItems.slice(from, from + pageSize);
+    }
+
     return NextResponse.json({
-      items: filteredItems,
+      items: finalItems,
       total: count || 0,
       page,
       page_size: pageSize
