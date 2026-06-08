@@ -1,0 +1,62 @@
+[
+  {
+    "seed": "Tinh thể zombie",
+    "status": "created_candidate",
+    "record_id": "af4b58bae3bccafeb454f5c7b6a16e2a",
+    "evidence_count": 298
+  },
+  {
+    "seed": "Tinh thạch khai phá",
+    "status": "already_exists",
+    "record_id": "7e319fe706400931f5290c84c4e9cc3a",
+    "evidence_count": 35
+  },
+  {
+    "seed": "Tinh thạch nguyện ước",
+    "status": "already_exists",
+    "record_id": "5b414af1836ff08d0f9960bf453e7d3b",
+    "evidence_count": 51
+  },
+  {
+    "seed": "Tinh thạch an toàn",
+    "status": "already_exists",
+    "record_id": "4beb2621a72d2b17e434d2b806970748",
+    "evidence_count": 161
+  },
+  {
+    "seed": "Zombie Cấp 3",
+    "status": "created_candidate",
+    "record_id": "28d5e125a11b42829ca510717ec98551",
+    "evidence_count": 18
+  },
+  {
+    "seed": "Súng Diệt Quỷ",
+    "status": "already_exists",
+    "record_id": "00cbf19b30b65b07572e492606119a18",
+    "evidence_count": 110
+  },
+  {
+    "seed": "Băng Độc",
+    "status": "already_exists",
+    "record_id": "8e21f86e8fa3f48f0a58654358eec18b",
+    "evidence_count": 72
+  },
+  {
+    "seed": "Đại Thiên Thần",
+    "status": "already_exists",
+    "record_id": "87ae60df566cb1fae3d4728818bd554c",
+    "evidence_count": 12
+  },
+  {
+    "seed": "Tam Lang Hội",
+    "status": "already_exists",
+    "record_id": "37c665628ebdae24f0563255cfe65294",
+    "evidence_count": 57
+  },
+  {
+    "seed": "Căn cứ Hi Vọng",
+    "status": "created_candidate",
+    "record_id": "35a22a3e62d2de8216f34c82c6caab78",
+    "evidence_count": 1000
+  }
+]

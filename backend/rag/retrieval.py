@@ -400,8 +400,10 @@ def search_story_chunks_hybrid_lexical(
     keyword_results = []
     keywords = extract_search_keywords(query)
     if keywords:
+        non_stop_keywords = [kw for kw in keywords if kw not in STOP_WORDS]
+        search_kws = non_stop_keywords if non_stop_keywords else keywords
         or_parts = []
-        for kw in keywords:
+        for kw in search_kws:
             or_parts.append(f"chapter_title.ilike.%{kw}%")
             or_parts.append(f"content_plain.ilike.%{kw}%")
 
@@ -539,9 +541,11 @@ def search_wiki_entries(
         return []
 
     try:
-        # Build query for matching keywords in title or summary or content
+        # Build query for matching keywords in title or summary or content (filtering out stop words to avoid query saturation)
+        non_stop_keywords = [kw for kw in keywords if kw not in STOP_WORDS]
+        search_kws = non_stop_keywords if non_stop_keywords else keywords
         or_parts = []
-        for kw in keywords:
+        for kw in search_kws:
             or_parts.append(f"title.ilike.%{kw}%")
             or_parts.append(f"summary.ilike.%{kw}%")
             or_parts.append(f"content.ilike.%{kw}%")
@@ -635,18 +639,59 @@ def search_provisional_library(
         return []
 
     try:
-        # Build keyword match on name or summary
-        or_parts = []
-        for kw in keywords:
-            or_parts.append(f"name.ilike.%{kw}%")
-            or_parts.append(f"summary.ilike.%{kw}%")
+        # Multi-pass retrieval to avoid query saturation on common words
+        is_identity = is_identity_question(query)
+        entity_name = extract_entity_name(query) if is_identity else ""
 
-        q = supabase.table("provisional_library").select("*").in_("quality_class", ["high_confidence", "medium_confidence"])
-        if or_parts:
-            q = q.or_(",".join(or_parts))
+        rows = []
+        if is_identity and entity_name:
+            # Pass 1: Try phrase/exact match on the identity entity name first
+            try:
+                resp = supabase.table("provisional_library").select("*")\
+                    .in_("quality_class", ["high_confidence", "medium_confidence"])\
+                    .or_(f"name.ilike.%{entity_name}%,summary.ilike.%{entity_name}%")\
+                    .limit(100)\
+                    .execute()
+                rows = resp.data or []
+            except Exception as e:
+                print(f"Phrase match query error: {e}")
 
-        resp = q.limit(1000).execute()
-        rows = resp.data or []
+        if not rows:
+            # Pass 2: Clean and try phrase match on query (without trailing question marks/identity suffixes)
+            clean_query = query.strip()
+            clean_query = re.sub(r"[?\s]+$", "", clean_query)
+            clean_query = re.sub(
+                r"\s+(?:l[àa]\s+(?:g[ìi]|ai)|l[àa]\s+v[ậa]t\s+ph[ẩa]m\s+g[ìi]|l[àa]\s+th[ựu]c\s+th[ểe]\s+g[ìi]|l[àa]\s+sinh\s+v[ậa]t\s+g[ìi]|l[àa]\s+t[ổo]\s+ch[ứu]c\s+g[ìi]|l[àa]\s+k[ỹy]\s+n[ăa]ng\s+g[ìi]|l[àa]\s+nh[âa]n\s+v[ậa]t\s+n[àa]o)$",
+                "",
+                clean_query,
+                flags=re.IGNORECASE
+            )
+            if clean_query and clean_query.lower() != query.strip().lower():
+                try:
+                    resp = supabase.table("provisional_library").select("*")\
+                        .in_("quality_class", ["high_confidence", "medium_confidence"])\
+                        .or_(f"name.ilike.%{clean_query}%,summary.ilike.%{clean_query}%")\
+                        .limit(100)\
+                        .execute()
+                    rows = resp.data or []
+                except Exception as e:
+                    print(f"Clean query phrase match error: {e}")
+
+        if not rows:
+            # Pass 3: Fallback to keyword match OR query (filtering out stop words)
+            non_stop_keywords = [kw for kw in keywords if kw not in STOP_WORDS]
+            search_kws = non_stop_keywords if non_stop_keywords else keywords
+            or_parts = []
+            for kw in search_kws:
+                or_parts.append(f"name.ilike.%{kw}%")
+                or_parts.append(f"summary.ilike.%{kw}%")
+
+            q = supabase.table("provisional_library").select("*").in_("quality_class", ["high_confidence", "medium_confidence"])
+            if or_parts:
+                q = q.or_(",".join(or_parts))
+
+            resp = q.limit(1000).execute()
+            rows = resp.data or []
 
         # Batch-fetch summaries for the retrieved provisional candidates
         pids = [row.get("id") for row in rows if row.get("id")]
