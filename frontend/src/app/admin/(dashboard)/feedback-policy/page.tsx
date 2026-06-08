@@ -148,6 +148,21 @@ interface PipelineHealth {
   last_run_dry_run: boolean;
 }
 
+interface OracleSelfLearningQuality {
+  regression_total: number;
+  regression_passed: number;
+  regression_failed: number;
+  latest_report_created_at: string | null;
+  failed_cases: Array<{
+    query: string;
+    chapter_progress: number | null;
+    reason: string | null;
+  }>;
+  active_oracle_patches: number;
+  pending_rag_feedback: number;
+  resolved_rag_feedback: number;
+}
+
 export default function AdminFeedbackPolicyDashboard() {
   const router = useRouter();
 
@@ -166,6 +181,7 @@ export default function AdminFeedbackPolicyDashboard() {
     oracle_patch_active: 0
   });
   const [health, setHealth] = useState<PipelineHealth | null>(null);
+  const [oracleQuality, setOracleQuality] = useState<OracleSelfLearningQuality | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -211,6 +227,7 @@ export default function AdminFeedbackPolicyDashboard() {
           oracle_patch_active: 0
         });
         setHealth(data.health || null);
+        setOracleQuality(data.oracle_self_learning_quality || null);
       } else {
         if (res.status === 401) {
           setIsUnauthorized(true);
@@ -432,6 +449,114 @@ export default function AdminFeedbackPolicyDashboard() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Oracle Self-Learning Quality Card */}
+      {oracleQuality && (
+        <div className="bg-[#181818] border border-gray-800 rounded-lg p-5 font-mono text-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-gray-900 pb-3">
+            <h2 className="text-sm font-bold text-gray-200 tracking-wider flex items-center gap-2 uppercase">
+              <Cpu className="text-blue-500" size={16} />
+              Tình trạng tự học Oracle RAG
+            </h2>
+            {oracleQuality.regression_failed === 0 ? (
+              <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-green-950/40 text-green-400 border border-green-900/30 flex items-center gap-1">
+                <CheckCircle2 size={12} />
+                Đang ổn định
+              </span>
+            ) : (
+              <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-red-950/40 text-red-400 border border-red-900/30 flex items-center gap-1">
+                <AlertTriangle size={12} />
+                Cần chú ý
+              </span>
+            )}
+          </div>
+
+          {/* Failed cases warning */}
+          {oracleQuality.regression_failed > 0 && (
+            <div className="flex items-start gap-2.5 text-red-400 bg-red-950/20 border border-red-900/40 rounded p-3 leading-relaxed">
+              <AlertTriangle className="shrink-0 mt-0.5" size={16} />
+              <div className="space-y-2 w-full">
+                <span className="font-bold uppercase">PHÁT HIỆN HỎNG HÓC REGRESSION ({oracleQuality.regression_failed}/{oracleQuality.regression_total} FAIL):</span>
+                <div className="divide-y divide-red-900/30 space-y-2">
+                  {oracleQuality.failed_cases.map((c, idx) => (
+                    <div key={idx} className="pt-2 first:pt-0">
+                      <div className="font-bold text-gray-200">Câu hỏi: "{c.query}"</div>
+                      {c.chapter_progress !== null && (
+                        <div className="text-[10px] text-gray-400">Chapter Progress: {c.chapter_progress}</div>
+                      )}
+                      <div className="text-[10px] text-red-300">Lý do lỗi: {c.reason || "Chưa xác định"}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Stable display info */}
+          {oracleQuality.regression_failed === 0 && oracleQuality.regression_total > 0 && (
+            <div className="flex items-start gap-2.5 text-green-400 bg-green-950/20 border border-green-900/40 rounded p-3 leading-relaxed">
+              <CheckCircle2 className="shrink-0 mt-0.5 text-green-500" size={16} />
+              <div>
+                <span className="font-bold uppercase">Regression Pack: </span>
+                Hệ thống RAG đã vượt qua tất cả bài kiểm tra tự học ({oracleQuality.regression_passed}/{oracleQuality.regression_total} PASS). Trải nghiệm người đọc đang ở trạng thái tối ưu.
+              </div>
+            </div>
+          )}
+
+          {/* Details Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="bg-[#0f0f0f] border border-gray-900 rounded p-3">
+              <div className="text-[10px] text-gray-500 uppercase tracking-wider">Regression Test</div>
+              <div className="text-gray-200 mt-1 font-bold text-sm">
+                {oracleQuality.regression_total > 0
+                  ? `${oracleQuality.regression_passed}/${oracleQuality.regression_total} PASS`
+                  : "Chưa chạy"}
+              </div>
+              <div className="text-[9px] text-gray-600 mt-0.5">
+                {oracleQuality.regression_failed > 0 ? `${oracleQuality.regression_failed} test bị lỗi` : "Không phát hiện lỗi"}
+              </div>
+            </div>
+
+            <div className="bg-[#0f0f0f] border border-gray-900 rounded p-3">
+              <div className="text-[10px] text-gray-500 uppercase tracking-wider">Active Oracle Patches</div>
+              <div className="text-blue-400 mt-1 font-bold text-sm">
+                {oracleQuality.active_oracle_patches} active
+              </div>
+              <div className="text-[9px] text-gray-600 mt-0.5">
+                Bản vá tự học
+              </div>
+            </div>
+
+            <div className="bg-[#0f0f0f] border border-gray-900 rounded p-3">
+              <div className="text-[10px] text-gray-500 uppercase tracking-wider">Chờ xử lý (Pending)</div>
+              <div className="text-yellow-500 mt-1 font-bold text-sm">
+                {oracleQuality.pending_rag_feedback} feedback
+              </div>
+              <div className="text-[9px] text-gray-600 mt-0.5">
+                RAG feedback mới
+              </div>
+            </div>
+
+            <div className="bg-[#0f0f0f] border border-gray-900 rounded p-3 font-mono">
+              <div className="text-[10px] text-gray-500 uppercase tracking-wider">Đã giải quyết</div>
+              <div className="text-green-400 mt-1 font-bold text-sm">
+                {oracleQuality.resolved_rag_feedback} resolved
+              </div>
+              <div className="text-[9px] text-gray-600 mt-0.5 font-mono">
+                Tích lũy tự học
+              </div>
+            </div>
+          </div>
+
+          {/* Last checked metadata */}
+          {oracleQuality.latest_report_created_at && (
+            <div className="text-[9px] text-gray-500 flex items-center justify-end gap-1.5 pt-1">
+              <Clock size={10} />
+              <span>Cập nhật kết quả test: {new Date(oracleQuality.latest_report_created_at).toLocaleString('vi-VN')}</span>
+            </div>
+          )}
         </div>
       )}
 

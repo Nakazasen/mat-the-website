@@ -149,6 +149,16 @@ describe("AdminFeedbackPolicyDashboard Page", () => {
         warn_count: 3,
         block_count: 2,
         oracle_patch_active: 1
+      },
+      oracle_self_learning_quality: {
+        regression_total: 6,
+        regression_passed: 6,
+        regression_failed: 0,
+        latest_report_created_at: "2026-06-08T01:00:00Z",
+        failed_cases: [],
+        active_oracle_patches: 2,
+        pending_rag_feedback: 0,
+        resolved_rag_feedback: 8
       }
     };
 
@@ -267,6 +277,16 @@ describe("AdminFeedbackPolicyDashboard Page", () => {
         patch_active: 1,
         warn_count: 0,
         block_count: 0
+      },
+      oracle_self_learning_quality: {
+        regression_total: 0,
+        regression_passed: 0,
+        regression_failed: 0,
+        latest_report_created_at: null,
+        failed_cases: [],
+        active_oracle_patches: 0,
+        pending_rag_feedback: 0,
+        resolved_rag_feedback: 0
       }
     };
 
@@ -373,6 +393,16 @@ describe("AdminFeedbackPolicyDashboard Page", () => {
         last_run_patches_written: 1,
         last_run_cache_deleted: 2,
         last_run_dry_run: false
+      },
+      oracle_self_learning_quality: {
+        regression_total: 0,
+        regression_passed: 0,
+        regression_failed: 0,
+        latest_report_created_at: null,
+        failed_cases: [],
+        active_oracle_patches: 0,
+        pending_rag_feedback: 0,
+        resolved_rag_feedback: 0
       }
     };
 
@@ -408,6 +438,131 @@ describe("AdminFeedbackPolicyDashboard Page", () => {
     expect(screen.getByText("Đã xóa 2")).toBeInTheDocument(); // cache cleared
 
     // Verify safeguards: no Apply to Wiki or token inputs
+    expect(screen.queryByRole("button", { name: /apply.*wiki/i })).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/token/i)).not.toBeInTheDocument();
+  });
+
+  it("renders Oracle Self-Learning Quality card with stable state (6/6 PASS)", async () => {
+    const mockQualityData = {
+      feedback_recent: [],
+      summaries: [],
+      patches: [],
+      stats: {
+        feedback_total: 0,
+        summary_total: 0,
+        patch_active: 0,
+        warn_count: 0,
+        block_count: 0
+      },
+      oracle_self_learning_quality: {
+        regression_total: 6,
+        regression_passed: 6,
+        regression_failed: 0,
+        latest_report_created_at: "2026-06-08T01:00:00Z",
+        failed_cases: [],
+        active_oracle_patches: 3,
+        pending_rag_feedback: 0,
+        resolved_rag_feedback: 12
+      }
+    };
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => mockQualityData
+    });
+    global.fetch = fetchMock as typeof fetch;
+
+    render(<AdminFeedbackPolicyDashboard />);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalled();
+    });
+
+    // Verify Card title
+    await screen.findByText("Tình trạng tự học Oracle RAG");
+
+    // Verify Stable badge and text
+    expect(screen.getByText("Đang ổn định")).toBeInTheDocument();
+    expect(screen.getByText("6/6 PASS")).toBeInTheDocument();
+    expect(screen.getByText(/3 active/)).toBeInTheDocument();
+    expect(screen.getByText(/0 feedback/)).toBeInTheDocument();
+    expect(screen.getByText(/12 resolved/)).toBeInTheDocument();
+
+    // Verify last check timestamp formatting
+    expect(screen.getByText(/Cập nhật kết quả test:/)).toBeInTheDocument();
+
+    // Safeguards
+    expect(screen.queryByRole("button", { name: /apply.*wiki/i })).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/token/i)).not.toBeInTheDocument();
+  });
+
+  it("renders Oracle Self-Learning Quality card with failed cases and warning messages", async () => {
+    const mockQualityData = {
+      feedback_recent: [],
+      summaries: [],
+      patches: [],
+      stats: {
+        feedback_total: 0,
+        summary_total: 0,
+        patch_active: 0,
+        warn_count: 0,
+        block_count: 0
+      },
+      oracle_self_learning_quality: {
+        regression_total: 6,
+        regression_passed: 4,
+        regression_failed: 2,
+        latest_report_created_at: "2026-06-08T01:00:00Z",
+        failed_cases: [
+          {
+            query: "Hạ Huyền Sương là ai?",
+            chapter_progress: 50,
+            reason: "Chưa tích hợp đủ tóm tắt truyện"
+          },
+          {
+            query: "Tinh thể zombie là gì?",
+            chapter_progress: null,
+            reason: "Trả lời sai thông tin chương"
+          }
+        ],
+        active_oracle_patches: 2,
+        pending_rag_feedback: 1,
+        resolved_rag_feedback: 11
+      }
+    };
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => mockQualityData
+    });
+    global.fetch = fetchMock as typeof fetch;
+
+    render(<AdminFeedbackPolicyDashboard />);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalled();
+    });
+
+    // Verify Card title
+    await screen.findByText("Tình trạng tự học Oracle RAG");
+
+    // Verify attention status
+    expect(screen.getByText("Cần chú ý")).toBeInTheDocument();
+    expect(screen.getByText("4/6 PASS")).toBeInTheDocument();
+    expect(screen.getByText(/2 active/)).toBeInTheDocument();
+    expect(screen.getByText(/1 feedback/)).toBeInTheDocument();
+    expect(screen.getByText(/11 resolved/)).toBeInTheDocument();
+
+    // Verify failed cases warning box and failed query listings
+    expect(screen.getByText(/PHÁT HIỆN HỎNG HÓC REGRESSION/)).toBeInTheDocument();
+    expect(screen.getByText(/Câu hỏi: "Hạ Huyền Sương là ai\?"/)).toBeInTheDocument();
+    expect(screen.getByText(/Chapter Progress: 50/)).toBeInTheDocument();
+    expect(screen.getByText(/Lý do lỗi: Chưa tích hợp đủ tóm tắt truyện/)).toBeInTheDocument();
+
+    expect(screen.getByText(/Câu hỏi: "Tinh thể zombie là gì\?"/)).toBeInTheDocument();
+    expect(screen.getByText(/Lý do lỗi: Trả lời sai thông tin chương/)).toBeInTheDocument();
+
+    // Safeguards
     expect(screen.queryByRole("button", { name: /apply.*wiki/i })).not.toBeInTheDocument();
     expect(screen.queryByPlaceholderText(/token/i)).not.toBeInTheDocument();
   });

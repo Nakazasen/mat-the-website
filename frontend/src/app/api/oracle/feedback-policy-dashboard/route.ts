@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerAdminClient } from "@/lib/supabase-server";
+import fs from "fs";
+import path from "path";
 
 /**
  * GET /api/oracle/feedback-policy-dashboard
@@ -33,7 +35,9 @@ export async function GET(request: NextRequest) {
       pendingFeedbackRes,
       oracleSummariesRes,
       oraclePatchesRes,
-      oracleActivePatchesRes
+      oracleActivePatchesRes,
+      ragFeedbackPendingRes,
+      ragFeedbackResolvedRes
     ] = await Promise.all([
       // Fetch 50 most recent community feedbacks
       supabase
@@ -117,6 +121,20 @@ export async function GET(request: NextRequest) {
         .from("oracle_answer_effective_patches")
         .select("id", { count: "exact", head: true })
         .eq("effective_status", "active")
+        .then(res => res.error ? { count: 0, error: null } : res),
+
+      // Oracle RAG Feedbacks - Pending (graceful fallback if table doesn't exist)
+      supabase
+        .from("rag_feedback")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending")
+        .then(res => res.error ? { count: 0, error: null } : res),
+
+      // Oracle RAG Feedbacks - Resolved (graceful fallback if table doesn't exist)
+      supabase
+        .from("rag_feedback")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "resolved")
         .then(res => res.error ? { count: 0, error: null } : res)
     ]);
 
@@ -153,7 +171,65 @@ export async function GET(request: NextRequest) {
       pipeline_stale = hours_since_last_run > 3;
     }
 
-    // 5. Return formatted data
+    // 5. Read regression report
+    let reportData: any = null;
+    try {
+      const pathA = path.join(process.cwd(), "..", "backend", "rag", "generated_oracle_self_learning_regression_report.json");
+      const pathB = path.join(process.cwd(), "backend", "rag", "generated_oracle_self_learning_regression_report.json");
+      const pathC = "D:\\Sandbox\\Web_matthesinhhoanguyco\\mat-the-website\\backend\\rag\\generated_oracle_self_learning_regression_report.json";
+
+      let finalPath = "";
+      if (fs.existsSync(pathA)) {
+        finalPath = pathA;
+      } else if (fs.existsSync(pathB)) {
+        finalPath = pathB;
+      } else if (fs.existsSync(pathC)) {
+        finalPath = pathC;
+      }
+
+      if (finalPath) {
+        const raw = fs.readFileSync(finalPath, "utf-8");
+        reportData = JSON.parse(raw);
+      }
+    } catch (e) {
+      console.warn("Failed to read regression report file:", e);
+    }
+
+    let regression_total = 0;
+    let regression_passed = 0;
+    let regression_failed = 0;
+    let latest_report_created_at: string | null = null;
+    let failed_cases: Array<{ query: string; chapter_progress: number | null; reason: string | null }> = [];
+
+    if (reportData) {
+      regression_total = reportData.summary?.total || 0;
+      regression_passed = reportData.summary?.passed || 0;
+      regression_failed = reportData.summary?.failed || 0;
+      latest_report_created_at = reportData.timestamp || null;
+
+      if (reportData.results && Array.isArray(reportData.results)) {
+        failed_cases = reportData.results
+          .filter((r: any) => !r.passed)
+          .map((r: any) => ({
+            query: r.question || "",
+            chapter_progress: r.chapter_progress || null,
+            reason: r.failure_reason || "Unknown failure"
+          }));
+      }
+    }
+
+    const oracle_self_learning_quality = {
+      regression_total,
+      regression_passed,
+      regression_failed,
+      latest_report_created_at,
+      failed_cases,
+      active_oracle_patches: oracleActivePatchesRes.count || 0,
+      pending_rag_feedback: ragFeedbackPendingRes.count || 0,
+      resolved_rag_feedback: ragFeedbackResolvedRes.count || 0
+    };
+
+    // 6. Return formatted data
     return NextResponse.json({
       feedback_recent: recentFeedbackRes.data || [],
       summaries: summariesRes.data || [],
@@ -181,7 +257,8 @@ export async function GET(request: NextRequest) {
         last_run_patches_written,
         last_run_cache_deleted,
         last_run_dry_run
-      }
+      },
+      oracle_self_learning_quality
     });
 
   } catch (error: any) {
