@@ -70,6 +70,9 @@ def main():
     parser.add_argument("--replace-version", type=str, default="v2", help="Version to set in the source column.")
     parser.add_argument("--backup-path", type=str, default=None, help="Verify that a valid backup JSON exists at this path before writing.")
     parser.add_argument("--json", action="store_true", help="Print summary JSON output to stdout.")
+    parser.add_argument("--clear-cache", action="store_true", help="Clear oracle_cache entries related to imported concepts.")
+    parser.add_argument("--cache-dry-run", action="store_true", help="Dry-run cache invalidation (do not delete).")
+    parser.add_argument("--cache-limit-terms", type=int, default=200, help="Maximum number of concept terms to invalidate cache for (default 200).")
     args = parser.parse_args()
     
     # Must specify either dry-run or write
@@ -120,6 +123,7 @@ def main():
     batch_size = 100
     print_safe(f"Upserting {len(candidates)} candidates in batches of {batch_size}...")
     
+    upserted_names = []
     for i in range(0, len(candidates), batch_size):
         batch = candidates[i:i+batch_size]
         payloads = [build_db_payload(c, source_value=source_val) for c in batch]
@@ -127,12 +131,40 @@ def main():
         try:
             res = supabase.table("provisional_library").upsert(payloads).execute()
             summary["upserted"] += len(payloads)
+            upserted_names.extend([p["name"] for p in payloads])
         except Exception as e:
             summary["failed"] += len(payloads)
             summary["errors"].append(str(e))
             print_safe(f"Batch {i // batch_size} failed: {e}")
             
     print_safe(f"Import finished! Upserted: {summary['upserted']}, Failed: {summary['failed']}")
+
+    # Cache Invalidation Integration
+    if args.clear_cache and upserted_names:
+        print_safe(f"Running cache invalidation for {len(upserted_names)} concepts...")
+        from backend.rag.oracle_cache_invalidation import clear_oracle_cache_for_terms, build_cache_invalidation_terms
+        terms = build_cache_invalidation_terms(upserted_names)
+
+        orig_count = len(terms)
+        truncated = False
+        if orig_count > args.cache_limit_terms:
+            terms = terms[:args.cache_limit_terms]
+            truncated = True
+            print_safe(f"Warning: Cache invalidation terms truncated from {orig_count} to limit of {args.cache_limit_terms}.")
+
+        cache_report = clear_oracle_cache_for_terms(
+            supabase,
+            terms=terms,
+            dry_run=args.cache_dry_run
+        )
+        cache_report["truncated"] = truncated
+        cache_report["original_terms_count"] = orig_count
+        summary["cache_invalidation"] = cache_report
+
+        print_safe(f"Cache invalidation report: matched={cache_report['matched_rows']}, deleted={cache_report['deleted_rows']}, dry_run={cache_report['dry_run']}, truncated={truncated}")
+        if cache_report.get("skipped_reason"):
+            print_safe(f"Cache invalidation warning: {cache_report['skipped_reason']}")
+
     if args.json:
         print(json.dumps(summary, indent=2))
 

@@ -55,6 +55,8 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="Validate and count records without writing.")
     parser.add_argument("--write", action="store_true", help="Upsert records to database.")
     parser.add_argument("--json", action="store_true", help="Print summary JSON output to stdout.")
+    parser.add_argument("--clear-cache", action="store_true", help="Clear oracle_cache entries related to imported concepts.")
+    parser.add_argument("--cache-dry-run", action="store_true", help="Dry-run cache invalidation (do not delete).")
     args = parser.parse_args()
 
     # Must specify either dry-run or write
@@ -97,6 +99,7 @@ def main():
     batch_size = 50
     print_safe(f"Upserting {len(candidates)} candidates in batches of {batch_size}...")
     
+    upserted_names = []
     for i in range(0, len(candidates), batch_size):
         batch = candidates[i:i+batch_size]
         payloads = [build_db_payload(c) for c in batch]
@@ -104,12 +107,29 @@ def main():
         try:
             res = supabase.table("provisional_library").upsert(payloads).execute()
             summary["upserted"] += len(payloads)
+            upserted_names.extend([p["name"] for p in payloads])
         except Exception as e:
             summary["failed"] += len(payloads)
             summary["errors"].append(str(e))
             print_safe(f"Batch {i // batch_size} failed: {e}")
             
     print_safe(f"Import finished! Upserted: {summary['upserted']}, Failed: {summary['failed']}")
+
+    # Cache Invalidation Integration
+    if args.clear_cache and upserted_names:
+        print_safe(f"Running cache invalidation for {len(upserted_names)} concepts...")
+        from backend.rag.oracle_cache_invalidation import clear_oracle_cache_for_terms, build_cache_invalidation_terms
+        terms = build_cache_invalidation_terms(upserted_names)
+        cache_report = clear_oracle_cache_for_terms(
+            supabase,
+            terms=terms,
+            dry_run=args.cache_dry_run
+        )
+        summary["cache_invalidation"] = cache_report
+        print_safe(f"Cache invalidation report: matched={cache_report['matched_rows']}, deleted={cache_report['deleted_rows']}, dry_run={cache_report['dry_run']}")
+        if cache_report.get("skipped_reason"):
+            print_safe(f"Cache invalidation warning: {cache_report['skipped_reason']}")
+
     if args.json:
         print(json.dumps(summary, indent=2))
 
