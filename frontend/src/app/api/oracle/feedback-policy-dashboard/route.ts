@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerAdminClient } from "@/lib/supabase-server";
+import { createServerClient } from "@supabase/ssr";
 import fs from "fs";
 import path from "path";
 
@@ -11,14 +12,31 @@ import path from "path";
 export async function GET(request: NextRequest) {
   try {
     // 1. Verify Supabase admin session
-    const supabase = await getServerAdminClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const supabaseAnon = await getServerAdminClient();
+    const { data: { user } } = await supabaseAnon.auth.getUser();
     if (!user) {
       return NextResponse.json(
         { error: "Unauthorized: Vui lòng đăng nhập admin" },
         { status: 401 }
       );
     }
+
+    // 2. Create Service Role client to bypass RLS for administrative stats
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      serviceRoleKey,
+      {
+        cookies: {
+          getAll() {
+            return [];
+          },
+          setAll() {
+            // No-op
+          },
+        },
+      }
+    );
 
     // 2. Query stats & lists in parallel
     const [

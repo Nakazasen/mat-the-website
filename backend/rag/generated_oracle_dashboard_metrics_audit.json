@@ -1,0 +1,58 @@
+{
+  "rag_feedback_count_by_status": {
+    "pending": 0,
+    "reviewed": 0,
+    "accepted": 1,
+    "rejected": 2,
+    "resolved": 8
+  },
+  "rag_feedback_count_by_feedback_type": {
+    "wrong": 9,
+    "missing": 1,
+    "spoiler": 0,
+    "hallucination": 0,
+    "other": 1
+  },
+  "rag_feedback_count_by_status_and_type": {
+    "pending": {
+      "wrong": 0,
+      "missing": 0,
+      "spoiler": 0,
+      "hallucination": 0,
+      "other": 0
+    },
+    "reviewed": {
+      "wrong": 0,
+      "missing": 0,
+      "spoiler": 0,
+      "hallucination": 0,
+      "other": 0
+    },
+    "accepted": {
+      "wrong": 1,
+      "missing": 0,
+      "spoiler": 0,
+      "hallucination": 0,
+      "other": 0
+    },
+    "rejected": {
+      "wrong": 2,
+      "missing": 0,
+      "spoiler": 0,
+      "hallucination": 0,
+      "other": 0
+    },
+    "resolved": {
+      "wrong": 6,
+      "missing": 1,
+      "spoiler": 0,
+      "hallucination": 0,
+      "other": 1
+    }
+  },
+  "oracle_answer_feedback_summary_count": 2,
+  "oracle_answer_effective_patches_count_by_status": {
+    "active": 2,
+    "disabled": 0
+  }
+}
