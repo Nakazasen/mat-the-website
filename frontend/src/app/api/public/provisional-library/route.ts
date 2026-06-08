@@ -21,11 +21,13 @@ export async function GET(request: NextRequest) {
     const rawPageSize = parseInt(searchParams.get("page_size") || "20", 10);
     const pageSize = Math.max(1, Math.min(rawPageSize, 50));
 
-    // 2. Build query - only high_confidence and medium_confidence are public
+    // 2. Build query - only high_confidence and medium_confidence are public, excluding discard/needs_review
     let query = supabase
       .from("provisional_library")
       .select("*", { count: "exact" })
-      .in("quality_class", ["high_confidence", "medium_confidence"]);
+      .in("quality_class", ["high_confidence", "medium_confidence"])
+      .neq("status", "discard")
+      .neq("needs_review", true);
 
     if (search) {
       query = query.or(`name.ilike.%${search}%,normalized_name.ilike.%${search}%,summary.ilike.%${search}%`);

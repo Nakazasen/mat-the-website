@@ -649,6 +649,7 @@ def search_provisional_library(
             try:
                 resp = supabase.table("provisional_library").select("*")\
                     .in_("quality_class", ["high_confidence", "medium_confidence"])\
+                    .neq("status", "discard")\
                     .or_(f"name.ilike.%{entity_name}%,summary.ilike.%{entity_name}%")\
                     .limit(100)\
                     .execute()
@@ -670,6 +671,7 @@ def search_provisional_library(
                 try:
                     resp = supabase.table("provisional_library").select("*")\
                         .in_("quality_class", ["high_confidence", "medium_confidence"])\
+                        .neq("status", "discard")\
                         .or_(f"name.ilike.%{clean_query}%,summary.ilike.%{clean_query}%")\
                         .limit(100)\
                         .execute()
@@ -686,7 +688,9 @@ def search_provisional_library(
                 or_parts.append(f"name.ilike.%{kw}%")
                 or_parts.append(f"summary.ilike.%{kw}%")
 
-            q = supabase.table("provisional_library").select("*").in_("quality_class", ["high_confidence", "medium_confidence"])
+            q = supabase.table("provisional_library").select("*")\
+                .in_("quality_class", ["high_confidence", "medium_confidence"])\
+                .neq("status", "discard")
             if or_parts:
                 q = q.or_(",".join(or_parts))
 
@@ -880,6 +884,10 @@ def search_provisional_library(
             elif oracle_policy == "deprioritize":
                 score = score * 0.5
 
+            # Deprioritize needs_review strongly
+            if row.get("needs_review"):
+                score = score * 0.1
+
             scored_rows.append((score, confidence, row, filtered_evidence, effective_status, oracle_policy, dispute_score, total_feedback, summary_override, type_override, warn_record))
 
         # Sort by score DESC, confidence DESC
@@ -906,7 +914,7 @@ def search_provisional_library(
             first_ch = min(chaps) if chaps else row.get("first_chapter")
 
             display_summary = summary
-            if pol == "warn" or eff_status in ("disputed", "duplicate_suspected", "needs_review") or warn_rec:
+            if pol == "warn" or eff_status in ("disputed", "duplicate_suspected", "needs_review") or warn_rec or row.get("needs_review"):
                 display_summary = f"[CẢNH BÁO CỘNG ĐỒNG: mục này đang bị báo lỗi] {summary}"
 
             results.append({

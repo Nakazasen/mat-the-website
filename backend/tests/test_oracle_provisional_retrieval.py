@@ -118,6 +118,10 @@ class MockQueryBuilder:
         self.filters[f"eq_{field}"] = value
         return self
 
+    def neq(self, field, value):
+        self.filters[f"neq_{field}"] = value
+        return self
+
     def limit(self, value):
         self.filters["limit"] = value
         return self
@@ -141,6 +145,11 @@ class MockQueryBuilder:
                     field = k[3:]
                     val = row.get(field) or row.get("id")
                     if val != v:
+                        keep = False
+                elif k.startswith("neq_"):
+                    field = k[4:]
+                    val = row.get(field) or row.get("id")
+                    if val == v:
                         keep = False
             if keep:
                 filtered.append(row)
@@ -761,3 +770,98 @@ async def test_get_entity_context_for_oracle_with_patches():
     # Wait, get_entity_context_for_oracle filters candidates by matches query.
     # If we query "Hàn Phong đang", does it return it? Since there is no suppress query patch for "Hàn Phong đang", yes.
     # But for "Hàn Phong là ai?", only "Hàn Phong" should match.
+
+
+def test_search_provisional_library_visibility_policy():
+    mock_data = {
+        "provisional_library": [
+            {
+                "id": "pid-doan-doi",
+                "name": "đoàn đội",
+                "type": "entity",
+                "summary": "đoàn đội summary",
+                "confidence": 0.9,
+                "quality_class": "high_confidence",
+                "status": "discard",
+                "needs_review": True,
+                "first_chapter": 1,
+                "evidence": [{"chapter_number": 1, "preview": "ev"}]
+            },
+            {
+                "id": "pid-doan-o",
+                "name": "đoàn ô",
+                "type": "entity",
+                "summary": "đoàn ô summary",
+                "confidence": 0.9,
+                "quality_class": "high_confidence",
+                "status": "discard",
+                "needs_review": True,
+                "first_chapter": 1,
+                "evidence": [{"chapter_number": 1, "preview": "ev"}]
+            },
+            {
+                "id": "pid-han-phong-dung",
+                "name": "Hàn Phong đứng",
+                "type": "entity",
+                "summary": "Hàn Phong đứng summary",
+                "confidence": 0.9,
+                "quality_class": "high_confidence",
+                "status": "provisional",
+                "needs_review": True,
+                "first_chapter": 1,
+                "evidence": [{"chapter_number": 1, "preview": "ev"}]
+            },
+            {
+                "id": "pid-han-phong-clean",
+                "name": "Hàn Phong",
+                "type": "entity",
+                "summary": "Dị năng giả hệ băng",
+                "confidence": 0.95,
+                "quality_class": "high_confidence",
+                "status": "provisional",
+                "needs_review": False,
+                "first_chapter": 1,
+                "evidence": [{"chapter_number": 1, "preview": "ev"}]
+            },
+            {
+                "id": "pid-tinh-the-zombie",
+                "name": "Tinh thể zombie",
+                "type": "crystal_core",
+                "summary": "Tinh thể thu hoạch từ zombie",
+                "confidence": 0.95,
+                "quality_class": "high_confidence",
+                "status": "provisional",
+                "needs_review": False,
+                "first_chapter": 1,
+                "evidence": [{"chapter_number": 1, "preview": "ev"}]
+            }
+        ]
+    }
+    client = MockSupabase(mock_data)
+
+    # 1. search "đoàn đội" không trả discard record.
+    res1 = search_provisional_library(client, "đoàn đội", limit=5)
+    assert not any(r["name"] == "đoàn đội" for r in res1)
+
+    # 2. search "đoàn ô" không trả discard record.
+    res2 = search_provisional_library(client, "đoàn ô", limit=5)
+    assert not any(r["name"] == "đoàn ô" for r in res2)
+
+    # 3. search "Hàn Phong đứng" không được ưu tiên hơn Hàn Phong canon/clean.
+    res3 = search_provisional_library(client, "Hàn Phong", limit=5)
+    names3 = [r["name"] for r in res3]
+    idx_clean = names3.index("Hàn Phong")
+    if "Hàn Phong đứng" in names3:
+        idx_noisy = names3.index("Hàn Phong đứng")
+        assert idx_clean < idx_noisy
+        noisy_rec = next(r for r in res3 if r["name"] == "Hàn Phong đứng")
+        assert "[CẢNH BÁO CỘNG ĐỒNG: mục này đang bị báo lỗi]" in noisy_rec["summary"]
+
+    # 4. needs_review không thắng exact clean record.
+    res4 = search_provisional_library(client, "Hàn Phong đứng", limit=5)
+    assert res4[0]["name"] == "Hàn Phong"
+
+    # 5. "Tinh thể zombie" vẫn trả crystal_core sạch.
+    res5 = search_provisional_library(client, "Tinh thể zombie", limit=5)
+    assert any(r["name"] == "Tinh thể zombie" for r in res5)
+    assert not any("[CẢNH BÁO CỘNG ĐỒNG: mục này đang bị báo lỗi]" in r["summary"] for r in res5 if r["name"] == "Tinh thể zombie")

@@ -1,0 +1,52 @@
+{
+  "db_statistics": {
+    "total_records": 3871,
+    "status_distribution": {
+      "provisional": 3216,
+      "discard": 655
+    },
+    "needs_review_distribution": {
+      "false": 2734,
+      "true": 1137
+    }
+  },
+  "simulated_public_api": {
+    "total_visible_records": 2734,
+    "discard_records_leaked_count": 0,
+    "discard_records_leaked_examples": [],
+    "needs_review_records_leaked_count": 0,
+    "needs_review_records_leaked_examples": []
+  },
+  "live_vercel_api_check": {
+    "đoàn đội": {
+      "returned_in_api": true,
+      "api_results_count": 5,
+      "top_result_returned": "đoàn đội"
+    },
+    "đoàn ô": {
+      "returned_in_api": true,
+      "api_results_count": 1,
+      "top_result_returned": "đoàn ô"
+    },
+    "Hàn Phong đứng": {
+      "returned_in_api": true,
+      "api_results_count": 5,
+      "top_result_returned": "Hàn Phong đứng"
+    },
+    "Châu Lam đang": {
+      "returned_in_api": true,
+      "api_results_count": 1,
+      "top_result_returned": "Châu Lam đang"
+    },
+    "Áo Khoác Phòng Hộ": {
+      "returned_in_api": true,
+      "api_results_count": 5,
+      "top_result_returned": "Áo Khoác Phòng Hộ"
+    },
+    "Áo Khoác Tận Thế": {
+      "returned_in_api": true,
+      "api_results_count": 4,
+      "top_result_returned": "Áo Khoác Tận Thế"
+    }
+  }
+}
