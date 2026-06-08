@@ -1,0 +1,14 @@
+{
+  "mode": "DRY_RUN",
+  "ok": true,
+  "chapters_inserted": 0,
+  "story_chunks_inserted": 0,
+  "cache_rows_deleted": 0,
+  "errors": [],
+  "timestamp": "2026-06-08T23:06:37.790622+00:00",
+  "current_last_chapter": 829,
+  "new_chapters_detected": [],
+  "planned_chapter_inserts": [],
+  "planned_chunk_inserts": 0,
+  "write_required": false
+}
