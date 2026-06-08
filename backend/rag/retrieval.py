@@ -666,7 +666,7 @@ def search_provisional_library(
                 clean_query,
                 flags=re.IGNORECASE
             )
-            if clean_query and clean_query.lower() != query.strip().lower():
+            if clean_query:
                 try:
                     resp = supabase.table("provisional_library").select("*")\
                         .in_("quality_class", ["high_confidence", "medium_confidence"])\
@@ -927,7 +927,10 @@ def search_provisional_library(
                 "patch_type": "effective_summary" if sum_ovr else ("effective_type" if typ_ovr else ("warn_record" if warn_rec else None))
             })
 
-        return results[:limit]
+        # Filter out noise blacklisted terms
+        noise_blacklist = {"ác độc", "ác ý", "âm ẩm", "đây đã"}
+        filtered_results = [r for r in results if r.get("name", "").lower().strip() not in noise_blacklist]
+        return filtered_results[:limit]
     except Exception as e:
         print(f"Error searching provisional library: {e}")
         return []

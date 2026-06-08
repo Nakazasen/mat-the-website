@@ -32,7 +32,20 @@ export async function GET(request: NextRequest) {
     }
 
     if (type && type !== "all") {
-      query = query.eq("type", type);
+      if (type === "creature") {
+        query = query.in("type", ["zombie_species", "mutated_creature"]);
+      } else if (type === "item_crystal") {
+        query = query.in("type", ["item", "crystal_core"]);
+      } else if (type === "skill") {
+        query = query.in("type", ["ability_skill", "skill_book"]);
+      } else if (type === "faction") {
+        query = query.in("type", ["organization_faction"]);
+      } else if (type === "location") {
+        query = query.in("type", ["location_base"]);
+      } else {
+        // Fallback for single type queries or backward compatibility
+        query = query.eq("type", type);
+      }
     }
 
     if (qualityClass && qualityClass !== "all") {
@@ -106,8 +119,14 @@ export async function GET(request: NextRequest) {
       };
     });
 
+    const noiseBlacklist = new Set(["ác độc", "ác ý", "âm ẩm", "đây đã"]);
+    const filteredItems = mappedItems.filter((item: any) => {
+      const name = (item.name || "").toLowerCase().trim();
+      return !noiseBlacklist.has(name);
+    });
+
     return NextResponse.json({
-      items: mappedItems,
+      items: filteredItems,
       total: count || 0,
       page,
       page_size: pageSize

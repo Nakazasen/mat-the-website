@@ -62,7 +62,7 @@ describe("PublicProvisionalLibraryPage", () => {
           confidence: 0.5,
           quality_class: "medium_confidence",
           status: "provisional",
-          source: "story_chunks_auto_extract",
+          source: "exact_concept_backfill_v1",
           feedback_score: 0,
           chapter_numbers: [8],
           first_chapter: 8,
@@ -152,9 +152,10 @@ describe("PublicProvisionalLibraryPage", () => {
 
     // 3. Render item details
     expect(screen.getByText("Tinh thể zombie")).toBeInTheDocument();
-    expect(screen.getAllByText("Vật phẩm / Tinh thể")[0]).toBeInTheDocument();
+    expect(screen.getAllByText("Vật phẩm / Tinh thạch")[0]).toBeInTheDocument();
     expect(screen.getByText("Tin cậy trung bình")).toBeInTheDocument();
     expect(screen.getByText("0.5")).toBeInTheDocument();
+    expect(screen.getByText("Khái niệm trọng tâm")).toBeInTheDocument();
 
     // 3b. Render disputed item details & badges
     expect(screen.getByText("Dị năng hỏa hệ lỗi")).toBeInTheDocument();
@@ -238,5 +239,35 @@ describe("PublicProvisionalLibraryPage", () => {
 
     // Success thank you banner displays
     await screen.findByText(/Cảm ơn bạn đã gửi đóng góp ý kiến!/);
+  });
+
+  it("calls fetch with correct query params for Vật phẩm / Tinh thạch and Kỹ năng / Sách kỹ năng filters", async () => {
+    const mockData = { items: [], total: 0, page: 1, page_size: 20 };
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve({
+      ok: true,
+      json: async () => mockData
+    }));
+    global.fetch = fetchMock as typeof fetch;
+
+    render(<PublicProvisionalLibraryPage />);
+
+    // 1. Select "Vật phẩm / Tinh thạch" filter
+    const selectFilter = screen.getByRole("combobox", { name: /phân loại/i }) as HTMLSelectElement;
+    fireEvent.change(selectFilter, { target: { value: "item_crystal" } });
+
+    await waitFor(() => {
+      // Check if fetch was called with type=item_crystal
+      const lastCall = fetchMock.mock.calls[fetchMock.mock.calls.length - 1];
+      expect(lastCall[0]).toContain("type=item_crystal");
+    });
+
+    // 2. Select "Kỹ năng / Sách kỹ năng" filter
+    fireEvent.change(selectFilter, { target: { value: "skill" } });
+
+    await waitFor(() => {
+      // Check if fetch was called with type=skill
+      const lastCall = fetchMock.mock.calls[fetchMock.mock.calls.length - 1];
+      expect(lastCall[0]).toContain("type=skill");
+    });
   });
 });

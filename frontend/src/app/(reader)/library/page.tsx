@@ -49,11 +49,29 @@ interface ProvisionalItem {
 }
 
 const TYPE_LABELS: Record<string, string> = {
-  entity: "Thực thể / Nhân vật",
-  item: "Vật phẩm / Tinh thể",
-  ability: "Dị năng / Kỹ năng",
+  character: "Nhân vật",
+  creature: "Zombie / Sinh vật biến dị",
   location: "Địa điểm / Căn cứ",
-  faction: "Thế lực / Băng nhóm",
+  faction: "Thế lực / Tổ chức",
+  weapon: "Vũ khí",
+  item_crystal: "Vật phẩm / Tinh thạch",
+  skill: "Kỹ năng / Sách kỹ năng",
+  event: "Sự kiện",
+  relationship: "Quan hệ",
+  chapter_summary: "Tóm tắt chương"
+};
+
+const RAW_TYPE_LABELS: Record<string, string> = {
+  character: "Nhân vật",
+  zombie_species: "Zombie / Sinh vật biến dị",
+  mutated_creature: "Zombie / Sinh vật biến dị",
+  location_base: "Địa điểm / Căn cứ",
+  organization_faction: "Thế lực / Tổ chức",
+  weapon: "Vũ khí",
+  item: "Vật phẩm / Tinh thạch",
+  crystal_core: "Vật phẩm / Tinh thạch",
+  ability_skill: "Kỹ năng / Sách kỹ năng",
+  skill_book: "Kỹ năng / Sách kỹ năng",
   event: "Sự kiện",
   relationship: "Quan hệ",
   chapter_summary: "Tóm tắt chương"
@@ -257,10 +275,11 @@ export default function PublicProvisionalLibraryPage() {
             <div className="bg-reader-card-bg border border-reader-border rounded-xl p-5 backdrop-blur-sm shadow-xl space-y-5">
               {/* Search Box */}
               <div className="space-y-2">
-                <label className="text-xs font-mono text-reader-muted uppercase tracking-wider">Tìm kiếm</label>
+                <label htmlFor="search-input" className="text-xs font-mono text-reader-muted uppercase tracking-wider">Tìm kiếm</label>
                 <div className="relative">
                   <Search className="absolute left-3 top-2.5 text-reader-muted" size={16} />
                   <input
+                    id="search-input"
                     type="text"
                     placeholder="Nhập tên, mô tả..."
                     value={search}
@@ -272,8 +291,9 @@ export default function PublicProvisionalLibraryPage() {
 
               {/* Type Filter */}
               <div className="space-y-2">
-                <label className="text-xs font-mono text-reader-muted uppercase tracking-wider">Phân loại</label>
+                <label htmlFor="type-filter" className="text-xs font-mono text-reader-muted uppercase tracking-wider">Phân loại</label>
                 <select
+                  id="type-filter"
                   value={type}
                   onChange={(e) => { setType(e.target.value); setPage(1); }}
                   className="w-full bg-reader-bg border border-reader-border rounded px-3 py-2 text-xs text-reader-text outline-none focus:border-reader-accent transition-all cursor-pointer font-sans"
@@ -287,8 +307,9 @@ export default function PublicProvisionalLibraryPage() {
 
               {/* Quality Filter */}
               <div className="space-y-2">
-                <label className="text-xs font-mono text-reader-muted uppercase tracking-wider">Độ tin cậy</label>
+                <label htmlFor="quality-filter" className="text-xs font-mono text-reader-muted uppercase tracking-wider">Độ tin cậy</label>
                 <select
+                  id="quality-filter"
                   value={qualityClass}
                   onChange={(e) => { setQualityClass(e.target.value); setPage(1); }}
                   className="w-full bg-reader-bg border border-reader-border rounded px-3 py-2 text-xs text-reader-text outline-none focus:border-reader-accent transition-all cursor-pointer font-sans"
@@ -337,7 +358,7 @@ export default function PublicProvisionalLibraryPage() {
                 {/* Items Card List */}
                 <div className="grid gap-4">
                   {items.map((item) => {
-                    const typeLabel = TYPE_LABELS[item.type] || item.type;
+                    const typeLabel = RAW_TYPE_LABELS[item.type] || item.type;
                     const qBadgeClass = QUALITY_BADGE_CLASSES[item.quality_class] || "text-reader-muted bg-reader-bg border-reader-border";
                     const qLabel = QUALITY_LABELS[item.quality_class] || item.quality_class;
                     const isExpanded = expandedItems[item.id] || false;
@@ -359,6 +380,11 @@ export default function PublicProvisionalLibraryPage() {
                             <span className={`px-2 py-0.5 border rounded-full text-[9px] uppercase font-bold tracking-wider ${qBadgeClass}`}>
                               {qLabel}
                             </span>
+                            {item.source === "exact_concept_backfill_v1" && (
+                              <span className="px-2 py-0.5 border border-purple-200 dark:border-purple-900/30 text-purple-700 dark:text-purple-400 bg-purple-50/50 dark:bg-purple-950/30 rounded-full text-[9px] uppercase font-bold tracking-wider">
+                                Khái niệm trọng tâm
+                              </span>
+                            )}
                             {(item.patch_type === "hide_record" || item.patch_type === "deprioritize_record" || item.oracle_policy === "block" || item.oracle_policy === "deprioritize") ? (
                               <span className="px-2 py-0.5 border border-red-200 dark:border-red-900/30 text-red-700 dark:text-red-400 bg-red-50/50 dark:bg-red-950/30 rounded-full text-[9px] uppercase font-bold tracking-wider">
                                 Đã bị cộng đồng/RAG hạ độ tin cậy
