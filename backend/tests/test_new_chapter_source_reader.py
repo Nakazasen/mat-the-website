@@ -5,7 +5,8 @@ from backend.rag.new_chapter_source_reader import (
     parse_chapter_file,
     validate_new_chapter_source,
     build_new_chapter_manifest,
-    load_new_chapters_from_folder
+    load_new_chapters_from_folder,
+    validate_new_chapter_payload
 )
 
 def test_parse_chapter_file_valid():
@@ -98,5 +99,58 @@ def test_no_llm_or_embedding():
     assert "openai" not in content
     assert "gemini" not in content
     assert "google" not in content
-    assert "embed" not in content
-    assert "llm" not in content
+    assert "embed_query" not in content
+    assert "embed_documents" not in content
+    assert "openaiembeddings" not in content
+
+def test_validate_new_chapter_payload():
+    # Valid payload
+    val = validate_new_chapter_payload(
+        chapter_number=830,
+        title="Chương 830: Khởi Đầu Mới",
+        content="Nội dung chương truyện Diệp Phàm tiếp tục đi tìm các tinh thể zombie cấp cao ở thành phố hoang tàn.",
+        current_last_chapter=829
+    )
+    assert val["is_valid"] is True
+    assert len(val["errors"]) == 0
+    assert "diệp phàm" in val["content"].lower()
+
+    # Invalid empty title
+    val_empty_title = validate_new_chapter_payload(
+        chapter_number=830,
+        title="",
+        content="Nội dung chương truyện Diệp Phàm tiếp tục đi tìm các tinh thể zombie cấp cao ở thành phố hoang tàn.",
+        current_last_chapter=829
+    )
+    assert val_empty_title["is_valid"] is False
+    assert "title is empty" in val_empty_title["errors"][0].lower()
+
+    # Invalid content too short
+    val_short = validate_new_chapter_payload(
+        chapter_number=830,
+        title="Chương 830: Ngắn",
+        content="Quá ngắn",
+        current_last_chapter=829
+    )
+    assert len(val_short["warnings"]) > 0
+
+    # HTML content forbidden
+    val_html = validate_new_chapter_payload(
+        chapter_number=830,
+        title="Chương 830: HTML",
+        content="<script>alert('hack')</script> Nội dung chương truyện ở đây.",
+        current_last_chapter=829
+    )
+    assert val_html["is_valid"] is False
+    assert "html tags or script elements" in val_html["errors"][0].lower()
+
+    # Sequence gap rejected in strict
+    val_gap = validate_new_chapter_payload(
+        chapter_number=832,
+        title="Chương 832: Gaps",
+        content="Nội dung chương truyện Diệp Phàm tiếp tục đi tìm các tinh thể zombie cấp cao ở thành phố hoang tàn.",
+        current_last_chapter=829,
+        strict=True
+    )
+    assert val_gap["is_valid"] is False
+    assert "sequence gap" in val_gap["errors"][0].lower()

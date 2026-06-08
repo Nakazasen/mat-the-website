@@ -3465,11 +3465,13 @@ async def admin_create_chapter(
 
     body: AdminChapterCreate,
 
+    background_tasks: BackgroundTasks,
+
     authorization: Optional[str] = Header(None),
 
 ):
 
-    """Thêm chương mới: Upload nội dung lên R2, lưu metadata vào Supabase."""
+    """Thêm chương mới: Validate, upload nội dung lên R2, lưu metadata, chunk & ingest, clear cache, update audit."""
 
     user = await verify_admin(authorization)
 
@@ -3477,38 +3479,84 @@ async def admin_create_chapter(
 
         raise HTTPException(status_code=500, detail="R2 chưa được cấu hình trên server")
 
-    # Check chapter number uniqueness
+    # 1. Resolve current last chapter number from DB
+    current_last_chapter = 829
+    try:
+        res_chunks = supabase.table("story_chunks").select("chapter_number").order("chapter_number", desc=True).limit(1).execute()
+        if res_chunks.data:
+            current_last_chapter = int(res_chunks.data[0].get("chapter_number", 829))
+    except Exception:
+        try:
+            res_ch = supabase.table("chapters").select("chapter_number").order("chapter_number", desc=True).limit(1).execute()
+            if res_ch.data:
+                current_last_chapter = int(res_ch.data[0].get("chapter_number", 829))
+        except Exception:
+            pass
 
+    # 2. Validate using Phase 10B/10C validation rules
+    from backend.rag.new_chapter_source_reader import validate_new_chapter_payload
+    strict = not body.is_side_story
+    val_res = validate_new_chapter_payload(
+        chapter_number=body.chapter_number,
+        title=body.title,
+        content=body.content,
+        current_last_chapter=current_last_chapter,
+        strict=strict
+    )
+
+    if not val_res["is_valid"]:
+        # Log failed attempt to staging
+        try:
+            supabase.table("new_chapter_staging").insert({
+                "chapter_number": body.chapter_number,
+                "title": body.title,
+                "content": body.content,
+                "validation_status": "invalid",
+                "validation_errors": val_res["errors"],
+                "ingest_status": "rejected",
+                "submitted_by": user.get("email") or user.get("id"),
+                "source_label": "admin_input"
+            }).execute()
+        except Exception as e:
+            print(f"DEBUG: Staging insert ignored: {e}")
+
+        raise HTTPException(status_code=400, detail="; ".join(val_res["errors"]))
+
+    # Check chapter number uniqueness (redundant but safe)
     existing = supabase.table("chapters").select("id").eq("chapter_number", body.chapter_number).execute()
-
     if existing.data:
-
         raise HTTPException(status_code=409, detail=f"Chương {body.chapter_number} đã tồn tại")
 
+    # Log successful staging step
+    try:
+        supabase.table("new_chapter_staging").insert({
+            "chapter_number": body.chapter_number,
+            "title": body.title,
+            "content": body.content,
+            "validation_status": "valid",
+            "validation_errors": [],
+            "ingest_status": "ingested",
+            "submitted_by": user.get("email") or user.get("id"),
+            "source_label": "admin_input"
+        }).execute()
+    except Exception as e:
+        print(f"DEBUG: Staging insert ignored: {e}")
+
+    # 3. Existing R2 and database insert logic
     sanitized_content = sanitize_html(body.content) or ""
 
     # Upload content to R2
-
     slug = slugify(f"chuong-{body.chapter_number}-{body.title}")
-
     object_key = f"chapters/{body.chapter_number:04d}-{slug}.txt"
-
     content_bytes = sanitized_content.encode("utf-8")
-
     r2_client.put_object(
-
         Bucket=R2_BUCKET,
-
         Key=object_key,
-
         Body=content_bytes,
-
         ContentType="text/plain; charset=utf-8",
-
     )
 
     content_url = f"{R2_PUBLIC_URL}/{object_key}"
-
     word_count = len(sanitized_content.split())
 
     bgm_payload = normalize_bgm_payload(body.bgm_url, body.bgm_title)
@@ -3519,26 +3567,62 @@ async def admin_create_chapter(
         )
 
     # Insert metadata into Supabase
-
     insert_payload = {
-
         "chapter_number": body.chapter_number,
-
         "title": body.title,
-
         "content_url": content_url,
-
         "word_count": word_count,
-
         "is_side_story": body.is_side_story,
-
     }
     if chapters_support_bgm():
         insert_payload.update(bgm_payload)
 
     result = supabase.table("chapters").insert(insert_payload).execute()
+    if not result.data:
+        raise HTTPException(status_code=500, detail="Lưu chương mới vào database thất bại")
 
-    return {"message": "Thêm chương thành công", "chapter": result.data[0]}
+    chapter_data = result.data[0]
+    chapter_id = chapter_data["id"]
+
+    # 4. Ingest into story_chunks (Phase 10C)
+    from backend.rag.new_chapter_ingester import build_chunks_for_new_chapter, clear_oracle_cache_for_chapter
+    orig_ch = {
+        "chapter_number": body.chapter_number,
+        "title": body.title,
+        "content": sanitized_content
+    }
+    chunks = build_chunks_for_new_chapter(orig_ch)
+    for chunk in chunks:
+        chunk["chapter_id"] = chapter_id
+
+    if chunks:
+        try:
+            supabase.table("story_chunks").insert(chunks).execute()
+        except Exception as e:
+            # Clean up the chapter row and raise exception to maintain consistency
+            supabase.table("chapters").delete().eq("id", chapter_id).execute()
+            raise HTTPException(status_code=500, detail=f"Lỗi ghi dữ liệu story_chunks: {e}")
+
+    # 5. Clear target oracle cache
+    clear_oracle_cache_for_chapter(supabase, body.chapter_number, dry_run=False)
+
+    # 6. Update story growth coverage audit in background
+    def run_audit():
+        import subprocess
+        import sys
+        try:
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            script_path = os.path.join(script_dir, "scripts", "audit_story_growth_coverage.py")
+            if not os.path.exists(script_path):
+                script_path = os.path.join(os.path.dirname(script_dir), "backend", "scripts", "audit_story_growth_coverage.py")
+            if os.path.exists(script_path):
+                subprocess.run([sys.executable, script_path], capture_output=True)
+        except Exception as e:
+            print(f"Warning: Failed to update story growth coverage audit: {e}")
+
+    background_tasks.add_task(run_audit)
+
+    return {"message": "Thêm chương thành công", "chapter": chapter_data}
 
 @app.put("/api/admin/chapters/{chapter_number}", summary="[Admin] Sửa chương")
 

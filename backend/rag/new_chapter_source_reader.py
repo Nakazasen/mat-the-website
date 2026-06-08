@@ -185,3 +185,70 @@ def build_new_chapter_manifest(chapters: List[Dict[str, Any]], current_last_chap
         "errors": errors,
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
+
+def normalize_chapter_title(text: str) -> str:
+    """Normalizes the chapter title by removing HTML and extra spaces."""
+    if not text:
+        return ""
+    cleaned = re.sub(r'<[^>]*>', '', text)
+    return " ".join(cleaned.strip().split())
+
+def validate_new_chapter_payload(
+    chapter_number: int,
+    title: str,
+    content: str,
+    current_last_chapter: int,
+    strict: bool = True
+) -> Dict[str, Any]:
+    """Validates raw payload fields for a staging chapter submission."""
+    errors = []
+    warnings = []
+
+    from backend.rag.chunking import strip_html_to_text, normalize_story_text
+
+    clean_title = normalize_chapter_title(title)
+
+    # Strip HTML and normalize content
+    clean_content_text = strip_html_to_text(content)
+    clean_content = normalize_story_text(clean_content_text)
+
+    # 1. Content check
+    if not clean_content:
+        errors.append("Chapter content is completely empty.")
+    elif len(clean_content) < 50:
+        warnings.append(f"Chapter content is unusually short ({len(clean_content)} characters).")
+
+    # Check if original content had forbidden HTML tags or scripts
+    if re.search(r'<[^>]*>', content) or re.search(r'(?is)<script\b[^>]*>', content):
+        errors.append("HTML tags or script elements are detected and forbidden.")
+
+    # 2. Title check
+    if not clean_title:
+        errors.append("Chapter title is empty.")
+    else:
+        # Check if title chapter number matches
+        title_num_match = re.search(r'(?:chương|chapter|chg|c\.?)\s*(\d+)', clean_title, re.IGNORECASE)
+        if title_num_match:
+            title_num = int(title_num_match.group(1))
+            if title_num != chapter_number:
+                errors.append(f"Title chapter number ({title_num}) mismatch with chapter number ({chapter_number}).")
+        else:
+            warnings.append("Chapter title does not explicitly contain a chapter number (e.g. 'Chương XXX').")
+
+    # 3. Chapter number checks
+    if chapter_number <= current_last_chapter:
+        errors.append(f"Chapter number ({chapter_number}) is <= current last chapter ({current_last_chapter}). Overwriting historical data is blocked.")
+
+    # 4. Strict sequence gap checks
+    if strict and chapter_number > current_last_chapter + 1:
+        errors.append(f"Sequence gap detected: chapter {chapter_number} is submitted but next expected is {current_last_chapter + 1}.")
+
+    is_valid = len(errors) == 0
+    return {
+        "chapter_number": chapter_number,
+        "title": clean_title,
+        "content": clean_content,
+        "is_valid": is_valid,
+        "errors": errors,
+        "warnings": warnings
+    }
