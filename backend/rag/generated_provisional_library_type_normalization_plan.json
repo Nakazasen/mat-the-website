@@ -1,0 +1,119 @@
+{
+  "summary": {
+    "mode": "WRITE",
+    "total_records_scanned": 3871,
+    "total_to_update": 11,
+    "updated_successfully": 11,
+    "failed_updates": 0,
+    "errors": [],
+    "cache_invalidation": {
+      "dry_run": false,
+      "terms": [
+        "Thao Túng Hàn Băng",
+        "Băng Ảnh",
+        "đoàn đội",
+        "Quang đoàn",
+        "Quân đoàn",
+        "đoàn ô",
+        "Băng Độc",
+        "Băng Nô",
+        "Còn Băng độc",
+        "ứng Băng Độc",
+        "Đại Thiên Thần"
+      ],
+      "matched_rows": 0,
+      "deleted_rows": 0,
+      "skipped_reason": null
+    }
+  },
+  "records_to_normalize": [
+    {
+      "id": "b9c37946e5ada3899891fe302bd4ef11",
+      "name": "Thao Túng Hàn Băng",
+      "old_type": "ability",
+      "new_type": "ability_skill",
+      "needs_normalization": true,
+      "rule_applied": "ability -> ability_skill"
+    },
+    {
+      "id": "2474775fa5242cb9ef8e965fa939c60e",
+      "name": "Băng Ảnh",
+      "old_type": "ability",
+      "new_type": "ability_skill",
+      "needs_normalization": true,
+      "rule_applied": "ability -> ability_skill"
+    },
+    {
+      "id": "22b4249a44576388ef5ce52886efc94f",
+      "name": "đoàn đội",
+      "old_type": "entity",
+      "new_type": "organization_faction",
+      "needs_normalization": true,
+      "rule_applied": "entity -> organization_faction"
+    },
+    {
+      "id": "2b8ae357d071d15d64344e411358b205",
+      "name": "Quang đoàn",
+      "old_type": "entity",
+      "new_type": "organization_faction",
+      "needs_normalization": true,
+      "rule_applied": "entity -> organization_faction"
+    },
+    {
+      "id": "f60388ab933772b66da2155640cc557f",
+      "name": "Quân đoàn",
+      "old_type": "entity",
+      "new_type": "organization_faction",
+      "needs_normalization": true,
+      "rule_applied": "entity -> organization_faction"
+    },
+    {
+      "id": "4ec35c2aed429404a9caf1bb0624535c",
+      "name": "đoàn ô",
+      "old_type": "entity",
+      "new_type": "organization_faction",
+      "needs_normalization": true,
+      "rule_applied": "entity -> organization_faction"
+    },
+    {
+      "id": "8e21f86e8fa3f48f0a58654358eec18b",
+      "name": "Băng Độc",
+      "old_type": "ability",
+      "new_type": "ability_skill",
+      "needs_normalization": true,
+      "rule_applied": "ability -> ability_skill"
+    },
+    {
+      "id": "5d69e6f0727c002b858ed99d8cb1c602",
+      "name": "Băng Nô",
+      "old_type": "ability",
+      "new_type": "ability_skill",
+      "needs_normalization": true,
+      "rule_applied": "ability -> ability_skill"
+    },
+    {
+      "id": "406bd363074a333009369e183022cd7e",
+      "name": "Còn Băng độc",
+      "old_type": "ability",
+      "new_type": "ability_skill",
+      "needs_normalization": true,
+      "rule_applied": "ability -> ability_skill"
+    },
+    {
+      "id": "033311e3fb6bf5fc27a9dd971a54cd78",
+      "name": "ứng Băng Độc",
+      "old_type": "ability",
+      "new_type": "ability_skill",
+      "needs_normalization": true,
+      "rule_applied": "ability -> ability_skill"
+    },
+    {
+      "id": "87ae60df566cb1fae3d4728818bd554c",
+      "name": "Đại Thiên Thần",
+      "old_type": "faction",
+      "new_type": "organization_faction",
+      "needs_normalization": true,
+      "rule_applied": "faction -> organization_faction"
+    }
+  ]
+}
