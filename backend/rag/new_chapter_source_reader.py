@@ -216,7 +216,7 @@ def validate_new_chapter_payload(
     if not clean_content:
         errors.append("Chapter content is completely empty.")
     elif len(clean_content) < 50:
-        warnings.append(f"Chapter content is unusually short ({len(clean_content)} characters).")
+        errors.append(f"Chapter content is unusually short ({len(clean_content)} characters).")
 
     # Check if original content had forbidden HTML tags or scripts
     if re.search(r'<[^>]*>', content) or re.search(r'(?is)<script\b[^>]*>', content):

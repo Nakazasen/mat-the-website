@@ -132,13 +132,14 @@ def test_validate_new_chapter_payload():
         content="Quá ngắn",
         current_last_chapter=829
     )
-    assert len(val_short["warnings"]) > 0
+    assert val_short["is_valid"] is False
+    assert "short" in val_short["errors"][0]
 
     # HTML content forbidden
     val_html = validate_new_chapter_payload(
         chapter_number=830,
         title="Chương 830: HTML",
-        content="<script>alert('hack')</script> Nội dung chương truyện ở đây.",
+        content="<script>alert('hack')</script> Nội dung chương truyện ở đây dài hơn năm mươi ký tự để tránh bị báo lỗi quá ngắn.",
         current_last_chapter=829
     )
     assert val_html["is_valid"] is False
