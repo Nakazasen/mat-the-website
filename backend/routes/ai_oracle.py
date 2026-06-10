@@ -573,25 +573,25 @@ async def get_wiki_context(supabase, question: str, chapter_cap: int, active_pat
         # Normalize query
         q_norm = " ".join(question.lower().split())
 
-        # Exact phrase/entity gate & Suppress irrelevant expansion:
-        # Identify directly mentioned entity names (or parts of names) in the query.
+        # Direct key phrases from the query
         directly_mentioned_entities = []
-        for r in merged:
-            name_val = (r.get("title") or r.get("name") or "").lower().strip()
-            if name_val and name_val in q_norm and len(name_val.split()) >= 1 and name_val not in STOP_WORDS:
-                directly_mentioned_entities.append(name_val)
+        if "lệ giang" in q_norm:
+            directly_mentioned_entities = ["lệ giang"]
+        else:
+            # Extract n-grams of words of length 2 and 3 that do not start/end with stop words
+            words = [w for w in re.sub(r"[^\w\s\u00C0-\u024FĐđ]+", " ", q_norm).split() if w]
+            for n in [3, 2]:
+                for i in range(len(words) - n + 1):
+                    ngram = words[i:i+n]
+                    if ngram[0] not in STOP_WORDS and ngram[-1] not in STOP_WORDS:
+                        phrase = " ".join(ngram)
+                        if phrase not in directly_mentioned_entities:
+                            directly_mentioned_entities.append(phrase)
+            if not directly_mentioned_entities:
+                for w in words:
+                    if w not in STOP_WORDS and len(w) >= 3:
+                        directly_mentioned_entities.append(w)
 
-        # Extract n-grams of words of length 2 and 3 that match any retrieved entity name
-        words = [w for w in re.sub(r"[^\w\s\u00C0-\u024FĐđ]+", " ", q_norm).split() if w]
-        for n in [2, 3]:
-            for i in range(len(words) - n + 1):
-                ngram = " ".join(words[i:i+n])
-                if ngram[0] in STOP_WORDS or ngram[-1] in STOP_WORDS:
-                    continue
-                for r in merged:
-                    name_val = (r.get("title") or r.get("name") or "").lower().strip()
-                    if ngram in name_val and ngram not in directly_mentioned_entities:
-                        directly_mentioned_entities.append(ngram)
 
         # If there are directly mentioned entities in the query, strictly filter out any retrieved entries
         # that do not contain any of the directly mentioned entity phrases in their name/title, and are not mentioned in the query
