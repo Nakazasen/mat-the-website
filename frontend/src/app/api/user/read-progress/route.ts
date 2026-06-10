@@ -80,31 +80,28 @@ export async function POST(request: Request) {
             }
 
             const existingChaptersRead = Number(profileResp.data?.chapters_read || 0);
-            const existingExp = Number(profileResp.data?.exp || 0);
             const readsCount = Number(readsCountResp.count || 0);
             const shouldAwardExp = inserted && readsCount > existingChaptersRead;
 
-            const updatePayload: Record<string, number> = {
-                chapters_read: Math.max(existingChaptersRead, readsCount),
-            };
-            if (shouldAwardExp) {
-                updatePayload.exp = existingExp + Number(newExpAmount || 0);
-            }
+            const nextChaptersCount = Math.max(existingChaptersRead, readsCount);
+            const awardExpAmount = shouldAwardExp ? Number(newExpAmount || 0) : 0;
 
-            const updateResp = await supabase
-                .from('profiles')
-                .update(updatePayload)
-                .eq('id', userId);
-            if (updateResp.error) {
-                console.error("Error updating profile read-progress:", updateResp.error);
-                return NextResponse.json({ success: false, error: updateResp.error.message });
+            const { error: rpcError } = await supabase.rpc('increment_reader_stats', {
+                user_id_param: userId,
+                new_chapters_count: nextChaptersCount,
+                new_exp_amount: awardExpAmount,
+            });
+
+            if (rpcError) {
+                console.error("Error updating profile read-progress via RPC:", rpcError);
+                return NextResponse.json({ success: false, error: rpcError.message });
             }
 
             return NextResponse.json({
                 success: true,
                 counted: inserted,
-                exp_awarded: shouldAwardExp ? Number(newExpAmount || 0) : 0,
-                chapters_read: updatePayload.chapters_read,
+                exp_awarded: awardExpAmount,
+                chapters_read: nextChaptersCount,
             });
         }
 

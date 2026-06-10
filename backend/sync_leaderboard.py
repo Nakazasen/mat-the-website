@@ -13,10 +13,21 @@ supabase: Client = create_client(url, key)
 
 def sync_profiles():
     print("Syncing profiles from user_chapter_reads...")
-    # Fetch all reads
-    # Note: user_chapter_reads might be large, but we can aggregate them locally
-    reads_resp = supabase.table("user_chapter_reads").select("user_id, chapter_id").execute()
-    reads = reads_resp.data
+    # Fetch all reads with proper range pagination
+    reads = []
+    limit = 1000
+    offset = 0
+    while True:
+        resp = supabase.table("user_chapter_reads").select("user_id, chapter_id").range(offset, offset + limit - 1).execute()
+        page_data = resp.data
+        if not page_data:
+            break
+        reads.extend(page_data)
+        if len(page_data) < limit:
+            break
+        offset += limit
+
+    print(f"Total read records: {len(reads)}")
 
     user_stats = {}
     for r in reads:
