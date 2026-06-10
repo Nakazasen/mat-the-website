@@ -2939,12 +2939,16 @@ def normalize_bgm_payload(bgm_url: Optional[str], bgm_title: Optional[str]) -> d
 # ============================================================
 
 @app.get("/api/health")
-
 async def health_check():
-
     """Health check endpoint cho Render monitoring"""
+    from security_utils import get_git_commit, get_git_branch
+    return {
+        "status": "ok",
+        "service": "mat-the-api",
+        "git_commit": get_git_commit(),
+        "git_branch": get_git_branch(),
+    }
 
-    return {"status": "ok", "service": "mat-the-api"}
 
 @app.get("/api/chapters", response_model=ChaptersResponse)
 

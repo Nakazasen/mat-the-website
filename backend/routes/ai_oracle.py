@@ -390,6 +390,9 @@ class OracleHealthResponse(BaseModel):
     detail: str
     upstream_status: Optional[int] = None
     upstream_error: Optional[str] = None
+    git_commit: Optional[str] = None
+    git_branch: Optional[str] = None
+
 
 
 class AdminAiPlaygroundRequest(BaseModel):
@@ -535,7 +538,11 @@ async def get_wiki_context(supabase, question: str, chapter_cap: int, active_pat
             is_identity_question,
             extract_entity_name,
             is_exact_or_near_match,
+            is_event_plot_question,
+            STOP_WORDS,
         )
+        import re
+
         # Parse active patch flags
         suppress_irrelevant = False
         enrich_story = False
@@ -551,6 +558,11 @@ async def get_wiki_context(supabase, question: str, chapter_cap: int, active_pat
                 elif ptype == "prefer_chapter_summary_intent":
                     prefer_chapter = True
 
+        # Check if the query is an event plot question
+        is_event = is_event_plot_question(question)
+        if is_event:
+            enrich_story = True
+
         wiki_res = search_wiki_entries(supabase, question, chapter_cap, limit=3)
         prov_res = search_provisional_library(supabase, question, chapter_cap, limit=3)
         merged = merge_oracle_knowledge_results(wiki_res, prov_res, limit=5)
@@ -558,8 +570,48 @@ async def get_wiki_context(supabase, question: str, chapter_cap: int, active_pat
         is_ident = is_identity_question(question)
         entity_name = extract_entity_name(question) if is_ident else ""
 
-        # Apply suppress_irrelevant_entity_expansion:
-        # filter out matches that do not exactly or nearly match the target entity/question
+        # Normalize query
+        q_norm = " ".join(question.lower().split())
+
+        # Exact phrase/entity gate & Suppress irrelevant expansion:
+        # Identify directly mentioned entity names (or parts of names) in the query.
+        directly_mentioned_entities = []
+        for r in merged:
+            name_val = (r.get("title") or r.get("name") or "").lower().strip()
+            if name_val and name_val in q_norm and len(name_val.split()) >= 1 and name_val not in STOP_WORDS:
+                directly_mentioned_entities.append(name_val)
+
+        # Extract n-grams of words of length 2 and 3 that match any retrieved entity name
+        words = [w for w in re.sub(r"[^\w\s\u00C0-\u024FĐđ]+", " ", q_norm).split() if w]
+        for n in [2, 3]:
+            for i in range(len(words) - n + 1):
+                ngram = " ".join(words[i:i+n])
+                if ngram[0] in STOP_WORDS or ngram[-1] in STOP_WORDS:
+                    continue
+                for r in merged:
+                    name_val = (r.get("title") or r.get("name") or "").lower().strip()
+                    if ngram in name_val and ngram not in directly_mentioned_entities:
+                        directly_mentioned_entities.append(ngram)
+
+        # If there are directly mentioned entities in the query, strictly filter out any retrieved entries
+        # that do not contain any of the directly mentioned entity phrases in their name/title, and are not mentioned in the query
+        if directly_mentioned_entities:
+            filtered_merged = []
+            for r in merged:
+                name_val = (r.get("title") or r.get("name") or "").lower().strip()
+                is_mentioned = any(dm in name_val or name_val in dm for dm in directly_mentioned_entities)
+                is_related = False
+                summary_val = (r.get("summary") or "").lower()
+                content_val = (r.get("content") or "").lower()
+                for dm in directly_mentioned_entities:
+                    if dm in summary_val or dm in content_val:
+                        is_related = True
+                        break
+                if is_mentioned or is_related:
+                    filtered_merged.append(r)
+            merged = filtered_merged
+
+        # Fallback to the patch-specific suppress_irrelevant logic if flag was explicitly active
         if suppress_irrelevant:
             filtered_merged = []
             patch_entities = []
@@ -573,11 +625,6 @@ async def get_wiki_context(supabase, question: str, chapter_cap: int, active_pat
             for r in merged:
                 name_val = (r.get("title") or r.get("name") or "").lower()
                 q_lower = question.lower()
-                
-                # We keep the record if:
-                # 1. It exactly or nearly matches the extracted identity entity_name (if any)
-                # 2. Or the record's name is found in the question text (e.g. "Lệ Giang" in "chiến dịch lệ giang")
-                # 3. Or the target_entity of the patch is found in the record name or vice-versa
                 matched = False
                 if entity_name and is_exact_or_near_match(r.get("title") or r.get("name") or "", entity_name):
                     matched = True
@@ -643,23 +690,28 @@ async def get_wiki_context(supabase, question: str, chapter_cap: int, active_pat
                     ev_str = f" Evidence: Chương {first_ch}" if first_ch is not None else ""
                     context_parts.append(f"[THƯ VIỆN TỰ ĐỘNG - {r['quality_class']}] {r['name']}{cat_str}: {desc[:400]}.{ev_str}")
 
-        # Apply enrich_identity_answer_from_story_chunks:
-        # fetch related story chunks for the entity name and append them to the context
-        if enrich_story and entity_name:
+        # Apply story enrichment for entity_name or event query
+        if (enrich_story and entity_name) or is_event:
+            search_term = entity_name if entity_name else (directly_mentioned_entities[0] if directly_mentioned_entities else question)
             try:
                 from backend.rag.retrieval import search_story_chunks_hybrid_lexical
                 from backend.rag.context_builder import build_rag_context_block
-                story_res = search_story_chunks_hybrid_lexical(supabase, entity_name, chapter_cap, limit=3)
+                story_res = search_story_chunks_hybrid_lexical(supabase, search_term, chapter_cap, limit=4)
                 if story_res:
-                    context_data = build_rag_context_block(story_res, max_chunks=3)
+                    context_data = build_rag_context_block(story_res, max_chunks=4)
                     if context_data and context_data.get("context_text"):
-                        context_parts.append(f"\n[BẰNG CHỨNG TỪ CỐT TRUYỆN CHO '{entity_name}']:\n{context_data['context_text']}")
+                        story_block = f"\n[DIỄN BIẾN TRUYỆN CHO '{search_term}']:\n{context_data['context_text']}"
+                        if is_event:
+                            context_parts.insert(0, story_block)
+                        else:
+                            context_parts.append(story_block)
             except Exception as e:
-                print(f"Warning enriching identity answer: {e}")
+                print(f"Warning enriching story context: {e}")
 
         return "\n".join(context_parts) or WIKI_EMPTY_CONTEXT
     except Exception as e:
         print(f"Warning: get_wiki_context failed: {e}")
+
         return ""
 
 
@@ -761,10 +813,18 @@ def get_rag_context_for_oracle(
     Retrieves the RAG context block for the oracle query if RAG is enabled.
     Returns the context data dictionary containing 'context_text' and 'citations', or None.
     """
-    if not is_oracle_rag_enabled():
-        return None
     if not question or not question.strip():
         return None
+
+    try:
+        from backend.rag.retrieval import is_event_plot_question
+        is_event = is_event_plot_question(question)
+    except Exception:
+        is_event = False
+
+    if not is_oracle_rag_enabled() and not is_event:
+        return None
+
 
     try:
         from main import supabase
@@ -933,6 +993,10 @@ async def build_oracle_health(supabase) -> OracleHealthResponse:
     cache_configured = probe_table(supabase, "oracle_cache")
     rate_limit_configured = probe_table(supabase, "oracle_rate_limits")
 
+    from security_utils import get_git_commit, get_git_branch
+    git_c = get_git_commit()
+    git_b = get_git_branch()
+
     try:
         from main import get_provider_router, resolve_ai_provider_config
     except ImportError:
@@ -951,6 +1015,8 @@ async def build_oracle_health(supabase) -> OracleHealthResponse:
             rate_limit_configured=rate_limit_configured,
             cache_configured=cache_configured,
             detail="Oracle chưa cấu hình hoặc không có nhà cung cấp AI Multi-provider nào khả dụng (vui lòng cấu hình API keys trong novel_settings).",
+            git_commit=git_c,
+            git_branch=git_b,
         )
 
     # Let's run a test query to verify if the router works
@@ -970,6 +1036,8 @@ async def build_oracle_health(supabase) -> OracleHealthResponse:
                 rate_limit_configured=rate_limit_configured,
                 cache_configured=cache_configured,
                 detail="Oracle backend sẵn sàng xử lý qua bộ định tuyến Multi-provider.",
+                git_commit=git_c,
+                git_branch=git_b,
             )
         else:
             err_msg = result.error_message or "Router returned empty response"
@@ -984,6 +1052,8 @@ async def build_oracle_health(supabase) -> OracleHealthResponse:
                 detail=f"Lỗi kết nối bộ định tuyến AI Multi-provider: {err_msg}",
                 upstream_status=502,
                 upstream_error=err_msg,
+                git_commit=git_c,
+                git_branch=git_b,
             )
     except Exception as exc:
         return OracleHealthResponse(
@@ -997,7 +1067,10 @@ async def build_oracle_health(supabase) -> OracleHealthResponse:
             detail=f"Lỗi kết nối bộ định tuyến AI Multi-provider: {exc}",
             upstream_status=502,
             upstream_error=str(exc),
+            git_commit=git_c,
+            git_branch=git_b,
         )
+
 
 
 @router.get("/health", response_model=OracleHealthResponse)

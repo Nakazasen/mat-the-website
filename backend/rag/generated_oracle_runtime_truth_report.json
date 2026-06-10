@@ -1,0 +1,26 @@
+[
+  {
+    "question": "chiến dịch lệ giang diễn ra như thế nào?",
+    "chapter_progress": 829,
+    "before_signature": "Tổ chức trấn Hi Vọng, Zombie Cấp 3, Chu Vấn, Quân Lệnh Như Sơn, Thể Thôn Phệ Lệ Giang",
+    "after_signature": "Thể Thôn Phệ Lệ Giang, Diễn biến truyện Chương 72, 180, 292, 52",
+    "forbidden_terms": [
+      "Tổ chức trấn Hi Vọng",
+      "Zombie Cấp 3",
+      "Chu Vấn",
+      "Quân Lệnh Như Sơn"
+    ],
+    "required_any_terms": [
+      "Lệ Giang",
+      "Thể Thôn Phệ Lệ Giang",
+      "chiến dịch",
+      "thanh tẩy"
+    ],
+    "production_url": "https://mat-the-website.onrender.com/oracle/ask",
+    "checked_at": "2026-06-11T06:30:00+07:00",
+    "source": "local_wiki",
+    "cache_status": "miss",
+    "pass_or_fail": "pass",
+    "reason": "Successfully filtered out irrelevant entities using exact phrase/entity gating, and forced RAG story chunks to return actual event progression."
+  }
+]

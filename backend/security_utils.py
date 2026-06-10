@@ -43,3 +43,29 @@ def sanitize_plaintext(value: Optional[str]) -> Optional[str]:
     if value is None:
         return None
     return bleach.clean(value, tags=[], attributes={}, strip=True).strip()
+
+
+def get_git_commit() -> Optional[str]:
+    import os
+    import subprocess
+    commit = os.getenv("RENDER_GIT_COMMIT")
+    if commit and commit.strip():
+        return commit.strip()
+    try:
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=base_dir).decode("utf-8").strip()
+    except Exception:
+        return None
+
+
+def get_git_branch() -> Optional[str]:
+    import os
+    import subprocess
+    branch = os.getenv("RENDER_GIT_BRANCH")
+    if branch and branch.strip():
+        return branch.strip()
+    try:
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        return subprocess.check_output(["git", "branch", "--show-current"], cwd=base_dir).decode("utf-8").strip()
+    except Exception:
+        return None

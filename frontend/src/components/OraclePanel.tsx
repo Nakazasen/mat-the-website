@@ -5,6 +5,31 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocale } from "@/context/LocaleContext";
 import { useTheme } from "@/context/ThemeContext";
 
+function cleanMessageText(text: string): string {
+    if (!text) return "";
+    if (!text.includes("[DỮ LIỆU HỆ THỐNG]")) {
+        return text;
+    }
+    const lines = text.split("\n");
+    const cleanedLines = lines
+        .map(line => {
+            let temp = line.strip ? line.strip() : line.trim();
+            if (temp === "[DỮ LIỆU HỆ THỐNG]" || temp === "DỮ LIỆU HỆ THỐNG") {
+                return "";
+            }
+            temp = temp.replace(/^\[CANON WIKI\]\s*/i, "• ");
+            temp = temp.replace(/^\[THƯ VIỆN TỰ ĐỘNG\s*-\s*[^\]]+\]\s*/i, "• ");
+            temp = temp.replace(/^\[THƯ VIỆN TỰ ĐỘNG\]\s*/i, "• ");
+            temp = temp.replace(/^\[CHƯA CÓ MỤC ĐỊNH DANH CHÍNH XÁC\]\s*/i, "");
+            temp = temp.replace(/^\[BẰNG CHỨNG TỪ CỐT TRUYỆN CHO '[^']+'\]:?\s*/i, "");
+            return temp;
+        })
+        .filter(line => line.length > 0);
+    return cleanedLines.join("\n");
+}
+
+
+
 interface Message {
     role: "user" | "oracle";
     text: string;
@@ -88,6 +113,12 @@ export default function OraclePanel({
     const [dragState, setDragState] = useState<{ offsetX: number; offsetY: number } | null>(null);
     const bottomRef = useRef<HTMLDivElement>(null);
     const buttonRef = useRef<HTMLButtonElement>(null);
+
+    const isAdminDebug = useMemo(() => {
+        if (typeof window === "undefined") return false;
+        return window.location.pathname.startsWith("/admin") || localStorage.getItem("admin_debug") === "true";
+    }, []);
+
 
     const [activeFeedbackIndex, setActiveFeedbackIndex] = useState<number | null>(null);
     const [feedbackType, setFeedbackType] = useState("wrong");
@@ -353,7 +384,7 @@ export default function OraclePanel({
                                         whiteSpace: "pre-wrap",
                                     }}
                                 >
-                                    {message.text}
+                                    {isAdminDebug ? message.text : cleanMessageText(message.text)}
                                 </div>
                                 {message.source && (
                                     <div style={{ fontSize: "9px", color: "rgba(255,255,255,0.25)", fontFamily: "monospace", paddingLeft: "4px" }}>

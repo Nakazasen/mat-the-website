@@ -593,10 +593,15 @@ def search_wiki_entries(
         scored_rows.sort(key=lambda x: x[0], reverse=True)
 
         results = []
+        non_stop_kws = [kw for kw in keywords if kw not in STOP_WORDS]
+        n_kws = len(non_stop_kws)
+        threshold = 12.0 if n_kws >= 2 else (5.0 if n_kws == 1 else 0.0)
+
         for score, row in scored_rows:
-            if score <= 0:
+            if score < threshold:
                 continue
             title = row.get("title", "")
+
             category = row.get("category", "")
             summary = row.get("summary") or row.get("content") or ""
             results.append({
@@ -894,10 +899,15 @@ def search_provisional_library(
         scored_rows.sort(key=lambda x: (x[0], x[1]), reverse=True)
 
         results = []
+        non_stop_kws = [kw for kw in keywords if kw not in STOP_WORDS]
+        n_kws = len(non_stop_kws)
+        threshold = 15.0 if n_kws >= 2 else (8.0 if n_kws == 1 else 0.0)
+
         for score, confidence, row, filtered_evidence, eff_status, pol, disp_score, tot_fb, sum_ovr, typ_ovr, warn_rec in scored_rows:
-            if score <= 0:
+            if score < threshold:
                 continue
             name = row.get("name", "")
+
             type_val = typ_ovr if typ_ovr else row.get("type", "")
             summary = sum_ovr if sum_ovr else row.get("summary", "")
             quality_class = row.get("quality_class", "")
@@ -972,3 +982,26 @@ def merge_oracle_knowledge_results(
         merged.append(r)
 
     return merged[:limit]
+
+
+def is_event_plot_question(question: str) -> bool:
+    """Detects event/campaign plot queries asking how they unfolded."""
+    if not question:
+        return False
+    q = question.lower().strip()
+    q = re.sub(r"[?\s]+$", "", q)
+
+    # Check for keywords indicating plot development/event occurrences
+    event_indicators = (
+        "diễn ra như thế nào", "diễn ra ra sao", "diễn biến",
+        "nội dung", "sự kiện", "xảy ra như thế nào", "xảy ra ra sao",
+        "tóm tắt", "diễn ra thế nào"
+    )
+    if any(ind in q for ind in event_indicators):
+        return True
+
+    # Also check if the query starts with "chiến dịch" or contains "chiến dịch" and asks about occurrence/details
+    if "chiến dịch" in q and any(w in q for w in ["như thế nào", "ra sao", "thế nào", "gì", "ở đâu"]):
+        return True
+
+    return False
