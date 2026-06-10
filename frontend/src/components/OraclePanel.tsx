@@ -13,7 +13,7 @@ function cleanMessageText(text: string): string {
     const lines = text.split("\n");
     const cleanedLines = lines
         .map(line => {
-            let temp = line.strip ? line.strip() : line.trim();
+            let temp = line.trim();
             if (temp === "[DỮ LIỆU HỆ THỐNG]" || temp === "DỮ LIỆU HỆ THỐNG") {
                 return "";
             }
@@ -22,6 +22,10 @@ function cleanMessageText(text: string): string {
             temp = temp.replace(/^\[THƯ VIỆN TỰ ĐỘNG\]\s*/i, "• ");
             temp = temp.replace(/^\[CHƯA CÓ MỤC ĐỊNH DANH CHÍNH XÁC\]\s*/i, "");
             temp = temp.replace(/^\[BẰNG CHỨNG TỪ CỐT TRUYỆN CHO '[^']+'\]:?\s*/i, "");
+            temp = temp.replace(/^\[DIỄN BIẾN TRUYỆN CHO\s*'[^']+'\]:?\s*/i, "");
+            temp = temp.replace(/^\[CHƯƠNG\s*(\d+)\s*-\s*([^|\]]+)(?:\s*\|\s*chunk\s*\d+)?\]/i, (match, chNum, chTitle) => {
+                return `Chương ${chNum}: ${chTitle.trim()}`;
+            });
             return temp;
         })
         .filter(line => line.length > 0);

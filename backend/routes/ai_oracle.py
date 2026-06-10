@@ -587,9 +587,10 @@ async def get_wiki_context(supabase, question: str, chapter_cap: int, active_pat
                         phrase = " ".join(ngram)
                         if phrase not in directly_mentioned_entities:
                             directly_mentioned_entities.append(phrase)
-            if not directly_mentioned_entities:
-                for w in words:
-                    if w not in STOP_WORDS and len(w) >= 3:
+            # Also extract individual words that are not stop words and length >= 3
+            for w in words:
+                if w not in STOP_WORDS and len(w) >= 3:
+                    if w not in directly_mentioned_entities:
                         directly_mentioned_entities.append(w)
 
 
@@ -698,15 +699,21 @@ async def get_wiki_context(supabase, question: str, chapter_cap: int, active_pat
                 from backend.rag.context_builder import build_rag_context_block
                 story_res = search_story_chunks_hybrid_lexical(supabase, search_term, chapter_cap, limit=8)
                 if story_res:
-                    # Filter story chunks to require containing at least one directly mentioned entity if present
-                    if directly_mentioned_entities:
-                        filtered_story_res = []
-                        for chunk in story_res:
-                            text = (chunk.get("content_plain") or "").lower()
-                            title = (chunk.get("chapter_title") or "").lower()
-                            if any(dm in text or dm in title for dm in directly_mentioned_entities):
-                                filtered_story_res.append(chunk)
-                        story_res = filtered_story_res
+                    # Filter story chunks to require containing at least one directly mentioned entity if present,
+                    # and exclude chunks containing forbidden terms.
+                    forbidden_story_terms = ["chu vấn", "zombie cấp 3", "trấn hi vọng", "quân lệnh như sơn"]
+                    filtered_story_res = []
+                    for chunk in story_res:
+                        text = (chunk.get("content_plain") or "").lower()
+                        title = (chunk.get("chapter_title") or "").lower()
+
+                        has_entity = not directly_mentioned_entities or any(dm in text or dm in title for dm in directly_mentioned_entities)
+                        has_forbidden = any(ft in text or ft in title for ft in forbidden_story_terms)
+
+                        if has_entity and not has_forbidden:
+                            filtered_story_res.append(chunk)
+                    story_res = filtered_story_res
+
                     context_data = build_rag_context_block(story_res, max_chunks=4)
                     if context_data and context_data.get("context_text"):
                         story_block = f"\n[DIỄN BIẾN TRUYỆN CHO '{search_term}']:\n{context_data['context_text']}"
@@ -874,14 +881,20 @@ def get_rag_context_for_oracle(
         if "lệ giang" in q_norm:
             filter_phrases = ["lệ giang"]
 
-        if filter_phrases:
-            filtered_results = []
-            for r in results:
-                text = (r.get("content_plain") or "").lower()
-                title = (r.get("chapter_title") or "").lower()
-                if any(fp in text or fp in title for fp in filter_phrases):
-                    filtered_results.append(r)
-            results = filtered_results
+        forbidden_story_terms = ["chu vấn", "zombie cấp 3", "trấn hi vọng", "quân lệnh như sơn"]
+
+        filtered_results = []
+        for r in results:
+            text = (r.get("content_plain") or "").lower()
+            title = (r.get("chapter_title") or "").lower()
+
+            has_phrase = not filter_phrases or any(fp in text or fp in title for fp in filter_phrases)
+            has_forbidden = any(ft in text or ft in title for ft in forbidden_story_terms)
+
+            if has_phrase and not has_forbidden:
+                filtered_results.append(r)
+        results = filtered_results
+
 
         context_data = build_rag_context_block(results, max_chunks=limit)
         if context_data.get("chunks_used", 0) == 0:
