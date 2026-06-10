@@ -127,8 +127,14 @@ def build_feedback_summaries(feedbacks: List[Dict[str, Any]]) -> List[Dict[str, 
         })
     return summaries
 
-def clear_oracle_cache_selectively(patterns_and_entities: List[str], dry_run: bool, supabase_client = None) -> int:
-    if not patterns_and_entities:
+def hash_question_local(question: str, chapter_cap: int) -> str:
+    import re
+    import hashlib
+    normalized = re.sub(r"\s+", " ", question.lower().strip())
+    return hashlib.sha256(f"{normalized}|{chapter_cap}".encode()).hexdigest()[:32]
+
+def clear_oracle_cache_selectively(patterns_and_entities: List[str], normalized_queries: List[str], dry_run: bool, supabase_client = None) -> int:
+    if not patterns_and_entities and not normalized_queries:
         return 0
     client = supabase_client if supabase_client is not None else supabase
     try:
@@ -142,13 +148,25 @@ def clear_oracle_cache_selectively(patterns_and_entities: List[str], dry_run: bo
             qh = entry.get("question_hash")
             cc = entry.get("chapter_cap")
             
+            if not qh or cc is None:
+                continue
+                
             match = False
-            for term in patterns_and_entities:
-                if term.lower() in resp:
+            # 1. Exact query match using hash
+            for q_pat in normalized_queries:
+                test_hash = hash_question_local(q_pat, cc)
+                if test_hash == qh:
                     match = True
                     break
+            
+            # 2. Relative matches (entity name in response text)
+            if not match:
+                for term in patterns_and_entities:
+                    if term.lower() in resp:
+                        match = True
+                        break
                     
-            if match and qh and cc is not None:
+            if match:
                 if not dry_run:
                     client.table("oracle_cache").delete().eq("question_hash", qh).eq("chapter_cap", cc).execute()
                 deleted_count += 1
@@ -238,14 +256,21 @@ def run_oracle_answer_feedback_pipeline(
     cache_cleared = 0
     if clear_cache:
         terms_to_clear = set()
+        queries_to_clear = set()
         for p in candidate_patches:
             if p.get("target_entity"):
                 terms_to_clear.add(p["target_entity"])
             if p.get("query_pattern"):
+                queries_to_clear.add(p["query_pattern"])
                 clean = p["query_pattern"].replace(" là ai", "").replace(" là gì", "").strip()
                 if len(clean) >= 2:
                     terms_to_clear.add(clean)
-        cache_cleared = clear_oracle_cache_selectively(list(terms_to_clear), dry_run=dry_run, supabase_client=supabase_client)
+        cache_cleared = clear_oracle_cache_selectively(
+            patterns_and_entities=list(terms_to_clear),
+            normalized_queries=list(queries_to_clear),
+            dry_run=dry_run,
+            supabase_client=supabase_client
+        )
 
     return {
         "feedback_rows_read": feedback_count,

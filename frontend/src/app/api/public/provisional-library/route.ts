@@ -99,7 +99,7 @@ export async function GET(request: NextRequest) {
     if (ids.length > 0) {
       const { data: patchData, error: patchError } = await supabase
         .from("provisional_library_effective_patches")
-        .select("target_id, patch_type, oracle_policy, effective_status, reason, effective_summary")
+        .select("target_id, patch_type, oracle_policy, effective_status, reason, effective_summary, effective_type")
         .eq("effective_status", "active")
         .eq("target_type", "provisional_record")
         .in("target_id", ids);
@@ -116,6 +116,7 @@ export async function GET(request: NextRequest) {
       const patch = activePatches[item.id] || {};
       return {
         ...item,
+        type: patch.effective_type || item.type,
         effective_status: patch.effective_status || summary.effective_status || "trusted",
         oracle_policy: patch.oracle_policy || summary.oracle_policy || "allow",
         dispute_score: summary.dispute_score ?? 0,
@@ -128,8 +129,11 @@ export async function GET(request: NextRequest) {
 
     const noiseBlacklist = new Set(["ác độc", "ác ý", "âm ẩm", "đây đã"]);
     const filteredItems = mappedItems.filter((item: any) => {
+      const isHidden = item.oracle_policy === 'block' || 
+                       item.effective_status === 'hidden_from_oracle' || 
+                       item.patch_type === 'hide_record';
       const name = (item.name || "").toLowerCase().trim();
-      return !noiseBlacklist.has(name);
+      return !isHidden && !noiseBlacklist.has(name);
     });
 
     let finalItems = filteredItems;
@@ -195,6 +199,12 @@ export async function GET(request: NextRequest) {
       total: count || 0,
       page,
       page_size: pageSize
+    }, {
+      headers: {
+        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0"
+      }
     });
   } catch (error: any) {
     console.error("Error loading public provisional library:", error);

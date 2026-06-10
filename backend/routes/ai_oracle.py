@@ -19,7 +19,7 @@ from time import perf_counter
 from typing import Optional, Any, Literal
 
 import httpx
-from fastapi import APIRouter, Header, HTTPException, Request
+from fastapi import APIRouter, Header, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/oracle", tags=["ai_oracle"])
@@ -559,12 +559,36 @@ async def get_wiki_context(supabase, question: str, chapter_cap: int, active_pat
         entity_name = extract_entity_name(question) if is_ident else ""
 
         # Apply suppress_irrelevant_entity_expansion:
-        # filter out matches that do not exactly or nearly match the target entity
-        if suppress_irrelevant and entity_name:
+        # filter out matches that do not exactly or nearly match the target entity/question
+        if suppress_irrelevant:
             filtered_merged = []
+            patch_entities = []
+            if active_patches:
+                for patch in active_patches:
+                    if patch.get("patch_type") == "suppress_irrelevant_entity_expansion":
+                        te = patch.get("target_entity")
+                        if te:
+                            patch_entities.append(te.lower())
+
             for r in merged:
-                name_val = r.get("title") or r.get("name") or ""
-                if is_exact_or_near_match(name_val, entity_name):
+                name_val = (r.get("title") or r.get("name") or "").lower()
+                q_lower = question.lower()
+                
+                # We keep the record if:
+                # 1. It exactly or nearly matches the extracted identity entity_name (if any)
+                # 2. Or the record's name is found in the question text (e.g. "Lệ Giang" in "chiến dịch lệ giang")
+                # 3. Or the target_entity of the patch is found in the record name or vice-versa
+                matched = False
+                if entity_name and is_exact_or_near_match(r.get("title") or r.get("name") or "", entity_name):
+                    matched = True
+                elif name_val in q_lower or q_lower in name_val:
+                    matched = True
+                else:
+                    for te in patch_entities:
+                        if te in name_val or name_val in te:
+                            matched = True
+                            break
+                if matched:
                     filtered_merged.append(r)
             merged = filtered_merged
 
@@ -1098,7 +1122,10 @@ async def test_multi_provider_model(
 
 
 @router.post("/ask", response_model=OracleResponse)
-async def ask_oracle(body: OracleRequest, request: Request):
+async def ask_oracle(body: OracleRequest, request: Request, response: Response):
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, proxy-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
     try:
         from main import supabase
     except ImportError:

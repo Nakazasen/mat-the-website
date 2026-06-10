@@ -250,6 +250,14 @@ def run_feedback_policy_pipeline(
         if patch_stats.get("errors"):
             errors.extend(patch_stats["errors"])
 
+        # Update feedback status to 'resolved'
+        feedback_ids = [fb.get("id") for fb in feedback_rows if fb.get("id")]
+        if feedback_ids and not dry_run:
+            try:
+                supabase_client.table("provisional_library_feedback").update({"status": "resolved"}).in_("id", feedback_ids).execute()
+            except Exception as e:
+                errors.append(f"Failed to resolve library feedbacks: {e}")
+
         # 7. Collect names for cache clearing
         target_names_to_clear = set()
         for p in generated_patches:
