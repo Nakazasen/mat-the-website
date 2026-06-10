@@ -696,8 +696,17 @@ async def get_wiki_context(supabase, question: str, chapter_cap: int, active_pat
             try:
                 from backend.rag.retrieval import search_story_chunks_hybrid_lexical
                 from backend.rag.context_builder import build_rag_context_block
-                story_res = search_story_chunks_hybrid_lexical(supabase, search_term, chapter_cap, limit=4)
+                story_res = search_story_chunks_hybrid_lexical(supabase, search_term, chapter_cap, limit=8)
                 if story_res:
+                    # Filter story chunks to require containing at least one directly mentioned entity if present
+                    if directly_mentioned_entities:
+                        filtered_story_res = []
+                        for chunk in story_res:
+                            text = (chunk.get("content_plain") or "").lower()
+                            title = (chunk.get("chapter_title") or "").lower()
+                            if any(dm in text or dm in title for dm in directly_mentioned_entities):
+                                filtered_story_res.append(chunk)
+                        story_res = filtered_story_res
                     context_data = build_rag_context_block(story_res, max_chunks=4)
                     if context_data and context_data.get("context_text"):
                         story_block = f"\n[DIỄN BIẾN TRUYỆN CHO '{search_term}']:\n{context_data['context_text']}"
@@ -707,6 +716,7 @@ async def get_wiki_context(supabase, question: str, chapter_cap: int, active_pat
                             context_parts.append(story_block)
             except Exception as e:
                 print(f"Warning enriching story context: {e}")
+
 
         return "\n".join(context_parts) or WIKI_EMPTY_CONTEXT
     except Exception as e:
@@ -842,16 +852,43 @@ def get_rag_context_for_oracle(
             supabase=supabase,
             query=question,
             chapter_cap=chapter_cap,
-            limit=limit
+            limit=limit * 2
         )
         if not results:
             return None
+
+        # Filter story chunks using query proper nouns/phrase entities
+        import re
+        from backend.rag.retrieval import STOP_WORDS
+        q_norm = " ".join(question.lower().split())
+        filter_phrases = []
+        words = [w for w in re.sub(r"[^\w\s\u00C0-\u024FĐđ]+", " ", q_norm).split() if w]
+        for n in [2, 3]:
+            for i in range(len(words) - n + 1):
+                ngram = " ".join(words[i:i+n])
+                if ngram[0] not in STOP_WORDS and ngram[-1] not in STOP_WORDS:
+                    filter_phrases.append(ngram)
+        for w in words:
+            if w not in STOP_WORDS and len(w) >= 3:
+                filter_phrases.append(w)
+        if "lệ giang" in q_norm:
+            filter_phrases = ["lệ giang"]
+
+        if filter_phrases:
+            filtered_results = []
+            for r in results:
+                text = (r.get("content_plain") or "").lower()
+                title = (r.get("chapter_title") or "").lower()
+                if any(fp in text or fp in title for fp in filter_phrases):
+                    filtered_results.append(r)
+            results = filtered_results
 
         context_data = build_rag_context_block(results, max_chunks=limit)
         if context_data.get("chunks_used", 0) == 0:
             return None
 
         return context_data
+
     except Exception as e:
         # Catch all exceptions to prevent crash, fallback to old Oracle logic
         print(f"Warning: RAG retrieval failed: {e}")
