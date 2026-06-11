@@ -28,8 +28,12 @@ CREATE TABLE IF NOT EXISTS oracle_golden_regression_candidates (
 -- Enable RLS
 ALTER TABLE oracle_golden_regression_candidates ENABLE ROW LEVEL SECURITY;
 
+-- Drop policy if exists to prevent duplicate creation errors
+DROP POLICY IF EXISTS "Allow service_role full access to candidates" ON oracle_golden_regression_candidates;
+
 -- Allow service_role to manage all candidates
 CREATE POLICY "Allow service_role full access to candidates"
     ON oracle_golden_regression_candidates
     FOR ALL TO service_role
     USING (true) WITH CHECK (true);
+
