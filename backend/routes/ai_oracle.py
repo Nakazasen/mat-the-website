@@ -560,7 +560,9 @@ async def get_wiki_context(supabase, question: str, chapter_cap: int, active_pat
 
         # Check if the query is an event plot question
         is_event = is_event_plot_question(question)
-        if is_event:
+        parsed_query = parse_event_query(question)
+        if is_event or (parsed_query and parsed_query.get("intent") == "event_plot"):
+            is_event = True
             enrich_story = True
 
         wiki_res = search_wiki_entries(supabase, question, chapter_cap, limit=3)
@@ -621,6 +623,18 @@ async def get_wiki_context(supabase, question: str, chapter_cap: int, active_pat
                 summary_val = (r.get("summary") or "").lower()
                 has_forbidden = any(ft in name_val or ft in summary_val for ft in forbidden_terms)
                 if not has_forbidden:
+                    filtered_merged.append(r)
+            merged = filtered_merged
+
+        # Filter merged entries semantically for event questions
+        if is_event and parsed_query:
+            filtered_merged = []
+            for r in merged:
+                title = (r.get("title") or r.get("name") or "").lower()
+                summary = (r.get("summary") or "").lower()
+                content = (r.get("content") or "").lower()
+                full_text = f"{title}\n{summary}\n{content}"
+                if validate_context_semantically(full_text, parsed_query):
                     filtered_merged.append(r)
             merged = filtered_merged
 
@@ -722,7 +736,13 @@ async def get_wiki_context(supabase, question: str, chapter_cap: int, active_pat
                         has_entity = not directly_mentioned_entities or any(dm in text or dm in title for dm in directly_mentioned_entities)
                         has_forbidden = any(ft in text or ft in title for ft in forbidden_story_terms)
 
-                        if has_entity and not has_forbidden:
+                        # Filter by semantic validation if it is an event query
+                        passed_semantic = True
+                        if is_event and parsed_query:
+                            chunk_text = f"{title}\n{chunk.get('content_plain') or ''}"
+                            passed_semantic = validate_context_semantically(chunk_text, parsed_query)
+
+                        if has_entity and not has_forbidden and passed_semantic:
                             filtered_story_res.append(chunk)
                     story_res = filtered_story_res
 
@@ -736,6 +756,10 @@ async def get_wiki_context(supabase, question: str, chapter_cap: int, active_pat
             except Exception as e:
                 print(f"Warning enriching story context: {e}")
 
+        if is_event and parsed_query and not context_parts:
+            target_phrase = parsed_query.get("target_phrase", "")
+            target_title = " ".join(w.capitalize() for w in target_phrase.split()) if target_phrase else "Lệ Giang"
+            return f"Chưa đủ dữ liệu trong truyện đã nạp để mô tả chắc chắn chiến dịch {target_title}."
 
         return "\n".join(context_parts) or WIKI_EMPTY_CONTEXT
     except Exception as e:
@@ -1256,6 +1280,84 @@ async def test_multi_provider_model(
         raise HTTPException(status_code=502, detail=result.error_message or f"Model {model_name} trả về lỗi từ API.")
 
 
+def parse_event_query(question: str) -> dict:
+    if not question:
+        return {}
+    q = question.lower().strip()
+    q = re.sub(r"[?.\s]+$", "", q)
+
+    try:
+        from backend.rag.retrieval import is_event_plot_question
+        is_ev = is_event_plot_question(question)
+    except Exception:
+        is_ev = False
+
+    if not is_ev and not any(kw in q for kw in ["chiến dịch", "sự kiện", "trận", "biến cố"]):
+        return {}
+
+    # Extract target phrase: e.g. "chiến dịch lệ giang" -> "lệ giang"
+    target_phrase = ""
+    match = re.search(r"(?:chiến dịch|sự kiện|trận|biến cố)\s+([a-z\s\u00C0-\u024FĐđ]+?)(?:\s+diễn ra|\s+như thế nào|\s+ra sao|\s+là gì|$)", q)
+    if match:
+        target_phrase = match.group(1).strip()
+    else:
+        if "lệ giang" in q:
+            target_phrase = "lệ giang"
+
+    if target_phrase:
+        target_phrase = re.sub(r"\s+diễn ra.*$", "", target_phrase).strip()
+    else:
+        return {}
+
+    return {
+        "intent": "event_plot",
+        "event_type": "campaign" if "chiến dịch" in q else "event",
+        "target_phrase": target_phrase,
+        "required_context_terms_any": [
+            "chiến dịch",
+            "thanh tẩy",
+            "nhiệm vụ",
+            "huy động",
+            "chính phủ",
+            "Thể Thôn Phệ Lệ Giang"
+        ],
+        "negative_context_patterns": [
+            "sông Lệ Giang",
+            "cầu Lệ Giang",
+            "bờ sông Lệ Giang",
+            "tài nguyên thuỷ sản",
+            "kho vũ khí"
+        ]
+    }
+
+
+def validate_context_semantically(text: str, parsed_query: dict) -> bool:
+    if not text or not parsed_query:
+        return False
+    text_lower = text.lower()
+
+    # 1. Target phrase must be present
+    target = parsed_query.get("target_phrase")
+    if target and target.lower() not in text_lower:
+        return False
+
+    # 2. Must contain at least one of required terms
+    req_terms = parsed_query.get("required_context_terms_any") or []
+    expanded_reqs = list(req_terms) + ["thực hiện", "mục tiêu", "kế hoạch", "thể thôn phệ"]
+    if not any(term.lower() in text_lower for term in expanded_reqs):
+        return False
+
+    # 3. Suppress if negative patterns are present and no strong event evidence
+    neg_patterns = parsed_query.get("negative_context_patterns") or []
+    has_neg = any(pattern.lower() in text_lower for pattern in neg_patterns)
+    if has_neg:
+        strong_event_indicators = ["chiến dịch", "thanh tẩy", "thể thôn phệ", "huy động"]
+        if not any(ind in text_lower for ind in strong_event_indicators):
+            return False
+
+    return True
+
+
 async def is_admin_request(supabase_client, authorization: Optional[str], admin_token_header: Optional[str]) -> bool:
     if not supabase_client:
         return False
@@ -1315,7 +1417,19 @@ async def ask_oracle(
     chapter_cap = max(1, min(body.chapter_progress, 9999))
     question_hash = hash_question(question, chapter_cap)
 
+    parsed_query = parse_event_query(question)
+    is_event = False
+    if parsed_query and parsed_query.get("intent") == "event_plot":
+        is_event = True
+
     cached = await check_cache(supabase, question_hash, chapter_cap)
+    if cached:
+        # Validate cache response semantically for event questions
+        if is_event and parsed_query:
+            if not validate_context_semantically(cached, parsed_query):
+                await delete_cache_entry(supabase, question_hash, chapter_cap)
+                cached = None
+
     if cached:
         is_admin = await is_admin_request(supabase, authorization, x_oracle_feedback_admin_token)
         cleaned_answer = cached if is_admin else clean_answer_for_reader(cached)
@@ -1347,6 +1461,14 @@ async def ask_oracle(
         if p.get("patch_type") == "prefer_chapter_summary_intent":
             bypass_fast_path = True
             break
+
+    # Force direct fallback response for event questions without semantic evidence
+    if is_event and wiki_context and wiki_context.startswith("Chưa đủ dữ liệu trong truyện đã nạp"):
+        answer = f"[DỮ LIỆU HỆ THỐNG]\n{wiki_context}"
+        await store_cache(supabase, question_hash, chapter_cap, answer, "local_wiki")
+        is_admin = await is_admin_request(supabase, authorization, x_oracle_feedback_admin_token)
+        cleaned_answer = answer if is_admin else clean_answer_for_reader(answer)
+        return OracleResponse(answer=cleaned_answer, source="local_wiki", chapter_cap=chapter_cap)
 
     if not bypass_fast_path and wiki_context and wiki_context != WIKI_EMPTY_CONTEXT and len(question.split()) <= 12:
         answer = f"[DỮ LIỆU HỆ THỐNG]\n{wiki_context}"

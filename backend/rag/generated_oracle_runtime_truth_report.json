@@ -2,7 +2,7 @@
   {
     "question": "chiến dịch lệ giang diễn ra như thế nào?",
     "chapter_progress": 829,
-    "checked_at": "2026-06-12T05:52:57+07:00",
+    "checked_at": "2026-06-12T06:12:00+07:00",
     "base_url": "https://mat-the-website.onrender.com",
     "required_any_terms": [
       "Lệ Giang",
@@ -10,16 +10,31 @@
       "chiến dịch",
       "thanh tẩy"
     ],
+    "semantic_required_any_terms": [
+      "chiến dịch",
+      "thanh tẩy",
+      "nhiệm vụ",
+      "huy động",
+      "Thể Thôn Phệ Lệ Giang"
+    ],
     "forbidden_terms": [
       "Tổ chức trấn Hi Vọng",
       "Zombie Cấp 3",
       "Chu Vấn",
       "Quân Lệnh Như Sơn"
     ],
-    "response_excerpt": "Hàn Phong gật đầu, chẳng những thế, khu ký túc xá này còn gần sông Lệ Giang, bên kia cầu Lệ Giang chính là huyện Tam Giang. Sông Lệ Giang còn có tài nguyên thuỷ sản, hẳn có thể đáp ứng nhu cầu lương thực tươi sống.",
+    "semantic_forbidden_patterns": [
+      "sông Lệ Giang",
+      "cầu Lệ Giang",
+      "bờ sông Lệ Giang",
+      "tài nguyên thuỷ sản",
+      "kho vũ khí"
+    ],
+    "allow_cache": false,
+    "response_excerpt": "Chưa đủ dữ liệu trong truyện đã nạp để mô tả chắc chắn chiến dịch Lệ Giang.",
     "raw_system_context_visible": false,
-    "cache_status": "cache",
+    "cache_status": "local_wiki",
     "status": "pass",
-    "reason": "Production API correctly filtered forbidden terms, returned content referencing Lệ Giang, and successfully stripped [DỮ LIỆU HỆ THỐNG] prefix for the normal reader request."
+    "reason": "Production API correctly filtered out location-only chunks and returned the clean fallback abstain answer when no semantic event evidence was present."
   }
 ]
