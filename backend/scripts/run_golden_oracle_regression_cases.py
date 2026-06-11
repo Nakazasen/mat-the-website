@@ -6,6 +6,13 @@ import argparse
 import ssl
 from datetime import datetime, timezone
 
+# Add repository root to sys.path to ensure absolute imports work
+script_dir = os.path.dirname(os.path.abspath(__file__))
+repo_root = os.path.dirname(script_dir)
+if repo_root not in sys.path:
+    sys.path.insert(0, repo_root)
+
+
 def run_regression():
     try:
         sys.stdout.reconfigure(encoding='utf-8')
@@ -16,6 +23,8 @@ def run_regression():
     parser.add_argument("--base-url", required=True, help="Base URL of the target backend service.")
     parser.add_argument("--json", action="store_true", help="Print summary output in JSON format.")
     parser.add_argument("--write-report", action="store_true", help="Save the detailed execution report to backend/rag.")
+    parser.add_argument("--source", default="json", choices=["json", "db"], help="Where to load test cases from (json or db).")
+    parser.add_argument("--write-db-run", action="store_true", help="Write execution results into oracle_golden_regression_runs DB table.")
 
     args = parser.parse_args()
     base_url = args.base_url.rstrip('/')
@@ -26,12 +35,31 @@ def run_regression():
     cases_path = os.path.join(repo_root, "rag", "golden_oracle_regression_cases.json")
     report_path = os.path.join(repo_root, "rag", "generated_golden_oracle_regression_report.json")
 
-    if not os.path.exists(cases_path):
-        print(f"Error: Cases file not found at {cases_path}", file=sys.stderr)
-        sys.exit(1)
-
-    with open(cases_path, "r", encoding="utf-8") as f:
-        cases = json.load(f)
+    cases = []
+    if args.source == "db":
+        try:
+            try:
+                from backend.main import supabase
+            except ImportError:
+                from main import supabase
+            res = supabase.table("oracle_golden_regression_cases").select("*").eq("status", "active").execute()
+            if not res.data:
+                cases = []
+            else:
+                cases = []
+                for db_case in res.data:
+                    c = dict(db_case)
+                    c["id"] = db_case["case_key"]
+                    cases.append(c)
+        except Exception as e:
+            print(f"Error loading cases from Supabase database: {e}", file=sys.stderr)
+            sys.exit(1)
+    else:
+        if not os.path.exists(cases_path):
+            print(f"Error: Cases file not found at {cases_path}", file=sys.stderr)
+            sys.exit(1)
+        with open(cases_path, "r", encoding="utf-8") as f:
+            cases = json.load(f)
 
     results = []
     passed_count = 0
@@ -161,6 +189,50 @@ def run_regression():
             status_str = "PASS" if r["passed"] else "FAIL"
             print(f"[{status_str}] Case: {r['case_id']}")
             print(f"  Reason: {r['reason']}")
+
+    # Write runs to database if requested
+    if args.write_db_run:
+        try:
+            try:
+                from backend.main import supabase
+            except ImportError:
+                from main import supabase
+
+            git_commit = None
+            try:
+                git_commit = os.getenv("RENDER_GIT_COMMIT") or os.getenv("GITHUB_SHA")
+                if not git_commit:
+                    import subprocess
+                    git_commit = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode("utf-8").strip()
+            except Exception:
+                pass
+
+            workflow_run_id = os.getenv("GITHUB_RUN_ID")
+
+            run_payloads = []
+            for r in results:
+                status_code = 200 if r["passed"] or "HTTP request failed" not in r["reason"] else 500
+                if "status:" in r["reason"]:
+                    try:
+                        status_code = int(r["reason"].split("status:")[1].strip())
+                    except Exception:
+                        pass
+
+                run_payloads.append({
+                    "case_key": r["case_id"],
+                    "base_url": base_url,
+                    "passed": r["passed"],
+                    "reason": r["reason"],
+                    "answer_excerpt": r["answer"][:500] if r["answer"] else None,
+                    "source": r["source"],
+                    "response_status": status_code,
+                    "git_commit": git_commit,
+                    "workflow_run_id": workflow_run_id
+                })
+            if run_payloads:
+                supabase.table("oracle_golden_regression_runs").insert(run_payloads).execute()
+        except Exception as e:
+            print(f"Warning: Failed to write run results to database: {e}", file=sys.stderr)
 
     if len(results) == 0:
         if not args.json:

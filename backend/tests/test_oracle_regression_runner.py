@@ -168,3 +168,188 @@ def test_runner_exits_1_on_network_exception():
          with patch("builtins.open", new=mock_open):
              run_regression()
              mock_exit.assert_called_once_with(1)
+
+def test_sql_migration_exists_and_contains_tables():
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sql_path = os.path.join(repo_root, "sql", "create_oracle_golden_regression_registry.sql")
+    assert os.path.exists(sql_path)
+    with open(sql_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    assert "oracle_golden_regression_cases" in content
+    assert "oracle_golden_regression_runs" in content
+
+def test_seed_script_dry_run_no_writes():
+    from backend.scripts.seed_oracle_golden_regression_cases import main as seed_main
+    mock_supabase = MagicMock()
+    mock_supabase.table.return_value.select.return_value.execute.return_value.data = []
+
+    with patch("backend.main.supabase", mock_supabase), \
+         patch("sys.argv", ["seed_oracle_golden_regression_cases.py", "--dry-run", "--json"]):
+         try:
+             seed_main()
+         except SystemExit:
+             pass
+         mock_supabase.table.assert_called_with("oracle_golden_regression_cases")
+         mock_supabase.table.return_value.upsert.assert_not_called()
+
+def test_seed_script_upsert_payload_schema():
+    from backend.scripts.seed_oracle_golden_regression_cases import main as seed_main
+    mock_supabase = MagicMock()
+    mock_supabase.table.return_value.select.return_value.execute.return_value.data = []
+
+    with patch("backend.main.supabase", mock_supabase), \
+         patch("sys.argv", ["seed_oracle_golden_regression_cases.py", "--write", "--json"]):
+         try:
+             seed_main()
+         except SystemExit:
+             pass
+         mock_supabase.table.return_value.upsert.assert_called()
+         called_payload = mock_supabase.table.return_value.upsert.call_args[0][0]
+         assert "case_key" in called_payload
+         assert "must_not_contain" in called_payload
+         assert "semantic_forbidden_patterns" in called_payload
+         assert "semantic_required_any_terms" in called_payload
+         assert "acceptable_abstain" in called_payload
+         assert "expected_abstain_text" in called_payload
+
+def test_runner_source_json_explicit():
+    mock_body = {
+        "answer": "Chưa đủ dữ liệu trong truyện đã nạp để mô tả chắc chắn chiến dịch Lệ Giang.",
+        "source": "local_wiki"
+    }
+    mock_response = MagicMock()
+    mock_response.__enter__.return_value.status = 200
+    mock_response.__enter__.return_value.read.return_value = json.dumps(mock_body).encode("utf-8")
+
+    with patch("urllib.request.urlopen", return_value=mock_response), \
+         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "http://mock", "--source", "json"]):
+
+         with pytest.raises(SystemExit) as excinfo:
+             run_regression()
+         assert excinfo.value.code == 0
+
+def test_runner_source_db_active_cases():
+    mock_supabase = MagicMock()
+    mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value.data = [
+        {
+            "case_key": "db_test_case",
+            "source": "manual_regression",
+            "question": "chiến dịch lệ giang diễn ra như thế nào?",
+            "chapter_progress": 829,
+            "intent": "event_plot",
+            "must_not_contain": [],
+            "semantic_forbidden_patterns": [],
+            "semantic_required_any_terms": [],
+            "acceptable_abstain": True,
+            "expected_abstain_text": "Chưa đủ dữ liệu trong truyện đã nạp để mô tả chắc chắn chiến dịch Lệ Giang.",
+            "status": "active"
+        }
+    ]
+
+    mock_body = {
+        "answer": "Chưa đủ dữ liệu trong truyện đã nạp để mô tả chắc chắn chiến dịch Lệ Giang.",
+        "source": "local_wiki"
+    }
+    mock_response = MagicMock()
+    mock_response.__enter__.return_value.status = 200
+    mock_response.__enter__.return_value.read.return_value = json.dumps(mock_body).encode("utf-8")
+
+    with patch("backend.main.supabase", mock_supabase), \
+         patch("urllib.request.urlopen", return_value=mock_response), \
+         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "http://mock", "--source", "db"]):
+
+         with pytest.raises(SystemExit) as excinfo:
+             run_regression()
+         assert excinfo.value.code == 0
+
+def test_runner_source_db_fail_if_no_active_cases():
+    mock_supabase = MagicMock()
+    mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value.data = []
+
+    with patch("backend.main.supabase", mock_supabase), \
+         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "http://mock", "--source", "db"]):
+
+         with pytest.raises(SystemExit) as excinfo:
+             run_regression()
+         assert excinfo.value.code == 1
+
+def test_runner_write_db_run_result():
+    mock_supabase = MagicMock()
+    mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value.data = [
+        {
+            "case_key": "db_test_case",
+            "source": "manual_regression",
+            "question": "chiến dịch lệ giang diễn ra như thế nào?",
+            "chapter_progress": 829,
+            "intent": "event_plot",
+            "must_not_contain": [],
+            "semantic_forbidden_patterns": [],
+            "semantic_required_any_terms": [],
+            "acceptable_abstain": True,
+            "expected_abstain_text": "Chưa đủ dữ liệu trong truyện đã nạp để mô tả chắc chắn chiến dịch Lệ Giang.",
+            "status": "active"
+        }
+    ]
+
+    mock_body = {
+        "answer": "Chưa đủ dữ liệu trong truyện đã nạp để mô tả chắc chắn chiến dịch Lệ Giang.",
+        "source": "local_wiki"
+    }
+    mock_response = MagicMock()
+    mock_response.__enter__.return_value.status = 200
+    mock_response.__enter__.return_value.read.return_value = json.dumps(mock_body).encode("utf-8")
+
+    with patch("backend.main.supabase", mock_supabase), \
+         patch("urllib.request.urlopen", return_value=mock_response), \
+         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "http://mock", "--source", "db", "--write-db-run"]):
+
+         with pytest.raises(SystemExit) as excinfo:
+             run_regression()
+         assert excinfo.value.code == 0
+         mock_supabase.table.assert_any_call("oracle_golden_regression_runs")
+         called_insert = mock_supabase.table.return_value.insert.call_args[0][0]
+         assert len(called_insert) == 1
+         assert called_insert[0]["case_key"] == "db_test_case"
+         assert called_insert[0]["passed"] is True
+         assert called_insert[0]["source"] == "local_wiki"
+
+def test_disabled_case_not_run():
+    disabled_case = [{
+        "id": "disabled_test_case",
+        "source": "manual_regression",
+        "question": "chiến dịch lệ giang diễn ra như thế nào?",
+        "chapter_progress": 829,
+        "intent": "event_plot",
+        "must_not_contain": [],
+        "semantic_forbidden_patterns": [],
+        "semantic_required_any_terms": [],
+        "acceptable_abstain": True,
+        "expected_abstain_text": "Chưa đủ...",
+        "status": "disabled"
+    }]
+
+    exit_code, report = run_runner_with_mock_response(200, {}, disabled_case)
+    assert exit_code == 1
+    assert len(report["results"]) == 0
+
+def test_seed_preserves_disabled_status():
+    from backend.scripts.seed_oracle_golden_regression_cases import main as seed_main
+    mock_supabase = MagicMock()
+    mock_supabase.table.return_value.select.return_value.execute.return_value.data = [
+        {
+            "id": "some-uuid",
+            "case_key": "le_giang_campaign_location_pollution",
+            "status": "disabled",
+            "created_at": "2026-06-12T00:00:00Z"
+        }
+    ]
+
+    with patch("backend.main.supabase", mock_supabase), \
+         patch("sys.argv", ["seed_oracle_golden_regression_cases.py", "--write", "--json"]):
+         try:
+             seed_main()
+         except SystemExit:
+             pass
+
+         called_payload = mock_supabase.table.return_value.upsert.call_args[0][0]
+         assert called_payload["status"] == "disabled"
