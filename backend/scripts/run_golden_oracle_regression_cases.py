@@ -16,31 +16,31 @@ def run_regression():
     parser.add_argument("--base-url", required=True, help="Base URL of the target backend service.")
     parser.add_argument("--json", action="store_true", help="Print summary output in JSON format.")
     parser.add_argument("--write-report", action="store_true", help="Save the detailed execution report to backend/rag.")
-    
+
     args = parser.parse_args()
     base_url = args.base_url.rstrip('/')
-    
+
     # Path to regression cases
     script_dir = os.path.dirname(os.path.abspath(__file__))
     repo_root = os.path.dirname(script_dir)
     cases_path = os.path.join(repo_root, "rag", "golden_oracle_regression_cases.json")
     report_path = os.path.join(repo_root, "rag", "generated_golden_oracle_regression_report.json")
-    
+
     if not os.path.exists(cases_path):
         print(f"Error: Cases file not found at {cases_path}", file=sys.stderr)
         sys.exit(1)
-        
+
     with open(cases_path, "r", encoding="utf-8") as f:
         cases = json.load(f)
-        
+
     results = []
     passed_count = 0
     failed_count = 0
-    
+
     ctx = ssl.create_default_context()
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
-    
+
     for case in cases:
         case_id = case.get("id")
         question = case.get("question")
@@ -51,10 +51,10 @@ def run_regression():
         acceptable_abstain = case.get("acceptable_abstain", False)
         expected_abstain_text = case.get("expected_abstain_text", "")
         status = case.get("status", "active")
-        
+
         if status != "active":
             continue
-            
+
         url = f"{base_url}/oracle/ask"
         headers = {
             "Content-Type": "application/json",
@@ -64,12 +64,12 @@ def run_regression():
             "question": question,
             "chapter_progress": chapter_progress
         }
-        
+
         passed = True
         reason = "All validation checks passed."
         answer = ""
         source = "unknown"
-        
+
         req = urllib.request.Request(url, data=json.dumps(body).encode("utf-8"), headers=headers, method="POST")
         try:
             with urllib.request.urlopen(req, context=ctx, timeout=20) as resp:
@@ -80,14 +80,14 @@ def run_regression():
                     res_body = json.loads(resp.read().decode("utf-8"))
                     answer = res_body.get("answer", "")
                     source = res_body.get("source", "")
-                    
+
                     # 1. must_not_contain
                     for term in must_not_contain:
                         if term.lower() in answer.lower():
                             passed = False
                             reason = f"Answer contains forbidden term: '{term}'"
                             break
-                            
+
                     # 2. semantic_forbidden_patterns
                     if passed:
                         for pattern in semantic_forbidden_patterns:
@@ -95,7 +95,7 @@ def run_regression():
                                 passed = False
                                 reason = f"Answer contains semantic forbidden pattern: '{pattern}'"
                                 break
-                                
+
                     # 3. Check abstain vs semantic_required_any_terms
                     if passed:
                         is_abstain = False
@@ -104,7 +104,7 @@ def run_regression():
                             clean_exp = "".join(expected_abstain_text.lower().split())
                             if clean_exp in clean_ans or clean_ans in clean_exp:
                                 is_abstain = True
-                                
+
                         if is_abstain:
                             if not acceptable_abstain:
                                 passed = False
@@ -118,12 +118,12 @@ def run_regression():
         except Exception as e:
             passed = False
             reason = f"HTTP request triggered exception: {e}"
-            
+
         if passed:
             passed_count += 1
         else:
             failed_count += 1
-            
+
         results.append({
             "case_id": case_id,
             "question": question,
@@ -132,7 +132,7 @@ def run_regression():
             "answer": answer,
             "source": source
         })
-        
+
     report = {
         "summary": {
             "total": len(results),
@@ -143,11 +143,11 @@ def run_regression():
         },
         "results": results
     }
-    
+
     if args.write_report:
         with open(report_path, "w", encoding="utf-8") as f:
             json.dump(report, f, indent=2, ensure_ascii=False)
-            
+
     if args.json:
         print(json.dumps(report, indent=2, ensure_ascii=False))
     else:
@@ -161,7 +161,12 @@ def run_regression():
             status_str = "PASS" if r["passed"] else "FAIL"
             print(f"[{status_str}] Case: {r['case_id']}")
             print(f"  Reason: {r['reason']}")
-            
+
+    if len(results) == 0:
+        if not args.json:
+            print("Error: No active regression cases found.", file=sys.stderr)
+        sys.exit(1)
+
     if failed_count > 0:
         sys.exit(1)
     else:

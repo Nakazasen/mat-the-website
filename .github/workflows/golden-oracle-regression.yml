@@ -1,0 +1,30 @@
+name: Golden Oracle Regression Gate
+
+on:
+  schedule:
+    # Run every 6 hours
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+jobs:
+  run-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout codebase
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run Golden Regression Cases
+        run: |
+          python backend/scripts/run_golden_oracle_regression_cases.py --base-url https://mat-the-website.onrender.com --json --write-report
+
+      - name: Upload Regression Report Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-regression-report
+          path: backend/rag/generated_golden_oracle_regression_report.json
