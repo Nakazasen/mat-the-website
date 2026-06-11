@@ -1,0 +1,86 @@
+# golden_promotion_policy.py
+# Trust weights, score thresholds, mapping, and constraint parsing logic
+
+import re
+import json
+
+# Trust levels
+TRUST_AUTHOR = "author"
+TRUST_SYSTEM = "system"
+TRUST_TRUSTED_READER = "trusted_reader"
+TRUST_READER = "reader"
+TRUST_ANONYMOUS = "anonymous"
+
+# Threshold required to auto-promote a candidate
+SCORE_THRESHOLD = 1.0
+
+# Trust scores contributed by a single feedback item
+TRUST_WEIGHTS = {
+    TRUST_AUTHOR: 1.0,           # Instant promotion
+    TRUST_SYSTEM: 1.0,           # Instant promotion
+    TRUST_TRUSTED_READER: 0.5,   # Needs 2 signals
+    TRUST_READER: 0.34,          # Needs 3 signals (quorum)
+    TRUST_ANONYMOUS: 0.2         # Needs 5 signals
+}
+
+def determine_trust_level(feedback):
+    """
+    Determine trust level based on user_comment tags or feedback attributes.
+    """
+    comment = (feedback.get("user_comment") or "").upper()
+    if "[AUTHOR]" in comment:
+        return TRUST_AUTHOR
+    elif "[SYSTEM]" in comment:
+        return TRUST_SYSTEM
+    elif "[TRUSTED]" in comment:
+        return TRUST_TRUSTED_READER
+    elif "[READER]" in comment:
+        return TRUST_READER
+    else:
+        return TRUST_ANONYMOUS
+
+def parse_constraints_from_comment(user_comment, suggested_correction):
+    """
+    Parse constraints from user comments or suggested corrections.
+    Looks for patterns like:
+      must_not_contain: ["term1", "term2"]
+      forbidden_patterns: ["pattern1", "pattern2"]
+      required_terms: ["term3"]
+      expected_abstain: "abstain text"
+    """
+    full_text = f"{user_comment or ''}\n{suggested_correction or ''}"
+
+    must_not_contain = []
+    semantic_forbidden_patterns = []
+    semantic_required_any_terms = []
+    expected_abstain_text = ""
+
+    # Parse JSON-like arrays
+    not_contain_match = re.search(r"must_not_contain\s*:\s*(\[[^\]]*\])", full_text, re.IGNORECASE)
+    if not_contain_match:
+        try:
+            must_not_contain = json.loads(not_contain_match.group(1))
+        except Exception:
+            pass
+
+    forbidden_match = re.search(r"forbidden_patterns\s*:\s*(\[[^\]]*\])", full_text, re.IGNORECASE)
+    if forbidden_match:
+        try:
+            semantic_forbidden_patterns = json.loads(forbidden_match.group(1))
+        except Exception:
+            pass
+
+    required_match = re.search(r"required_terms\s*:\s*(\[[^\]]*\])", full_text, re.IGNORECASE)
+    if required_match:
+        try:
+            semantic_required_any_terms = json.loads(required_match.group(1))
+        except Exception:
+            pass
+
+    abstain_match = re.search(r"expected_abstain\s*:\s*\"([^\"]*)\"", full_text, re.IGNORECASE)
+    if not abstain_match:
+        abstain_match = re.search(r"expected_abstain\s*:\s*'([^']*)'", full_text, re.IGNORECASE)
+    if abstain_match:
+        expected_abstain_text = abstain_match.group(1)
+
+    return must_not_contain, semantic_forbidden_patterns, semantic_required_any_terms, expected_abstain_text

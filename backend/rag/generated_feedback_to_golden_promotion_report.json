@@ -1,0 +1,14 @@
+{
+  "feedback_rows_read": 0,
+  "candidates_built": 1,
+  "candidates_observing": 0,
+  "candidates_auto_promote_ready": 0,
+  "candidates_auto_promoted": 1,
+  "candidates_blocked_conflict": 0,
+  "candidates_failed_runtime": 0,
+  "planned_promotions": 1,
+  "written_promotions": 0,
+  "skipped_ambiguous": 0,
+  "skipped_no_runtime_proof": 0,
+  "errors": []
+}
