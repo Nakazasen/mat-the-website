@@ -2,8 +2,8 @@
   {
     "question": "chiến dịch lệ giang diễn ra như thế nào?",
     "chapter_progress": 829,
-    "before_signature": "Tổ chức trấn Hi Vọng, Zombie Cấp 3, Chu Vấn, Quân Lệnh Như Sơn, Thể Thôn Phệ Lệ Giang",
-    "after_signature": "Thể Thôn Phệ Lệ Giang, Diễn biến truyện Chương 72, 180, 292, 52",
+    "before_signature": "Tổ chức Trấn Hi Vọng, Zombie Cấp 3, Chu Vấn, Quân Lệnh Như Sơn, Thể Thôn Phệ Lệ Giang",
+    "after_signature": "Chương 55: Quyết định chuyển nhà, Chương 180: Chúng ta là bạn!, Chương 292: Lấy cớ",
     "forbidden_terms": [
       "Tổ chức trấn Hi Vọng",
       "Zombie Cấp 3",
@@ -17,10 +17,10 @@
       "thanh tẩy"
     ],
     "production_url": "https://mat-the-website.onrender.com/oracle/ask",
-    "checked_at": "2026-06-11T06:30:00+07:00",
+    "checked_at": "2026-06-12T05:30:00+07:00",
     "source": "local_wiki",
-    "cache_status": "miss",
+    "cache_status": "hit",
     "pass_or_fail": "pass",
-    "reason": "Successfully filtered out irrelevant entities using exact phrase/entity gating, and forced RAG story chunks to return actual event progression."
+    "reason": "Successfully filtered out irrelevant entities using exact phrase/entity gating, and forced RAG story chunks to return actual event progression. No forbidden terms detected."
   }
 ]
