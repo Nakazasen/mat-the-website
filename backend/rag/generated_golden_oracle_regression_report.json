@@ -1,0 +1,19 @@
+{
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "run_at": "2026-06-11T23:24:20.436961+00:00",
+    "base_url": "https://mat-the-website.onrender.com"
+  },
+  "results": [
+    {
+      "case_id": "le_giang_campaign_location_pollution",
+      "question": "chiến dịch lệ giang diễn ra như thế nào?",
+      "passed": true,
+      "reason": "All validation checks passed.",
+      "answer": "Chưa đủ dữ liệu trong truyện đã nạp để mô tả chắc chắn chiến dịch Lệ Giang.",
+      "source": "cache"
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+[
+  {
+    "id": "le_giang_campaign_location_pollution",
+    "source": "manual_regression",
+    "question": "chiến dịch lệ giang diễn ra như thế nào?",
+    "chapter_progress": 829,
+    "intent": "event_plot",
+    "must_not_contain": [
+      "[DỮ LIỆU HỆ THỐNG]",
+      "Tổ chức trấn Hi Vọng",
+      "Zombie Cấp 3",
+      "Chu Vấn",
+      "Quân Lệnh Như Sơn"
+    ],
+    "must_contain_any": [],
+    "semantic_forbidden_patterns": [
+      "sông Lệ Giang",
+      "cầu Lệ Giang",
+      "bờ sông Lệ Giang",
+      "tài nguyên thuỷ sản",
+      "kho vũ khí"
+    ],
+    "semantic_required_any_terms": [
+      "chiến dịch",
+      "thanh tẩy",
+      "nhiệm vụ",
+      "huy động",
+      "Thể Thôn Phệ Lệ Giang"
+    ],
+    "acceptable_abstain": true,
+    "expected_abstain_text": "Chưa đủ dữ liệu trong truyện đã nạp để mô tả chắc chắn chiến dịch Lệ Giang.",
+    "created_from_feedback_id": null,
+    "created_at": "2026-06-12T06:22:00+07:00",
+    "status": "active"
+  }
+]
