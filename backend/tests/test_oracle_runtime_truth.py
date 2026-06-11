@@ -57,18 +57,18 @@ async def test_get_wiki_context_phrase_gating():
          patch("backend.rag.retrieval.search_provisional_library", return_value=dummy_prov), \
          patch("backend.rag.retrieval.search_story_chunks_hybrid_lexical", return_value=[]):
 
-        
+
         # Test exact phrase gating: "Lệ Giang"
         context = await get_wiki_context(mock_supabase, "chiến dịch lệ giang diễn ra như thế nào?", 829)
-        
+
         # Should contain "Lệ Giang" and "Thể Thôn Phệ Lệ Giang"
         assert "Lệ Giang" in context
         assert "Thể Thôn Phệ Lệ Giang" in context
-        
+
         # Should NOT contain "Zombie Cấp 3" or "Quân Lệnh Như Sơn"
         assert "Zombie Cấp 3" not in context
         assert "Quân Lệnh Như Sơn" not in context
-        
+
         # Since it is an event plot query, it should have triggered story chunks search
         assert "[DIỄN BIẾN TRUYỆN CHO" in context or "WIKI_EMPTY_CONTEXT" not in context
 
@@ -82,7 +82,7 @@ async def test_get_rag_context_forces_event_plot():
     with patch.dict(os.environ, {"ORACLE_RAG_ENABLED": "false"}), \
          patch("backend.rag.retrieval.search_story_chunks_hybrid_lexical") as mock_search, \
          patch("backend.rag.context_builder.build_rag_context_block") as mock_build:
-        
+
         mock_search.return_value = [{"content_plain": "Test chunk"}]
         mock_build.return_value = {"context_text": "Story details", "chunks_used": 1}
 
@@ -91,3 +91,39 @@ async def test_get_rag_context_forces_event_plot():
         assert res is not None
         assert res["context_text"] == "Story details"
         mock_search.assert_called_once()
+
+
+def test_clean_answer_for_reader():
+    from backend.routes.ai_oracle import clean_answer_for_reader
+    assert clean_answer_for_reader("[DỮ LIỆU HỆ THỐNG]\nSome answer") == "Some answer"
+    assert clean_answer_for_reader("No tag here") == "No tag here"
+    assert clean_answer_for_reader("") == ""
+    assert clean_answer_for_reader(None) == ""
+
+
+@pytest.mark.asyncio
+async def test_ask_oracle_admin_vs_reader():
+    from backend.routes.ai_oracle import ask_oracle, OracleRequest
+    from unittest.mock import AsyncMock, MagicMock
+
+    mock_supabase = MagicMock()
+
+    with patch("backend.routes.ai_oracle.check_cache", new_callable=AsyncMock) as mock_cache, \
+         patch("backend.routes.ai_oracle.is_admin_request", new_callable=AsyncMock) as mock_admin, \
+         patch("backend.main.supabase", mock_supabase):
+
+        mock_cache.return_value = "[DỮ LIỆU HỆ THỐNG]\nCached answer content"
+        body = OracleRequest(question="test question", chapter_progress=10)
+        mock_request = MagicMock()
+        mock_response = MagicMock()
+
+        # Test as admin
+        mock_admin.return_value = True
+        res_admin = await ask_oracle(body, mock_request, mock_response)
+        assert "[DỮ LIỆU HỆ THỐNG]" in res_admin.answer
+
+        # Test as normal reader
+        mock_admin.return_value = False
+        res_reader = await ask_oracle(body, mock_request, mock_response)
+        assert "[DỮ LIỆU HỆ THỐNG]" not in res_reader.answer
+        assert res_reader.answer == "Cached answer content"

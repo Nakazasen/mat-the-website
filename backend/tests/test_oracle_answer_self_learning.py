@@ -153,7 +153,7 @@ def test_pipeline_dry_run_safety():
         assert res["summary_rows_written"] == 1
         assert res["patches_written"] == 1
         assert res["dry_run"] is True
-        
+
         # Verify no modifying DB queries were issued
         write_actions = [c[0] for c in mock_db.calls if c[0] in ("upsert", "insert", "update", "delete")]
         assert len(write_actions) == 0
@@ -164,7 +164,7 @@ def test_pipeline_write_safety():
         # Run write mode
         res = run_pipeline(dry_run=False, clear_cache=False)
         assert res["dry_run"] is False
-        
+
         # Verify modify DB queries were issued to summaries, patches, and feedback statuses
         write_tables = [c[1] for c in mock_db.calls if c[0] in ("upsert", "insert", "update")]
         assert "oracle_answer_feedback_summary" in write_tables
@@ -199,11 +199,11 @@ async def test_runtime_patch_integration():
 
     # Test local wiki context building with prefer_chapter_summary_intent active
     from backend.routes.ai_oracle import get_wiki_context, WIKI_EMPTY_CONTEXT
-    
+
     # Question: nội dung chương truyện là gì
     # Active patch should suppress entities, causing it to return WIKI_EMPTY_CONTEXT (or no entities)
     mock_db.data["wiki_entries"] = [{"title": "Hạ Huyền Sương", "summary": "Nữ hoàng băng giá."}]
-    
+
     # Check that prefer_chapter patch is loaded and forces WIKI_EMPTY_CONTEXT
     ctx = await get_wiki_context(
         mock_db,
@@ -212,3 +212,86 @@ async def test_runtime_patch_integration():
         active_patches=[mock_db.data["oracle_answer_effective_patches"][0]]
     )
     assert ctx == WIKI_EMPTY_CONTEXT or ctx == ""
+
+
+@pytest.mark.asyncio
+async def test_verify_feedback_runtime_logic():
+    from backend.scripts.run_oracle_answer_feedback_pipeline import verify_feedback_runtime
+    from unittest.mock import MagicMock, patch
+
+    mock_supabase = MagicMock()
+
+    fb = {
+        "id": "fb-1",
+        "question": "chiến dịch Lệ Giang diễn ra như thế nào?",
+        "chapter_progress": 829,
+        "_test_force_verification": True
+    }
+    with patch("backend.routes.ai_oracle.get_wiki_context", return_value="Có Chu Vấn và các zombie khác."):
+        res = verify_feedback_runtime(mock_supabase, fb, [])
+        assert res is False
+
+    with patch("backend.routes.ai_oracle.get_wiki_context", return_value="Chiến dịch Lệ Giang diễn ra ác liệt."):
+        res = verify_feedback_runtime(mock_supabase, fb, [])
+        assert res is True
+
+    fb_suppress = {
+        "id": "fb-2",
+        "question": "Hàn Phong là ai?",
+        "chapter_progress": 10,
+        "_test_force_verification": True
+    }
+    patches = [{
+        "patch_type": "suppress_irrelevant_entity_expansion",
+        "target_entity": "Zombie Cấp 3",
+        "query_pattern": "hàn phong là ai"
+    }]
+    with patch("backend.routes.ai_oracle.get_wiki_context", return_value="Hàn Phong đối đầu với Zombie Cấp 3"):
+        res = verify_feedback_runtime(mock_supabase, fb_suppress, patches)
+        assert res is False
+
+    with patch("backend.routes.ai_oracle.get_wiki_context", return_value="Hàn Phong là đoàn trưởng"):
+        res = verify_feedback_runtime(mock_supabase, fb_suppress, patches)
+        assert res is True
+
+
+@pytest.mark.asyncio
+async def test_pipeline_runtime_verification_split():
+    from backend.scripts.run_oracle_answer_feedback_pipeline import run_oracle_answer_feedback_pipeline
+    from unittest.mock import MagicMock, patch
+
+    mock_db = MockSupabaseClient()
+    mock_db.data["rag_feedback"] = [
+        {
+            "id": "fb-ok",
+            "question": "Hàn Phong là ai?",
+            "answer": "...",
+            "user_comment": "comment",
+            "status": "pending",
+            "_test_force_verification": True
+        },
+        {
+            "id": "fb-fail",
+            "question": "chiến dịch lệ giang diễn ra như thế nào?",
+            "answer": "...",
+            "user_comment": "comment",
+            "status": "pending",
+            "_test_force_verification": True
+        }
+    ]
+
+    async def mock_get_wiki_context(supabase, question, chapter_progress, active_patches):
+        if "lệ giang" in question.lower():
+            return "Chu Vấn xuất hiện"
+        return "Hàn Phong là nhân vật chính"
+
+    with patch("backend.scripts.run_oracle_answer_feedback_pipeline.supabase", mock_db), \
+         patch("backend.routes.ai_oracle.get_wiki_context", side_effect=mock_get_wiki_context):
+
+        res = run_oracle_answer_feedback_pipeline(mock_db, dry_run=False, limit=10, clear_cache=False)
+        assert res["ok"] is True
+
+        update_calls = [c for c in mock_db.calls if c[0] == "update"]
+        updated_data = [c[2] for c in update_calls]
+        assert {"status": "resolved"} in updated_data
+        assert {"status": "failed_runtime_verification"} in updated_data

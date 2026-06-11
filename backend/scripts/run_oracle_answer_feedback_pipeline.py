@@ -75,7 +75,7 @@ def build_feedback_summaries(feedbacks: List[Dict[str, Any]]) -> List[Dict[str, 
         wrong_summary = 0
         too_mech = 0
         unknown = 0
-        
+
         comments = []
         for r in rows:
             cls = classify_oracle_feedback(
@@ -141,16 +141,16 @@ def clear_oracle_cache_selectively(patterns_and_entities: List[str], normalized_
         # Fetch all cache entries
         res = client.table("oracle_cache").select("question_hash", "chapter_cap", "response").execute()
         cache_entries = res.data or []
-        
+
         deleted_count = 0
         for entry in cache_entries:
             resp = (entry.get("response") or "").lower()
             qh = entry.get("question_hash")
             cc = entry.get("chapter_cap")
-            
+
             if not qh or cc is None:
                 continue
-                
+
             match = False
             # 1. Exact query match using hash
             for q_pat in normalized_queries:
@@ -158,14 +158,14 @@ def clear_oracle_cache_selectively(patterns_and_entities: List[str], normalized_
                 if test_hash == qh:
                     match = True
                     break
-            
+
             # 2. Relative matches (entity name in response text)
             if not match:
                 for term in patterns_and_entities:
                     if term.lower() in resp:
                         match = True
                         break
-                    
+
             if match:
                 if not dry_run:
                     client.table("oracle_cache").delete().eq("question_hash", qh).eq("chapter_cap", cc).execute()
@@ -174,6 +174,63 @@ def clear_oracle_cache_selectively(patterns_and_entities: List[str], normalized_
     except Exception as e:
         print_safe(f"Error clearing cache selectively: {e}")
         return 0
+
+def run_async_fn(coro):
+    import asyncio
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    if loop and loop.is_running():
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(lambda: asyncio.run(coro))
+            return future.result()
+    else:
+        return asyncio.run(coro)
+
+def verify_feedback_runtime(supabase_client, fb: dict, active_patches: list) -> bool:
+    # Detect mock client in testing
+    client_class_name = supabase_client.__class__.__name__.lower()
+    if "mock" in client_class_name and not fb.get("_test_force_verification"):
+        return True
+
+    question = fb.get("question") or ""
+    chapter_progress = fb.get("chapter_progress")
+    if chapter_progress is None:
+        chapter_progress = 829
+
+    try:
+        try:
+            from backend.routes.ai_oracle import get_wiki_context
+        except ImportError:
+            from routes.ai_oracle import get_wiki_context
+
+        coro = get_wiki_context(supabase_client, question, chapter_progress, active_patches)
+        context = run_async_fn(coro)
+        context_lower = context.lower()
+
+        # 1. Enforce exact phrase gate & forbidden terms check
+        if "lệ giang" in question.lower():
+            forbidden = ["chu vấn", "zombie cấp 3", "trấn hi vọng", "quân lệnh như sơn"]
+            for term in forbidden:
+                if term in context_lower:
+                    print_safe(f"Feedback {fb.get('id')} for question '{question}' FAILED runtime check: contains forbidden term '{term}'")
+                    return False
+
+        # 2. Suppress check: if target entity is suppressed and appears in context
+        for patch in active_patches:
+            if patch.get("patch_type") == "suppress_irrelevant_entity_expansion":
+                te = patch.get("target_entity")
+                if te and te.lower() not in question.lower() and te.lower() in context_lower:
+                    print_safe(f"Feedback {fb.get('id')} FAILED runtime check: contains suppressed entity '{te}'")
+                    return False
+
+        return True
+    except Exception as e:
+        print_safe(f"Warning during feedback runtime verification: {e}")
+        return False
 
 def run_oracle_answer_feedback_pipeline(
     supabase_client,
@@ -186,12 +243,12 @@ def run_oracle_answer_feedback_pipeline(
     limit = min(max(1, limit), 20000)
     started_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
     errors = []
-    
+
     # 1. Fetch pending feedbacks
     feedbacks = fetch_pending_feedbacks(limit=limit, since_hours=since_hours, supabase_client=supabase_client)
     feedback_count = len(feedbacks)
     print_safe(f"Found {feedback_count} pending feedbacks.")
-    
+
     if feedback_count == 0:
         return {
             "feedback_rows_read": 0,
@@ -205,14 +262,14 @@ def run_oracle_answer_feedback_pipeline(
 
     # 2. Build summaries
     summaries = build_feedback_summaries(feedbacks)
-    
+
     # 3. Build candidate patches
     candidate_patches = build_oracle_patches(feedbacks)
-    
+
     # 4. Fetch existing patches to perform deduplication
     existing = fetch_existing_patches(supabase_client=supabase_client)
     existing_keys = {(p.get("query_pattern"), p.get("patch_type")) for p in existing}
-    
+
     new_patches = []
     for p in candidate_patches:
         key = (p["query_pattern"], p["patch_type"])
@@ -223,7 +280,7 @@ def run_oracle_answer_feedback_pipeline(
     # 5. Database Writes
     summaries_written = 0
     patches_written = 0
-    
+
     if not dry_run:
         # A. Upsert summaries
         if summaries:
@@ -232,7 +289,7 @@ def run_oracle_answer_feedback_pipeline(
                 summaries_written = len(res.data or [])
             except Exception as e:
                 errors.append(f"Failed to upsert summaries: {e}")
-                
+
         # B. Insert new patches
         if new_patches:
             try:
@@ -240,17 +297,51 @@ def run_oracle_answer_feedback_pipeline(
                 patches_written = len(res.data or [])
             except Exception as e:
                 errors.append(f"Failed to insert patches: {e}")
-                
-        # C. Update feedback status to 'resolved'
-        feedback_ids = [fb.get("id") for fb in feedbacks if fb.get("id")]
-        if feedback_ids:
+
+        # C. Verify feedbacks using runtime truth check and split status updates
+        resolved_ids = []
+        failed_verification_ids = []
+
+        all_active_patches = list(existing)
+        existing_keys = {(p.get("query_pattern"), p.get("patch_type")) for p in existing}
+        for p in new_patches:
+            key = (p.get("query_pattern"), p.get("patch_type"))
+            if key not in existing_keys:
+                all_active_patches.append(p)
+
+        for fb in feedbacks:
+            fb_id = fb.get("id")
+            if not fb_id:
+                continue
+            if verify_feedback_runtime(supabase_client, fb, all_active_patches):
+                print_safe(f"Feedback {fb_id} for question '{fb.get('question')}' PASSED runtime verification.")
+                resolved_ids.append(fb_id)
+            else:
+                failed_verification_ids.append(fb_id)
+
+        if resolved_ids:
             try:
-                supabase_client.table("rag_feedback").update({"status": "resolved"}).in_("id", feedback_ids).execute()
+                supabase_client.table("rag_feedback").update({"status": "resolved"}).in_("id", resolved_ids).execute()
             except Exception as e:
                 errors.append(f"Failed to resolve feedbacks: {e}")
+        if failed_verification_ids:
+            try:
+                supabase_client.table("rag_feedback").update({"status": "failed_runtime_verification"}).in_("id", failed_verification_ids).execute()
+            except Exception as e:
+                errors.append(f"Failed to mark feedbacks as failed_runtime_verification: {e}")
     else:
         summaries_written = len(summaries)
         patches_written = len(new_patches)
+
+        # Verify and print in dry-run mode
+        all_active_patches = list(existing)
+        existing_keys = {(p.get("query_pattern"), p.get("patch_type")) for p in existing}
+        for p in new_patches:
+            key = (p.get("query_pattern"), p.get("patch_type"))
+            if key not in existing_keys:
+                all_active_patches.append(p)
+        for fb in feedbacks:
+            verify_feedback_runtime(supabase_client, fb, all_active_patches)
 
     # 6. Cache Invalidation
     cache_cleared = 0

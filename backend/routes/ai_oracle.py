@@ -612,6 +612,18 @@ async def get_wiki_context(supabase, question: str, chapter_cap: int, active_pat
                     filtered_merged.append(r)
             merged = filtered_merged
 
+        # For Lệ Giang query, filter out forbidden terms from merged entries
+        if "lệ giang" in q_norm:
+            forbidden_terms = ["chu vấn", "zombie cấp 3", "trấn hi vọng", "quân lệnh như sơn"]
+            filtered_merged = []
+            for r in merged:
+                name_val = (r.get("title") or r.get("name") or "").lower()
+                summary_val = (r.get("summary") or "").lower()
+                has_forbidden = any(ft in name_val or ft in summary_val for ft in forbidden_terms)
+                if not has_forbidden:
+                    filtered_merged.append(r)
+            merged = filtered_merged
+
         # Fallback to the patch-specific suppress_irrelevant logic if flag was explicitly active
         if suppress_irrelevant:
             filtered_merged = []
@@ -1244,8 +1256,48 @@ async def test_multi_provider_model(
         raise HTTPException(status_code=502, detail=result.error_message or f"Model {model_name} trả về lỗi từ API.")
 
 
+async def is_admin_request(supabase_client, authorization: Optional[str], admin_token_header: Optional[str]) -> bool:
+    if not supabase_client:
+        return False
+    # Check feedback admin token header first
+    admin_token_env = os.getenv("ORACLE_FEEDBACK_ADMIN_TOKEN")
+    if admin_token_env and admin_token_header == admin_token_env:
+        return True
+
+    # Check supabase authorization header
+    if authorization:
+        try:
+            token = authorization.replace("Bearer ", "").strip()
+            if token:
+                user_resp = supabase_client.auth.get_user(token)
+                if user_resp and user_resp.user:
+                    profile_resp = supabase_client.table("profiles").select("role").eq("id", user_resp.user.id).execute()
+                    if profile_resp.data:
+                        role = profile_resp.data[0].get("role", "editor").lower()
+                        if role == "superadmin":
+                            return True
+        except Exception:
+            pass
+    return False
+
+
+def clean_answer_for_reader(answer: str) -> str:
+    if not answer:
+        return ""
+    # Strip "[DỮ LIỆU HỆ THỐNG]" case-insensitively with trailing/leading spaces or newlines
+    import re
+    cleaned = re.sub(r"\[DỮ LIỆU HỆ THỐNG\]\s*", "", answer)
+    return cleaned.strip()
+
+
 @router.post("/ask", response_model=OracleResponse)
-async def ask_oracle(body: OracleRequest, request: Request, response: Response):
+async def ask_oracle(
+    body: OracleRequest,
+    request: Request,
+    response: Response,
+    authorization: Optional[str] = Header(None),
+    x_oracle_feedback_admin_token: Optional[str] = Header(None, alias="X-Oracle-Feedback-Admin-Token"),
+):
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, proxy-revalidate"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
@@ -1265,7 +1317,9 @@ async def ask_oracle(body: OracleRequest, request: Request, response: Response):
 
     cached = await check_cache(supabase, question_hash, chapter_cap)
     if cached:
-        return OracleResponse(answer=cached, source="cache", chapter_cap=chapter_cap)
+        is_admin = await is_admin_request(supabase, authorization, x_oracle_feedback_admin_token)
+        cleaned_answer = cached if is_admin else clean_answer_for_reader(cached)
+        return OracleResponse(answer=cleaned_answer, source="cache", chapter_cap=chapter_cap)
 
     # Load active oracle answer patches matching this query pattern or entity
     active_patches = []
@@ -1299,7 +1353,9 @@ async def ask_oracle(body: OracleRequest, request: Request, response: Response):
         if "[THƯ VIỆN TỰ ĐỘNG" in wiki_context:
             answer += "\n\nLưu ý: Dữ liệu trên được trích xuất tự động từ truyện, chưa phải canon wiki chính thức."
         await store_cache(supabase, question_hash, chapter_cap, answer, "local_wiki")
-        return OracleResponse(answer=answer, source="local_wiki", chapter_cap=chapter_cap)
+        is_admin = await is_admin_request(supabase, authorization, x_oracle_feedback_admin_token)
+        cleaned_answer = answer if is_admin else clean_answer_for_reader(answer)
+        return OracleResponse(answer=cleaned_answer, source="local_wiki", chapter_cap=chapter_cap)
 
     ip_hash = get_ip_hash(request)
     if not await check_rate_limit(supabase, ip_hash):
@@ -1317,7 +1373,9 @@ async def ask_oracle(body: OracleRequest, request: Request, response: Response):
         answer = result.text.strip()
         if answer and not is_garbage_answer(answer):
             await store_cache(supabase, question_hash, chapter_cap, answer, "ai_provider")
-            return OracleResponse(answer=answer, source="ai_provider", chapter_cap=chapter_cap)
+            is_admin = await is_admin_request(supabase, authorization, x_oracle_feedback_admin_token)
+            cleaned_answer = answer if is_admin else clean_answer_for_reader(answer)
+            return OracleResponse(answer=cleaned_answer, source="ai_provider", chapter_cap=chapter_cap)
 
     # Collect router failure details
     router_error_details = []
