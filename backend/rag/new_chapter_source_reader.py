@@ -219,8 +219,20 @@ def validate_new_chapter_payload(
         errors.append(f"Chapter content is unusually short ({len(clean_content)} characters).")
 
     # Check if original content had forbidden HTML tags or scripts
-    if re.search(r'<[^>]*>', content) or re.search(r'(?is)<script\b[^>]*>', content):
+    has_script_or_handler = (
+        re.search(r'(?is)<script\b[^>]*>', content) or
+        re.search(r'(?i)href\s*=\s*[\'"]?\s*javascript:', content) or
+        re.search(r'(?i)<[^>]*\bon[a-zA-Z]+\s*=[^>]*>', content)
+    )
+    
+    from backend.security_utils import ALLOWED_HTML_TAGS
+    # Find all tag names (e.g. <p>, </p>, <br/>, <img ...>)
+    found_tags = re.findall(r'</?([a-zA-Z1-6]+)(?:\s|/|>)', content)
+    has_forbidden_tag = any(t.lower() not in ALLOWED_HTML_TAGS for t in found_tags)
+
+    if has_script_or_handler or has_forbidden_tag:
         errors.append("HTML tags or script elements are detected and forbidden.")
+
 
     # 2. Title check
     if not clean_title:

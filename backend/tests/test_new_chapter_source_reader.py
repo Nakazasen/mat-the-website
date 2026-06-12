@@ -135,15 +135,46 @@ def test_validate_new_chapter_payload():
     assert val_short["is_valid"] is False
     assert "short" in val_short["errors"][0]
 
-    # HTML content forbidden
-    val_html = validate_new_chapter_payload(
+    # HTML script tags forbidden
+    val_script = validate_new_chapter_payload(
         chapter_number=830,
         title="Chương 830: HTML",
         content="<script>alert('hack')</script> Nội dung chương truyện ở đây dài hơn năm mươi ký tự để tránh bị báo lỗi quá ngắn.",
         current_last_chapter=829
     )
-    assert val_html["is_valid"] is False
-    assert "html tags or script elements" in val_html["errors"][0].lower()
+    assert val_script["is_valid"] is False
+    assert "html tags or script elements" in val_script["errors"][0].lower()
+
+    # Unallowed HTML tags forbidden (e.g. iframe)
+    val_iframe = validate_new_chapter_payload(
+        chapter_number=830,
+        title="Chương 830: HTML",
+        content="<iframe>hack</iframe> Nội dung chương truyện ở đây dài hơn năm mươi ký tự để tránh bị báo lỗi quá ngắn.",
+        current_last_chapter=829
+    )
+    assert val_iframe["is_valid"] is False
+    assert "html tags or script elements" in val_iframe["errors"][0].lower()
+
+    # Event handlers forbidden
+    val_handler = validate_new_chapter_payload(
+        chapter_number=830,
+        title="Chương 830: HTML",
+        content="<p onclick=\"alert('hack')\">Nội dung chương truyện ở đây dài hơn năm mươi ký tự để tránh bị báo lỗi quá ngắn.</p>",
+        current_last_chapter=829
+    )
+    assert val_handler["is_valid"] is False
+    assert "html tags or script elements" in val_handler["errors"][0].lower()
+
+    # Safe HTML tags allowed
+    val_safe_html = validate_new_chapter_payload(
+        chapter_number=830,
+        title="Chương 830: HTML",
+        content="<p>Để chuẩn bị cho chiến dịch thanh tẩy <strong>Thể Thôn Phệ</strong> lần thứ 18, toàn bộ cư dân tại hai căn cứ người sống sót huyện Tam Giang và trấn Hi Vọng đều đã được tiến hành di tản toàn diện.</p>",
+        current_last_chapter=829
+    )
+    assert val_safe_html["is_valid"] is True
+    assert len(val_safe_html["errors"]) == 0
+
 
     # Sequence gap rejected in strict
     val_gap = validate_new_chapter_payload(
