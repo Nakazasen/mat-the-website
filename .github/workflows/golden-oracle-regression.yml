@@ -26,6 +26,11 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Install Supabase Python Client
+        run: |
+          python -m pip install --upgrade pip
+          pip install supabase
+
       - name: Preflight check for Supabase secrets
         run: |
           if [ -z "${{ secrets.SUPABASE_URL }}" ] || [ -z "${{ secrets.SUPABASE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}" ]; then

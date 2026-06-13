@@ -14,6 +14,28 @@ if repo_root not in sys.path:
     sys.path.insert(0, repo_root)
 
 
+def _get_supabase_client():
+    try:
+        from backend.main import supabase
+        if supabase is not None:
+            return supabase
+    except Exception:
+        pass
+    try:
+        from main import supabase
+        if supabase is not None:
+            return supabase
+    except Exception:
+        pass
+
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    if not url or not key:
+        raise ValueError("SUPABASE_URL and SUPABASE_KEY/SUPABASE_SERVICE_ROLE_KEY must be set in environment variables")
+    from supabase import create_client
+    return create_client(url, key)
+
+
 def run_regression():
     try:
         sys.stdout.reconfigure(encoding='utf-8')
@@ -67,10 +89,7 @@ def run_regression():
     load_error = None
     if args.source == "db":
         try:
-            try:
-                from backend.main import supabase
-            except ImportError:
-                from main import supabase
+            supabase = _get_supabase_client()
             res = supabase.table("oracle_golden_regression_cases").select("*").eq("status", "active").execute()
             if not res.data:
                 cases = []
@@ -365,10 +384,7 @@ def run_regression():
     if args.source == "db" and failed_count > 0:
         print("\n=== POST-PROMOTION FAILURE DETECTED: EVALUATING AUTOMATIC ROLLBACK ===")
         try:
-            try:
-                from backend.main import supabase
-            except ImportError:
-                from main import supabase
+            supabase = _get_supabase_client()
 
             for r in results:
                 if not r["passed"]:
@@ -518,10 +534,7 @@ def run_regression():
     # Write runs to database if requested
     if args.write_db_run and len(results) > 0:
         try:
-            try:
-                from backend.main import supabase
-            except ImportError:
-                from main import supabase
+            supabase = _get_supabase_client()
 
             workflow_run_id = os.getenv("GITHUB_RUN_ID")
             run_payloads = []
