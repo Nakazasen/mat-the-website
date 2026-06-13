@@ -150,10 +150,10 @@ jobs:
               with open(step_summary, "a", encoding="utf-8") as sf:
                   sf.write("### Dual-Source Combined Regression Summary\n")
                   sf.write(f"- **Combined Classification**: `{combined_class}`\n")
-                  sf.write(f"- **JSON Source (Static Memory)**: {json_summary.get(\"passed\", 0)}/{json_summary.get(\"total\", 0)} passed\n")
-                  sf.write(f"- **DB Source (Dynamic Registry)**: {db_summary.get(\"passed\", 0)}/{db_summary.get(\"total\", 0)} passed\n")
-                  sf.write(f"- **Rollback Mode**: `{db_summary.get(\"rollback_mode\", \"off\")}`\n")
-                  sf.write(f"- **Rollback Performed**: `{db_summary.get(\"rollback_performed\", False)}`\n")
+                  sf.write("- **JSON Source (Static Memory)**: {}/{} passed\n".format(json_summary.get("passed", 0), json_summary.get("total", 0)))
+                  sf.write("- **DB Source (Dynamic Registry)**: {}/{} passed\n".format(db_summary.get("passed", 0), db_summary.get("total", 0)))
+                  sf.write("- **Rollback Mode**: `{}`\n".format(db_summary.get("rollback_mode", "off")))
+                  sf.write("- **Rollback Performed**: `{}`\n".format(db_summary.get("rollback_performed", False)))
           '
 
       - name: Upload JSON Regression Report Artifact
