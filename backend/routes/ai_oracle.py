@@ -437,7 +437,7 @@ def hash_question(
     chapter_cap: int,
     target_chapter: Optional[int] = None,
     intent: Optional[str] = None,
-    policy_version: str = "11F0A_FIX1"
+    policy_version: str = "11F0A_FIX2_COVERAGE"
 ) -> str:
     normalized = re.sub(r"\s+", " ", question.lower().strip())
     key_str = f"{normalized}|{chapter_cap}|{target_chapter}|{intent}|{policy_version}"
@@ -909,9 +909,48 @@ def get_rag_context_for_oracle(
         return None
 
     try:
-        from backend.rag.retrieval import search_story_chunks_hybrid_lexical
         from backend.rag.context_builder import build_rag_context_block
 
+        trace = oracle_trace_var.get()
+
+        if exact_chapter is not None:
+            # For exact target chapters, fetch ALL chunks ordered by chunk_index
+            # and bypass filters & forbidden terms to ensure full event coverage.
+            try:
+                resp = supabase.table("story_chunks").select("*").eq("chapter_number", exact_chapter).order("chunk_index", desc=False).execute()
+                results = resp.data or []
+            except Exception as e:
+                print(f"Error fetching exact chapter chunks: {e}")
+                results = []
+
+            if trace is not None:
+                trace["retrieval_called"] = True
+                trace["candidate_chunk_ids"] = [r.get("id") for r in results]
+                trace["candidate_chapters"] = [r.get("chapter_number") for r in results]
+                trace["candidate_scores"] = [1.0 for _ in results]
+
+            if not results:
+                return None
+
+            context_data = build_rag_context_block(
+                results,
+                max_chunks=100,
+                max_chars_per_chunk=15000,
+                max_total_chars=150000
+            )
+
+            if trace is not None:
+                chunks_used = context_data.get("chunks_used", 0)
+                selected_results = results[:chunks_used]
+                trace["selected_chunk_ids"] = [r.get("id") for r in selected_results]
+                trace["selected_chapters"] = [r.get("chapter_number") for r in selected_results]
+
+            if context_data.get("chunks_used", 0) == 0:
+                return None
+            return context_data
+
+        # General lore path
+        from backend.rag.retrieval import search_story_chunks_hybrid_lexical
         results = search_story_chunks_hybrid_lexical(
             supabase=supabase,
             query=question,
@@ -920,7 +959,6 @@ def get_rag_context_for_oracle(
             exact_chapter=exact_chapter
         )
 
-        trace = oracle_trace_var.get()
         if trace is not None:
             trace["retrieval_called"] = True
             trace["candidate_chunk_ids"] = [r.get("id") for r in results] if results else []
@@ -1558,7 +1596,7 @@ async def ask_oracle(
             "llm_called": False,
             "cache_checked": False,
             "cache_hit": False,
-            "cache_key_version": "11F0A_FIX1",
+            "cache_key_version": "11F0A_FIX2_COVERAGE",
             "cache_bypassed": False,
             "retrieval_called": False,
         }
@@ -1585,7 +1623,7 @@ async def ask_oracle(
         chapter_cap=effective_chapter_cap,
         target_chapter=target_chapter,
         intent=intent,
-        policy_version="11F0A_FIX1"
+        policy_version="11F0A_FIX2_COVERAGE"
     )
 
     parsed_query = None
