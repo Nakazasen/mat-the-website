@@ -14,6 +14,7 @@ Rate limit: 50 AI queries per IP per day (local wiki queries are unlimited).
 import hashlib
 import os
 import re
+import contextvars
 from datetime import datetime, timedelta, timezone
 from time import perf_counter
 from typing import Optional, Any, Literal
@@ -23,6 +24,8 @@ from fastapi import APIRouter, Header, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/oracle", tags=["ai_oracle"])
+
+oracle_trace_var = contextvars.ContextVar("oracle_trace_var", default=None)
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 DEFAULT_MODEL_CATALOG = [
@@ -79,6 +82,12 @@ class OracleResponse(BaseModel):
     answer: str
     source: str
     chapter_cap: int
+    intent: Optional[str] = None
+    requested_chapter: Optional[int] = None
+    max_available_chapter: Optional[int] = None
+    abstained: Optional[bool] = None
+    abstain_reason: Optional[str] = None
+    trace: Optional[dict] = None
 
 
 class OracleRagPreviewRequest(BaseModel):
@@ -897,6 +906,13 @@ def get_rag_context_for_oracle(
             chapter_cap=chapter_cap,
             limit=limit * 2
         )
+
+        trace = oracle_trace_var.get()
+        if trace is not None:
+            trace["candidate_chunk_ids"] = [r.get("id") for r in results] if results else []
+            trace["candidate_chapters"] = [r.get("chapter_number") for r in results] if results else []
+            trace["candidate_scores"] = [r.get("score") for r in results if "score" in r] if results else []
+
         if not results:
             return None
 
@@ -931,8 +947,14 @@ def get_rag_context_for_oracle(
                 filtered_results.append(r)
         results = filtered_results
 
-
         context_data = build_rag_context_block(results, max_chunks=limit)
+
+        if trace is not None:
+            chunks_used = context_data.get("chunks_used", 0)
+            selected_results = results[:chunks_used]
+            trace["selected_chunk_ids"] = [r.get("id") for r in selected_results]
+            trace["selected_chapters"] = [r.get("chapter_number") for r in selected_results]
+
         if context_data.get("chunks_used", 0) == 0:
             return None
 
@@ -1383,6 +1405,52 @@ async def is_admin_request(supabase_client, authorization: Optional[str], admin_
     return False
 
 
+def extract_explicit_chapter(question: str) -> Optional[int]:
+    q_norm = question.lower().strip()
+    match = re.search(r"\b(?:chương|chapter|ch|c)\s*(?:số\s+)?(\d+)\b", q_norm)
+    if match:
+        try:
+            return int(match.group(1))
+        except ValueError:
+            pass
+    return None
+
+def detect_intent(question: str) -> str:
+    q_norm = question.lower().strip()
+    summary_keywords = ["tóm tắt", "tom tat", "tóm lược", "tom luoc", "nội dung", "noi dung", "diễn biến", "dien bien", "tóm ý", "tóm tắt ngắn"]
+    has_summary = any(kw in q_norm for kw in summary_keywords)
+
+    if has_summary or ("chương này" in q_norm and any(kw in q_norm for kw in ["gì", "gi", "như thế nào", "ra sao", "kể", "ke"])):
+        return "chapter_summary"
+    return "general_question"
+
+async def get_max_available_chapter(supabase) -> int:
+    if not supabase:
+        return 0
+    try:
+        res = supabase.table("chapters").select("chapter_number").order("chapter_number", desc=True).limit(1).execute()
+        if res.data:
+            return int(res.data[0].get("chapter_number", 0))
+    except Exception as e:
+        print(f"Error getting max available chapter: {e}")
+    return 0
+
+async def verify_chapter_exists_in_db(supabase, chapter_num: int) -> bool:
+    if not supabase:
+        return False
+    try:
+        ch_res = supabase.table("chapters").select("id").eq("chapter_number", chapter_num).limit(1).execute()
+        if not ch_res.data:
+            return False
+        chunks_res = supabase.table("story_chunks").select("id").eq("chapter_number", chapter_num).limit(1).execute()
+        if not chunks_res.data:
+            return False
+        return True
+    except Exception as e:
+        print(f"Error verifying chapter existence: {e}")
+        return False
+
+
 def clean_answer_for_reader(answer: str) -> str:
     if not answer:
         return ""
@@ -1415,30 +1483,110 @@ async def ask_oracle(
         raise HTTPException(status_code=400, detail="Cau hoi qua dai (max 500 ky tu)")
 
     chapter_cap = max(1, min(body.chapter_progress, 9999))
-    question_hash = hash_question(question, chapter_cap)
+
+    # --- Chapter Availability Gate and Clamping (Phase 11F-0A) ---
+    intent = detect_intent(question)
+    explicit_requested_chapter = extract_explicit_chapter(question)
+    max_available_chapter = await get_max_available_chapter(supabase)
+
+    target_chapter = None
+    abstained = False
+    abstain_reason = None
+    chapter_exists = True
+
+    if intent == "chapter_summary":
+        target_chapter = explicit_requested_chapter if explicit_requested_chapter is not None else chapter_cap
+        if target_chapter > max_available_chapter:
+            abstained = True
+            abstain_reason = "chapter_unavailable"
+            chapter_exists = False
+        else:
+            exists = await verify_chapter_exists_in_db(supabase, target_chapter)
+            if not exists:
+                abstained = True
+                abstain_reason = "missing_chapter_chunks"
+                chapter_exists = False
+        effective_chapter_cap = target_chapter
+    else:
+        # General lore question: clamp chapter progress
+        if chapter_cap > max_available_chapter:
+            effective_chapter_cap = max_available_chapter
+        else:
+            effective_chapter_cap = chapter_cap
+        chapter_exists = await verify_chapter_exists_in_db(supabase, effective_chapter_cap)
+
+    effective_chapter_cap = max(1, effective_chapter_cap)
+
+    is_trace_enabled = os.getenv("ORACLE_RAG_TRACE") in ("1", "true", "yes", "on")
+    trace_dict = None
+    if is_trace_enabled:
+        trace_dict = {
+            "original_question": question,
+            "normalized_question": re.sub(r"\s+", " ", question.lower().strip()),
+            "detected_intent": intent,
+            "explicit_requested_chapter": explicit_requested_chapter,
+            "chapter_progress": chapter_cap,
+            "max_available_chapter": max_available_chapter,
+            "effective_chapter_progress": effective_chapter_cap,
+            "chapter_exists": chapter_exists,
+            "candidate_chunk_ids": [],
+            "candidate_chapters": [],
+            "candidate_scores": [],
+            "selected_chunk_ids": [],
+            "selected_chapters": [],
+            "abstain_reason": abstain_reason,
+            "llm_called": False
+        }
+        oracle_trace_var.set(trace_dict)
+
+    if abstained:
+        ans = f"Chương {target_chapter} chưa được đăng hoặc chưa được nạp vào hệ thống nên tôi chưa thể tóm tắt."
+        is_admin = await is_admin_request(supabase, authorization, x_oracle_feedback_admin_token)
+        return OracleResponse(
+            answer=ans,
+            source="gate",
+            chapter_cap=chapter_cap,
+            intent=intent,
+            requested_chapter=target_chapter,
+            max_available_chapter=max_available_chapter,
+            abstained=True,
+            abstain_reason=abstain_reason,
+            trace=trace_dict if (is_admin and is_trace_enabled) else None
+        )
+
+    # Use effective_chapter_cap for all downstream operations
+    question_hash = hash_question(question, effective_chapter_cap)
 
     parsed_query = parse_event_query(question)
     is_event = False
     if parsed_query and parsed_query.get("intent") == "event_plot":
         is_event = True
 
-    cached = await check_cache(supabase, question_hash, chapter_cap)
+    cached = await check_cache(supabase, question_hash, effective_chapter_cap)
     if cached:
         # Validate cache response semantically for event questions
         if is_event and parsed_query:
             if not validate_context_semantically(cached, parsed_query):
-                await delete_cache_entry(supabase, question_hash, chapter_cap)
+                await delete_cache_entry(supabase, question_hash, effective_chapter_cap)
                 cached = None
 
     if cached:
         is_admin = await is_admin_request(supabase, authorization, x_oracle_feedback_admin_token)
         cleaned_answer = cached if is_admin else clean_answer_for_reader(cached)
-        return OracleResponse(answer=cleaned_answer, source="cache", chapter_cap=chapter_cap)
+        return OracleResponse(
+            answer=cleaned_answer,
+            source="cache",
+            chapter_cap=chapter_cap,
+            intent=intent,
+            requested_chapter=target_chapter,
+            max_available_chapter=max_available_chapter,
+            abstained=False,
+            trace=trace_dict if (is_admin and is_trace_enabled) else None
+        )
 
     # Load active oracle answer patches matching this query pattern or entity
     active_patches = []
     try:
-        import re
         q_norm = re.sub(r"\s+", " ", question.strip().lower())
         q_norm = re.sub(r"[?.\s]+$", "", q_norm)
 
@@ -1452,8 +1600,8 @@ async def ask_oracle(
     except Exception as e:
         print(f"Warning loading active oracle patches: {e}")
 
-    wiki_context = await get_wiki_context(supabase, question, chapter_cap, active_patches)
-    chapter_context = await get_chapter_context(supabase, chapter_cap)
+    wiki_context = await get_wiki_context(supabase, question, effective_chapter_cap, active_patches)
+    chapter_context = await get_chapter_context(supabase, effective_chapter_cap)
 
     # Bypass the fast-path local lookup if prefer_chapter_summary_intent is active
     bypass_fast_path = False
@@ -1465,19 +1613,37 @@ async def ask_oracle(
     # Force direct fallback response for event questions without semantic evidence
     if is_event and wiki_context and wiki_context.startswith("Chưa đủ dữ liệu trong truyện đã nạp"):
         answer = f"[DỮ LIỆU HỆ THỐNG]\n{wiki_context}"
-        await store_cache(supabase, question_hash, chapter_cap, answer, "local_wiki")
+        await store_cache(supabase, question_hash, effective_chapter_cap, answer, "local_wiki")
         is_admin = await is_admin_request(supabase, authorization, x_oracle_feedback_admin_token)
         cleaned_answer = answer if is_admin else clean_answer_for_reader(answer)
-        return OracleResponse(answer=cleaned_answer, source="local_wiki", chapter_cap=chapter_cap)
+        return OracleResponse(
+            answer=cleaned_answer,
+            source="local_wiki",
+            chapter_cap=chapter_cap,
+            intent=intent,
+            requested_chapter=target_chapter,
+            max_available_chapter=max_available_chapter,
+            abstained=False,
+            trace=trace_dict if (is_admin and is_trace_enabled) else None
+        )
 
     if not bypass_fast_path and wiki_context and wiki_context != WIKI_EMPTY_CONTEXT and len(question.split()) <= 12:
         answer = f"[DỮ LIỆU HỆ THỐNG]\n{wiki_context}"
         if "[THƯ VIỆN TỰ ĐỘNG" in wiki_context:
             answer += "\n\nLưu ý: Dữ liệu trên được trích xuất tự động từ truyện, chưa phải canon wiki chính thức."
-        await store_cache(supabase, question_hash, chapter_cap, answer, "local_wiki")
+        await store_cache(supabase, question_hash, effective_chapter_cap, answer, "local_wiki")
         is_admin = await is_admin_request(supabase, authorization, x_oracle_feedback_admin_token)
         cleaned_answer = answer if is_admin else clean_answer_for_reader(answer)
-        return OracleResponse(answer=cleaned_answer, source="local_wiki", chapter_cap=chapter_cap)
+        return OracleResponse(
+            answer=cleaned_answer,
+            source="local_wiki",
+            chapter_cap=chapter_cap,
+            intent=intent,
+            requested_chapter=target_chapter,
+            max_available_chapter=max_available_chapter,
+            abstained=False,
+            trace=trace_dict if (is_admin and is_trace_enabled) else None
+        )
 
     ip_hash = get_ip_hash(request)
     if not await check_rate_limit(supabase, ip_hash):
@@ -1487,17 +1653,29 @@ async def ask_oracle(
         )
 
     # --- Multi-provider route (Phase 4) ---
-    rag_data = get_rag_context_for_oracle(question, chapter_cap)
+    rag_data = get_rag_context_for_oracle(question, effective_chapter_cap)
     rag_context = rag_data.get("context_text", "") if rag_data else ""
 
-    result = await call_ai_provider_result(question, chapter_cap, wiki_context, chapter_context, rag_context, active_patches)
+    if trace_dict is not None:
+        trace_dict["llm_called"] = True
+
+    result = await call_ai_provider_result(question, effective_chapter_cap, wiki_context, chapter_context, rag_context, active_patches)
     if result.status == "success" and result.text:
         answer = result.text.strip()
         if answer and not is_garbage_answer(answer):
-            await store_cache(supabase, question_hash, chapter_cap, answer, "ai_provider")
+            await store_cache(supabase, question_hash, effective_chapter_cap, answer, "ai_provider")
             is_admin = await is_admin_request(supabase, authorization, x_oracle_feedback_admin_token)
             cleaned_answer = answer if is_admin else clean_answer_for_reader(answer)
-            return OracleResponse(answer=cleaned_answer, source="ai_provider", chapter_cap=chapter_cap)
+            return OracleResponse(
+                answer=cleaned_answer,
+                source="ai_provider",
+                chapter_cap=chapter_cap,
+                intent=intent,
+                requested_chapter=target_chapter,
+                max_available_chapter=max_available_chapter,
+                abstained=False,
+                trace=trace_dict if (is_admin and is_trace_enabled) else None
+            )
 
     # Collect router failure details
     router_error_details = []
