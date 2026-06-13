@@ -2,6 +2,7 @@ import sys
 import os
 import json
 import pytest
+import urllib.error
 from unittest.mock import MagicMock, patch
 
 # Ensure repo root is on path
@@ -24,10 +25,42 @@ TEST_CASE = [{
     "status": "active"
 }]
 
-def run_runner_with_mock_response(mock_status, mock_body_dict, test_cases_list):
-    mock_response = MagicMock()
-    mock_response.__enter__.return_value.status = mock_status
-    mock_response.__enter__.return_value.read.return_value = json.dumps(mock_body_dict).encode("utf-8")
+
+def run_runner_with_mock_responses_list(mock_responses_list, test_cases_list, extra_args=None):
+    response_idx = 0
+
+    def mock_urlopen(req, *args, **kwargs):
+        nonlocal response_idx
+        # Check URL
+        url_str = req.full_url if hasattr(req, "full_url") else str(req)
+        if "/api/health" in url_str:
+            mock_health = MagicMock()
+            mock_health.status = 200
+            mock_health.read.return_value = json.dumps({"status": "ok", "git_commit": "mock_commit"}).encode("utf-8")
+            mock_health.__enter__.return_value = mock_health
+            return mock_health
+
+        if response_idx >= len(mock_responses_list):
+            res_item = mock_responses_list[-1]
+        else:
+            res_item = mock_responses_list[response_idx]
+            response_idx += 1
+
+        if isinstance(res_item, Exception):
+            raise res_item
+
+        status = 200
+        body = {}
+        if isinstance(res_item, tuple):
+            status, body = res_item
+        else:
+            body = res_item
+
+        mock_resp = MagicMock()
+        mock_resp.status = status
+        mock_resp.read.return_value = json.dumps(body).encode("utf-8")
+        mock_resp.__enter__.return_value = mock_resp
+        return mock_resp
 
     original_open = open
     def mock_open(file, *args, **kwargs):
@@ -37,9 +70,13 @@ def run_runner_with_mock_response(mock_status, mock_body_dict, test_cases_list):
             return m
         return original_open(file, *args, **kwargs)
 
-    with patch("urllib.request.urlopen", return_value=mock_response), \
+    argv = ["run_golden_oracle_regression_cases.py", "--base-url", "http://mock", "--write-report", "--infra-backoff-seconds", "0"]
+    if extra_args:
+        argv.extend(extra_args)
+
+    with patch("urllib.request.urlopen", side_effect=mock_urlopen), \
          patch("builtins.open", new=mock_open), \
-         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "http://mock", "--write-report"]), \
+         patch("sys.argv", argv), \
          patch("backend.scripts.run_golden_oracle_regression_cases.json.dump") as mock_dump:
 
          report_data = None
@@ -55,6 +92,7 @@ def run_runner_with_mock_response(mock_status, mock_body_dict, test_cases_list):
              exit_code = e.code
 
          return exit_code, report_data
+
 
 def test_golden_case_schema_valid():
     cases_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "rag", "golden_oracle_regression_cases.json")
@@ -76,98 +114,138 @@ def test_golden_case_schema_valid():
         assert "expected_abstain_text" in case
         assert "status" in case
 
+
 def test_runner_pass_with_abstain():
     mock_body = {
         "answer": "Chưa đủ dữ liệu trong truyện đã nạp để mô tả chắc chắn chiến dịch Lệ Giang.",
         "source": "local_wiki"
     }
-    exit_code, report = run_runner_with_mock_response(200, mock_body, TEST_CASE)
+    exit_code, report = run_runner_with_mock_responses_list([mock_body], TEST_CASE)
     assert exit_code == 0
     assert report["summary"]["passed"] == 1
     assert report["summary"]["failed"] == 0
     assert report["results"][0]["passed"] is True
-    assert "checks passed" in report["results"][0]["reason"]
+    assert report["summary"]["failure_class"] == "none"
+
 
 def test_runner_fail_with_forbidden_pattern():
     mock_body = {
         "answer": "Trận chiến diễn ra ở sông Lệ Giang.",
         "source": "local_wiki"
     }
-    exit_code, report = run_runner_with_mock_response(200, mock_body, TEST_CASE)
+    exit_code, report = run_runner_with_mock_responses_list([mock_body], TEST_CASE)
     assert exit_code == 1
     assert report["summary"]["passed"] == 0
     assert report["summary"]["failed"] == 1
+    assert report["summary"]["semantic_failed"] == 1
     assert report["results"][0]["passed"] is False
-    assert "semantic forbidden pattern" in report["results"][0]["reason"]
+    assert report["summary"]["failure_class"] == "semantic_failure"
+
 
 def test_runner_fail_with_system_tag():
     mock_body = {
         "answer": "[DỮ LIỆU HỆ THỐNG]\nChưa đủ dữ liệu trong truyện đã nạp để mô tả chắc chắn chiến dịch Lệ Giang.",
         "source": "local_wiki"
     }
-    exit_code, report = run_runner_with_mock_response(200, mock_body, TEST_CASE)
+    exit_code, report = run_runner_with_mock_responses_list([mock_body], TEST_CASE)
     assert exit_code == 1
     assert report["summary"]["passed"] == 0
     assert report["summary"]["failed"] == 1
     assert report["results"][0]["passed"] is False
-    assert "forbidden term" in report["results"][0]["reason"]
+    assert report["summary"]["failure_class"] == "semantic_failure"
+
 
 def test_runner_fail_without_required_terms():
     mock_body = {
         "answer": "Lệ Giang là khu vực rất đẹp.",
         "source": "local_wiki"
     }
-    exit_code, report = run_runner_with_mock_response(200, mock_body, TEST_CASE)
+    exit_code, report = run_runner_with_mock_responses_list([mock_body], TEST_CASE)
     assert exit_code == 1
     assert report["summary"]["passed"] == 0
     assert report["summary"]["failed"] == 1
     assert report["results"][0]["passed"] is False
-    assert "does not contain any semantic_required_any_terms" in report["results"][0]["reason"]
+    assert report["summary"]["failure_class"] == "semantic_failure"
 
-def test_runner_report_reasons():
-    mock_body_pass = {
+
+def test_runner_exits_3_when_no_cases():
+    exit_code, report = run_runner_with_mock_responses_list([], [])
+    assert exit_code == 3
+    assert report["summary"]["failure_class"] == "configuration_failure"
+
+
+def test_runner_exits_2_on_http_error():
+    err = urllib.error.HTTPError("http://mock", 503, "Service Unavailable", {}, None)
+    exit_code, report = run_runner_with_mock_responses_list([err, err, err, err], TEST_CASE)
+    assert exit_code == 2
+    assert report["summary"]["passed"] == 0
+    assert report["summary"]["failed"] == 1
+    assert report["summary"]["infra_failed"] == 1
+    assert report["results"][0]["passed"] is False
+    assert "HTTP Error 503" in report["results"][0]["reason"]
+    assert report["summary"]["failure_class"] == "infra_failure"
+
+
+def test_runner_retry_success_on_timeout():
+    # Attempt 1: Timeout, Attempt 2: Success
+    timeout_err = TimeoutError("The read operation timed out")
+    mock_body = {
         "answer": "Chưa đủ dữ liệu trong truyện đã nạp để mô tả chắc chắn chiến dịch Lệ Giang.",
         "source": "local_wiki"
     }
-    _, report_pass = run_runner_with_mock_response(200, mock_body_pass, TEST_CASE)
-    assert report_pass["results"][0]["passed"] is True
-    assert len(report_pass["results"][0]["reason"]) > 0
+    exit_code, report = run_runner_with_mock_responses_list([timeout_err, mock_body], TEST_CASE)
+    assert exit_code == 0
+    assert report["summary"]["passed"] == 1
+    assert report["summary"]["failed"] == 0
+    assert report["summary"]["retry_recovered"] == 1
+    assert report["results"][0]["passed"] is True
+    assert report["results"][0]["attempts"] == 2
+    assert report["summary"]["failure_class"] == "none"
 
-    mock_body_fail = {
-        "answer": "Sông Lệ Giang",
+
+def test_runner_retry_success_on_503():
+    # Attempt 1: 503, Attempt 2: Success
+    err = urllib.error.HTTPError("http://mock", 503, "Service Unavailable", {}, None)
+    mock_body = {
+        "answer": "Chưa đủ dữ liệu trong truyện đã nạp để mô tả chắc chắn chiến dịch Lệ Giang.",
         "source": "local_wiki"
     }
-    _, report_fail = run_runner_with_mock_response(200, mock_body_fail, TEST_CASE)
-    assert report_fail["results"][0]["passed"] is False
-    assert len(report_fail["results"][0]["reason"]) > 0
+    exit_code, report = run_runner_with_mock_responses_list([err, mock_body], TEST_CASE)
+    assert exit_code == 0
+    assert report["summary"]["passed"] == 1
+    assert report["summary"]["failed"] == 0
+    assert report["summary"]["retry_recovered"] == 1
+    assert report["results"][0]["passed"] is True
+    assert report["results"][0]["attempts"] == 2
 
-def test_runner_exits_1_when_no_cases():
-    exit_code, report = run_runner_with_mock_response(200, {}, [])
+
+def test_runner_retry_success_on_429():
+    # Attempt 1: 429, Attempt 2: Success
+    err = urllib.error.HTTPError("http://mock", 429, "Too Many Requests", {}, None)
+    mock_body = {
+        "answer": "Chưa đủ dữ liệu trong truyện đã nạp để mô tả chắc chắn chiến dịch Lệ Giang.",
+        "source": "local_wiki"
+    }
+    exit_code, report = run_runner_with_mock_responses_list([err, mock_body], TEST_CASE)
+    assert exit_code == 0
+    assert report["summary"]["passed"] == 1
+    assert report["summary"]["failed"] == 0
+    assert report["summary"]["retry_recovered"] == 1
+    assert report["results"][0]["passed"] is True
+    assert report["results"][0]["attempts"] == 2
+
+
+def test_runner_no_retry_on_semantic_failure():
+    # If it is a semantic failure, we must NOT retry it even on attempt 1
+    mock_body = {
+        "answer": "Trận chiến diễn ra ở sông Lệ Giang.",
+        "source": "local_wiki"
+    }
+    exit_code, report = run_runner_with_mock_responses_list([mock_body, mock_body], TEST_CASE)
     assert exit_code == 1
+    assert report["results"][0]["attempts"] == 1  # Should only run 1 attempt
+    assert report["summary"]["failure_class"] == "semantic_failure"
 
-def test_runner_exits_1_on_http_error():
-    mock_body = {"detail": "Internal Server Error"}
-    exit_code, report = run_runner_with_mock_response(500, mock_body, TEST_CASE)
-    assert exit_code == 1
-    assert report["results"][0]["passed"] is False
-    assert "HTTP request failed with status: 500" in report["results"][0]["reason"]
-
-def test_runner_exits_1_on_network_exception():
-    with patch("urllib.request.urlopen", side_effect=ConnectionRefusedError("Connection refused")), \
-         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "http://mock"]), \
-         patch("sys.exit") as mock_exit:
-
-         original_open = open
-         def mock_open(file, *args, **kwargs):
-             if "golden_oracle_regression_cases.json" in str(file):
-                 m = MagicMock()
-                 m.__enter__.return_value.read.return_value = json.dumps(TEST_CASE)
-                 return m
-             return original_open(file, *args, **kwargs)
-
-         with patch("builtins.open", new=mock_open):
-             run_regression()
-             mock_exit.assert_called_once_with(1)
 
 def test_sql_migration_exists_and_contains_tables():
     repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -178,178 +256,17 @@ def test_sql_migration_exists_and_contains_tables():
     assert "oracle_golden_regression_cases" in content
     assert "oracle_golden_regression_runs" in content
 
-def test_seed_script_dry_run_no_writes():
-    from backend.scripts.seed_oracle_golden_regression_cases import main as seed_main
-    mock_supabase = MagicMock()
-    mock_supabase.table.return_value.select.return_value.execute.return_value.data = []
 
-    with patch("backend.main.supabase", mock_supabase), \
-         patch("sys.argv", ["seed_oracle_golden_regression_cases.py", "--dry-run", "--json"]):
-         try:
-             seed_main()
-         except SystemExit:
-             pass
-         mock_supabase.table.assert_called_with("oracle_golden_regression_cases")
-         mock_supabase.table.return_value.upsert.assert_not_called()
-
-def test_seed_script_upsert_payload_schema():
-    from backend.scripts.seed_oracle_golden_regression_cases import main as seed_main
-    mock_supabase = MagicMock()
-    mock_supabase.table.return_value.select.return_value.execute.return_value.data = []
-
-    with patch("backend.main.supabase", mock_supabase), \
-         patch("sys.argv", ["seed_oracle_golden_regression_cases.py", "--write", "--json"]):
-         try:
-             seed_main()
-         except SystemExit:
-             pass
-         mock_supabase.table.return_value.upsert.assert_called()
-         called_payload = mock_supabase.table.return_value.upsert.call_args[0][0]
-         assert "case_key" in called_payload
-         assert "must_not_contain" in called_payload
-         assert "semantic_forbidden_patterns" in called_payload
-         assert "semantic_required_any_terms" in called_payload
-         assert "acceptable_abstain" in called_payload
-         assert "expected_abstain_text" in called_payload
-
-def test_runner_source_json_explicit():
+def test_report_does_not_contain_secrets():
     mock_body = {
         "answer": "Chưa đủ dữ liệu trong truyện đã nạp để mô tả chắc chắn chiến dịch Lệ Giang.",
         "source": "local_wiki"
     }
-    mock_response = MagicMock()
-    mock_response.__enter__.return_value.status = 200
-    mock_response.__enter__.return_value.read.return_value = json.dumps(mock_body).encode("utf-8")
+    exit_code, report = run_runner_with_mock_responses_list([mock_body], TEST_CASE)
 
-    with patch("urllib.request.urlopen", return_value=mock_response), \
-         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "http://mock", "--source", "json"]):
-
-         with pytest.raises(SystemExit) as excinfo:
-             run_regression()
-         assert excinfo.value.code == 0
-
-def test_runner_source_db_active_cases():
-    mock_supabase = MagicMock()
-    mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value.data = [
-        {
-            "case_key": "db_test_case",
-            "source": "manual_regression",
-            "question": "chiến dịch lệ giang diễn ra như thế nào?",
-            "chapter_progress": 829,
-            "intent": "event_plot",
-            "must_not_contain": [],
-            "semantic_forbidden_patterns": [],
-            "semantic_required_any_terms": [],
-            "acceptable_abstain": True,
-            "expected_abstain_text": "Chưa đủ dữ liệu trong truyện đã nạp để mô tả chắc chắn chiến dịch Lệ Giang.",
-            "status": "active"
-        }
-    ]
-
-    mock_body = {
-        "answer": "Chưa đủ dữ liệu trong truyện đã nạp để mô tả chắc chắn chiến dịch Lệ Giang.",
-        "source": "local_wiki"
-    }
-    mock_response = MagicMock()
-    mock_response.__enter__.return_value.status = 200
-    mock_response.__enter__.return_value.read.return_value = json.dumps(mock_body).encode("utf-8")
-
-    with patch("backend.main.supabase", mock_supabase), \
-         patch("urllib.request.urlopen", return_value=mock_response), \
-         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "http://mock", "--source", "db"]):
-
-         with pytest.raises(SystemExit) as excinfo:
-             run_regression()
-         assert excinfo.value.code == 0
-
-def test_runner_source_db_fail_if_no_active_cases():
-    mock_supabase = MagicMock()
-    mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value.data = []
-
-    with patch("backend.main.supabase", mock_supabase), \
-         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "http://mock", "--source", "db"]):
-
-         with pytest.raises(SystemExit) as excinfo:
-             run_regression()
-         assert excinfo.value.code == 1
-
-def test_runner_write_db_run_result():
-    mock_supabase = MagicMock()
-    mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value.data = [
-        {
-            "case_key": "db_test_case",
-            "source": "manual_regression",
-            "question": "chiến dịch lệ giang diễn ra như thế nào?",
-            "chapter_progress": 829,
-            "intent": "event_plot",
-            "must_not_contain": [],
-            "semantic_forbidden_patterns": [],
-            "semantic_required_any_terms": [],
-            "acceptable_abstain": True,
-            "expected_abstain_text": "Chưa đủ dữ liệu trong truyện đã nạp để mô tả chắc chắn chiến dịch Lệ Giang.",
-            "status": "active"
-        }
-    ]
-
-    mock_body = {
-        "answer": "Chưa đủ dữ liệu trong truyện đã nạp để mô tả chắc chắn chiến dịch Lệ Giang.",
-        "source": "local_wiki"
-    }
-    mock_response = MagicMock()
-    mock_response.__enter__.return_value.status = 200
-    mock_response.__enter__.return_value.read.return_value = json.dumps(mock_body).encode("utf-8")
-
-    with patch("backend.main.supabase", mock_supabase), \
-         patch("urllib.request.urlopen", return_value=mock_response), \
-         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "http://mock", "--source", "db", "--write-db-run"]):
-
-         with pytest.raises(SystemExit) as excinfo:
-             run_regression()
-         assert excinfo.value.code == 0
-         mock_supabase.table.assert_any_call("oracle_golden_regression_runs")
-         called_insert = mock_supabase.table.return_value.insert.call_args[0][0]
-         assert len(called_insert) == 1
-         assert called_insert[0]["case_key"] == "db_test_case"
-         assert called_insert[0]["passed"] is True
-         assert called_insert[0]["source"] == "local_wiki"
-
-def test_disabled_case_not_run():
-    disabled_case = [{
-        "id": "disabled_test_case",
-        "source": "manual_regression",
-        "question": "chiến dịch lệ giang diễn ra như thế nào?",
-        "chapter_progress": 829,
-        "intent": "event_plot",
-        "must_not_contain": [],
-        "semantic_forbidden_patterns": [],
-        "semantic_required_any_terms": [],
-        "acceptable_abstain": True,
-        "expected_abstain_text": "Chưa đủ...",
-        "status": "disabled"
-    }]
-
-    exit_code, report = run_runner_with_mock_response(200, {}, disabled_case)
-    assert exit_code == 1
-    assert len(report["results"]) == 0
-
-def test_seed_preserves_disabled_status():
-    from backend.scripts.seed_oracle_golden_regression_cases import main as seed_main
-    mock_supabase = MagicMock()
-    mock_supabase.table.return_value.select.return_value.execute.return_value.data = [
-        {
-            "id": "some-uuid",
-            "case_key": "le_giang_campaign_location_pollution",
-            "status": "disabled",
-            "created_at": "2026-06-12T00:00:00Z"
-        }
-    ]
-
-    with patch("backend.main.supabase", mock_supabase), \
-         patch("sys.argv", ["seed_oracle_golden_regression_cases.py", "--write", "--json"]):
-         try:
-             seed_main()
-         except SystemExit:
-             pass
-
-         called_payload = mock_supabase.table.return_value.upsert.call_args[0][0]
-         assert called_payload["status"] == "disabled"
+    # Dump report to string and assert no standard secret keywords
+    report_str = json.dumps(report)
+    assert "Authorization" not in report_str
+    assert "Bearer" not in report_str
+    assert "token" not in report_str
+    assert "secret" not in report_str

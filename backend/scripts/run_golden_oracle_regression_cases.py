@@ -4,6 +4,7 @@ import json
 import urllib.request
 import argparse
 import ssl
+import time
 from datetime import datetime, timezone
 
 # Add repository root to sys.path to ensure absolute imports work
@@ -26,6 +27,11 @@ def run_regression():
     parser.add_argument("--source", default="json", choices=["json", "db"], help="Where to load test cases from (json or db).")
     parser.add_argument("--write-db-run", action="store_true", help="Write execution results into oracle_golden_regression_runs DB table.")
 
+    # New options for transport hardening
+    parser.add_argument("--request-timeout", type=int, default=60, help="HTTP request timeout in seconds.")
+    parser.add_argument("--infra-retries", type=int, default=3, help="Number of infrastructure retries.")
+    parser.add_argument("--infra-backoff-seconds", type=int, default=5, help="Backoff seconds between retries.")
+
     args = parser.parse_args()
     base_url = args.base_url.rstrip('/')
 
@@ -35,7 +41,23 @@ def run_regression():
     cases_path = os.path.join(repo_root, "rag", "golden_oracle_regression_cases.json")
     report_path = os.path.join(repo_root, "rag", "generated_golden_oracle_regression_report.json")
 
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+
+    # Try to query health first to read git_commit
+    prod_git_commit = None
+    try:
+        health_req = urllib.request.Request(f"{base_url}/api/health", headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(health_req, context=ctx, timeout=10) as resp:
+            if resp.status == 200:
+                h_data = json.loads(resp.read().decode("utf-8"))
+                prod_git_commit = h_data.get("git_commit")
+    except Exception:
+        pass
+
     cases = []
+    load_error = None
     if args.source == "db":
         try:
             try:
@@ -52,22 +74,70 @@ def run_regression():
                     c["id"] = db_case["case_key"]
                     cases.append(c)
         except Exception as e:
-            print(f"Error loading cases from Supabase database: {e}", file=sys.stderr)
-            sys.exit(1)
+            load_error = f"Error loading cases from Supabase database: {e}"
     else:
         if not os.path.exists(cases_path):
-            print(f"Error: Cases file not found at {cases_path}", file=sys.stderr)
-            sys.exit(1)
-        with open(cases_path, "r", encoding="utf-8") as f:
-            cases = json.load(f)
+            load_error = f"Error: Cases file not found at {cases_path}"
+        else:
+            try:
+                with open(cases_path, "r", encoding="utf-8") as f:
+                    cases = json.load(f)
+            except Exception as e:
+                load_error = f"Error parsing JSON from cases file: {e}"
 
     results = []
     passed_count = 0
     failed_count = 0
+    semantic_failed = 0
+    infra_failed = 0
+    configuration_failed = 0
+    retry_recovered = 0
+    total_attempts = 0
 
-    ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
+    # Handle configuration loading error
+    if load_error:
+        configuration_failed = 1
+        report = {
+            "summary": {
+                "total": 0,
+                "passed": 0,
+                "failed": 0,
+                "semantic_failed": 0,
+                "infra_failed": 0,
+                "configuration_failed": 1,
+                "retry_recovered": 0,
+                "total_attempts": 0,
+                "run_at": datetime.now(timezone.utc).isoformat(),
+                "base_url": base_url,
+                "failure_class": "configuration_failure",
+                "load_error": load_error
+            },
+            "results": []
+        }
+        if args.write_report:
+            try:
+                with open(report_path, "w", encoding="utf-8") as f:
+                    json.dump(report, f, indent=2, ensure_ascii=False)
+            except Exception:
+                pass
+
+        # Step summary write on load error
+        summary_env = os.getenv("GITHUB_STEP_SUMMARY")
+        if summary_env:
+            try:
+                with open(summary_env, "a", encoding="utf-8") as sf:
+                    sf.write("### Golden Oracle Regression Gate Report\n")
+                    sf.write(f"❌ **FAILED**: Configuration Error\n")
+                    sf.write(f"- **Details**: {load_error}\n")
+                    sf.write(f"- **Overall Class**: `CONFIGURATION_FAILURE`\n")
+            except Exception:
+                pass
+
+        if args.json:
+            print(json.dumps(report, indent=2, ensure_ascii=False))
+        else:
+            print(f"Error: {load_error}", file=sys.stderr)
+        sys.exit(3)
 
     for case in cases:
         case_id = case.get("id")
@@ -93,64 +163,153 @@ def run_regression():
             "chapter_progress": chapter_progress
         }
 
+        # Case-level states
         passed = True
         reason = "All validation checks passed."
         answer = ""
         source = "unknown"
+        failure_class = "none"
 
-        req = urllib.request.Request(url, data=json.dumps(body).encode("utf-8"), headers=headers, method="POST")
-        try:
-            with urllib.request.urlopen(req, context=ctx, timeout=20) as resp:
-                if resp.status != 200:
-                    passed = False
-                    reason = f"HTTP request failed with status: {resp.status}"
-                else:
-                    res_body = json.loads(resp.read().decode("utf-8"))
-                    answer = res_body.get("answer", "")
-                    source = res_body.get("source", "")
+        attempts_run = 0
+        http_statuses = []
+        attempt_latencies_ms = []
+        last_exception_type = None
+        last_exception_message = None
 
-                    # 1. must_not_contain
-                    for term in must_not_contain:
-                        if term.lower() in answer.lower():
-                            passed = False
-                            reason = f"Answer contains forbidden term: '{term}'"
-                            break
+        for attempt in range(1, args.infra_retries + 1 + 1):
+            attempts_run = attempt
+            t0 = time.time()
+            req = urllib.request.Request(url, data=json.dumps(body).encode("utf-8"), headers=headers, method="POST")
 
-                    # 2. semantic_forbidden_patterns
-                    if passed:
-                        for pattern in semantic_forbidden_patterns:
-                            if pattern.lower() in answer.lower():
+            passed = True
+            reason = "All validation checks passed."
+            answer = ""
+            source = "unknown"
+            status_code = None
+            exception_type = None
+            exception_msg = None
+
+            try:
+                with urllib.request.urlopen(req, context=ctx, timeout=args.request_timeout) as resp:
+                    status_code = resp.status
+                    http_statuses.append(status_code)
+                    latency = int((time.time() - t0) * 1000)
+                    attempt_latencies_ms.append(latency)
+
+                    if status_code != 200:
+                        passed = False
+                        reason = f"HTTP request failed with status: {status_code}"
+                    else:
+                        res_body = json.loads(resp.read().decode("utf-8"))
+                        answer = res_body.get("answer", "")
+                        source = res_body.get("source", "")
+
+                        # 1. must_not_contain
+                        for term in must_not_contain:
+                            if term.lower() in answer.lower():
                                 passed = False
-                                reason = f"Answer contains semantic forbidden pattern: '{pattern}'"
+                                reason = f"Answer contains forbidden term: '{term}'"
+                                failure_class = "semantic_failure"
                                 break
 
-                    # 3. Check abstain vs semantic_required_any_terms
-                    if passed:
-                        is_abstain = False
-                        if expected_abstain_text:
-                            clean_ans = "".join(answer.lower().split())
-                            clean_exp = "".join(expected_abstain_text.lower().split())
-                            if clean_exp in clean_ans or clean_ans in clean_exp:
-                                is_abstain = True
-
-                        if is_abstain:
-                            if not acceptable_abstain:
-                                passed = False
-                                reason = "Answer is an abstain response, but abstain is not acceptable for this case."
-                        else:
-                            if semantic_required_any_terms:
-                                has_any = any(term.lower() in answer.lower() for term in semantic_required_any_terms)
-                                if not has_any:
+                        # 2. semantic_forbidden_patterns
+                        if passed:
+                            for pattern in semantic_forbidden_patterns:
+                                if pattern.lower() in answer.lower():
                                     passed = False
-                                    reason = f"Answer is not abstain and does not contain any semantic_required_any_terms: {semantic_required_any_terms}"
-        except Exception as e:
-            passed = False
-            reason = f"HTTP request triggered exception: {e}"
+                                    reason = f"Answer contains semantic forbidden pattern: '{pattern}'"
+                                    failure_class = "semantic_failure"
+                                    break
+
+                        # 3. Check abstain vs semantic_required_any_terms
+                        if passed:
+                            is_abstain = False
+                            if expected_abstain_text:
+                                clean_ans = "".join(answer.lower().split())
+                                clean_exp = "".join(expected_abstain_text.lower().split())
+                                if clean_exp in clean_ans or clean_ans in clean_exp:
+                                    is_abstain = True
+
+                            if is_abstain:
+                                if not acceptable_abstain:
+                                    passed = False
+                                    reason = "Answer is an abstain response, but abstain is not acceptable for this case."
+                                    failure_class = "semantic_failure"
+                            else:
+                                if semantic_required_any_terms:
+                                    has_any = any(term.lower() in answer.lower() for term in semantic_required_any_terms)
+                                    if not has_any:
+                                        passed = False
+                                        reason = f"Answer is not abstain and does not contain any semantic_required_any_terms: {semantic_required_any_terms}"
+                                        failure_class = "semantic_failure"
+            except Exception as e:
+                latency = int((time.time() - t0) * 1000)
+                attempt_latencies_ms.append(latency)
+                passed = False
+                reason = f"HTTP request triggered exception: {e}"
+
+                if hasattr(e, "code"):
+                    status_code = e.code
+                    http_statuses.append(status_code)
+                else:
+                    http_statuses.append("Error")
+
+                exception_type = type(e).__name__
+                exception_msg = str(e)
+                last_exception_type = exception_type
+                last_exception_message = exception_msg
+
+            # Handle retries for infrastructure issues
+            if not passed:
+                is_infra_error = False
+
+                # Check for network issues or timeout exceptions
+                if exception_type is not None:
+                    if "timeout" in exception_type.lower() or "timeout" in exception_msg.lower() or "timed out" in exception_msg.lower():
+                        is_infra_error = True
+                    elif "connection" in exception_msg.lower() or "refused" in exception_msg.lower() or "reset" in exception_msg.lower() or "dns" in exception_msg.lower() or "urlerror" in exception_type.lower():
+                        is_infra_error = True
+
+                # Check for specific HTTP statuses
+                if status_code in [429, 502, 503, 504]:
+                    is_infra_error = True
+
+                if is_infra_error:
+                    failure_class = "infra_failure"
+                    if attempt < args.infra_retries + 1:
+                        # Print retry message if not json mode
+                        if not args.json:
+                            print(f"[Attempt {attempt} Fail - Infra Error] {reason}. Retrying in {args.infra_backoff_seconds}s...")
+                        time.sleep(args.infra_backoff_seconds)
+                        continue
+                    else:
+                        break
+                else:
+                    # Semantic error or other HTTP error (e.g. 400, 404, 500)
+                    if failure_class == "none":
+                        if status_code == 500:
+                            failure_class = "infra_failure"
+                        else:
+                            failure_class = "semantic_failure"  # Default non-infra HTTP failure class to semantic
+                    break
+            else:
+                failure_class = "none"
+                if attempt > 1:
+                    retry_recovered += 1
+                break
+
+        total_attempts += attempts_run
 
         if passed:
             passed_count += 1
         else:
             failed_count += 1
+            if failure_class == "semantic_failure":
+                semantic_failed += 1
+            elif failure_class == "infra_failure":
+                infra_failed += 1
+            elif failure_class == "configuration_failure":
+                configuration_failed += 1
 
         results.append({
             "case_id": case_id,
@@ -158,16 +317,42 @@ def run_regression():
             "passed": passed,
             "reason": reason,
             "answer": answer,
-            "source": source
+            "source": source,
+            # new fields
+            "failure_class": failure_class,
+            "attempts": attempts_run,
+            "request_timeout_seconds": args.request_timeout,
+            "http_statuses": http_statuses,
+            "attempt_latencies_ms": attempt_latencies_ms,
+            "last_exception_type": last_exception_type,
+            "last_exception_message": last_exception_message,
+            "production_git_commit": prod_git_commit,
+            "workflow_sha": os.getenv("GITHUB_SHA")
         })
+
+    if len(results) == 0:
+        configuration_failed = 1
+        overall_class = "configuration_failure"
+    elif semantic_failed > 0:
+        overall_class = "semantic_failure"
+    elif infra_failed > 0:
+        overall_class = "infra_failure"
+    else:
+        overall_class = "none"
 
     report = {
         "summary": {
             "total": len(results),
             "passed": passed_count,
             "failed": failed_count,
+            "semantic_failed": semantic_failed,
+            "infra_failed": infra_failed,
+            "configuration_failed": configuration_failed,
+            "retry_recovered": retry_recovered,
+            "total_attempts": total_attempts,
             "run_at": datetime.now(timezone.utc).isoformat(),
-            "base_url": base_url
+            "base_url": base_url,
+            "failure_class": overall_class
         },
         "results": results
     }
@@ -184,39 +369,32 @@ def run_regression():
         print(f"Total Cases: {report['summary']['total']}")
         print(f"Passed:      {report['summary']['passed']}")
         print(f"Failed:      {report['summary']['failed']}")
+        print(f"Overall Class: {overall_class.upper()}")
         print("======================================")
         for r in results:
             status_str = "PASS" if r["passed"] else "FAIL"
-            print(f"[{status_str}] Case: {r['case_id']}")
+            print(f"[{status_str}] Case: {r['case_id']} (Class: {r['failure_class']})")
             print(f"  Reason: {r['reason']}")
 
     # Write runs to database if requested
-    if args.write_db_run:
+    if args.write_db_run and len(results) > 0:
         try:
             try:
                 from backend.main import supabase
             except ImportError:
                 from main import supabase
 
-            git_commit = None
-            try:
-                git_commit = os.getenv("RENDER_GIT_COMMIT") or os.getenv("GITHUB_SHA")
-                if not git_commit:
-                    import subprocess
-                    git_commit = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode("utf-8").strip()
-            except Exception:
-                pass
-
             workflow_run_id = os.getenv("GITHUB_RUN_ID")
-
             run_payloads = []
             for r in results:
-                status_code = 200 if r["passed"] or "HTTP request failed" not in r["reason"] else 500
-                if "status:" in r["reason"]:
-                    try:
-                        status_code = int(r["reason"].split("status:")[1].strip())
-                    except Exception:
-                        pass
+                status_code = 200
+                if r["http_statuses"]:
+                    # Get last valid status or fallback
+                    last_status = r["http_statuses"][-1]
+                    if isinstance(last_status, int):
+                        status_code = last_status
+                    else:
+                        status_code = 500
 
                 run_payloads.append({
                     "case_key": r["case_id"],
@@ -226,7 +404,7 @@ def run_regression():
                     "answer_excerpt": r["answer"][:500] if r["answer"] else None,
                     "source": r["source"],
                     "response_status": status_code,
-                    "git_commit": git_commit,
+                    "git_commit": prod_git_commit or os.getenv("GITHUB_SHA"),
                     "workflow_run_id": workflow_run_id
                 })
             if run_payloads:
@@ -234,15 +412,50 @@ def run_regression():
         except Exception as e:
             print(f"Warning: Failed to write run results to database: {e}", file=sys.stderr)
 
-    if len(results) == 0:
-        if not args.json:
-            print("Error: No active regression cases found.", file=sys.stderr)
-        sys.exit(1)
+    # Write to GitHub Step Summary
+    summary_env = os.getenv("GITHUB_STEP_SUMMARY")
+    if summary_env:
+        try:
+            with open(summary_env, "a", encoding="utf-8") as sf:
+                sf.write("### Golden Oracle Regression Gate Report\n")
+                if overall_class == "none":
+                    sf.write("✅ **ALL CASES PASSED**\n")
+                elif overall_class == "semantic_failure":
+                    sf.write("❌ **FAILED**: ORACLE SEMANTIC REGRESSION DETECTED\n")
+                elif overall_class == "infra_failure":
+                    sf.write("⚠️ **FAILED**: INFRASTRUCTURE FAILURE (TEST SUITE WARM-UP/RETRIES EXHAUSTED)\n")
+                else:
+                    sf.write("❌ **FAILED**: CONFIGURATION ERROR\n")
 
-    if failed_count > 0:
+                sf.write(f"- **Production Commit**: `{prod_git_commit or 'unknown'}`\n")
+                sf.write(f"- **Total Cases**: {report['summary']['total']}\n")
+                sf.write(f"- **Passed**: {report['summary']['passed']}\n")
+                sf.write(f"- **Failed**: {report['summary']['failed']}\n")
+                sf.write(f"- **Semantic Failures**: {report['summary']['semantic_failed']}\n")
+                sf.write(f"- **Infra Failures**: {report['summary']['infra_failed']}\n")
+                sf.write(f"- **Retries Recovered**: {report['summary']['retry_recovered']}\n")
+                sf.write(f"- **Overall Failure Class**: `{overall_class.upper()}`\n\n")
+
+                sf.write("| Case ID | Status | Class | Attempts | Reason | Source |\n")
+                sf.write("|---|---|---|---|---|---|\n")
+                for r in results:
+                    status_str = "✅ PASS" if r["passed"] else "❌ FAIL"
+                    sf.write(f"| `{r['case_id']}` | {status_str} | `{r['failure_class']}` | {r['attempts']} | {r['reason']} | `{r['source']}` |\n")
+        except Exception as se:
+            print(f"Warning: Failed to write to GITHUB_STEP_SUMMARY: {se}", file=sys.stderr)
+
+    if len(results) == 0:
+        sys.exit(3)
+
+    if overall_class == "semantic_failure":
         sys.exit(1)
+    elif overall_class == "infra_failure":
+        sys.exit(2)
+    elif overall_class == "configuration_failure":
+        sys.exit(3)
     else:
         sys.exit(0)
+
 
 if __name__ == "__main__":
     run_regression()

@@ -18,9 +18,13 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Warm up production backend
+        run: |
+          python backend/scripts/warm_up_oracle_backend.py --base-url https://mat-the-website.onrender.com --attempts 5 --timeout 90 --backoff-seconds 10
+
       - name: Run Golden Regression Cases
         run: |
-          python backend/scripts/run_golden_oracle_regression_cases.py --base-url https://mat-the-website.onrender.com --json --write-report
+          python backend/scripts/run_golden_oracle_regression_cases.py --base-url https://mat-the-website.onrender.com --json --write-report --request-timeout 75 --infra-retries 3 --infra-backoff-seconds 5
 
       - name: Upload Regression Report Artifact
         if: always()
