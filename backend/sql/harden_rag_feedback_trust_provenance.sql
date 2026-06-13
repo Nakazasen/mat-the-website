@@ -25,5 +25,9 @@ CREATE POLICY "feedback_anonymous_insert" ON rag_feedback
         (source_verified IS NULL OR source_verified = false) AND
         (is_author IS NULL OR is_author = false) AND
         (is_trusted_reader IS NULL OR is_trusted_reader = false) AND
-        (status IS NULL OR status = 'pending')
+        (status IS NULL OR status = 'pending') AND
+        (source IS NULL OR source = 'anonymous_feedback') AND
+        (trust_verification_method IS NULL) AND
+        (trust_verified_at IS NULL) AND
+        (trust_subject_user_id IS NULL)
     );

@@ -270,3 +270,206 @@ def test_report_does_not_contain_secrets():
     assert "Bearer" not in report_str
     assert "token" not in report_str
     assert "secret" not in report_str
+
+
+# --- Restored Safety & Database Seeding Registry Tests for Phase 11E-SEC2-FIX1 ---
+
+def test_runner_source_db_active_cases():
+    mock_supabase = MagicMock()
+    mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value.data = [
+        {
+            "case_key": "db_test_case",
+            "source": "manual_regression",
+            "question": "chiến dịch lệ giang diễn ra như thế nào?",
+            "chapter_progress": 829,
+            "intent": "event_plot",
+            "must_not_contain": [],
+            "semantic_forbidden_patterns": [],
+            "semantic_required_any_terms": [],
+            "acceptable_abstain": True,
+            "expected_abstain_text": "Chưa đủ dữ liệu trong truyện đã nạp để mô tả chắc chắn chiến dịch Lệ Giang.",
+            "status": "active"
+        }
+    ]
+
+    mock_body = {
+        "answer": "Chưa đủ dữ liệu trong truyện đã nạp để mô tả chắc chắn chiến dịch Lệ Giang.",
+        "source": "local_wiki"
+    }
+
+    def mock_urlopen(req, *args, **kwargs):
+        url_str = req.full_url if hasattr(req, "full_url") else str(req)
+        mock_resp = MagicMock()
+        mock_resp.status = 200
+        mock_resp.__enter__.return_value = mock_resp
+        if "/api/health" in url_str:
+            mock_resp.read.return_value = json.dumps({"status": "ok", "git_commit": "mock_commit"}).encode("utf-8")
+        else:
+            mock_resp.read.return_value = json.dumps(mock_body).encode("utf-8")
+        return mock_resp
+
+    with patch("backend.main.supabase", mock_supabase), \
+         patch("main.supabase", mock_supabase, create=True), \
+         patch("urllib.request.urlopen", side_effect=mock_urlopen), \
+         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "http://mock", "--source", "db"]):
+
+         with pytest.raises(SystemExit) as excinfo:
+             run_regression()
+         assert excinfo.value.code == 0
+
+
+def test_runner_source_db_fail_if_no_active_cases():
+    mock_supabase = MagicMock()
+    mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value.data = []
+
+    with patch("backend.main.supabase", mock_supabase), \
+         patch("main.supabase", mock_supabase, create=True), \
+         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "http://mock", "--source", "db"]):
+
+         with pytest.raises(SystemExit) as excinfo:
+             run_regression()
+         assert excinfo.value.code == 3  # configuration_failure since 0 active cases
+
+
+def test_runner_write_db_run_result():
+    mock_supabase = MagicMock()
+    mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value.data = [
+        {
+            "case_key": "db_test_case",
+            "source": "manual_regression",
+            "question": "chiến dịch lệ giang diễn ra như thế nào?",
+            "chapter_progress": 829,
+            "intent": "event_plot",
+            "must_not_contain": [],
+            "semantic_forbidden_patterns": [],
+            "semantic_required_any_terms": [],
+            "acceptable_abstain": True,
+            "expected_abstain_text": "Chưa đủ dữ liệu trong truyện đã nạp để mô tả chắc chắn chiến dịch Lệ Giang.",
+            "status": "active"
+        }
+    ]
+
+    mock_body = {
+        "answer": "Chưa đủ dữ liệu trong truyện đã nạp để mô tả chắc chắn chiến dịch Lệ Giang.",
+        "source": "local_wiki"
+    }
+
+    def mock_urlopen(req, *args, **kwargs):
+        url_str = req.full_url if hasattr(req, "full_url") else str(req)
+        mock_resp = MagicMock()
+        mock_resp.status = 200
+        mock_resp.__enter__.return_value = mock_resp
+        if "/api/health" in url_str:
+            mock_resp.read.return_value = json.dumps({"status": "ok", "git_commit": "mock_commit"}).encode("utf-8")
+        else:
+            mock_resp.read.return_value = json.dumps(mock_body).encode("utf-8")
+        return mock_resp
+
+    with patch("backend.main.supabase", mock_supabase), \
+         patch("main.supabase", mock_supabase, create=True), \
+         patch("urllib.request.urlopen", side_effect=mock_urlopen), \
+         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "http://mock", "--source", "db", "--write-db-run"]):
+
+         with pytest.raises(SystemExit) as excinfo:
+             run_regression()
+         assert excinfo.value.code == 0
+         mock_supabase.table.assert_any_call("oracle_golden_regression_runs")
+         called_insert = mock_supabase.table.return_value.insert.call_args[0][0]
+         assert len(called_insert) == 1
+         assert called_insert[0]["case_key"] == "db_test_case"
+         assert called_insert[0]["passed"] is True
+         assert called_insert[0]["source"] == "local_wiki"
+
+
+def test_disabled_case_not_run():
+    disabled_case = [{
+        "id": "disabled_test_case",
+        "source": "manual_regression",
+        "question": "chiến dịch lệ giang diễn ra như thế nào?",
+        "chapter_progress": 829,
+        "intent": "event_plot",
+        "must_not_contain": [],
+        "semantic_forbidden_patterns": [],
+        "semantic_required_any_terms": [],
+        "acceptable_abstain": True,
+        "expected_abstain_text": "Chưa đủ dữ liệu trong truyện đã nạp để mô tả chắc chắn chiến dịch Lệ Giang.",
+        "status": "disabled"
+    }]
+
+    mock_body = {
+        "answer": "Chưa đủ dữ liệu trong truyện đã nạp để mô tả chắc chắn chiến dịch Lệ Giang.",
+        "source": "local_wiki"
+    }
+
+    def mock_urlopen(req, *args, **kwargs):
+        url_str = req.full_url if hasattr(req, "full_url") else str(req)
+        mock_resp = MagicMock()
+        mock_resp.status = 200
+        mock_resp.__enter__.return_value = mock_resp
+        if "/api/health" in url_str:
+            mock_resp.read.return_value = json.dumps({"status": "ok", "git_commit": "mock_commit"}).encode("utf-8")
+        else:
+            mock_resp.read.return_value = json.dumps(mock_body).encode("utf-8")
+        return mock_resp
+
+    original_open = open
+    def mock_open(file, *args, **kwargs):
+        if "golden_oracle_regression_cases.json" in str(file):
+            m = MagicMock()
+            m.__enter__.return_value.read.return_value = json.dumps(disabled_case)
+            return m
+        return original_open(file, *args, **kwargs)
+
+    with patch("urllib.request.urlopen", side_effect=mock_urlopen), \
+         patch("builtins.open", new=mock_open), \
+         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "http://mock"]), \
+         patch("backend.scripts.run_golden_oracle_regression_cases.json.dump") as mock_dump:
+
+         with pytest.raises(SystemExit) as excinfo:
+             run_regression()
+         assert excinfo.value.code == 3  # configuration_failure since 0 active cases
+
+
+def test_seed_preserves_disabled_status():
+    from backend.scripts.seed_oracle_golden_regression_cases import main as seed_main
+    mock_supabase = MagicMock()
+    mock_supabase.table.return_value.select.return_value.execute.return_value.data = [
+        {
+            "id": "some-uuid",
+            "case_key": "test_case",
+            "status": "disabled",
+            "created_at": "2026-06-12T00:00:00Z"
+        }
+    ]
+
+    original_open = open
+    def mock_open(file, *args, **kwargs):
+        if "golden_oracle_regression_cases.json" in str(file):
+            m = MagicMock()
+            m.__enter__.return_value.read.return_value = json.dumps([{
+                "id": "test_case",
+                "source": "manual_regression",
+                "question": "chiến dịch lệ giang diễn ra như thế nào?",
+                "chapter_progress": 829,
+                "intent": "event_plot",
+                "must_not_contain": [],
+                "semantic_forbidden_patterns": [],
+                "semantic_required_any_terms": [],
+                "acceptable_abstain": True,
+                "expected_abstain_text": "Chưa đủ...",
+                "status": "active"
+            }])
+            return m
+        return original_open(file, *args, **kwargs)
+
+    with patch("backend.main.supabase", mock_supabase), \
+         patch("main.supabase", mock_supabase, create=True), \
+         patch("builtins.open", new=mock_open), \
+         patch("sys.argv", ["seed_oracle_golden_regression_cases.py", "--write", "--json"]):
+         try:
+             seed_main()
+         except SystemExit:
+             pass
+
+         called_payload = mock_supabase.table.return_value.upsert.call_args[0][0]
+         assert called_payload["status"] == "disabled"
