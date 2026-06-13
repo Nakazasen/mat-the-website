@@ -1821,7 +1821,8 @@ async def create_oracle_feedback(
         from rag.feedback_trust_provenance import determine_provenance
 
     # Determine trust provenance server-side
-    provenance = determine_provenance(authorization, client_source=body.source, caller_context="public")
+    context = "authenticated_public" if authorization else "public"
+    provenance = determine_provenance(authorization, client_source=body.source, caller_context=context)
 
     # Sanitize and force correct sources for unverified payloads
     if provenance["trust_level"] != "author" and provenance["source"] == "author_feedback":

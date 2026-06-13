@@ -32,6 +32,10 @@ def run_regression():
     parser.add_argument("--infra-retries", type=int, default=3, help="Number of infrastructure retries.")
     parser.add_argument("--infra-backoff-seconds", type=int, default=5, help="Backoff seconds between retries.")
 
+    # New options for Phase 11E-4
+    parser.add_argument("--rollback-mode", default="off", choices=["off", "verified-canary"], help="Rollback mode for database sources.")
+    parser.add_argument("--report-path", default=None, help="Custom path to save the regression report.")
+
     args = parser.parse_args()
     base_url = args.base_url.rstrip('/')
 
@@ -39,7 +43,10 @@ def run_regression():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     repo_root = os.path.dirname(script_dir)
     cases_path = os.path.join(repo_root, "rag", "golden_oracle_regression_cases.json")
-    report_path = os.path.join(repo_root, "rag", "generated_golden_oracle_regression_report.json")
+    if args.report_path:
+        report_path = args.report_path
+    else:
+        report_path = os.path.join(repo_root, "rag", "generated_golden_oracle_regression_report.json")
 
     ctx = ssl.create_default_context()
     ctx.check_hostname = False
@@ -353,10 +360,10 @@ def run_regression():
         overall_class = "infra_failure"
     else:
         overall_class = "none"
-
     # Isolate auto-rollback logic for database sources (semantic failures of autonomous system canary only)
+    rollback_eligible = False
     if args.source == "db" and failed_count > 0:
-        print("\n=== POST-PROMOTION FAILURE DETECTED: INITIATING AUTOMATIC ROLLBACK ===")
+        print("\n=== POST-PROMOTION FAILURE DETECTED: EVALUATING AUTOMATIC ROLLBACK ===")
         try:
             try:
                 from backend.main import supabase
@@ -405,53 +412,59 @@ def run_regression():
                             skip_reason = f"No linked candidate found for case_key {case_key}"
 
                     if eligible:
-                        print(f"Rolling back case: {case_key}")
-                        # Disable case in registry (do NOT delete)
-                        supabase.table("oracle_golden_regression_cases").update({"status": "disabled"}).eq("case_key", case_key).execute()
-                        case_disabled_count += 1
-                        rollback_case_keys.append(case_key)
+                        rollback_eligible = True
+                        if args.rollback_mode == "verified-canary":
+                            print(f"Rolling back case: {case_key}")
+                            # Disable case in registry (do NOT delete)
+                            supabase.table("oracle_golden_regression_cases").update({"status": "disabled"}).eq("case_key", case_key).execute()
+                            case_disabled_count += 1
+                            rollback_case_keys.append(case_key)
 
-                        # Update candidate status to canary_rolled_back
-                        supabase.table("oracle_golden_regression_candidates").update({
-                            "promotion_status": "canary_rolled_back",
-                            "promotion_reason": f"Rollback: Regression failed. Reason: {r['reason']}"
-                        }).eq("candidate_key", case_key).execute()
-                        candidate_rolled_back_count += 1
-                        rollback_candidate_keys.append(case_key)
+                            # Update candidate status to canary_rolled_back
+                            supabase.table("oracle_golden_regression_candidates").update({
+                                "promotion_status": "canary_rolled_back",
+                                "promotion_reason": f"Rollback: Regression failed. Reason: {r['reason']}"
+                            }).eq("candidate_key", case_key).execute()
+                            candidate_rolled_back_count += 1
+                            rollback_candidate_keys.append(case_key)
+                        else:
+                            print(f"Eligible for rollback but skipped because rollback-mode is off: {case_key}")
+                            rollback_skipped_reasons[case_key] = "Rollback mode is off"
                     else:
                         print(f"Skipping rollback for case: {case_key}. Reason: {skip_reason}")
                         rollback_skipped_reasons[case_key] = skip_reason
 
-            # Prove remaining active cases pass by querying them and running verification
-            res_remaining = supabase.table("oracle_golden_regression_cases").select("*").eq("status", "active").execute()
-            remaining_cases = res_remaining.data or []
-            print(f"Remaining active cases to verify: {len(remaining_cases)}")
+            # Prove remaining active cases pass by querying them and running verification (only if rollback performed)
+            if case_disabled_count > 0:
+                res_remaining = supabase.table("oracle_golden_regression_cases").select("*").eq("status", "active").execute()
+                remaining_cases = res_remaining.data or []
+                print(f"Remaining active cases to verify: {len(remaining_cases)}")
 
-            remaining_passed = True
-            for rc in remaining_cases:
-                rc_url = f"{base_url}/oracle/ask"
-                rc_body = {
-                    "question": rc.get("question"),
-                    "chapter_progress": rc.get("chapter_progress", 1)
-                }
-                rc_req = urllib.request.Request(rc_url, data=json.dumps(rc_body).encode("utf-8"), headers=headers, method="POST")
-                try:
-                    with urllib.request.urlopen(rc_req, context=ctx, timeout=20) as rc_resp:
-                        if rc_resp.status != 200:
-                            remaining_passed = False
-                        else:
-                            rc_res_body = json.loads(rc_resp.read().decode("utf-8"))
-                            rc_answer = rc_res_body.get("answer", "")
-                            for term in rc.get("must_not_contain") or []:
-                                if term.lower() in rc_answer.lower():
-                                    remaining_passed = False
-                            for pattern in rc.get("semantic_forbidden_patterns") or []:
-                                if pattern.lower() in rc_answer.lower():
-                                    remaining_passed = False
-                except Exception:
-                    remaining_passed = False
+                remaining_passed = True
+                for rc in remaining_cases:
+                    rc_url = f"{base_url}/oracle/ask"
+                    rc_body = {
+                        "question": rc.get("question"),
+                        "chapter_progress": rc.get("chapter_progress", 1)
+                    }
+                    rc_req = urllib.request.Request(rc_url, data=json.dumps(rc_body).encode("utf-8"), headers=headers, method="POST")
+                    try:
+                        with urllib.request.urlopen(rc_req, context=ctx, timeout=20) as rc_resp:
+                            if rc_resp.status != 200:
+                                remaining_passed = False
+                            else:
+                                rc_res_body = json.loads(rc_resp.read().decode("utf-8"))
+                                rc_answer = rc_res_body.get("answer", "")
+                                for term in rc.get("must_not_contain") or []:
+                                    if term.lower() in rc_answer.lower():
+                                        remaining_passed = False
+                                for pattern in rc.get("semantic_forbidden_patterns") or []:
+                                    if pattern.lower() in rc_answer.lower():
+                                        remaining_passed = False
+                    except Exception:
+                        remaining_passed = False
 
-            print(f"Re-check of remaining active cases passed: {remaining_passed}")
+                print(f"Re-check of remaining active cases passed: {remaining_passed}")
         except Exception as rollback_err:
             print(f"Error during automatic rollback: {rollback_err}", file=sys.stderr)
 
@@ -473,7 +486,12 @@ def run_regression():
             "rollback_case_keys": rollback_case_keys,
             "rollback_candidate_keys": rollback_candidate_keys,
             "rollback_skipped_reasons": rollback_skipped_reasons,
-            "rollback_performed": case_disabled_count > 0
+            "rollback_performed": case_disabled_count > 0,
+            "rollback_mode": args.rollback_mode,
+            "rollback_eligible": rollback_eligible,
+            "source": args.source,
+            "production_git_commit": prod_git_commit,
+            "workflow_sha": os.getenv("GITHUB_SHA")
         },
         "results": results
     }

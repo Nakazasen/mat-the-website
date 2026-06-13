@@ -946,7 +946,7 @@ def test_verified_author_jwt_grants_author_trust():
 
     with patch("backend.main.supabase", mock_supabase), \
          patch("main.supabase", mock_supabase):
-        provenance = determine_provenance("Bearer author-token", "author_feedback")
+        provenance = determine_provenance("Bearer author-token", "author_feedback", caller_context="authenticated_public")
         assert provenance["trust_level"] == TRUST_AUTHOR
         assert provenance["trust_verified"] is True
         assert provenance["trust_verification_method"] == "jwt_author_profile"
@@ -969,7 +969,7 @@ def test_verified_trusted_reader_jwt_grants_trusted_reader_trust():
 
     with patch("backend.main.supabase", mock_supabase), \
          patch("main.supabase", mock_supabase):
-        provenance = determine_provenance("Bearer tr-token", "custom_source")
+        provenance = determine_provenance("Bearer tr-token", "custom_source", caller_context="authenticated_public")
         assert provenance["trust_level"] == TRUST_TRUSTED_READER
         assert provenance["trust_verified"] is True
         assert provenance["trust_verification_method"] == "jwt_trusted_reader_profile"
@@ -1167,7 +1167,7 @@ def test_internal_system_source_requires_valid_provenance():
     # Attempt to determine provenance with standard JWT but claiming system source
     with patch("backend.main.supabase", mock_supabase), \
          patch("main.supabase", mock_supabase):
-         provenance = determine_provenance("Bearer reader-token", "system_detected_failure")
+         provenance = determine_provenance("Bearer reader-token", "system_detected_failure", caller_context="internal_system")
          # Because they are not system role or backend script, trust level remains reader
          # and the source is demoted/not verified as system source
          assert provenance["trust_level"] == "reader"
@@ -1202,7 +1202,7 @@ from backend.scripts.create_verified_golden_canary import main as canary_builder
 
 def test_canary_public_payload_fails_to_create_system_canary_provenance():
     # 1. public payload không tạo system_canary provenance.
-    provenance = determine_provenance(None, "system_canary")
+    provenance = determine_provenance(None, "system_canary", caller_context="public")
     assert provenance["source"] == "anonymous_feedback"
     assert provenance["trust_level"] == "anonymous"
 
@@ -1440,7 +1440,7 @@ def test_post_promotion_runner_failure_disables_case():
     with patch("backend.main.supabase", mock_supabase), \
          patch("main.supabase", mock_supabase), \
          patch("urllib.request.urlopen", return_value=mock_response), \
-         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "https://mat-the-website.onrender.com", "--source", "db"]), \
+         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "https://mat-the-website.onrender.com", "--source", "db", "--rollback-mode", "verified-canary"]), \
          pytest.raises(SystemExit) as excinfo:
          run_regression()
 
@@ -1492,7 +1492,7 @@ def test_rollback_does_not_delete_audit_trail():
     with patch("backend.main.supabase", mock_supabase), \
          patch("main.supabase", mock_supabase), \
          patch("urllib.request.urlopen", return_value=mock_response), \
-         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "https://mat-the-website.onrender.com", "--source", "db"]), \
+         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "https://mat-the-website.onrender.com", "--source", "db", "--rollback-mode", "verified-canary"]), \
          pytest.raises(SystemExit):
          run_regression()
 
@@ -1546,7 +1546,7 @@ def test_successful_3_run_canary_remains_active():
     with patch("backend.main.supabase", mock_supabase), \
          patch("main.supabase", mock_supabase), \
          patch("urllib.request.urlopen", return_value=mock_response), \
-         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "https://mat-the-website.onrender.com", "--source", "db"]):
+         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "https://mat-the-website.onrender.com", "--source", "db", "--rollback-mode", "verified-canary"]):
          try:
              run_regression()
          except SystemExit as e:
@@ -1687,7 +1687,7 @@ def test_fix1_4_semantic_fail_canary_disabled():
     with patch("backend.main.supabase", mock_supabase), \
          patch("main.supabase", mock_supabase), \
          patch("urllib.request.urlopen", return_value=mock_response), \
-         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "https://mat-the-website.onrender.com", "--source", "db"]), \
+         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "https://mat-the-website.onrender.com", "--source", "db", "--rollback-mode", "verified-canary"]), \
          pytest.raises(SystemExit) as excinfo:
          run_regression()
 
@@ -1936,7 +1936,7 @@ def test_fix1_10_rollback_updates_using_exact_case_key():
     with patch("backend.main.supabase", mock_supabase), \
          patch("main.supabase", mock_supabase), \
          patch("urllib.request.urlopen", return_value=mock_response), \
-         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "https://mat-the-website.onrender.com", "--source", "db"]), \
+         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "https://mat-the-website.onrender.com", "--source", "db", "--rollback-mode", "verified-canary"]), \
          pytest.raises(SystemExit):
          run_regression()
 
@@ -1988,7 +1988,7 @@ def test_fix1_11_linked_candidate_status_rolled_back():
     with patch("backend.main.supabase", mock_supabase), \
          patch("main.supabase", mock_supabase), \
          patch("urllib.request.urlopen", return_value=mock_response), \
-         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "https://mat-the-website.onrender.com", "--source", "db"]), \
+         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "https://mat-the-website.onrender.com", "--source", "db", "--rollback-mode", "verified-canary"]), \
          pytest.raises(SystemExit):
          run_regression()
 
@@ -2045,7 +2045,7 @@ def test_fix1_12_rollback_no_deletion():
     with patch("backend.main.supabase", mock_supabase), \
          patch("main.supabase", mock_supabase), \
          patch("urllib.request.urlopen", return_value=mock_response), \
-         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "https://mat-the-website.onrender.com", "--source", "db"]), \
+         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "https://mat-the-website.onrender.com", "--source", "db", "--rollback-mode", "verified-canary"]), \
          pytest.raises(SystemExit):
          run_regression()
 
@@ -2124,7 +2124,7 @@ def test_fix1_13_remaining_active_cases_rerun():
     with patch("backend.main.supabase", mock_supabase), \
          patch("main.supabase", mock_supabase), \
          patch("urllib.request.urlopen", side_effect=mock_urlopen), \
-         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "https://mat-the-website.onrender.com", "--source", "db"]), \
+         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "https://mat-the-website.onrender.com", "--source", "db", "--rollback-mode", "verified-canary"]), \
          pytest.raises(SystemExit) as excinfo:
          run_regression()
 
@@ -2152,7 +2152,7 @@ def test_fix1_16_public_system_canary_no_system_trust():
 
 def test_fix1_17_internal_authenticated_canary_valid():
     # 17. internal authenticated canary path vẫn hợp lệ
-    provenance = determine_provenance(None, "system_canary", caller_context="internal")
+    provenance = determine_provenance(None, "system_canary", caller_context="internal_canary")
     assert provenance["source"] == "system_canary"
 
 def test_fix1_18_report_separates_rollback_reasons():
@@ -2187,7 +2187,7 @@ def test_fix1_18_report_separates_rollback_reasons():
     with patch("backend.main.supabase", mock_supabase), \
          patch("main.supabase", mock_supabase), \
          patch("urllib.request.urlopen", return_value=mock_response), \
-         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "https://mat-the-website.onrender.com", "--source", "db", "--write-report"]), \
+         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "https://mat-the-website.onrender.com", "--source", "db", "--write-report", "--rollback-mode", "verified-canary"]), \
          pytest.raises(SystemExit):
          run_regression()
 
@@ -2245,7 +2245,7 @@ def test_fix1_19_no_wiki_provisional_or_feedback_mutation_on_run():
     with patch("backend.main.supabase", mock_supabase), \
          patch("main.supabase", mock_supabase), \
          patch("urllib.request.urlopen", return_value=mock_response), \
-         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "https://mat-the-website.onrender.com", "--source", "db"]), \
+         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "https://mat-the-website.onrender.com", "--source", "db", "--rollback-mode", "verified-canary"]), \
          pytest.raises(SystemExit):
          run_regression()
 
@@ -2256,3 +2256,244 @@ def test_fix1_19_no_wiki_provisional_or_feedback_mutation_on_run():
             assert "update" not in call_str
             assert "delete" not in call_str
             assert "upsert" not in call_str
+
+# --- Phase 11E-4: Dual-Source Golden Regression Gate & Explicit Rollback Mode Tests ---
+
+def test_11e4_caller_context_omitted_raises_type_error():
+    # 1. omitted caller_context bị reject (raises TypeError)
+    with pytest.raises(TypeError):
+        determine_provenance(None, "system_canary")
+
+def test_11e4_unknown_caller_context_fail_closed():
+    # 2. unknown caller_context bị reject/fail-closed
+    provenance = determine_provenance(None, "system_canary", caller_context="invalid_context")
+    assert provenance["trust_level"] == "anonymous"
+    assert provenance["source"] == "anonymous_feedback"
+
+def test_11e4_public_cannot_create_system_canary():
+    # 3. public không tạo system_canary
+    provenance = determine_provenance(None, "system_canary", caller_context="public")
+    assert provenance["source"] == "anonymous_feedback"
+
+def test_11e4_public_cannot_create_system_detected_failure():
+    # 4. public không tạo system_detected_failure
+    provenance = determine_provenance(None, "system_detected_failure", caller_context="public")
+    assert provenance["source"] == "anonymous_feedback"
+
+def test_11e4_public_cannot_create_author_feedback_via_string():
+    # 5. public không tạo author_feedback bằng source string
+    provenance = determine_provenance(None, "author_feedback", caller_context="public")
+    assert provenance["source"] == "anonymous_feedback"
+
+def test_11e4_internal_canary_is_valid():
+    # 6. internal canary vẫn hợp lệ
+    provenance = determine_provenance(None, "system_canary", caller_context="internal_canary")
+    assert provenance["source"] == "system_canary"
+
+def test_11e4_internal_system_is_valid():
+    # 7. internal system vẫn hợp lệ
+    provenance = determine_provenance(None, "system_detected_failure", caller_context="internal_system")
+    assert provenance["source"] == "system_detected_failure"
+
+# Explicit Rollback Mode Tests
+def test_11e4_rollback_mode_off_does_not_mutate():
+    # 1. source=db + semantic canary fail + rollback-mode=off -> không disable
+    from backend.scripts.run_golden_oracle_regression_cases import run_regression
+    mock_supabase = MagicMock()
+    mock_query_cases = MagicMock()
+    mock_query_candidates = MagicMock()
+
+    mock_query_cases.select.return_value.eq.return_value.execute.return_value.data = [
+        {
+            "case_key": "canary_verified_le_giang_campaign",
+            "source": "system_canary",
+            "question": "Hãy kể lại diễn biến của chiến dịch Lệ Giang.",
+            "must_not_contain": ["[DỮ LIỆU HỆ THỐNG]"],
+            "status": "active"
+        }
+    ]
+    mock_query_candidates.select.return_value.eq.return_value.execute.return_value.data = [
+        {
+            "candidate_key": "canary_verified_le_giang_campaign",
+            "promotion_status": "auto_promoted",
+            "trust_level": "system",
+            "source": "system_canary",
+            "evidence": {
+                "trust_verification": {
+                    "trust_verified": True,
+                    "source_verified": True,
+                    "trust_verification_method": "internal_backend_canary"
+                }
+            }
+        }
+    ]
+
+    def mock_table(table_name):
+        if table_name == "oracle_golden_regression_cases":
+            return mock_query_cases
+        elif table_name == "oracle_golden_regression_candidates":
+            return mock_query_candidates
+        return MagicMock()
+
+    mock_supabase.table.side_effect = mock_table
+    mock_response = MockResponse({"answer": "Violating [DỮ LIỆU HỆ THỐNG]"}, 200)
+
+    with patch("backend.main.supabase", mock_supabase), \
+         patch("main.supabase", mock_supabase), \
+         patch("urllib.request.urlopen", return_value=mock_response), \
+         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "https://mat-the-website.onrender.com", "--source", "db", "--rollback-mode", "off"]), \
+         pytest.raises(SystemExit) as excinfo:
+         run_regression()
+
+    assert excinfo.value.code == 1
+    mock_query_cases.update.assert_not_called()
+    mock_query_candidates.update.assert_not_called()
+
+def test_11e4_rollback_mode_verified_canary_performs_rollback():
+    # 2. source=db + semantic canary fail + verified-canary -> rollback đúng case
+    from backend.scripts.run_golden_oracle_regression_cases import run_regression
+    mock_supabase = MagicMock()
+    mock_query_cases = MagicMock()
+    mock_query_candidates = MagicMock()
+
+    mock_query_cases.select.return_value.eq.return_value.execute.return_value.data = [
+        {
+            "case_key": "canary_verified_le_giang_campaign",
+            "source": "system_canary",
+            "question": "Hãy kể lại diễn biến của chiến dịch Lệ Giang.",
+            "must_not_contain": ["[DỮ LIỆU HỆ THỐNG]"],
+            "status": "active"
+        }
+    ]
+    mock_query_candidates.select.return_value.eq.return_value.execute.return_value.data = [
+        {
+            "candidate_key": "canary_verified_le_giang_campaign",
+            "promotion_status": "auto_promoted",
+            "trust_level": "system",
+            "source": "system_canary",
+            "evidence": {
+                "trust_verification": {
+                    "trust_verified": True,
+                    "source_verified": True,
+                    "trust_verification_method": "internal_backend_canary"
+                }
+            }
+        }
+    ]
+
+    def mock_table(table_name):
+        if table_name == "oracle_golden_regression_cases":
+            return mock_query_cases
+        elif table_name == "oracle_golden_regression_candidates":
+            return mock_query_candidates
+        return MagicMock()
+
+    mock_supabase.table.side_effect = mock_table
+    mock_response = MockResponse({"answer": "Violating [DỮ LIỆU HỆ THỐNG]"}, 200)
+
+    with patch("backend.main.supabase", mock_supabase), \
+         patch("main.supabase", mock_supabase), \
+         patch("urllib.request.urlopen", return_value=mock_response), \
+         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "https://mat-the-website.onrender.com", "--source", "db", "--rollback-mode", "verified-canary"]), \
+         pytest.raises(SystemExit) as excinfo:
+         run_regression()
+
+    assert excinfo.value.code == 1
+    mock_query_cases.update.assert_any_call({"status": "disabled"})
+    mock_query_candidates.update.assert_any_call({
+        "promotion_status": "canary_rolled_back",
+        "promotion_reason": "Rollback: Regression failed. Reason: Answer contains forbidden term: \'[DỮ LIỆU HỆ THỐNG]\'"
+    })
+
+def test_11e4_infra_failure_no_rollback_in_any_mode():
+    # 3. infra fail + verified-canary -> không rollback
+    from backend.scripts.run_golden_oracle_regression_cases import run_regression
+    mock_supabase = MagicMock()
+    mock_query_cases = MagicMock()
+    mock_query_candidates = MagicMock()
+
+    mock_query_cases.select.return_value.eq.return_value.execute.return_value.data = [
+        {
+            "case_key": "canary_verified_le_giang_campaign",
+            "source": "system_canary",
+            "question": "Hãy kể lại diễn biến của chiến dịch Lệ Giang.",
+            "must_not_contain": ["[DỮ LIỆU HỆ THỐNG]"],
+            "status": "active"
+        }
+    ]
+    mock_query_candidates.select.return_value.eq.return_value.execute.return_value.data = [
+        {
+            "candidate_key": "canary_verified_le_giang_campaign",
+            "promotion_status": "auto_promoted",
+            "trust_level": "system",
+            "source": "system_canary",
+            "evidence": {
+                "trust_verification": {
+                    "trust_verified": True,
+                    "source_verified": True,
+                    "trust_verification_method": "internal_backend_canary"
+                }
+            }
+        }
+    ]
+
+    def mock_table(table_name):
+        if table_name == "oracle_golden_regression_cases":
+            return mock_query_cases
+        elif table_name == "oracle_golden_regression_candidates":
+            return mock_query_candidates
+        return MagicMock()
+
+    mock_supabase.table.side_effect = mock_table
+    from urllib.error import URLError
+    mock_err = URLError("timed out")
+
+    with patch("backend.main.supabase", mock_supabase), \
+         patch("main.supabase", mock_supabase), \
+         patch("urllib.request.urlopen", side_effect=mock_err), \
+         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "https://mat-the-website.onrender.com", "--source", "db", "--rollback-mode", "verified-canary", "--infra-backoff-seconds", "0"]), \
+         pytest.raises(SystemExit) as excinfo:
+         run_regression()
+
+    assert excinfo.value.code == 2
+    mock_query_cases.update.assert_not_called()
+    mock_query_candidates.update.assert_not_called()
+
+def test_11e4_original_case_fail_no_rollback():
+    # 4. original case fail + verified-canary -> không rollback
+    from backend.scripts.run_golden_oracle_regression_cases import run_regression
+    mock_supabase = MagicMock()
+    mock_query_cases = MagicMock()
+    mock_query_candidates = MagicMock()
+
+    mock_query_cases.select.return_value.eq.return_value.execute.return_value.data = [
+        {
+            "case_key": "le_giang_campaign_location_pollution",
+            "source": "manual_regression",
+            "question": "chiến dịch lệ giang diễn ra như thế nào?",
+            "must_not_contain": ["[DỮ LIỆU HỆ THỐNG]"],
+            "status": "active"
+        }
+    ]
+    mock_query_candidates.select.return_value.eq.return_value.execute.return_value.data = []
+
+    def mock_table(table_name):
+        if table_name == "oracle_golden_regression_cases":
+            return mock_query_cases
+        elif table_name == "oracle_golden_regression_candidates":
+            return mock_query_candidates
+        return MagicMock()
+
+    mock_supabase.table.side_effect = mock_table
+    mock_response = MockResponse({"answer": "Violating [DỮ LIỆU HỆ THỐNG]"}, 200)
+
+    with patch("backend.main.supabase", mock_supabase), \
+         patch("main.supabase", mock_supabase), \
+         patch("urllib.request.urlopen", return_value=mock_response), \
+         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "https://mat-the-website.onrender.com", "--source", "db", "--rollback-mode", "verified-canary"]), \
+         pytest.raises(SystemExit) as excinfo:
+         run_regression()
+
+    assert excinfo.value.code == 1
+    mock_query_cases.update.assert_not_called()
+    mock_query_candidates.update.assert_not_called()

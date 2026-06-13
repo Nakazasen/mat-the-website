@@ -18,6 +18,8 @@ except ImportError:
     except ImportError:
         backend_main = None
 
+from typing import Optional, Literal
+
 # Trust Levels
 TRUST_AUTHOR = "author"
 TRUST_SYSTEM = "system"
@@ -33,21 +35,46 @@ ALLOWLISTED_VERIFICATION_METHODS = {
     "internal_backend_canary"
 }
 
-def determine_provenance(authorization: Optional[str], client_source: Optional[str] = None, caller_context: str = "default") -> dict:
+def determine_provenance(
+    authorization: Optional[str],
+    client_source: Optional[str] = None,
+    *,
+    caller_context: Literal["public", "authenticated_public", "internal_system", "internal_canary"]
+) -> dict:
     """
     Determine trust provenance based on server-side JWT authentication verification.
     """
+    # Fail-closed for malformed or invalid context
+    valid_contexts = ["public", "authenticated_public", "internal_system", "internal_canary"]
+    if caller_context not in valid_contexts:
+        return {
+            "trust_level": TRUST_ANONYMOUS,
+            "trust_verified": False,
+            "trust_verification_method": "none",
+            "trust_verified_at": None,
+            "trust_subject_user_id": None,
+            "source": "anonymous_feedback",
+            "source_verified": False,
+            "is_author": False,
+            "is_trusted_reader": False
+        }
+
     token = extract_bearer_token(authorization) if authorization else None
 
-    # Resolve context from default: public if no token, internal if token is present
-    resolved_context = caller_context
-    if resolved_context == "default":
-        resolved_context = "internal" if token else "public"
+    # Strict restrictions on privileged sources
+    # - Only internal_canary can produce system_canary
+    if client_source == "system_canary" and caller_context != "internal_canary":
+        client_source = "anonymous_feedback"
 
-    # Prevent public spoofing of privileged sources
-    if resolved_context == "public":
+    # - Only internal_system can produce system_detected_failure
+    if client_source == "system_detected_failure" and caller_context != "internal_system":
+        client_source = "anonymous_feedback"
+
+    # - Public routes cannot spoof author_feedback or system sources via string
+    if caller_context in ["public", "authenticated_public"]:
         if client_source in ["system_canary", "system_detected_failure", "author_feedback"]:
             client_source = "anonymous_feedback"
+
     supabase = getattr(backend_main, "supabase", None) if backend_main else None
 
     # 1. If JWT is present, verify via Supabase Auth
