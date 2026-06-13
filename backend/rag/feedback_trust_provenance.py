@@ -33,15 +33,21 @@ ALLOWLISTED_VERIFICATION_METHODS = {
     "internal_backend_canary"
 }
 
-def determine_provenance(authorization: Optional[str], client_source: Optional[str] = None) -> dict:
+def determine_provenance(authorization: Optional[str], client_source: Optional[str] = None, caller_context: str = "default") -> dict:
     """
     Determine trust provenance based on server-side JWT authentication verification.
     """
-    # Prevent public spoofing of privileged sources
-    if client_source == "system_canary":
-        client_source = "anonymous_feedback"
-
     token = extract_bearer_token(authorization) if authorization else None
+
+    # Resolve context from default: public if no token, internal if token is present
+    resolved_context = caller_context
+    if resolved_context == "default":
+        resolved_context = "internal" if token else "public"
+
+    # Prevent public spoofing of privileged sources
+    if resolved_context == "public":
+        if client_source in ["system_canary", "system_detected_failure", "author_feedback"]:
+            client_source = "anonymous_feedback"
     supabase = getattr(backend_main, "supabase", None) if backend_main else None
 
     # 1. If JWT is present, verify via Supabase Auth

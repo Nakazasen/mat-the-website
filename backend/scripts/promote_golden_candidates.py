@@ -142,6 +142,9 @@ def main():
         "written_promotions": 0,
         "skipped_ambiguous": 0,
         "skipped_no_runtime_proof": 0,
+        "candidate_source_count": 0,
+        "db_candidates_read": 0,
+        "synthetic_candidates_added": 0,
         "errors": []
     }
 
@@ -159,26 +162,10 @@ def main():
             print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # In dry-run mode, if the canary candidate is not in the database, mock it to satisfy Part G checks
-    has_canary = any(c.get("candidate_key") == "canary_verified_le_giang_campaign" for c in candidates)
-    if dry_run and not has_canary:
-        candidates.append({
-            "id": "mock-canary-id",
-            "candidate_key": "canary_verified_le_giang_campaign",
-            "source": "system_canary",
-            "trust_level": "system",
-            "question": "Hãy kể lại diễn biến của chiến dịch Lệ Giang.",
-            "chapter_progress": 829,
-            "must_not_contain": ["[DỮ LIỆU HỆ THỐNG]", "Tổ chức trấn Hi Vọng", "Zombie Cấp 3", "Chu Vấn", "Quân Lệnh Như Sơn"],
-            "semantic_forbidden_patterns": ["sông Lệ Giang", "cầu Lệ Giang", "bờ sông Lệ Giang", "tài nguyên thuỷ sản", "kho vũ khí"],
-            "semantic_required_any_terms": ["chiến dịch", "thanh tẩy", "nhiệm vụ", "huy động", "Thể Thôn Phệ Lệ Giang"],
-            "acceptable_abstain": True,
-            "expected_abstain_text": "Chưa đủ dữ liệu trong truyện đã nạp để mô tả chắc chắn chiến dịch Lệ Giang.",
-            "promotion_status": "auto_promote_ready",
-            "promotion_score": 1.0,
-            "feedback_ids": []
-        })
-
+    # Dry-run must reflect actual database records truthfully (no synthetic appends)
+    summary["candidate_source_count"] = len(candidates)
+    summary["db_candidates_read"] = len(candidates)
+    summary["synthetic_candidates_added"] = 0
     summary["candidates_built"] = len(candidates)
 
     # Fetch existing active golden cases to check for conflicts
@@ -357,6 +344,9 @@ def main():
         print(f"Planned promotions:            {summary['planned_promotions']}")
         print(f"Written promotions:            {summary['written_promotions']}")
         print(f"Skipped no runtime proof:      {summary['skipped_no_runtime_proof']}")
+        print(f"Candidate source count:        {summary['candidate_source_count']}")
+        print(f"DB candidates read:            {summary['db_candidates_read']}")
+        print(f"Synthetic candidates added:    {summary['synthetic_candidates_added']}")
         if summary["errors"]:
             print("Errors encountered:")
             for err in summary["errors"]:

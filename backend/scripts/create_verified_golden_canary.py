@@ -210,7 +210,9 @@ def main():
         "evidence": {
             "trust_verification": {
                 "verified_at": prov["trust_verified_at"],
-                "trust_verification_method": prov["trust_verification_method"]
+                "trust_verification_method": prov["trust_verification_method"],
+                "trust_verified": True,
+                "source_verified": True
             },
             "pre_validation": {
                 "base_url": base_url,

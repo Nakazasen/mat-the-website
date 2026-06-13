@@ -1399,15 +1399,43 @@ def test_post_promotion_runner_failure_disables_case():
     # 11. post-promotion runner fail sẽ disable case.
     from backend.scripts.run_golden_oracle_regression_cases import run_regression
     mock_supabase = MagicMock()
-    mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value.data = [
+
+    mock_query_cases = MagicMock()
+    mock_query_candidates = MagicMock()
+
+    mock_query_cases.select.return_value.eq.return_value.execute.return_value.data = [
         {
             "case_key": "canary_verified_le_giang_campaign",
+            "source": "system_canary",
             "question": "Hãy kể lại diễn biến của chiến dịch Lệ Giang.",
             "must_not_contain": ["[DỮ LIỆU HỆ THỐNG]"],
             "status": "active"
         }
     ]
+    mock_query_candidates.select.return_value.eq.return_value.execute.return_value.data = [
+        {
+            "candidate_key": "canary_verified_le_giang_campaign",
+            "promotion_status": "auto_promoted",
+            "trust_level": "system",
+            "source": "system_canary",
+            "evidence": {
+                "trust_verification": {
+                    "trust_verified": True,
+                    "source_verified": True,
+                    "trust_verification_method": "internal_backend_canary"
+                }
+            }
+        }
+    ]
 
+    def mock_table(table_name):
+        if table_name == "oracle_golden_regression_cases":
+            return mock_query_cases
+        elif table_name == "oracle_golden_regression_candidates":
+            return mock_query_candidates
+        return MagicMock()
+
+    mock_supabase.table.side_effect = mock_table
     mock_response = MockResponse({"answer": "Violating [DỮ LIỆU HỆ THỐNG]"}, 200)
     with patch("backend.main.supabase", mock_supabase), \
          patch("main.supabase", mock_supabase), \
@@ -1417,22 +1445,49 @@ def test_post_promotion_runner_failure_disables_case():
          run_regression()
 
     assert excinfo.value.code == 1
-    mock_supabase.table.assert_any_call("oracle_golden_regression_cases")
-    mock_supabase.table.return_value.update.assert_any_call({"status": "disabled"})
+    mock_query_cases.update.assert_any_call({"status": "disabled"})
 
 def test_rollback_does_not_delete_audit_trail():
     # 12. rollback không delete audit trail.
     from backend.scripts.run_golden_oracle_regression_cases import run_regression
     mock_supabase = MagicMock()
-    mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value.data = [
+
+    mock_query_cases = MagicMock()
+    mock_query_candidates = MagicMock()
+
+    mock_query_cases.select.return_value.eq.return_value.execute.return_value.data = [
         {
             "case_key": "canary_verified_le_giang_campaign",
+            "source": "system_canary",
             "question": "Hãy kể lại diễn biến của chiến dịch Lệ Giang.",
             "must_not_contain": ["[DỮ LIỆU HỆ THỐNG]"],
             "status": "active"
         }
     ]
+    mock_query_candidates.select.return_value.eq.return_value.execute.return_value.data = [
+        {
+            "candidate_key": "canary_verified_le_giang_campaign",
+            "promotion_status": "auto_promoted",
+            "trust_level": "system",
+            "source": "system_canary",
+            "evidence": {
+                "trust_verification": {
+                    "trust_verified": True,
+                    "source_verified": True,
+                    "trust_verification_method": "internal_backend_canary"
+                }
+            }
+        }
+    ]
 
+    def mock_table(table_name):
+        if table_name == "oracle_golden_regression_cases":
+            return mock_query_cases
+        elif table_name == "oracle_golden_regression_candidates":
+            return mock_query_candidates
+        return MagicMock()
+
+    mock_supabase.table.side_effect = mock_table
     mock_response = MockResponse({"answer": "Violating [DỮ LIỆU HỆ THỐNG]"}, 200)
     with patch("backend.main.supabase", mock_supabase), \
          patch("main.supabase", mock_supabase), \
@@ -1441,23 +1496,53 @@ def test_rollback_does_not_delete_audit_trail():
          pytest.raises(SystemExit):
          run_regression()
 
-    for call in mock_supabase.table.mock_calls:
+    for call in mock_query_cases.mock_calls:
+        assert "delete" not in str(call)
+    for call in mock_query_candidates.mock_calls:
         assert "delete" not in str(call)
 
 def test_successful_3_run_canary_remains_active():
     # 13. successful 3-run canary giữ active.
     from backend.scripts.run_golden_oracle_regression_cases import run_regression
     mock_supabase = MagicMock()
-    mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value.data = [
+
+    mock_query_cases = MagicMock()
+    mock_query_candidates = MagicMock()
+
+    mock_query_cases.select.return_value.eq.return_value.execute.return_value.data = [
         {
             "case_key": "canary_verified_le_giang_campaign",
+            "source": "system_canary",
             "question": "Hãy kể lại diễn biến của chiến dịch Lệ Giang.",
             "must_not_contain": ["[DỮ LIỆU HỆ THỐNG]"],
             "status": "active"
         }
     ]
+    mock_query_candidates.select.return_value.eq.return_value.execute.return_value.data = [
+        {
+            "candidate_key": "canary_verified_le_giang_campaign",
+            "promotion_status": "auto_promoted",
+            "trust_level": "system",
+            "source": "system_canary",
+            "evidence": {
+                "trust_verification": {
+                    "trust_verified": True,
+                    "source_verified": True,
+                    "trust_verification_method": "internal_backend_canary"
+                }
+            }
+        }
+    ]
 
-    mock_response = MockResponse({"answer": "Safe answer: chiến dịch thanh tẩy"}, 200)
+    def mock_table(table_name):
+        if table_name == "oracle_golden_regression_cases":
+            return mock_query_cases
+        elif table_name == "oracle_golden_regression_candidates":
+            return mock_query_candidates
+        return MagicMock()
+
+    mock_supabase.table.side_effect = mock_table
+    mock_response = MockResponse({"answer": "Safe answer: chiến dịch Lệ Giang"}, 200)
     with patch("backend.main.supabase", mock_supabase), \
          patch("main.supabase", mock_supabase), \
          patch("urllib.request.urlopen", return_value=mock_response), \
@@ -1467,20 +1552,703 @@ def test_successful_3_run_canary_remains_active():
          except SystemExit as e:
              assert e.code == 0
 
-    for call in mock_supabase.table.return_value.update.mock_calls:
+    for call in mock_query_cases.update.mock_calls:
         assert "disabled" not in str(call)
 
 def test_no_wiki_provisional_or_feedback_modified():
     # 14. không sửa wiki/provisional/rag_feedback.
     mock_supabase = MagicMock()
     mock_response = MockResponse({"answer": "Safe answer"}, 200)
+
+    mock_res = MagicMock()
+    mock_res.data = []
+    mock_res.count = 0
+    mock_supabase.table.return_value.select.return_value.execute.return_value = mock_res
+
     with patch("backend.main.supabase", mock_supabase), \
          patch("main.supabase", mock_supabase), \
          patch("urllib.request.urlopen", return_value=mock_response), \
          patch("sys.argv", ["promote_golden_candidates.py", "--write"]):
          promoter_main()
 
-    # Check that insert/update/delete was never called on wiki_entries, provisional_library or rag_feedback
+    for call in mock_supabase.table.mock_calls:
+        call_str = str(call)
+        if any(table in call_str for table in ["wiki_entries", "provisional_library", "rag_feedback"]):
+            assert "insert" not in call_str
+            assert "update" not in call_str
+            assert "delete" not in call_str
+            assert "upsert" not in call_str
+
+# --- Phase 11E-3-FIX1: 19 Mandatory Test Cases ---
+
+def test_fix1_1_dry_run_empty_db_yields_zero_promotions():
+    # 1. dry-run DB rỗng → planned_promotions=0
+    backend_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    mock_supabase = MagicMock()
+    mock_res = MagicMock()
+    mock_res.data = []
+    mock_res.count = 0
+    mock_supabase.table.return_value.select.return_value.execute.return_value = mock_res
+    with patch("backend.scripts.promote_golden_candidates.supabase", mock_supabase), \
+         patch("sys.argv", ["promote_golden_candidates.py", "--dry-run", "--json"]):
+         try:
+             promoter_main()
+         except SystemExit as e:
+             assert e.code == 0
+
+    report_path = os.path.join(backend_root, "rag", "generated_feedback_to_golden_promotion_report.json")
+    with open(report_path, "r", encoding="utf-8") as f:
+        rep = json.load(f)
+    assert rep["planned_promotions"] == 0
+
+def test_fix1_2_dry_run_no_synthetic_candidate():
+    # 2. dry-run không append synthetic candidate
+    backend_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    mock_supabase = MagicMock()
+    mock_res = MagicMock()
+    mock_res.data = []
+    mock_res.count = 0
+    mock_supabase.table.return_value.select.return_value.execute.return_value = mock_res
+    with patch("backend.scripts.promote_golden_candidates.supabase", mock_supabase), \
+         patch("sys.argv", ["promote_golden_candidates.py", "--dry-run", "--json"]):
+         try:
+             promoter_main()
+         except SystemExit as e:
+             assert e.code == 0
+
+    report_path = os.path.join(backend_root, "rag", "generated_feedback_to_golden_promotion_report.json")
+    with open(report_path, "r", encoding="utf-8") as f:
+        rep = json.load(f)
+    assert rep["synthetic_candidates_added"] == 0
+    assert rep["candidates_built"] == 0
+
+def test_fix1_3_mock_candidate_dependency_injection_only():
+    # 3. test mock candidate phải qua dependency injection, không qua production CLI
+    backend_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    mock_supabase = MagicMock()
+    mock_res = MagicMock()
+    mock_res.data = []
+    mock_res.count = 0
+    mock_supabase.table.return_value.select.return_value.execute.return_value = mock_res
+    with patch("backend.scripts.promote_golden_candidates.supabase", mock_supabase), \
+         patch("sys.argv", ["promote_golden_candidates.py", "--dry-run", "--json"]):
+         try:
+             promoter_main()
+         except SystemExit as e:
+             assert e.code == 0
+
+    report_path = os.path.join(backend_root, "rag", "generated_feedback_to_golden_promotion_report.json")
+    with open(report_path, "r", encoding="utf-8") as f:
+        rep = json.load(f)
+    assert rep["candidate_source_count"] == 0
+
+def test_fix1_4_semantic_fail_canary_disabled():
+    # 4. semantic fail của system_canary → đúng canary bị disabled
+    from backend.scripts.run_golden_oracle_regression_cases import run_regression
+    mock_supabase = MagicMock()
+
+    mock_query_cases = MagicMock()
+    mock_query_candidates = MagicMock()
+
+    mock_query_cases.select.return_value.eq.return_value.execute.return_value.data = [
+        {
+            "case_key": "canary_verified_le_giang_campaign",
+            "source": "system_canary",
+            "question": "Hãy kể lại diễn biến của chiến dịch Lệ Giang.",
+            "must_not_contain": ["[DỮ LIỆU HỆ THỐNG]"],
+            "status": "active"
+        }
+    ]
+    mock_query_candidates.select.return_value.eq.return_value.execute.return_value.data = [
+        {
+            "candidate_key": "canary_verified_le_giang_campaign",
+            "promotion_status": "auto_promoted",
+            "trust_level": "system",
+            "source": "system_canary",
+            "evidence": {
+                "trust_verification": {
+                    "trust_verified": True,
+                    "source_verified": True,
+                    "trust_verification_method": "internal_backend_canary"
+                }
+            }
+        }
+    ]
+
+    def mock_table(table_name):
+        if table_name == "oracle_golden_regression_cases":
+            return mock_query_cases
+        elif table_name == "oracle_golden_regression_candidates":
+            return mock_query_candidates
+        return MagicMock()
+
+    mock_supabase.table.side_effect = mock_table
+    mock_response = MockResponse({"answer": "Violating [DỮ LIỆU HỆ THỐNG]"}, 200)
+    with patch("backend.main.supabase", mock_supabase), \
+         patch("main.supabase", mock_supabase), \
+         patch("urllib.request.urlopen", return_value=mock_response), \
+         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "https://mat-the-website.onrender.com", "--source", "db"]), \
+         pytest.raises(SystemExit) as excinfo:
+         run_regression()
+
+    assert excinfo.value.code == 1
+    mock_query_cases.update.assert_any_call({"status": "disabled"})
+
+def test_fix1_5_infra_timeout_canary_not_disabled():
+    # 5. infrastructure timeout của system_canary → không disable
+    from backend.scripts.run_golden_oracle_regression_cases import run_regression
+    mock_supabase = MagicMock()
+
+    mock_query_cases = MagicMock()
+    mock_query_candidates = MagicMock()
+
+    mock_query_cases.select.return_value.eq.return_value.execute.return_value.data = [
+        {
+            "case_key": "canary_verified_le_giang_campaign",
+            "source": "system_canary",
+            "question": "Hãy kể lại diễn biến của chiến dịch Lệ Giang.",
+            "must_not_contain": ["[DỮ LIỆU HỆ THỐNG]"],
+            "status": "active"
+        }
+    ]
+    mock_query_candidates.select.return_value.eq.return_value.execute.return_value.data = [
+        {
+            "candidate_key": "canary_verified_le_giang_campaign",
+            "promotion_status": "auto_promoted",
+            "trust_level": "system",
+            "source": "system_canary",
+            "evidence": {
+                "trust_verification": {
+                    "trust_verified": True,
+                    "source_verified": True,
+                    "trust_verification_method": "internal_backend_canary"
+                }
+            }
+        }
+    ]
+
+    def mock_table(table_name):
+        if table_name == "oracle_golden_regression_cases":
+            return mock_query_cases
+        elif table_name == "oracle_golden_regression_candidates":
+            return mock_query_candidates
+        return MagicMock()
+
+    mock_supabase.table.side_effect = mock_table
+    with patch("backend.main.supabase", mock_supabase), \
+         patch("main.supabase", mock_supabase), \
+         patch("urllib.request.urlopen", side_effect=TimeoutError("Request timed out")), \
+         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "https://mat-the-website.onrender.com", "--source", "db", "--infra-retries", "0"]), \
+         pytest.raises(SystemExit) as excinfo:
+         run_regression()
+
+    assert excinfo.value.code == 2
+    for call in mock_query_cases.update.mock_calls:
+        assert "disabled" not in str(call)
+
+def test_fix1_6_http_503_canary_not_disabled():
+    # 6. HTTP 503 của system_canary → không disable
+    from backend.scripts.run_golden_oracle_regression_cases import run_regression
+    mock_supabase = MagicMock()
+
+    mock_query_cases = MagicMock()
+    mock_query_candidates = MagicMock()
+
+    mock_query_cases.select.return_value.eq.return_value.execute.return_value.data = [
+        {
+            "case_key": "canary_verified_le_giang_campaign",
+            "source": "system_canary",
+            "question": "Hãy kể lại diễn biến của chiến dịch Lệ Giang.",
+            "must_not_contain": ["[DỮ LIỆU HỆ THỐNG]"],
+            "status": "active"
+        }
+    ]
+    mock_query_candidates.select.return_value.eq.return_value.execute.return_value.data = [
+        {
+            "candidate_key": "canary_verified_le_giang_campaign",
+            "promotion_status": "auto_promoted",
+            "trust_level": "system",
+            "source": "system_canary",
+            "evidence": {
+                "trust_verification": {
+                    "trust_verified": True,
+                    "source_verified": True,
+                    "trust_verification_method": "internal_backend_canary"
+                }
+            }
+        }
+    ]
+
+    def mock_table(table_name):
+        if table_name == "oracle_golden_regression_cases":
+            return mock_query_cases
+        elif table_name == "oracle_golden_regression_candidates":
+            return mock_query_candidates
+        return MagicMock()
+
+    mock_supabase.table.side_effect = mock_table
+    import urllib.error
+    err = urllib.error.HTTPError("url", 503, "Service Unavailable", {}, None)
+    with patch("backend.main.supabase", mock_supabase), \
+         patch("main.supabase", mock_supabase), \
+         patch("urllib.request.urlopen", side_effect=err), \
+         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "https://mat-the-website.onrender.com", "--source", "db", "--infra-retries", "0"]), \
+         pytest.raises(SystemExit) as excinfo:
+         run_regression()
+
+    assert excinfo.value.code == 2
+    for call in mock_query_cases.update.mock_calls:
+        assert "disabled" not in str(call)
+
+def test_fix1_7_config_failure_not_disabled():
+    # 7. configuration failure → không disable
+    from backend.scripts.run_golden_oracle_regression_cases import run_regression
+    mock_supabase = MagicMock()
+    mock_supabase.table.return_value.select.return_value.eq.return_value.execute.side_effect = Exception("DB connection error")
+    with patch("backend.main.supabase", mock_supabase), \
+         patch("main.supabase", mock_supabase), \
+         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "https://mat-the-website.onrender.com", "--source", "db"]), \
+         pytest.raises(SystemExit) as excinfo:
+         run_regression()
+
+    assert excinfo.value.code == 3
+
+def test_fix1_8_semantic_fail_manual_regression_not_disabled():
+    # 8. semantic fail của manual_regression → không disable
+    from backend.scripts.run_golden_oracle_regression_cases import run_regression
+    mock_supabase = MagicMock()
+
+    mock_query_cases = MagicMock()
+    mock_query_candidates = MagicMock()
+
+    mock_query_cases.select.return_value.eq.return_value.execute.return_value.data = [
+        {
+            "case_key": "manual_case_1",
+            "source": "manual_regression",
+            "question": "Hãy kể lại diễn biến của chiến dịch Lệ Giang.",
+            "must_not_contain": ["[DỮ LIỆU HỆ THỐNG]"],
+            "status": "active"
+        }
+    ]
+    mock_query_candidates.select.return_value.eq.return_value.execute.return_value.data = []
+
+    def mock_table(table_name):
+        if table_name == "oracle_golden_regression_cases":
+            return mock_query_cases
+        elif table_name == "oracle_golden_regression_candidates":
+            return mock_query_candidates
+        return MagicMock()
+
+    mock_supabase.table.side_effect = mock_table
+    mock_response = MockResponse({"answer": "Violating [DỮ LIỆU HỆ THỐNG]"}, 200)
+    with patch("backend.main.supabase", mock_supabase), \
+         patch("main.supabase", mock_supabase), \
+         patch("urllib.request.urlopen", return_value=mock_response), \
+         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "https://mat-the-website.onrender.com", "--source", "db"]), \
+         pytest.raises(SystemExit) as excinfo:
+         run_regression()
+
+    assert excinfo.value.code == 1
+    for call in mock_query_cases.update.mock_calls:
+        assert "disabled" not in str(call)
+
+def test_fix1_9_semantic_fail_original_case_not_disabled():
+    # 9. semantic fail của original Lệ Giang case → không auto-disable
+    from backend.scripts.run_golden_oracle_regression_cases import run_regression
+    mock_supabase = MagicMock()
+
+    mock_query_cases = MagicMock()
+    mock_query_candidates = MagicMock()
+
+    mock_query_cases.select.return_value.eq.return_value.execute.return_value.data = [
+        {
+            "case_key": "le_giang_campaign_location_pollution",
+            "source": "manual_regression",
+            "question": "Hãy kể lại diễn biến của chiến dịch Lệ Giang.",
+            "must_not_contain": ["[DỮ LIỆU HỆ THỐNG]"],
+            "status": "active"
+        }
+    ]
+    mock_query_candidates.select.return_value.eq.return_value.execute.return_value.data = []
+
+    def mock_table(table_name):
+        if table_name == "oracle_golden_regression_cases":
+            return mock_query_cases
+        elif table_name == "oracle_golden_regression_candidates":
+            return mock_query_candidates
+        return MagicMock()
+
+    mock_supabase.table.side_effect = mock_table
+    mock_response = MockResponse({"answer": "Violating [DỮ LIỆU HỆ THỐNG]"}, 200)
+    with patch("backend.main.supabase", mock_supabase), \
+         patch("main.supabase", mock_supabase), \
+         patch("urllib.request.urlopen", return_value=mock_response), \
+         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "https://mat-the-website.onrender.com", "--source", "db"]), \
+         pytest.raises(SystemExit) as excinfo:
+         run_regression()
+
+    assert excinfo.value.code == 1
+    for call in mock_query_cases.update.mock_calls:
+        assert "disabled" not in str(call)
+
+def test_fix1_10_rollback_updates_using_exact_case_key():
+    # 10. rollback update dùng exact case_key
+    from backend.scripts.run_golden_oracle_regression_cases import run_regression
+    mock_supabase = MagicMock()
+
+    mock_query_cases = MagicMock()
+    mock_query_candidates = MagicMock()
+
+    mock_query_cases.select.return_value.eq.return_value.execute.return_value.data = [
+        {
+            "case_key": "canary_verified_le_giang_campaign",
+            "source": "system_canary",
+            "question": "Hãy kể lại diễn biến của chiến dịch Lệ Giang.",
+            "must_not_contain": ["[DỮ LIỆU HỆ THỐNG]"],
+            "status": "active"
+        }
+    ]
+    mock_query_candidates.select.return_value.eq.return_value.execute.return_value.data = [
+        {
+            "candidate_key": "canary_verified_le_giang_campaign",
+            "promotion_status": "auto_promoted",
+            "trust_level": "system",
+            "source": "system_canary",
+            "evidence": {
+                "trust_verification": {
+                    "trust_verified": True,
+                    "source_verified": True,
+                    "trust_verification_method": "internal_backend_canary"
+                }
+            }
+        }
+    ]
+
+    def mock_table(table_name):
+        if table_name == "oracle_golden_regression_cases":
+            return mock_query_cases
+        elif table_name == "oracle_golden_regression_candidates":
+            return mock_query_candidates
+        return MagicMock()
+
+    mock_supabase.table.side_effect = mock_table
+    mock_response = MockResponse({"answer": "Violating [DỮ LIỆU HỆ THỐNG]"}, 200)
+    with patch("backend.main.supabase", mock_supabase), \
+         patch("main.supabase", mock_supabase), \
+         patch("urllib.request.urlopen", return_value=mock_response), \
+         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "https://mat-the-website.onrender.com", "--source", "db"]), \
+         pytest.raises(SystemExit):
+         run_regression()
+
+    mock_query_cases.update.return_value.eq.assert_any_call("case_key", "canary_verified_le_giang_campaign")
+    mock_query_candidates.update.return_value.eq.assert_any_call("candidate_key", "canary_verified_le_giang_campaign")
+
+def test_fix1_11_linked_candidate_status_rolled_back():
+    # 11. linked candidate duy nhất thành canary_rolled_back
+    from backend.scripts.run_golden_oracle_regression_cases import run_regression
+    mock_supabase = MagicMock()
+
+    mock_query_cases = MagicMock()
+    mock_query_candidates = MagicMock()
+
+    mock_query_cases.select.return_value.eq.return_value.execute.return_value.data = [
+        {
+            "case_key": "canary_verified_le_giang_campaign",
+            "source": "system_canary",
+            "question": "Hãy kể lại diễn biến của chiến dịch Lệ Giang.",
+            "must_not_contain": ["[DỮ LIỆU HỆ THỐNG]"],
+            "status": "active"
+        }
+    ]
+    mock_query_candidates.select.return_value.eq.return_value.execute.return_value.data = [
+        {
+            "candidate_key": "canary_verified_le_giang_campaign",
+            "promotion_status": "auto_promoted",
+            "trust_level": "system",
+            "source": "system_canary",
+            "evidence": {
+                "trust_verification": {
+                    "trust_verified": True,
+                    "source_verified": True,
+                    "trust_verification_method": "internal_backend_canary"
+                }
+            }
+        }
+    ]
+
+    def mock_table(table_name):
+        if table_name == "oracle_golden_regression_cases":
+            return mock_query_cases
+        elif table_name == "oracle_golden_regression_candidates":
+            return mock_query_candidates
+        return MagicMock()
+
+    mock_supabase.table.side_effect = mock_table
+    mock_response = MockResponse({"answer": "Violating [DỮ LIỆU HỆ THỐNG]"}, 200)
+    with patch("backend.main.supabase", mock_supabase), \
+         patch("main.supabase", mock_supabase), \
+         patch("urllib.request.urlopen", return_value=mock_response), \
+         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "https://mat-the-website.onrender.com", "--source", "db"]), \
+         pytest.raises(SystemExit):
+         run_regression()
+
+    update_calls = mock_query_candidates.update.call_args_list
+    candidate_updated = False
+    for c in update_calls:
+        payload = c[0][0]
+        if payload.get("promotion_status") == "canary_rolled_back":
+            candidate_updated = True
+    assert candidate_updated is True
+
+def test_fix1_12_rollback_no_deletion():
+    # 12. rollback không delete case/candidate
+    from backend.scripts.run_golden_oracle_regression_cases import run_regression
+    mock_supabase = MagicMock()
+
+    mock_query_cases = MagicMock()
+    mock_query_candidates = MagicMock()
+
+    mock_query_cases.select.return_value.eq.return_value.execute.return_value.data = [
+        {
+            "case_key": "canary_verified_le_giang_campaign",
+            "source": "system_canary",
+            "question": "Hãy kể lại diễn biến của chiến dịch Lệ Giang.",
+            "must_not_contain": ["[DỮ LIỆU HỆ THỐNG]"],
+            "status": "active"
+        }
+    ]
+    mock_query_candidates.select.return_value.eq.return_value.execute.return_value.data = [
+        {
+            "candidate_key": "canary_verified_le_giang_campaign",
+            "promotion_status": "auto_promoted",
+            "trust_level": "system",
+            "source": "system_canary",
+            "evidence": {
+                "trust_verification": {
+                    "trust_verified": True,
+                    "source_verified": True,
+                    "trust_verification_method": "internal_backend_canary"
+                }
+            }
+        }
+    ]
+
+    def mock_table(table_name):
+        if table_name == "oracle_golden_regression_cases":
+            return mock_query_cases
+        elif table_name == "oracle_golden_regression_candidates":
+            return mock_query_candidates
+        return MagicMock()
+
+    mock_supabase.table.side_effect = mock_table
+    mock_response = MockResponse({"answer": "Violating [DỮ LIỆU HỆ THỐNG]"}, 200)
+    with patch("backend.main.supabase", mock_supabase), \
+         patch("main.supabase", mock_supabase), \
+         patch("urllib.request.urlopen", return_value=mock_response), \
+         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "https://mat-the-website.onrender.com", "--source", "db"]), \
+         pytest.raises(SystemExit):
+         run_regression()
+
+    for call in mock_query_cases.mock_calls:
+        assert "delete" not in str(call)
+    for call in mock_query_candidates.mock_calls:
+        assert "delete" not in str(call)
+
+def test_fix1_13_remaining_active_cases_rerun():
+    # 13. remaining active cases được rerun
+    from backend.scripts.run_golden_oracle_regression_cases import run_regression
+    mock_supabase = MagicMock()
+    cases_calls = []
+
+    mock_query_cases = MagicMock()
+    mock_query_candidates = MagicMock()
+
+    def mock_table(table_name):
+        if table_name == "oracle_golden_regression_cases":
+            cases_calls.append(True)
+            if len(cases_calls) == 1:
+                mock_query_cases.select.return_value.eq.return_value.execute.return_value.data = [
+                    {
+                        "case_key": "canary_verified_le_giang_campaign",
+                        "source": "system_canary",
+                        "question": "Hãy kể lại diễn biến của chiến dịch Lệ Giang.",
+                        "must_not_contain": ["[DỮ LIỆU HỆ THỐNG]"],
+                        "status": "active"
+                    },
+                    {
+                        "case_key": "manual_case_1",
+                        "source": "manual_regression",
+                        "question": "Ai là Lâm Phong?",
+                        "must_not_contain": [],
+                        "status": "active"
+                    }
+                ]
+            else:
+                mock_query_cases.select.return_value.eq.return_value.execute.return_value.data = [
+                    {
+                        "case_key": "manual_case_1",
+                        "source": "manual_regression",
+                        "question": "Ai là Lâm Phong?",
+                        "must_not_contain": [],
+                        "status": "active"
+                    }
+                ]
+            return mock_query_cases
+        elif table_name == "oracle_golden_regression_candidates":
+            mock_query_candidates.select.return_value.eq.return_value.execute.return_value.data = [
+                {
+                    "candidate_key": "canary_verified_le_giang_campaign",
+                    "promotion_status": "auto_promoted",
+                    "trust_level": "system",
+                    "source": "system_canary",
+                    "evidence": {
+                        "trust_verification": {
+                            "trust_verified": True,
+                            "source_verified": True,
+                            "trust_verification_method": "internal_backend_canary"
+                        }
+                    }
+                }
+            ]
+            return mock_query_candidates
+        return MagicMock()
+
+    mock_supabase.table.side_effect = mock_table
+    requested_questions = []
+
+    def mock_urlopen(req, *args, **kwargs):
+        body = json.loads(req.data.decode("utf-8"))
+        requested_questions.append(body["question"])
+        return MockResponse({"answer": "Violating [DỮ LIỆU HỆ THỐNG] for Lệ Giang, Lâm Phong is safe"}, 200)
+
+    with patch("backend.main.supabase", mock_supabase), \
+         patch("main.supabase", mock_supabase), \
+         patch("urllib.request.urlopen", side_effect=mock_urlopen), \
+         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "https://mat-the-website.onrender.com", "--source", "db"]), \
+         pytest.raises(SystemExit) as excinfo:
+         run_regression()
+
+    assert excinfo.value.code == 1
+    assert "Hãy kể lại diễn biến của chiến dịch Lệ Giang." in requested_questions
+    assert "Ai là Lâm Phong?" in requested_questions
+
+def test_fix1_14_public_author_feedback_no_author_trust():
+    # 14. public source=author_feedback không được author trust
+    provenance = determine_provenance(None, "author_feedback", caller_context="public")
+    assert provenance["source"] == "anonymous_feedback"
+    assert provenance["trust_level"] == "anonymous"
+
+def test_fix1_15_public_system_detected_failure_no_system_trust():
+    # 15. public source=system_detected_failure không được system trust
+    provenance = determine_provenance(None, "system_detected_failure", caller_context="public")
+    assert provenance["source"] == "anonymous_feedback"
+    assert provenance["trust_level"] == "anonymous"
+
+def test_fix1_16_public_system_canary_no_system_trust():
+    # 16. public source=system_canary không được system trust
+    provenance = determine_provenance(None, "system_canary", caller_context="public")
+    assert provenance["source"] == "anonymous_feedback"
+    assert provenance["trust_level"] == "anonymous"
+
+def test_fix1_17_internal_authenticated_canary_valid():
+    # 17. internal authenticated canary path vẫn hợp lệ
+    provenance = determine_provenance(None, "system_canary", caller_context="internal")
+    assert provenance["source"] == "system_canary"
+
+def test_fix1_18_report_separates_rollback_reasons():
+    # 18. report phân biệt rollback_performed và rollback_skipped_reason
+    from backend.scripts.run_golden_oracle_regression_cases import run_regression
+    mock_supabase = MagicMock()
+    backend_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    mock_query_cases = MagicMock()
+    mock_query_candidates = MagicMock()
+
+    mock_query_cases.select.return_value.eq.return_value.execute.return_value.data = [
+        {
+            "case_key": "manual_case_1",
+            "source": "manual_regression",
+            "question": "Hãy kể lại diễn biến của chiến dịch Lệ Giang.",
+            "must_not_contain": ["[DỮ LIỆU HỆ THỐNG]"],
+            "status": "active"
+        }
+    ]
+    mock_query_candidates.select.return_value.eq.return_value.execute.return_value.data = []
+
+    def mock_table(table_name):
+        if table_name == "oracle_golden_regression_cases":
+            return mock_query_cases
+        elif table_name == "oracle_golden_regression_candidates":
+            return mock_query_candidates
+        return MagicMock()
+
+    mock_supabase.table.side_effect = mock_table
+    mock_response = MockResponse({"answer": "Violating [DỮ LIỆU HỆ THỐNG]"}, 200)
+    with patch("backend.main.supabase", mock_supabase), \
+         patch("main.supabase", mock_supabase), \
+         patch("urllib.request.urlopen", return_value=mock_response), \
+         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "https://mat-the-website.onrender.com", "--source", "db", "--write-report"]), \
+         pytest.raises(SystemExit):
+         run_regression()
+
+    report_path = os.path.join(backend_root, "rag", "generated_golden_oracle_regression_report.json")
+    with open(report_path, "r", encoding="utf-8") as f:
+        rep = json.load(f)
+    summary = rep["summary"]
+    assert "rollback_performed" in summary
+    assert "rollback_skipped_reasons" in summary
+    assert summary["rollback_performed"] is False
+    assert "manual_case_1" in summary["rollback_skipped_reasons"]
+
+def test_fix1_19_no_wiki_provisional_or_feedback_mutation_on_run():
+    # 19. verify no wiki/provisional/rag_feedback mutation on regression run
+    from backend.scripts.run_golden_oracle_regression_cases import run_regression
+    mock_supabase = MagicMock()
+
+    mock_query_cases = MagicMock()
+    mock_query_candidates = MagicMock()
+
+    mock_query_cases.select.return_value.eq.return_value.execute.return_value.data = [
+        {
+            "case_key": "canary_verified_le_giang_campaign",
+            "source": "system_canary",
+            "question": "Hãy kể lại diễn biến của chiến dịch Lệ Giang.",
+            "must_not_contain": ["[DỮ LIỆU HỆ THỐNG]"],
+            "status": "active"
+        }
+    ]
+    mock_query_candidates.select.return_value.eq.return_value.execute.return_value.data = [
+        {
+            "candidate_key": "canary_verified_le_giang_campaign",
+            "promotion_status": "auto_promoted",
+            "trust_level": "system",
+            "source": "system_canary",
+            "evidence": {
+                "trust_verification": {
+                    "trust_verified": True,
+                    "source_verified": True,
+                    "trust_verification_method": "internal_backend_canary"
+                }
+            }
+        }
+    ]
+
+    def mock_table(table_name):
+        if table_name == "oracle_golden_regression_cases":
+            return mock_query_cases
+        elif table_name == "oracle_golden_regression_candidates":
+            return mock_query_candidates
+        return MagicMock()
+
+    mock_supabase.table.side_effect = mock_table
+    mock_response = MockResponse({"answer": "Violating [DỮ LIỆU HỆ THỐNG]"}, 200)
+    with patch("backend.main.supabase", mock_supabase), \
+         patch("main.supabase", mock_supabase), \
+         patch("urllib.request.urlopen", return_value=mock_response), \
+         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "https://mat-the-website.onrender.com", "--source", "db"]), \
+         pytest.raises(SystemExit):
+         run_regression()
+
     for call in mock_supabase.table.mock_calls:
         call_str = str(call)
         if any(table in call_str for table in ["wiki_entries", "provisional_library", "rag_feedback"]):

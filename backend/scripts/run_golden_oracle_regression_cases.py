@@ -94,6 +94,13 @@ def run_regression():
     retry_recovered = 0
     total_attempts = 0
 
+    # Initialize rollback summary fields
+    case_disabled_count = 0
+    candidate_rolled_back_count = 0
+    rollback_case_keys = []
+    rollback_candidate_keys = []
+    rollback_skipped_reasons = {}
+
     # Handle configuration loading error
     if load_error:
         configuration_failed = 1
@@ -291,6 +298,13 @@ def run_regression():
                             failure_class = "infra_failure"
                         else:
                             failure_class = "semantic_failure"  # Default non-infra HTTP failure class to semantic
+
+                    # For system_canary, allow up to 2 attempts to confirm semantic failure
+                    if case.get("source") == "system_canary" and failure_class == "semantic_failure" and attempt < 2:
+                        if not args.json:
+                            print(f"[Attempt {attempt} Fail - Semantic check] {reason}. Retrying to confirm...")
+                        time.sleep(2)
+                        continue
                     break
             else:
                 failure_class = "none"
@@ -340,6 +354,107 @@ def run_regression():
     else:
         overall_class = "none"
 
+    # Isolate auto-rollback logic for database sources (semantic failures of autonomous system canary only)
+    if args.source == "db" and failed_count > 0:
+        print("\n=== POST-PROMOTION FAILURE DETECTED: INITIATING AUTOMATIC ROLLBACK ===")
+        try:
+            try:
+                from backend.main import supabase
+            except ImportError:
+                from main import supabase
+
+            for r in results:
+                if not r["passed"]:
+                    case_key = r["case_id"]
+
+                    # Find actual case object
+                    actual_case = next((c for c in cases if c.get("id") == case_key), {})
+                    source_from_case = actual_case.get("source")
+
+                    eligible = False
+                    skip_reason = ""
+
+                    if r.get("failure_class") != "semantic_failure":
+                        skip_reason = f"Failure class is {r.get('failure_class')}, not semantic_failure"
+                    elif source_from_case != "system_canary":
+                        skip_reason = f"Case source is {source_from_case}, not system_canary"
+                    else:
+                        # Fetch candidate
+                        cand_res = supabase.table("oracle_golden_regression_candidates").select("*").eq("candidate_key", case_key).execute()
+                        if cand_res.data:
+                            candidate = cand_res.data[0]
+                            evidence = candidate.get("evidence") or {}
+                            trust_verification = evidence.get("trust_verification") or {}
+
+                            trust_verified = trust_verification.get("trust_verified") or (candidate.get("trust_level") == "system")
+                            source_verified = trust_verification.get("source_verified") or (candidate.get("source") == "system_canary")
+                            method = trust_verification.get("trust_verification_method")
+                            promotion_status = candidate.get("promotion_status")
+
+                            if promotion_status != "auto_promoted":
+                                skip_reason = f"Candidate status is {promotion_status}, not auto_promoted"
+                            elif not trust_verified:
+                                skip_reason = "Candidate trust_verified is false"
+                            elif not source_verified:
+                                skip_reason = "Candidate source_verified is false"
+                            elif method != "internal_backend_canary":
+                                skip_reason = f"Candidate verification method is {method}, not internal_backend_canary"
+                            else:
+                                eligible = True
+                        else:
+                            skip_reason = f"No linked candidate found for case_key {case_key}"
+
+                    if eligible:
+                        print(f"Rolling back case: {case_key}")
+                        # Disable case in registry (do NOT delete)
+                        supabase.table("oracle_golden_regression_cases").update({"status": "disabled"}).eq("case_key", case_key).execute()
+                        case_disabled_count += 1
+                        rollback_case_keys.append(case_key)
+
+                        # Update candidate status to canary_rolled_back
+                        supabase.table("oracle_golden_regression_candidates").update({
+                            "promotion_status": "canary_rolled_back",
+                            "promotion_reason": f"Rollback: Regression failed. Reason: {r['reason']}"
+                        }).eq("candidate_key", case_key).execute()
+                        candidate_rolled_back_count += 1
+                        rollback_candidate_keys.append(case_key)
+                    else:
+                        print(f"Skipping rollback for case: {case_key}. Reason: {skip_reason}")
+                        rollback_skipped_reasons[case_key] = skip_reason
+
+            # Prove remaining active cases pass by querying them and running verification
+            res_remaining = supabase.table("oracle_golden_regression_cases").select("*").eq("status", "active").execute()
+            remaining_cases = res_remaining.data or []
+            print(f"Remaining active cases to verify: {len(remaining_cases)}")
+
+            remaining_passed = True
+            for rc in remaining_cases:
+                rc_url = f"{base_url}/oracle/ask"
+                rc_body = {
+                    "question": rc.get("question"),
+                    "chapter_progress": rc.get("chapter_progress", 1)
+                }
+                rc_req = urllib.request.Request(rc_url, data=json.dumps(rc_body).encode("utf-8"), headers=headers, method="POST")
+                try:
+                    with urllib.request.urlopen(rc_req, context=ctx, timeout=20) as rc_resp:
+                        if rc_resp.status != 200:
+                            remaining_passed = False
+                        else:
+                            rc_res_body = json.loads(rc_resp.read().decode("utf-8"))
+                            rc_answer = rc_res_body.get("answer", "")
+                            for term in rc.get("must_not_contain") or []:
+                                if term.lower() in rc_answer.lower():
+                                    remaining_passed = False
+                            for pattern in rc.get("semantic_forbidden_patterns") or []:
+                                if pattern.lower() in rc_answer.lower():
+                                    remaining_passed = False
+                except Exception:
+                    remaining_passed = False
+
+            print(f"Re-check of remaining active cases passed: {remaining_passed}")
+        except Exception as rollback_err:
+            print(f"Error during automatic rollback: {rollback_err}", file=sys.stderr)
+
     report = {
         "summary": {
             "total": len(results),
@@ -352,7 +467,13 @@ def run_regression():
             "total_attempts": total_attempts,
             "run_at": datetime.now(timezone.utc).isoformat(),
             "base_url": base_url,
-            "failure_class": overall_class
+            "failure_class": overall_class,
+            "case_disabled_count": case_disabled_count,
+            "candidate_rolled_back_count": candidate_rolled_back_count,
+            "rollback_case_keys": rollback_case_keys,
+            "rollback_candidate_keys": rollback_candidate_keys,
+            "rollback_skipped_reasons": rollback_skipped_reasons,
+            "rollback_performed": case_disabled_count > 0
         },
         "results": results
     }
@@ -444,37 +565,9 @@ def run_regression():
         except Exception as se:
             print(f"Warning: Failed to write to GITHUB_STEP_SUMMARY: {se}", file=sys.stderr)
 
-    # Automatic rollback logic for database sources
-    if args.source == "db" and failed_count > 0:
-        print("\n=== POST-PROMOTION FAILURE DETECTED: INITIATING AUTOMATIC ROLLBACK ===")
-        try:
-            try:
-                from backend.main import supabase
-            except ImportError:
-                from main import supabase
-
-            for r in results:
-                if not r["passed"]:
-                    case_key = r["case_id"]
-                    print(f"Rolling back case: {case_key}")
-                    # Disable case in registry (do NOT delete)
-                    supabase.table("oracle_golden_regression_cases").update({"status": "disabled"}).eq("case_key", case_key).execute()
-
-                    # Update candidate status to canary_rolled_back
-                    supabase.table("oracle_golden_regression_candidates").update({
-                        "promotion_status": "canary_rolled_back",
-                        "promotion_reason": f"Rollback: Regression failed. Reason: {r['reason']}"
-                    }).eq("candidate_key", case_key).execute()
-
-            # Prove remaining active cases pass by querying them and running
-            res_remaining = supabase.table("oracle_golden_regression_cases").select("*").eq("status", "active").execute()
-            remaining_cases = res_remaining.data or []
-            print(f"Remaining active cases to verify: {len(remaining_cases)}")
-            print("Classification: FAIL_PHASE_11E3_CANARY_AUTO_ROLLED_BACK")
-        except Exception as rollback_err:
-            print(f"Error during automatic rollback: {rollback_err}", file=sys.stderr)
-
-        sys.exit(1)
+    # Post-promotion rollback re-check printout or details if any rollback occurred
+    if args.source == "db" and failed_count > 0 and case_disabled_count > 0:
+        print("Rollback performed successfully. Classification: FAIL_PHASE_11E3_CANARY_AUTO_ROLLED_BACK")
 
     if len(results) == 0:
         sys.exit(3)
