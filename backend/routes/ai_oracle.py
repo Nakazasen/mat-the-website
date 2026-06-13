@@ -76,6 +76,7 @@ QUESTION_STOPWORDS = {
 class OracleRequest(BaseModel):
     question: str
     chapter_progress: int = 1
+    debug_bypass_cache: Optional[bool] = None
 
 
 class OracleResponse(BaseModel):
@@ -431,9 +432,16 @@ class AdminOracleResetResponse(BaseModel):
     detail: str
 
 
-def hash_question(question: str, chapter_cap: int) -> str:
+def hash_question(
+    question: str,
+    chapter_cap: int,
+    target_chapter: Optional[int] = None,
+    intent: Optional[str] = None,
+    policy_version: str = "11F0A_FIX1"
+) -> str:
     normalized = re.sub(r"\s+", " ", question.lower().strip())
-    return hashlib.sha256(f"{normalized}|{chapter_cap}".encode()).hexdigest()[:32]
+    key_str = f"{normalized}|{chapter_cap}|{target_chapter}|{intent}|{policy_version}"
+    return hashlib.sha256(key_str.encode()).hexdigest()[:32]
 
 
 def get_ip_hash(request: Request) -> str:
@@ -567,12 +575,15 @@ async def get_wiki_context(supabase, question: str, chapter_cap: int, active_pat
                 elif ptype == "prefer_chapter_summary_intent":
                     prefer_chapter = True
 
-        # Check if the query is an event plot question
-        is_event = is_event_plot_question(question)
-        parsed_query = parse_event_query(question)
-        if is_event or (parsed_query and parsed_query.get("intent") == "event_plot"):
-            is_event = True
-            enrich_story = True
+        # Check if the query is an event plot question (bypassed for chapter summaries)
+        is_event = False
+        parsed_query = None
+        if detect_intent(question) != "chapter_summary":
+            is_event = is_event_plot_question(question)
+            parsed_query = parse_event_query(question)
+            if is_event or (parsed_query and parsed_query.get("intent") == "event_plot"):
+                is_event = True
+                enrich_story = True
 
         wiki_res = search_wiki_entries(supabase, question, chapter_cap, limit=3)
         prov_res = search_provisional_library(supabase, question, chapter_cap, limit=3)
@@ -869,7 +880,8 @@ def is_oracle_rag_enabled() -> bool:
 def get_rag_context_for_oracle(
     question: str,
     chapter_cap: int | None,
-    limit: int = 5
+    limit: int = 5,
+    exact_chapter: int | None = None
 ) -> dict | None:
     """
     Retrieves the RAG context block for the oracle query if RAG is enabled.
@@ -904,11 +916,13 @@ def get_rag_context_for_oracle(
             supabase=supabase,
             query=question,
             chapter_cap=chapter_cap,
-            limit=limit * 2
+            limit=limit * 2,
+            exact_chapter=exact_chapter
         )
 
         trace = oracle_trace_var.get()
         if trace is not None:
+            trace["retrieval_called"] = True
             trace["candidate_chunk_ids"] = [r.get("id") for r in results] if results else []
             trace["candidate_chapters"] = [r.get("chapter_number") for r in results] if results else []
             trace["candidate_scores"] = [r.get("score") for r in results if "score" in r] if results else []
@@ -1420,7 +1434,10 @@ def detect_intent(question: str) -> str:
     summary_keywords = ["tóm tắt", "tom tat", "tóm lược", "tom luoc", "nội dung", "noi dung", "diễn biến", "dien bien", "tóm ý", "tóm tắt ngắn"]
     has_summary = any(kw in q_norm for kw in summary_keywords)
 
-    if has_summary or ("chương này" in q_norm and any(kw in q_norm for kw in ["gì", "gi", "như thế nào", "ra sao", "kể", "ke"])):
+    has_chapter = ("chương" in q_norm or "chapter" in q_norm or "chương này" in q_norm or re.search(r"\bch\s*\d+", q_norm))
+    has_event_or_occur = any(kw in q_norm for kw in ["diễn ra", "sự kiện", "kể về", "kể lại", "có gì", "diễn biến"])
+
+    if has_summary or (has_chapter and has_event_or_occur) or ("chương này" in q_norm and any(kw in q_norm for kw in ["gì", "gi", "như thế nào", "ra sao", "kể", "ke"])):
         return "chapter_summary"
     return "general_question"
 
@@ -1429,6 +1446,8 @@ async def get_max_available_chapter(supabase) -> int:
         return 0
     try:
         res = supabase.table("chapters").select("chapter_number").order("chapter_number", desc=True).limit(1).execute()
+        print("DEBUG CLIENT:", supabase)
+        print("DEBUG RES DATA:", repr(res.data).encode('ascii', errors='backslashreplace').decode('ascii'))
         if res.data:
             return int(res.data[0].get("chapter_number", 0))
     except Exception as e:
@@ -1467,6 +1486,7 @@ async def ask_oracle(
     response: Response,
     authorization: Optional[str] = Header(None),
     x_oracle_feedback_admin_token: Optional[str] = Header(None, alias="X-Oracle-Feedback-Admin-Token"),
+    x_oracle_bypass_cache: Optional[str] = Header(None, alias="X-Oracle-Bypass-Cache"),
 ):
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, proxy-revalidate"
     response.headers["Pragma"] = "no-cache"
@@ -1535,7 +1555,12 @@ async def ask_oracle(
             "selected_chunk_ids": [],
             "selected_chapters": [],
             "abstain_reason": abstain_reason,
-            "llm_called": False
+            "llm_called": False,
+            "cache_checked": False,
+            "cache_hit": False,
+            "cache_key_version": "11F0A_FIX1",
+            "cache_bypassed": False,
+            "retrieval_called": False,
         }
         oracle_trace_var.set(trace_dict)
 
@@ -1554,21 +1579,49 @@ async def ask_oracle(
             trace=trace_dict if (is_admin and is_trace_enabled) else None
         )
 
-    # Use effective_chapter_cap for all downstream operations
-    question_hash = hash_question(question, effective_chapter_cap)
+    # Use effective_chapter_cap and update hashing for exact-chapter tracking
+    question_hash = hash_question(
+        question=question,
+        chapter_cap=effective_chapter_cap,
+        target_chapter=target_chapter,
+        intent=intent,
+        policy_version="11F0A_FIX1"
+    )
 
-    parsed_query = parse_event_query(question)
+    parsed_query = None
     is_event = False
-    if parsed_query and parsed_query.get("intent") == "event_plot":
-        is_event = True
+    if intent != "chapter_summary":
+        parsed_query = parse_event_query(question)
+        if parsed_query and parsed_query.get("intent") == "event_plot":
+            is_event = True
 
-    cached = await check_cache(supabase, question_hash, effective_chapter_cap)
-    if cached:
-        # Validate cache response semantically for event questions
-        if is_event and parsed_query:
-            if not validate_context_semantically(cached, parsed_query):
-                await delete_cache_entry(supabase, question_hash, effective_chapter_cap)
-                cached = None
+    # Cache bypass check
+    is_admin = await is_admin_request(supabase, authorization, x_oracle_feedback_admin_token)
+    bypass_header = False
+    if isinstance(x_oracle_bypass_cache, str):
+        bypass_header = (x_oracle_bypass_cache.lower() == "true")
+    bypass_field = body.debug_bypass_cache is True
+    bypass_cache = is_admin and (bypass_header or bypass_field)
+
+    if trace_dict is not None:
+        trace_dict["cache_bypassed"] = bypass_cache
+
+    cached = None
+    if not bypass_cache:
+        if trace_dict is not None:
+            trace_dict["cache_checked"] = True
+        cached = await check_cache(supabase, question_hash, effective_chapter_cap)
+        if cached:
+            # Validate cache response semantically for event questions
+            if is_event and parsed_query:
+                if not validate_context_semantically(cached, parsed_query):
+                    await delete_cache_entry(supabase, question_hash, effective_chapter_cap)
+                    cached = None
+            if cached and trace_dict is not None:
+                trace_dict["cache_hit"] = True
+    else:
+        if trace_dict is not None:
+            trace_dict["cache_checked"] = True
 
     if cached:
         is_admin = await is_admin_request(supabase, authorization, x_oracle_feedback_admin_token)
@@ -1603,8 +1656,8 @@ async def ask_oracle(
     wiki_context = await get_wiki_context(supabase, question, effective_chapter_cap, active_patches)
     chapter_context = await get_chapter_context(supabase, effective_chapter_cap)
 
-    # Bypass the fast-path local lookup if prefer_chapter_summary_intent is active
-    bypass_fast_path = False
+    # Bypass the fast-path local lookup if prefer_chapter_summary_intent is active or if it is a chapter summary
+    bypass_fast_path = (intent == "chapter_summary")
     for p in active_patches:
         if p.get("patch_type") == "prefer_chapter_summary_intent":
             bypass_fast_path = True
@@ -1653,7 +1706,23 @@ async def ask_oracle(
         )
 
     # --- Multi-provider route (Phase 4) ---
-    rag_data = get_rag_context_for_oracle(question, effective_chapter_cap)
+    exact_chapter = None
+    if intent == "chapter_summary":
+        exact_chapter = target_chapter
+
+    import inspect
+    sig = inspect.signature(get_rag_context_for_oracle)
+    if "exact_chapter" in sig.parameters:
+        rag_data = get_rag_context_for_oracle(
+            question,
+            effective_chapter_cap,
+            exact_chapter=exact_chapter
+        )
+    else:
+        rag_data = get_rag_context_for_oracle(
+            question,
+            effective_chapter_cap
+        )
     rag_context = rag_data.get("context_text", "") if rag_data else ""
 
     if trace_dict is not None:

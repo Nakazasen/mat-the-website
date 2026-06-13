@@ -337,7 +337,8 @@ def search_story_chunks_hybrid_lexical(
     supabase,
     query: str,
     chapter_cap: int | None = None,
-    limit: int = 5
+    limit: int = 5,
+    exact_chapter: int | None = None
 ) -> list[dict]:
     """
     Performs hybrid lexical search by querying PostgreSQL FTS, ILIKE phrase,
@@ -358,7 +359,9 @@ def search_story_chunks_hybrid_lexical(
     if tsquery:
         try:
             q = supabase.table("story_chunks").select("*")
-            if chapter_cap is not None:
+            if exact_chapter is not None:
+                q = q.eq("chapter_number", exact_chapter)
+            elif chapter_cap is not None:
                 q = q.lte("chapter_number", chapter_cap)
             q = q.limit(limit * 2)
             q = q.text_search("content_plain", tsquery, options={"config": "simple"})
@@ -374,7 +377,9 @@ def search_story_chunks_hybrid_lexical(
     phrase_content_results = []
     try:
         q = supabase.table("story_chunks").select("*").ilike("content_plain", f"%{query.strip()}%")
-        if chapter_cap is not None:
+        if exact_chapter is not None:
+            q = q.eq("chapter_number", exact_chapter)
+        elif chapter_cap is not None:
             q = q.lte("chapter_number", chapter_cap)
         q = q.limit(limit * 2)
         resp = q.execute()
@@ -387,7 +392,9 @@ def search_story_chunks_hybrid_lexical(
     phrase_title_results = []
     try:
         q = supabase.table("story_chunks").select("*").ilike("chapter_title", f"%{query.strip()}%")
-        if chapter_cap is not None:
+        if exact_chapter is not None:
+            q = q.eq("chapter_number", exact_chapter)
+        elif chapter_cap is not None:
             q = q.lte("chapter_number", chapter_cap)
         q = q.limit(limit * 2)
         resp = q.execute()
@@ -410,7 +417,9 @@ def search_story_chunks_hybrid_lexical(
         if or_parts:
             try:
                 q = supabase.table("story_chunks").select("*").or_(",".join(or_parts))
-                if chapter_cap is not None:
+                if exact_chapter is not None:
+                    q = q.eq("chapter_number", exact_chapter)
+                elif chapter_cap is not None:
                     q = q.lte("chapter_number", chapter_cap)
                 q = q.limit(limit * 2)
                 resp = q.execute()
