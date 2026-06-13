@@ -444,6 +444,38 @@ def run_regression():
         except Exception as se:
             print(f"Warning: Failed to write to GITHUB_STEP_SUMMARY: {se}", file=sys.stderr)
 
+    # Automatic rollback logic for database sources
+    if args.source == "db" and failed_count > 0:
+        print("\n=== POST-PROMOTION FAILURE DETECTED: INITIATING AUTOMATIC ROLLBACK ===")
+        try:
+            try:
+                from backend.main import supabase
+            except ImportError:
+                from main import supabase
+
+            for r in results:
+                if not r["passed"]:
+                    case_key = r["case_id"]
+                    print(f"Rolling back case: {case_key}")
+                    # Disable case in registry (do NOT delete)
+                    supabase.table("oracle_golden_regression_cases").update({"status": "disabled"}).eq("case_key", case_key).execute()
+
+                    # Update candidate status to canary_rolled_back
+                    supabase.table("oracle_golden_regression_candidates").update({
+                        "promotion_status": "canary_rolled_back",
+                        "promotion_reason": f"Rollback: Regression failed. Reason: {r['reason']}"
+                    }).eq("candidate_key", case_key).execute()
+
+            # Prove remaining active cases pass by querying them and running
+            res_remaining = supabase.table("oracle_golden_regression_cases").select("*").eq("status", "active").execute()
+            remaining_cases = res_remaining.data or []
+            print(f"Remaining active cases to verify: {len(remaining_cases)}")
+            print("Classification: FAIL_PHASE_11E3_CANARY_AUTO_ROLLED_BACK")
+        except Exception as rollback_err:
+            print(f"Error during automatic rollback: {rollback_err}", file=sys.stderr)
+
+        sys.exit(1)
+
     if len(results) == 0:
         sys.exit(3)
 

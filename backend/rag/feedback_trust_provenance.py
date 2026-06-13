@@ -29,13 +29,18 @@ TRUST_ANONYMOUS = "anonymous"
 ALLOWLISTED_VERIFICATION_METHODS = {
     "jwt_author_profile",
     "jwt_trusted_reader_profile",
-    "internal_backend_cron"
+    "internal_backend_cron",
+    "internal_backend_canary"
 }
 
 def determine_provenance(authorization: Optional[str], client_source: Optional[str] = None) -> dict:
     """
     Determine trust provenance based on server-side JWT authentication verification.
     """
+    # Prevent public spoofing of privileged sources
+    if client_source == "system_canary":
+        client_source = "anonymous_feedback"
+
     token = extract_bearer_token(authorization) if authorization else None
     supabase = getattr(backend_main, "supabase", None) if backend_main else None
 
@@ -117,6 +122,22 @@ def get_system_provenance() -> dict:
         "trust_verified_at": datetime.now(timezone.utc).isoformat(),
         "trust_subject_user_id": None,
         "source": "system_detected_failure",
+        "source_verified": True,
+        "is_author": False,
+        "is_trusted_reader": False
+    }
+
+def get_canary_provenance() -> dict:
+    """
+    Get trusted system canary provenance configuration for system canary scripts.
+    """
+    return {
+        "trust_level": TRUST_SYSTEM,
+        "trust_verified": True,
+        "trust_verification_method": "internal_backend_canary",
+        "trust_verified_at": datetime.now(timezone.utc).isoformat(),
+        "trust_subject_user_id": None,
+        "source": "system_canary",
         "source_verified": True,
         "is_author": False,
         "is_trusted_reader": False

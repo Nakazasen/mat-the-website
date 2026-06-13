@@ -1828,6 +1828,8 @@ async def create_oracle_feedback(
         provenance["source"] = "anonymous_feedback"
     if provenance["trust_level"] != "system" and provenance["source"] == "system_detected_failure":
         provenance["source"] = "anonymous_feedback"
+    if provenance["trust_level"] != "system" and provenance["source"] == "system_canary":
+        provenance["source"] = "anonymous_feedback"
 
     feedback_data = {
         "question": body.question,

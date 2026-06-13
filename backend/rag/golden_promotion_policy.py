@@ -43,10 +43,10 @@ def determine_trust_level(feedback):
 
     # System
     is_system_claim = (
-        feedback.get("source") == "system_detected_failure" or
+        feedback.get("source") in ["system_detected_failure", "system_canary"] or
         feedback.get("trust_level") == "system"
     )
-    if is_system_claim and (trust_verified or source_verified) and method == "internal_backend_cron":
+    if is_system_claim and (trust_verified or source_verified) and method in ["internal_backend_cron", "internal_backend_canary"]:
         return TRUST_SYSTEM
 
     # Trusted Reader

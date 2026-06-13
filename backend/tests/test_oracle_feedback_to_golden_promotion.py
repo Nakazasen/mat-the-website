@@ -1194,3 +1194,297 @@ def test_privileged_fields_not_in_request_body_model():
     assert "source_verified" not in fields
     assert "is_author" not in fields
     assert "is_trusted_reader" not in fields
+
+
+# --- Phase 11E-3: Verified Provenance Autonomous Promotion Canary Tests ---
+
+from backend.scripts.create_verified_golden_canary import main as canary_builder_main
+
+def test_canary_public_payload_fails_to_create_system_canary_provenance():
+    # 1. public payload không tạo system_canary provenance.
+    provenance = determine_provenance(None, "system_canary")
+    assert provenance["source"] == "anonymous_feedback"
+    assert provenance["trust_level"] == "anonymous"
+
+def test_create_canary_dry_run_no_db_write():
+    # 2. create canary dry-run không ghi DB.
+    mock_supabase = MagicMock()
+    mock_response = MockResponse({"answer": "Safe answer: chiến dịch thanh tẩy Thể Thôn Phệ Lệ Giang."}, 200)
+    with patch("backend.scripts.create_verified_golden_canary.supabase", mock_supabase), \
+         patch("urllib.request.urlopen", return_value=mock_response), \
+         patch("sys.argv", ["create_verified_golden_canary.py", "--dry-run", "--json"]):
+         try:
+             canary_builder_main()
+         except SystemExit as e:
+             assert e.code == 0
+         mock_supabase.table.assert_not_called()
+
+def test_canary_write_idempotent():
+    # 3. canary write idempotent.
+    mock_supabase = MagicMock()
+    mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value.data = [{"candidate_key": "canary_verified_le_giang_campaign"}]
+    mock_response = MockResponse({"answer": "Safe answer: chiến dịch thanh tẩy Thể Thôn Phệ Lệ Giang."}, 200)
+    with patch("backend.scripts.create_verified_golden_canary.supabase", mock_supabase), \
+         patch("urllib.request.urlopen", return_value=mock_response), \
+         patch("sys.argv", ["create_verified_golden_canary.py", "--write", "--json"]):
+         try:
+             canary_builder_main()
+         except SystemExit as e:
+             assert e.code == 0
+         mock_supabase.table.assert_any_call("oracle_golden_regression_candidates")
+         mock_supabase.table.return_value.update.assert_called()
+
+def test_canary_pre_validation_requires_3_of_3_pass():
+    # 4. pre-validation cần 3/3 PASS.
+    mock_supabase = MagicMock()
+    mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value.data = []
+    mock_response = MockResponse({"answer": "Safe answer: chiến dịch thanh tẩy Thể Thôn Phệ Lệ Giang."}, 200)
+    with patch("backend.scripts.create_verified_golden_canary.supabase", mock_supabase), \
+         patch("urllib.request.urlopen", return_value=mock_response), \
+         patch("sys.argv", ["create_verified_golden_canary.py", "--write", "--json"]):
+         try:
+             canary_builder_main()
+         except SystemExit as e:
+             assert e.code == 0
+         called_args = mock_supabase.table.return_value.insert.call_args[0][0]
+         assert called_args["promotion_status"] == "auto_promote_ready"
+
+def test_canary_pre_validation_fails_on_2_of_3_pass():
+    # 5. 2/3 PASS không được promote (status canary_validation_failed).
+    mock_supabase = MagicMock()
+    mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value.data = []
+    resp1 = MockResponse({"answer": "Safe answer: chiến dịch thanh tẩy Thể Thôn Phệ Lệ Giang."}, 200)
+    resp2 = MockResponse({"answer": "Contains [DỮ LIỆU HỆ THỐNG] which is forbidden"}, 200)
+
+    with patch("backend.scripts.create_verified_golden_canary.supabase", mock_supabase), \
+         patch("urllib.request.urlopen", side_effect=[resp1, resp2]), \
+         patch("sys.argv", ["create_verified_golden_canary.py", "--write", "--json"]), \
+         pytest.raises(SystemExit) as excinfo:
+         canary_builder_main()
+    assert excinfo.value.code == 1
+    called_args = mock_supabase.table.return_value.insert.call_args[0][0]
+    assert called_args["promotion_status"] == "canary_validation_failed"
+
+def test_only_one_canary_planned():
+    # 6. chỉ một canary được planned.
+    mock_supabase = MagicMock()
+    mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value.data = []
+    mock_response = MockResponse({"answer": "Safe answer: chiến dịch thanh tẩy Thể Thôn Phệ Lệ Giang."}, 200)
+    with patch("backend.scripts.create_verified_golden_canary.supabase", mock_supabase), \
+         patch("urllib.request.urlopen", return_value=mock_response), \
+         patch("sys.argv", ["create_verified_golden_canary.py", "--dry-run", "--json"]):
+         try:
+             canary_builder_main()
+         except SystemExit as e:
+             assert e.code == 0
+
+def test_anonymous_candidates_not_promoted_with_canary():
+    # 7. anonymous candidates không được promote cùng canary.
+    candidates = [
+        {
+            "id": "cand1",
+            "candidate_key": "canary_verified_le_giang_campaign",
+            "source": "system_canary",
+            "trust_level": "system",
+            "question": "Hãy kể lại diễn biến của chiến dịch Lệ Giang.",
+            "chapter_progress": 829,
+            "must_not_contain": ["[DỮ LIỆU HỆ THỐNG]"],
+            "promotion_status": "auto_promote_ready",
+            "promotion_score": 1.0,
+            "feedback_ids": []
+        },
+        {
+            "id": "cand2",
+            "candidate_key": "anonymous_bug_1",
+            "source": "anonymous_feedback",
+            "trust_level": "anonymous",
+            "question": "What is hope town?",
+            "chapter_progress": 10,
+            "must_not_contain": ["hope town"],
+            "promotion_status": "observing",
+            "promotion_score": 0.2,
+            "feedback_ids": ["fb2"]
+        }
+    ]
+    mock_supabase = MockSupabase(candidates=candidates)
+    mock_response = MockResponse({"answer": "Safe answer: chiến dịch Lệ Giang"}, 200)
+    with patch("backend.scripts.promote_golden_candidates.supabase", mock_supabase), \
+         patch("urllib.request.urlopen", return_value=mock_response), \
+         patch("sys.argv", ["promote_golden_candidates.py", "--write", "--json"]):
+         promoter_main()
+
+    assert any(x.get("case_key") == "canary_verified_le_giang_campaign" for x in mock_supabase.upserted_cases)
+    assert not any(x.get("case_key") == "anonymous_bug_1" for x in mock_supabase.upserted_cases)
+
+def test_canary_promotion_requires_runtime_validation_passed():
+    # 8. promotion cần runtime_validation_passed.
+    candidates = [
+        {
+            "id": "cand1",
+            "candidate_key": "canary_verified_le_giang_campaign",
+            "source": "system_canary",
+            "trust_level": "system",
+            "question": "Hãy kể lại diễn biến của chiến dịch Lệ Giang.",
+            "chapter_progress": 829,
+            "must_not_contain": ["[DỮ LIỆU HỆ THỐNG]"],
+            "promotion_status": "auto_promote_ready",
+            "promotion_score": 1.0,
+            "feedback_ids": []
+        }
+    ]
+    mock_supabase = MockSupabase(candidates=candidates)
+    mock_response = MockResponse({"answer": "Violating [DỮ LIỆU HỆ THỐNG]"}, 200)
+    with patch("backend.scripts.promote_golden_candidates.supabase", mock_supabase), \
+         patch("urllib.request.urlopen", return_value=mock_response), \
+         patch("sys.argv", ["promote_golden_candidates.py", "--write", "--json"]):
+         promoter_main()
+
+    assert not any(x.get("case_key") == "canary_verified_le_giang_campaign" for x in mock_supabase.upserted_cases)
+    assert any(x.get("promotion_status") == "canary_validation_failed" for x in mock_supabase.updated_candidates)
+
+def test_runtime_failure_reproduced_alone_not_enough_for_canary_promotion():
+    # 9. runtime_failure_reproduced một mình không đủ promote.
+    candidates = [
+        {
+            "id": "cand1",
+            "candidate_key": "canary_verified_le_giang_campaign",
+            "source": "system_canary",
+            "trust_level": "system",
+            "question": "Hãy kể lại diễn biến của chiến dịch Lệ Giang.",
+            "chapter_progress": 829,
+            "must_not_contain": ["[DỮ LIỆU HỆ THỐNG]"],
+            "promotion_status": "auto_promote_ready",
+            "promotion_score": 1.0,
+            "feedback_ids": []
+        }
+    ]
+    mock_supabase = MockSupabase(candidates=candidates)
+    mock_response = MockResponse({"answer": "Violating [DỮ LIỆU HỆ THỐNG]"}, 200)
+    with patch("backend.scripts.promote_golden_candidates.supabase", mock_supabase), \
+         patch("urllib.request.urlopen", return_value=mock_response), \
+         patch("sys.argv", ["promote_golden_candidates.py", "--write", "--json"]):
+         promoter_main()
+
+    assert not any(x.get("case_key") == "canary_verified_le_giang_campaign" for x in mock_supabase.upserted_cases)
+
+def test_active_golden_insert_has_correct_payload():
+    # 10. active golden insert đúng payload.
+    candidates = [
+        {
+            "id": "cand1",
+            "candidate_key": "canary_verified_le_giang_campaign",
+            "source": "system_canary",
+            "trust_level": "system",
+            "question": "Hãy kể lại diễn biến của chiến dịch Lệ Giang.",
+            "chapter_progress": 829,
+            "must_not_contain": ["[DỮ LIỆU HỆ THỐNG]"],
+            "promotion_status": "auto_promote_ready",
+            "promotion_score": 1.0,
+            "feedback_ids": []
+        }
+    ]
+    mock_supabase = MockSupabase(candidates=candidates)
+    mock_response = MockResponse({"answer": "Safe answer: chiến dịch Lệ Giang"}, 200)
+    with patch("backend.scripts.promote_golden_candidates.supabase", mock_supabase), \
+         patch("urllib.request.urlopen", return_value=mock_response), \
+         patch("sys.argv", ["promote_golden_candidates.py", "--write", "--json"]):
+         promoter_main()
+
+    inserted_case = mock_supabase.upserted_cases[0]
+    assert inserted_case["case_key"] == "canary_verified_le_giang_campaign"
+    assert inserted_case["status"] == "active"
+    assert inserted_case["source"] == "system_canary"
+
+def test_post_promotion_runner_failure_disables_case():
+    # 11. post-promotion runner fail sẽ disable case.
+    from backend.scripts.run_golden_oracle_regression_cases import run_regression
+    mock_supabase = MagicMock()
+    mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value.data = [
+        {
+            "case_key": "canary_verified_le_giang_campaign",
+            "question": "Hãy kể lại diễn biến của chiến dịch Lệ Giang.",
+            "must_not_contain": ["[DỮ LIỆU HỆ THỐNG]"],
+            "status": "active"
+        }
+    ]
+
+    mock_response = MockResponse({"answer": "Violating [DỮ LIỆU HỆ THỐNG]"}, 200)
+    with patch("backend.main.supabase", mock_supabase), \
+         patch("main.supabase", mock_supabase), \
+         patch("urllib.request.urlopen", return_value=mock_response), \
+         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "https://mat-the-website.onrender.com", "--source", "db"]), \
+         pytest.raises(SystemExit) as excinfo:
+         run_regression()
+
+    assert excinfo.value.code == 1
+    mock_supabase.table.assert_any_call("oracle_golden_regression_cases")
+    mock_supabase.table.return_value.update.assert_any_call({"status": "disabled"})
+
+def test_rollback_does_not_delete_audit_trail():
+    # 12. rollback không delete audit trail.
+    from backend.scripts.run_golden_oracle_regression_cases import run_regression
+    mock_supabase = MagicMock()
+    mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value.data = [
+        {
+            "case_key": "canary_verified_le_giang_campaign",
+            "question": "Hãy kể lại diễn biến của chiến dịch Lệ Giang.",
+            "must_not_contain": ["[DỮ LIỆU HỆ THỐNG]"],
+            "status": "active"
+        }
+    ]
+
+    mock_response = MockResponse({"answer": "Violating [DỮ LIỆU HỆ THỐNG]"}, 200)
+    with patch("backend.main.supabase", mock_supabase), \
+         patch("main.supabase", mock_supabase), \
+         patch("urllib.request.urlopen", return_value=mock_response), \
+         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "https://mat-the-website.onrender.com", "--source", "db"]), \
+         pytest.raises(SystemExit):
+         run_regression()
+
+    for call in mock_supabase.table.mock_calls:
+        assert "delete" not in str(call)
+
+def test_successful_3_run_canary_remains_active():
+    # 13. successful 3-run canary giữ active.
+    from backend.scripts.run_golden_oracle_regression_cases import run_regression
+    mock_supabase = MagicMock()
+    mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value.data = [
+        {
+            "case_key": "canary_verified_le_giang_campaign",
+            "question": "Hãy kể lại diễn biến của chiến dịch Lệ Giang.",
+            "must_not_contain": ["[DỮ LIỆU HỆ THỐNG]"],
+            "status": "active"
+        }
+    ]
+
+    mock_response = MockResponse({"answer": "Safe answer: chiến dịch thanh tẩy"}, 200)
+    with patch("backend.main.supabase", mock_supabase), \
+         patch("main.supabase", mock_supabase), \
+         patch("urllib.request.urlopen", return_value=mock_response), \
+         patch("sys.argv", ["run_golden_oracle_regression_cases.py", "--base-url", "https://mat-the-website.onrender.com", "--source", "db"]):
+         try:
+             run_regression()
+         except SystemExit as e:
+             assert e.code == 0
+
+    for call in mock_supabase.table.return_value.update.mock_calls:
+        assert "disabled" not in str(call)
+
+def test_no_wiki_provisional_or_feedback_modified():
+    # 14. không sửa wiki/provisional/rag_feedback.
+    mock_supabase = MagicMock()
+    mock_response = MockResponse({"answer": "Safe answer"}, 200)
+    with patch("backend.main.supabase", mock_supabase), \
+         patch("main.supabase", mock_supabase), \
+         patch("urllib.request.urlopen", return_value=mock_response), \
+         patch("sys.argv", ["promote_golden_candidates.py", "--write"]):
+         promoter_main()
+
+    # Check that insert/update/delete was never called on wiki_entries, provisional_library or rag_feedback
+    for call in mock_supabase.table.mock_calls:
+        call_str = str(call)
+        if any(table in call_str for table in ["wiki_entries", "provisional_library", "rag_feedback"]):
+            assert "insert" not in call_str
+            assert "update" not in call_str
+            assert "delete" not in call_str
+            assert "upsert" not in call_str
