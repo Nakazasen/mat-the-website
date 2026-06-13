@@ -1797,7 +1797,10 @@ class OracleFeedbackResponse(BaseModel):
 
 
 @router.post("/feedback", response_model=OracleFeedbackResponse)
-async def create_oracle_feedback(body: OracleFeedbackRequest):
+async def create_oracle_feedback(
+    body: OracleFeedbackRequest,
+    authorization: Optional[str] = Header(None)
+):
     if not isinstance(body.citations, list):
         raise HTTPException(status_code=400, detail="Citations must be a list")
 
@@ -1812,16 +1815,38 @@ async def create_oracle_feedback(body: OracleFeedbackRequest):
             detail="Database service unavailable"
         )
 
+    try:
+        from backend.rag.feedback_trust_provenance import determine_provenance
+    except ImportError:
+        from rag.feedback_trust_provenance import determine_provenance
+
+    # Determine trust provenance server-side
+    provenance = determine_provenance(authorization, client_source=body.source)
+
+    # Sanitize and force correct sources for unverified payloads
+    if provenance["trust_level"] != "author" and provenance["source"] == "author_feedback":
+        provenance["source"] = "anonymous_feedback"
+    if provenance["trust_level"] != "system" and provenance["source"] == "system_detected_failure":
+        provenance["source"] = "anonymous_feedback"
+
     feedback_data = {
         "question": body.question,
         "answer": body.answer,
-        "source": body.source,
+        "source": provenance["source"],
         "citations": body.citations,
         "chapter_progress": body.chapter_progress,
         "feedback_type": body.feedback_type,
         "user_comment": body.user_comment,
         "suggested_correction": body.suggested_correction,
-        "status": "pending"
+        "status": "pending",
+        "trust_level": provenance["trust_level"],
+        "trust_verified": provenance["trust_verified"],
+        "trust_verification_method": provenance["trust_verification_method"],
+        "trust_verified_at": provenance["trust_verified_at"],
+        "trust_subject_user_id": provenance["trust_subject_user_id"],
+        "source_verified": provenance["source_verified"],
+        "is_author": provenance["is_author"],
+        "is_trusted_reader": provenance["is_trusted_reader"]
     }
 
     try:
@@ -1832,6 +1857,7 @@ async def create_oracle_feedback(body: OracleFeedbackRequest):
         return OracleFeedbackResponse(ok=True, feedback_id=str(feedback_id), status="pending")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
 
 
 @router.get("/feedback/pending")

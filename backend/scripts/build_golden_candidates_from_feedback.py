@@ -58,6 +58,11 @@ def main():
         "untrusted_author_claims": 0,
         "untrusted_system_claims": 0,
         "untrusted_trusted_reader_claims": 0,
+        "unverified_elevated_metadata_claims": 0,
+        "rejected_privileged_payload_fields": 0,
+        "verified_author_feedback_count": 0,
+        "verified_system_feedback_count": 0,
+        "verified_trusted_reader_count": 0,
         "errors": []
     }
 
@@ -134,7 +139,55 @@ def main():
 
             score += TRUST_WEIGHTS.get(trust, 0.2)
 
-            # Detect spoofed roles
+            # Audit server-side metadata provenance vs claims
+            trust_verified = fb.get("trust_verified") is True or fb.get("trust_verified") == "true"
+            source_verified = fb.get("source_verified") is True or fb.get("source_verified") == "true"
+            method = fb.get("trust_verification_method")
+
+            # Detect unverified elevated metadata claims
+            has_author_metadata_claim = (
+                fb.get("source") == "author_feedback" or
+                fb.get("trust_level") == "author" or
+                fb.get("is_author") is True or
+                fb.get("is_author") == "true"
+            )
+            has_system_metadata_claim = (
+                fb.get("source") == "system_detected_failure" or
+                fb.get("trust_level") == "system"
+            )
+            has_trusted_metadata_claim = (
+                fb.get("trust_level") == "trusted_reader" or
+                fb.get("is_trusted_reader") is True or
+                fb.get("is_trusted_reader") == "true"
+            )
+
+            is_elevated_metadata_claim = (
+                has_author_metadata_claim or
+                has_system_metadata_claim or
+                has_trusted_metadata_claim
+            )
+
+            unverified_claim = False
+            if is_elevated_metadata_claim:
+                if not trust_verified and not source_verified:
+                    unverified_claim = True
+                    summary["unverified_elevated_metadata_claims"] += 1
+                    # Treat direct privileged fields set without verification as rejected
+                    summary["rejected_privileged_payload_fields"] += 1
+                elif method == "none" or not method:
+                    unverified_claim = True
+                    summary["unverified_elevated_metadata_claims"] += 1
+                    summary["rejected_privileged_payload_fields"] += 1
+
+            # Count verified feedback types
+            if trust == "author":
+                summary["verified_author_feedback_count"] += 1
+            elif trust == "system":
+                summary["verified_system_feedback_count"] += 1
+            elif trust == "trusted_reader":
+                summary["verified_trusted_reader_count"] += 1
+
+            # Detect spoofed roles in comment text
             comment = fb.get("user_comment") or ""
             claimed_roles = []
             if "[AUTHOR]" in comment:
@@ -174,7 +227,8 @@ def main():
                 "answer": fb.get("answer"),
                 "suggested_correction": fb.get("suggested_correction"),
                 "untrusted_claimed_role_hint": claimed_roles,
-                "verified": verified
+                "verified": verified,
+                "unverified_elevated_metadata_claim": unverified_claim
             })
 
             # Parse constraints
@@ -274,6 +328,11 @@ def main():
         print(f"Untrusted author claims:       {summary['untrusted_author_claims']}")
         print(f"Untrusted system claims:       {summary['untrusted_system_claims']}")
         print(f"Untrusted trusted reader claims: {summary['untrusted_trusted_reader_claims']}")
+        print(f"Unverified metadata claims:    {summary['unverified_elevated_metadata_claims']}")
+        print(f"Rejected privileged payloads:  {summary['rejected_privileged_payload_fields']}")
+        print(f"Verified author feedbacks:     {summary['verified_author_feedback_count']}")
+        print(f"Verified system feedbacks:     {summary['verified_system_feedback_count']}")
+        print(f"Verified trusted reader fbs:   {summary['verified_trusted_reader_count']}")
         if summary["errors"]:
             print("Errors encountered:")
             for err in summary["errors"]:

@@ -27,22 +27,42 @@ def determine_trust_level(feedback):
     """
     Determine trust level based on secure server-side metadata fields only.
     """
-    if (feedback.get("source") == "author_feedback" or
+    trust_verified = feedback.get("trust_verified") is True or feedback.get("trust_verified") == "true"
+    source_verified = feedback.get("source_verified") is True or feedback.get("source_verified") == "true"
+    method = feedback.get("trust_verification_method")
+
+    # Author
+    is_author_claim = (
+        feedback.get("source") == "author_feedback" or
         feedback.get("trust_level") == "author" or
         feedback.get("is_author") is True or
-        feedback.get("is_author") == "true"):
+        feedback.get("is_author") == "true"
+    )
+    if is_author_claim and trust_verified and method == "jwt_author_profile":
         return TRUST_AUTHOR
 
-    if (feedback.get("source") == "system_detected_failure" or
-        feedback.get("trust_level") == "system"):
+    # System
+    is_system_claim = (
+        feedback.get("source") == "system_detected_failure" or
+        feedback.get("trust_level") == "system"
+    )
+    if is_system_claim and (trust_verified or source_verified) and method == "internal_backend_cron":
         return TRUST_SYSTEM
 
-    if (feedback.get("trust_level") == "trusted_reader" or
+    # Trusted Reader
+    is_trusted_claim = (
+        feedback.get("trust_level") == "trusted_reader" or
         feedback.get("is_trusted_reader") is True or
-        feedback.get("is_trusted_reader") == "true"):
+        feedback.get("is_trusted_reader") == "true"
+    )
+    if is_trusted_claim and trust_verified and method == "jwt_trusted_reader_profile":
         return TRUST_TRUSTED_READER
 
-    if feedback.get("trust_level") == "reader":
+    # Reader
+    is_reader_claim = (
+        feedback.get("trust_level") == "reader"
+    )
+    if is_reader_claim and trust_verified and method == "jwt_reader_profile":
         return TRUST_READER
 
     return TRUST_ANONYMOUS

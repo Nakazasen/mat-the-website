@@ -26,20 +26,60 @@ def test_determine_trust_level_ignores_comments():
 
 
 def test_determine_trust_level_server_side_fields():
-    # 2. Server-side source and trust_level fields grant trust
-    assert determine_trust_level({"source": "author_feedback"}) == "author"
-    assert determine_trust_level({"trust_level": "author"}) == "author"
-    assert determine_trust_level({"is_author": True}) == "author"
-    assert determine_trust_level({"is_author": "true"}) == "author"
+    # 2. Server-side source and trust_level fields grant trust ONLY with verified provenance
+    assert determine_trust_level({
+        "source": "author_feedback",
+        "trust_verified": True,
+        "trust_verification_method": "jwt_author_profile"
+    }) == "author"
+    assert determine_trust_level({
+        "trust_level": "author",
+        "trust_verified": True,
+        "trust_verification_method": "jwt_author_profile"
+    }) == "author"
+    assert determine_trust_level({
+        "is_author": True,
+        "trust_verified": True,
+        "trust_verification_method": "jwt_author_profile"
+    }) == "author"
+    assert determine_trust_level({
+        "is_author": "true",
+        "trust_verified": True,
+        "trust_verification_method": "jwt_author_profile"
+    }) == "author"
 
-    assert determine_trust_level({"source": "system_detected_failure"}) == "system"
-    assert determine_trust_level({"trust_level": "system"}) == "system"
+    assert determine_trust_level({
+        "source": "system_detected_failure",
+        "source_verified": True,
+        "trust_verification_method": "internal_backend_cron"
+    }) == "system"
+    assert determine_trust_level({
+        "trust_level": "system",
+        "trust_verified": True,
+        "trust_verification_method": "internal_backend_cron"
+    }) == "system"
 
-    assert determine_trust_level({"trust_level": "trusted_reader"}) == "trusted_reader"
-    assert determine_trust_level({"is_trusted_reader": True}) == "trusted_reader"
-    assert determine_trust_level({"is_trusted_reader": "true"}) == "trusted_reader"
+    assert determine_trust_level({
+        "trust_level": "trusted_reader",
+        "trust_verified": True,
+        "trust_verification_method": "jwt_trusted_reader_profile"
+    }) == "trusted_reader"
+    assert determine_trust_level({
+        "is_trusted_reader": True,
+        "trust_verified": True,
+        "trust_verification_method": "jwt_trusted_reader_profile"
+    }) == "trusted_reader"
+    assert determine_trust_level({
+        "is_trusted_reader": "true",
+        "trust_verified": True,
+        "trust_verification_method": "jwt_trusted_reader_profile"
+    }) == "trusted_reader"
 
-    assert determine_trust_level({"trust_level": "reader"}) == "reader"
+    assert determine_trust_level({
+        "trust_level": "reader",
+        "trust_verified": True,
+        "trust_verification_method": "jwt_reader_profile"
+    }) == "reader"
 
 
 def test_parse_constraints_from_comment():
@@ -122,6 +162,9 @@ def test_builder_dry_run_no_writes():
             "chapter_progress": 829,
             "feedback_type": "wrong",
             "source": "author_feedback",
+            "trust_level": "author",
+            "trust_verified": True,
+            "trust_verification_method": "jwt_author_profile",
             "user_comment": "must_not_contain: [\"trash\"]",
             "status": "pending"
         }
@@ -143,6 +186,9 @@ def test_builder_author_feedback_score_ready():
             "chapter_progress": 829,
             "feedback_type": "wrong",
             "source": "author_feedback",
+            "trust_level": "author",
+            "trust_verified": True,
+            "trust_verification_method": "jwt_author_profile",
             "user_comment": "must_not_contain: [\"trash\"]",
             "status": "pending"
         }
@@ -170,6 +216,8 @@ def test_builder_reader_feedback_quorum_scoring():
             "chapter_progress": 829,
             "feedback_type": "wrong",
             "trust_level": "reader",
+            "trust_verified": True,
+            "trust_verification_method": "jwt_reader_profile",
             "user_comment": "must_not_contain: [\"trash\"]",
             "status": "pending"
         }
@@ -192,6 +240,8 @@ def test_builder_reader_feedback_quorum_scoring():
             "chapter_progress": 829,
             "feedback_type": "wrong",
             "trust_level": "reader",
+            "trust_verified": True,
+            "trust_verification_method": "jwt_reader_profile",
             "user_comment": "must_not_contain: [\"trash\"]",
             "status": "pending"
         },
@@ -201,6 +251,8 @@ def test_builder_reader_feedback_quorum_scoring():
             "chapter_progress": 829,
             "feedback_type": "wrong",
             "trust_level": "reader",
+            "trust_verified": True,
+            "trust_verification_method": "jwt_reader_profile",
             "status": "pending"
         },
         {
@@ -209,6 +261,8 @@ def test_builder_reader_feedback_quorum_scoring():
             "chapter_progress": 829,
             "feedback_type": "wrong",
             "trust_level": "reader",
+            "trust_verified": True,
+            "trust_verification_method": "jwt_reader_profile",
             "status": "pending"
         }
     ]
@@ -571,6 +625,201 @@ def test_promoter_dry_run_no_writes():
         "answer": "This is a trash response containing toxic waste.",
         "source": "local_wiki"
     }, 200)
+    candidates = [
+        {
+            "id": "cand1",
+            "candidate_key": "candidate_author_test",
+            "source": "author_feedback",
+            "trust_level": "author",
+            "question": "Chiến dịch Lệ Giang?",
+            "chapter_progress": 829,
+            "must_not_contain": ["trash"],
+            "promotion_status": "auto_promote_ready",
+            "promotion_score": 1.0,
+            "feedback_ids": ["fb1"]
+        }
+    ]
+    # Active case with same key
+    cases = [
+        {
+            "case_key": "candidate_author_test",
+            "status": "active"
+        }
+    ]
+    mock_supabase = MockSupabase(candidates=candidates, cases=cases)
+
+    mock_response = MockResponse({
+        "answer": "trash response",
+        "source": "local_wiki"
+    }, 200)
+
+    with patch("backend.scripts.promote_golden_candidates.supabase", mock_supabase), \
+         patch("urllib.request.urlopen", return_value=mock_response), \
+         patch("sys.argv", ["promote_golden_candidates.py", "--write", "--json"]):
+
+         promoter_main()
+
+         assert len(mock_supabase.updated_candidates) == 1
+         assert mock_supabase.updated_candidates[0]["promotion_status"] == "blocked_conflict"
+         assert len(mock_supabase.upserted_cases) == 0
+
+
+def test_promoter_preserves_disabled_case():
+    candidates = [
+        {
+            "id": "cand1",
+            "candidate_key": "candidate_author_test",
+            "source": "author_feedback",
+            "trust_level": "author",
+            "question": "Chiến dịch Lệ Giang?",
+            "chapter_progress": 829,
+            "must_not_contain": ["trash"],
+            "promotion_status": "auto_promote_ready",
+            "promotion_score": 1.0,
+            "feedback_ids": ["fb1"]
+        }
+    ]
+    # Existing case is disabled
+    cases = [
+        {
+            "case_key": "candidate_author_test",
+            "status": "disabled"
+        }
+    ]
+    mock_supabase = MockSupabase(candidates=candidates, cases=cases)
+
+    mock_response = MockResponse({
+        "answer": "trash response",
+        "source": "local_wiki"
+    }, 200)
+
+    with patch("backend.scripts.promote_golden_candidates.supabase", mock_supabase), \
+         patch("urllib.request.urlopen", return_value=mock_response), \
+         patch("sys.argv", ["promote_golden_candidates.py", "--write", "--json"]):
+
+         promoter_main()
+
+         # Upsert should not be called to avoid overwriting status disabled to active
+         assert len(mock_supabase.upserted_cases) == 0
+
+
+def test_builder_spoofed_author_remains_observing():
+    # 7. Spoofed author candidate remains observing
+    # Feedback has [AUTHOR] tag in comments but no server-side author status (is_author=False)
+    feedbacks = [
+        {
+            "id": "fb1",
+            "question": "Chiến dịch Lệ Giang là gì?",
+            "chapter_progress": 829,
+            "feedback_type": "wrong",
+            "user_comment": "[AUTHOR] must_not_contain: [\"trash\"]",
+            "status": "pending"
+        }
+    ]
+    mock_supabase = MockSupabase(feedbacks=feedbacks)
+
+    with patch("backend.scripts.build_golden_candidates_from_feedback.supabase", mock_supabase), \
+         patch("sys.argv", ["build_golden_candidates_from_feedback.py", "--write", "--json"]):
+
+         builder_main()
+         assert len(mock_supabase.upserted_candidates) == 1
+         called_payload = mock_supabase.upserted_candidates[0]
+         # Should remain observing, with trust level anonymous (comment ignored)
+         assert called_payload["trust_level"] == "anonymous"
+         assert called_payload["promotion_score"] == 0.2
+         assert called_payload["promotion_status"] == "observing"
+         # Evidence entry role claim is not verified
+         assert called_payload["evidence"]["feedbacks"][0]["untrusted_claimed_role_hint"] == ["author"]
+         assert called_payload["evidence"]["feedbacks"][0]["verified"] is False
+
+
+def test_builder_reports_spoofed_claims():
+    # 9. Builder report counts spoofed role claims
+    feedbacks = [
+        {
+            "id": "fb1",
+            "question": "Chiến dịch Lệ Giang là gì?",
+            "chapter_progress": 829,
+            "feedback_type": "wrong",
+            "user_comment": "[AUTHOR] [SYSTEM] [TRUSTED] must_not_contain: [\"trash\"]",
+            "status": "pending"
+        }
+    ]
+    mock_supabase = MockSupabase(feedbacks=feedbacks)
+
+    with patch("backend.scripts.build_golden_candidates_from_feedback.supabase", mock_supabase), \
+         patch("sys.argv", ["build_golden_candidates_from_feedback.py", "--write", "--json"]), \
+         patch("builtins.print") as mock_print:
+
+         builder_main()
+
+         # Grab summary printed
+         called_args = mock_print.call_args_list[0][0][0]
+         summary = json.loads(called_args)
+         assert summary["spoofed_trust_tags_detected"] == 1
+         assert summary["untrusted_author_claims"] == 1
+         assert summary["untrusted_system_claims"] == 1
+         assert summary["untrusted_trusted_reader_claims"] == 1
+
+
+def test_promoter_ssl_context_default():
+    # 10. Runtime verification uses SSL verification by default
+    mock_response = MockResponse({"answer": "clean"}, 200)
+
+    with patch("urllib.request.urlopen", return_value=mock_response) as mock_urlopen:
+        verify_runtime_repro(
+            base_url="https://mat-the-website.onrender.com",
+            question="Chiến dịch Lệ Giang?",
+            chapter_progress=829,
+            must_not_contain=["trash"],
+            semantic_forbidden_patterns=[],
+            semantic_required_any_terms=[],
+            expected_abstain_text="",
+            acceptable_abstain=True
+        )
+
+        # Verify that default context is passed and verify_mode is default (not CERT_NONE)
+        called_ctx = mock_urlopen.call_args[1]["context"]
+        assert called_ctx.verify_mode != ssl.CERT_NONE
+        assert called_ctx.check_hostname is True
+
+
+def test_promoter_rejects_insecure_on_prod_domain():
+    # 11. Production URLs reject insecure flag and exit non-zero
+    candidates = []
+    mock_supabase = MockSupabase(candidates=candidates)
+
+    for url in ["https://mat-the-website.onrender.com", "https://matthesinhhoa.vercel.app"]:
+        with patch("backend.scripts.promote_golden_candidates.supabase", mock_supabase), \
+             patch("sys.argv", ["promote_golden_candidates.py", "--base-url", url, "--insecure-dev-no-ssl-verify"]):
+
+             with pytest.raises(SystemExit) as excinfo:
+                 promoter_main()
+             assert excinfo.value.code == 1
+
+
+def test_promoter_dry_run_no_writes():
+    # 14. Dry-run does not write to database
+    candidates = [
+        {
+            "id": "cand1",
+            "candidate_key": "candidate_author_test",
+            "source": "author_feedback",
+            "trust_level": "author",
+            "question": "Chiến dịch Lệ Giang?",
+            "chapter_progress": 829,
+            "must_not_contain": ["trash"],
+            "promotion_status": "auto_promote_ready",
+            "promotion_score": 1.0,
+            "feedback_ids": ["fb1"]
+        }
+    ]
+    mock_supabase = MockSupabase(candidates=candidates)
+
+    mock_response = MockResponse({
+        "answer": "This is a trash response containing toxic waste.",
+        "source": "local_wiki"
+    }, 200)
 
     with patch("backend.scripts.promote_golden_candidates.supabase", mock_supabase), \
          patch("urllib.request.urlopen", return_value=mock_response), \
@@ -579,3 +828,253 @@ def test_promoter_dry_run_no_writes():
          promoter_main()
          assert len(mock_supabase.updated_candidates) == 0
          assert len(mock_supabase.upserted_cases) == 0
+
+
+# --- New Security & Trust Provenance Tests for Phase 11E-SEC2 ---
+
+from fastapi.testclient import TestClient
+try:
+    from main import app
+except ImportError:
+    from backend.main import app
+
+from backend.rag.feedback_trust_provenance import (
+    determine_provenance,
+    get_system_provenance,
+    TRUST_AUTHOR,
+    TRUST_TRUSTED_READER,
+    TRUST_READER,
+    TRUST_ANONYMOUS,
+    TRUST_SYSTEM
+)
+
+client = TestClient(app)
+
+def test_client_malicious_payload_fails_to_elevate():
+    # 1. Anonymous request with spoofed trust params -> stored as anonymous
+    payload = {
+        "question": "Hàn Phong là ai?",
+        "answer": "Hàn Phong...",
+        "source": "author_feedback",  # Spoofed source
+        "citations": [],
+        "chapter_progress": 1,
+        "feedback_type": "wrong",
+        "user_comment": "Malicious attempt to elevate trust"
+    }
+
+    mock_supabase = MagicMock()
+    mock_resp = MagicMock()
+    mock_resp.data = [{"id": "fb-test-uuid"}]
+    mock_supabase.table.return_value.insert.return_value.execute.return_value = mock_resp
+
+    with patch("backend.main.supabase", mock_supabase), \
+         patch("main.supabase", mock_supabase):
+
+         # Mock auth to return no user (anonymous)
+         mock_supabase.auth.get_user.side_effect = Exception("No auth header")
+
+         response = client.post("/oracle/feedback", json=payload)
+         assert response.status_code == 200
+
+         # Verify inserted payload
+         called_insert = mock_supabase.table.return_value.insert.call_args[0][0]
+         # The source is sanitized to anonymous_feedback because client is not an author
+         assert called_insert["source"] == "anonymous_feedback"
+         assert called_insert["trust_level"] == TRUST_ANONYMOUS
+         assert called_insert["trust_verified"] is False
+         assert called_insert["is_author"] is False
+         assert called_insert["is_trusted_reader"] is False
+
+
+def test_authenticated_reader_payload_fails_to_elevate():
+    # 2. Authenticated reader attempts to send privileged values -> gets reader trust only
+    payload = {
+        "question": "Hàn Phong là ai?",
+        "answer": "Hàn Phong...",
+        "source": "author_feedback",
+        "citations": [],
+        "chapter_progress": 1,
+        "feedback_type": "wrong",
+        "user_comment": "Privileged attempt"
+    }
+
+    mock_supabase = MagicMock()
+    mock_resp = MagicMock()
+    mock_resp.data = [{"id": "fb-test-uuid"}]
+    mock_supabase.table.return_value.insert.return_value.execute.return_value = mock_resp
+
+    # Mock user response for reader
+    mock_user = MagicMock()
+    mock_user.user.id = "reader-uuid-1234"
+    mock_user.user.email = "reader@reader.com"
+    mock_supabase.auth.get_user.return_value = mock_user
+
+    # Mock profile to return reader role
+    mock_profile_resp = MagicMock()
+    mock_profile_resp.data = [{"role": "reader"}]
+    mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_profile_resp
+
+    headers = {"Authorization": "Bearer reader-jwt-token"}
+
+    with patch("backend.main.supabase", mock_supabase), \
+         patch("main.supabase", mock_supabase):
+
+         response = client.post("/oracle/feedback", json=payload, headers=headers)
+         assert response.status_code == 200
+
+         called_insert = mock_supabase.table.return_value.insert.call_args[0][0]
+         # Strip malicious author_feedback source and keep reader_feedback
+         assert called_insert["source"] == "anonymous_feedback"
+         assert called_insert["trust_level"] == TRUST_READER
+         assert called_insert["trust_verified"] is True
+         assert called_insert["trust_verification_method"] == "jwt_reader_profile"
+         assert called_insert["is_author"] is False
+
+
+def test_verified_author_jwt_grants_author_trust():
+    # 4. Verified author JWT -> server writes author provenance
+    mock_supabase = MagicMock()
+
+    mock_user = MagicMock()
+    mock_user.user.id = "author-uuid"
+    mock_user.user.email = "author@novel.com"
+    mock_supabase.auth.get_user.return_value = mock_user
+
+    mock_profile_resp = MagicMock()
+    mock_profile_resp.data = [{"role": "author"}]
+    mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_profile_resp
+
+    with patch("backend.main.supabase", mock_supabase), \
+         patch("main.supabase", mock_supabase):
+        provenance = determine_provenance("Bearer author-token", "author_feedback")
+        assert provenance["trust_level"] == TRUST_AUTHOR
+        assert provenance["trust_verified"] is True
+        assert provenance["trust_verification_method"] == "jwt_author_profile"
+        assert provenance["is_author"] is True
+        assert provenance["source"] == "author_feedback"
+
+
+def test_verified_trusted_reader_jwt_grants_trusted_reader_trust():
+    # 5. Verified trusted reader profile -> trusted_reader provenance
+    mock_supabase = MagicMock()
+
+    mock_user = MagicMock()
+    mock_user.user.id = "tr-uuid"
+    mock_user.user.email = "trusted@novel.com"
+    mock_supabase.auth.get_user.return_value = mock_user
+
+    mock_profile_resp = MagicMock()
+    mock_profile_resp.data = [{"role": "trusted_reader"}]
+    mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_profile_resp
+
+    with patch("backend.main.supabase", mock_supabase), \
+         patch("main.supabase", mock_supabase):
+        provenance = determine_provenance("Bearer tr-token", "custom_source")
+        assert provenance["trust_level"] == TRUST_TRUSTED_READER
+        assert provenance["trust_verified"] is True
+        assert provenance["trust_verification_method"] == "jwt_trusted_reader_profile"
+        assert provenance["is_trusted_reader"] is True
+        assert provenance["source"] == "custom_source"
+
+
+def test_system_cron_provenance():
+    # 6. Internal system function -> system provenance
+    provenance = get_system_provenance()
+    assert provenance["trust_level"] == TRUST_SYSTEM
+    assert provenance["trust_verified"] is True
+    assert provenance["trust_verification_method"] == "internal_backend_cron"
+    assert provenance["source_verified"] is True
+    assert provenance["source"] == "system_detected_failure"
+
+
+def test_builder_rejects_unverified_elevated_feedback():
+    # 9. Builder receives source=author_feedback but trust_verified=false -> anonymous & observing
+    feedbacks = [
+        {
+            "id": "fb1",
+            "question": "Chiến dịch Lệ Giang là gì?",
+            "chapter_progress": 829,
+            "feedback_type": "wrong",
+            "source": "author_feedback",
+            "trust_level": "author",
+            "is_author": True,
+            "trust_verified": False,  # Spoofed / Unverified
+            "user_comment": "must_not_contain: [\"trash\"]",
+            "status": "pending"
+        }
+    ]
+    mock_supabase = MockSupabase(feedbacks=feedbacks)
+
+    with patch("backend.scripts.build_golden_candidates_from_feedback.supabase", mock_supabase), \
+         patch("sys.argv", ["build_golden_candidates_from_feedback.py", "--write", "--json"]):
+
+         builder_main()
+         assert len(mock_supabase.upserted_candidates) == 1
+         called_payload = mock_supabase.upserted_candidates[0]
+         # Demoted to anonymous
+         assert called_payload["trust_level"] == TRUST_ANONYMOUS
+         assert called_payload["promotion_score"] == 0.2
+         assert called_payload["promotion_status"] == "observing"
+         # Evidence entry records unverified metadata claim
+         assert called_payload["evidence"]["feedbacks"][0]["unverified_elevated_metadata_claim"] is True
+
+
+def test_builder_accepts_verified_elevated_feedback():
+    # 10. Builder receives verified author provenance -> auto_promote_ready
+    feedbacks = [
+        {
+            "id": "fb1",
+            "question": "Chiến dịch Lệ Giang là gì?",
+            "chapter_progress": 829,
+            "feedback_type": "wrong",
+            "source": "author_feedback",
+            "trust_level": "author",
+            "is_author": True,
+            "trust_verified": True,
+            "trust_verification_method": "jwt_author_profile",
+            "user_comment": "must_not_contain: [\"trash\"]",
+            "status": "pending"
+        }
+    ]
+    mock_supabase = MockSupabase(feedbacks=feedbacks)
+
+    with patch("backend.scripts.build_golden_candidates_from_feedback.supabase", mock_supabase), \
+         patch("sys.argv", ["build_golden_candidates_from_feedback.py", "--write", "--json"]):
+
+         builder_main()
+         assert len(mock_supabase.upserted_candidates) == 1
+         called_payload = mock_supabase.upserted_candidates[0]
+         # Authenticated author verified
+         assert called_payload["trust_level"] == TRUST_AUTHOR
+         assert called_payload["promotion_score"] == 1.0
+         assert called_payload["promotion_status"] == "auto_promote_ready"
+         assert called_payload["evidence"]["feedbacks"][0]["unverified_elevated_metadata_claim"] is False
+
+
+def test_builder_rejects_existing_unverified_feedbacks():
+    # 11. Existing feedbacks without provenance -> anonymous
+    feedbacks = [
+        {
+            "id": "fb1",
+            "question": "Chiến dịch Lệ Giang là gì?",
+            "chapter_progress": 829,
+            "feedback_type": "wrong",
+            "source": "author_feedback",
+            "trust_level": "author",
+            "is_author": True,
+            # trust_verified field is missing completely (legacy feedback rows)
+            "user_comment": "must_not_contain: [\"trash\"]",
+            "status": "pending"
+        }
+    ]
+    mock_supabase = MockSupabase(feedbacks=feedbacks)
+
+    with patch("backend.scripts.build_golden_candidates_from_feedback.supabase", mock_supabase), \
+         patch("sys.argv", ["build_golden_candidates_from_feedback.py", "--write", "--json"]):
+
+         builder_main()
+         assert len(mock_supabase.upserted_candidates) == 1
+         called_payload = mock_supabase.upserted_candidates[0]
+         assert called_payload["trust_level"] == TRUST_ANONYMOUS
+         assert called_payload["promotion_status"] == "observing"
+         assert called_payload["evidence"]["feedbacks"][0]["unverified_elevated_metadata_claim"] is True
