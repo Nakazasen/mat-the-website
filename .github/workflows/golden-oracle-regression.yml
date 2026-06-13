@@ -51,7 +51,7 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
-          python backend/scripts/build_golden_candidates_from_feedback.py --write --json
+          python backend/scripts/build_golden_candidates_from_feedback.py --json
 
       - name: Promote golden candidates to regression registry
         id: promote_candidates
@@ -62,7 +62,6 @@ jobs:
         run: |
           python backend/scripts/promote_golden_candidates.py \
             --base-url https://mat-the-website.onrender.com \
-            --write \
             --json
 
       - name: Run static JSON regression
@@ -95,7 +94,7 @@ jobs:
             --request-timeout 75 \
             --infra-retries 3 \
             --infra-backoff-seconds 5 \
-            --rollback-mode verified-canary \
+            --rollback-mode off \
             --report-path backend/rag/generated_golden_oracle_regression_report_db.json \
             --json \
             --write-report \
@@ -151,6 +150,9 @@ jobs:
 
           combined = {
               "classification": combined_class,
+              "autonomous_write_enabled": False,
+              "candidate_intake_mode": "dry_run",
+              "promotion_mode": "dry_run",
               "json": {
                   "total": json_summary.get("total", 0),
                   "passed": json_summary.get("passed", 0),
@@ -193,6 +195,9 @@ jobs:
                   sf.write("- **DB Source (Dynamic Registry)**: {}/{} passed\n".format(db_summary.get("passed", 0), db_summary.get("total", 0)))
                   sf.write("- **Rollback Mode**: `{}`\n".format(db_summary.get("rollback_mode", "off")))
                   sf.write("- **Rollback Performed**: `{}`\n".format(db_summary.get("rollback_performed", False)))
+                  sf.write("- **Autonomous Writes Enabled**: `false`\n")
+                  sf.write("- **Candidate Intake Mode**: `dry_run`\n")
+                  sf.write("- **Promotion Mode**: `dry_run`\n")
                   sf.write("\n### Autonomous Candidate Intake Summary\n")
                   sf.write("- **Feedback Rows Read**: {}\n".format(promo_data.get("feedback_rows_read", 0)))
                   sf.write("- **Candidates Built**: {}\n".format(promo_data.get("candidates_built", 0)))

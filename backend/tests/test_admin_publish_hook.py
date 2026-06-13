@@ -138,6 +138,9 @@ def test_publish_invalid_sequence_gap(monkeypatch):
         return {"id": "admin-id", "email": "admin@example.com", "role": "admin"}
     monkeypatch.setattr(main, "verify_admin", fake_verify_admin)
 
+    # Mock R2 Client
+    monkeypatch.setattr(main, "r2_client", MagicMock())
+
     # Mock Supabase
     mock_supabase = MagicMock()
     monkeypatch.setattr(main, "supabase", mock_supabase)
@@ -169,6 +172,9 @@ def test_publish_invalid_content_too_short(monkeypatch):
         return {"id": "admin-id", "email": "admin@example.com", "role": "admin"}
     monkeypatch.setattr(main, "verify_admin", fake_verify_admin)
 
+    # Mock R2 Client
+    monkeypatch.setattr(main, "r2_client", MagicMock())
+
     # Mock Supabase
     mock_supabase = MagicMock()
     monkeypatch.setattr(main, "supabase", mock_supabase)
@@ -199,6 +205,9 @@ def test_publish_invalid_html_tags(monkeypatch):
     async def fake_verify_admin(_authorization):
         return {"id": "admin-id", "email": "admin@example.com", "role": "admin"}
     monkeypatch.setattr(main, "verify_admin", fake_verify_admin)
+
+    # Mock R2 Client
+    monkeypatch.setattr(main, "r2_client", MagicMock())
 
     # Mock Supabase
     mock_supabase = MagicMock()

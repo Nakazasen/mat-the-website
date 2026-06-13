@@ -44,11 +44,28 @@ def test_golden_regression_workflow_rules():
     assert "--source json" in content
     # 11. workflow có DB source
     assert "--source db" in content
-    # 12. workflow DB rollout dùng rollback-mode verified-canary
+    # 12. workflow DB rollout dùng rollback-mode off cho cả hai
     assert "--rollback-mode off" in content
-    assert "--rollback-mode verified-canary" in content
+    assert "--rollback-mode verified-canary" not in content
 
-    # 13. Candidate Intake steps
+    # 13. Candidate Intake steps (dry-run, no --write)
     assert "build_golden_candidates_from_feedback.py" in content
     assert "promote_golden_candidates.py" in content
+    
+    # Check that --write is not passed to builder/promoter steps
+    # We locate build_golden_candidates_from_feedback.py and check that the line/command doesn't contain --write
+    # We do the same for promote_golden_candidates.py
+    builder_match = re.search(r"build_golden_candidates_from_feedback\.py.*", content)
+    assert builder_match is not None
+    assert "--write" not in builder_match.group(0)
+    
+    promoter_match = re.search(r"promote_golden_candidates\.py(\s|\\|\w|-|\.|\/|:)*", content)
+    assert promoter_match is not None
+    assert "--write" not in promoter_match.group(0)
+    
     assert "feedback-to-golden-promotion-report" in content
+
+    # 14. Containment attributes in combined summary inline python script
+    assert "autonomous_write_enabled" in content
+    assert "candidate_intake_mode" in content
+    assert "promotion_mode" in content
