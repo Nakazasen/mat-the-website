@@ -25,19 +25,27 @@ TRUST_WEIGHTS = {
 
 def determine_trust_level(feedback):
     """
-    Determine trust level based on user_comment tags or feedback attributes.
+    Determine trust level based on secure server-side metadata fields only.
     """
-    comment = (feedback.get("user_comment") or "").upper()
-    if "[AUTHOR]" in comment:
+    if (feedback.get("source") == "author_feedback" or
+        feedback.get("trust_level") == "author" or
+        feedback.get("is_author") is True or
+        feedback.get("is_author") == "true"):
         return TRUST_AUTHOR
-    elif "[SYSTEM]" in comment:
+
+    if (feedback.get("source") == "system_detected_failure" or
+        feedback.get("trust_level") == "system"):
         return TRUST_SYSTEM
-    elif "[TRUSTED]" in comment:
+
+    if (feedback.get("trust_level") == "trusted_reader" or
+        feedback.get("is_trusted_reader") is True or
+        feedback.get("is_trusted_reader") == "true"):
         return TRUST_TRUSTED_READER
-    elif "[READER]" in comment:
+
+    if feedback.get("trust_level") == "reader":
         return TRUST_READER
-    else:
-        return TRUST_ANONYMOUS
+
+    return TRUST_ANONYMOUS
 
 def parse_constraints_from_comment(user_comment, suggested_correction):
     """

@@ -8,11 +8,14 @@ import argparse
 import hashlib
 from datetime import datetime, timezone
 
-# Add repository root to sys.path
+# Add repository root and backend root to sys.path
 script_dir = os.path.dirname(os.path.abspath(__file__))
-repo_root = os.path.dirname(script_dir)
+repo_root = os.path.dirname(os.path.dirname(script_dir))
+backend_root = os.path.dirname(script_dir)
 if repo_root not in sys.path:
     sys.path.insert(0, repo_root)
+if backend_root not in sys.path:
+    sys.path.insert(0, backend_root)
 
 try:
     from backend.main import supabase
@@ -51,6 +54,10 @@ def main():
         "planned_upserts": 0,
         "written_upserts": 0,
         "skipped_ambiguous": 0,
+        "spoofed_trust_tags_detected": 0,
+        "untrusted_author_claims": 0,
+        "untrusted_system_claims": 0,
+        "untrusted_trusted_reader_claims": 0,
         "errors": []
     }
 
@@ -127,11 +134,47 @@ def main():
 
             score += TRUST_WEIGHTS.get(trust, 0.2)
 
+            # Detect spoofed roles
+            comment = fb.get("user_comment") or ""
+            claimed_roles = []
+            if "[AUTHOR]" in comment:
+                claimed_roles.append("author")
+            if "[SYSTEM]" in comment:
+                claimed_roles.append("system")
+            if "[TRUSTED]" in comment:
+                claimed_roles.append("trusted_reader")
+            if "[READER]" in comment:
+                claimed_roles.append("reader")
+
+            is_spoofed = False
+            verified = True
+            for role in claimed_roles:
+                if role == "author" and trust != "author":
+                    summary["untrusted_author_claims"] += 1
+                    is_spoofed = True
+                    verified = False
+                elif role == "system" and trust != "system":
+                    summary["untrusted_system_claims"] += 1
+                    is_spoofed = True
+                    verified = False
+                elif role == "trusted_reader" and trust not in ["author", "system", "trusted_reader"]:
+                    summary["untrusted_trusted_reader_claims"] += 1
+                    is_spoofed = True
+                    verified = False
+                elif role == "reader" and trust not in ["author", "system", "trusted_reader", "reader"]:
+                    is_spoofed = True
+                    verified = False
+
+            if is_spoofed:
+                summary["spoofed_trust_tags_detected"] += 1
+
             evidence_entries.append({
                 "feedback_id": fid,
                 "user_comment": fb.get("user_comment"),
                 "answer": fb.get("answer"),
-                "suggested_correction": fb.get("suggested_correction")
+                "suggested_correction": fb.get("suggested_correction"),
+                "untrusted_claimed_role_hint": claimed_roles,
+                "verified": verified
             })
 
             # Parse constraints
@@ -227,6 +270,10 @@ def main():
         print(f"Planned upserts:               {summary['planned_upserts']}")
         print(f"Written upserts:               {summary['written_upserts']}")
         print(f"Skipped ambiguous/short:       {summary['skipped_ambiguous']}")
+        print(f"Spoofed trust tags detected:   {summary['spoofed_trust_tags_detected']}")
+        print(f"Untrusted author claims:       {summary['untrusted_author_claims']}")
+        print(f"Untrusted system claims:       {summary['untrusted_system_claims']}")
+        print(f"Untrusted trusted reader claims: {summary['untrusted_trusted_reader_claims']}")
         if summary["errors"]:
             print("Errors encountered:")
             for err in summary["errors"]:

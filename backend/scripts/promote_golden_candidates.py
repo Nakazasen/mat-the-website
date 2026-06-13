@@ -9,18 +9,21 @@ import argparse
 import ssl
 from datetime import datetime, timezone
 
-# Add repository root to sys.path
+# Add repository root and backend root to sys.path
 script_dir = os.path.dirname(os.path.abspath(__file__))
-repo_root = os.path.dirname(script_dir)
+repo_root = os.path.dirname(os.path.dirname(script_dir))
+backend_root = os.path.dirname(script_dir)
 if repo_root not in sys.path:
     sys.path.insert(0, repo_root)
+if backend_root not in sys.path:
+    sys.path.insert(0, backend_root)
 
 try:
     from backend.main import supabase
 except ImportError:
     from main import supabase
 
-def verify_runtime_repro(base_url, question, chapter_progress, must_not_contain, semantic_forbidden_patterns, semantic_required_any_terms, expected_abstain_text, acceptable_abstain):
+def verify_runtime_repro(base_url, question, chapter_progress, must_not_contain, semantic_forbidden_patterns, semantic_required_any_terms, expected_abstain_text, acceptable_abstain, insecure_dev_no_ssl_verify=False):
     """
     Call production API to reproduce the failure.
     Returns: (repro_passed, status_code, answer, source, reason)
@@ -37,8 +40,11 @@ def verify_runtime_repro(base_url, question, chapter_progress, must_not_contain,
     }
 
     ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
+    if insecure_dev_no_ssl_verify:
+        url_lower = base_url.lower()
+        if "mat-the-website.onrender.com" not in url_lower and "matthesinhhoa.vercel.app" not in url_lower:
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
 
     req = urllib.request.Request(url, data=json.dumps(body).encode("utf-8"), headers=headers, method="POST")
     try:
@@ -107,6 +113,7 @@ def main():
     parser.add_argument("--dry-run", action="store_true", default=True, help="Default dry-run mode (no DB writes).")
     parser.add_argument("--write", action="store_true", help="Actually promote candidates and update DB.")
     parser.add_argument("--json", action="store_true", help="Print summary output in JSON format.")
+    parser.add_argument("--insecure-dev-no-ssl-verify", action="store_true", help="Disable SSL certificate verification for local development.")
 
     args = parser.parse_args()
     dry_run = True
@@ -115,7 +122,13 @@ def main():
 
     base_url = args.base_url.rstrip('/')
 
-    report_path = os.path.join(repo_root, "rag", "generated_feedback_to_golden_promotion_report.json")
+    if args.insecure_dev_no_ssl_verify:
+        url_lower = base_url.lower()
+        if "mat-the-website.onrender.com" in url_lower or "matthesinhhoa.vercel.app" in url_lower:
+            print("Error: --insecure-dev-no-ssl-verify is strictly forbidden on production domains.", file=sys.stderr)
+            sys.exit(1)
+
+    report_path = os.path.join(backend_root, "rag", "generated_feedback_to_golden_promotion_report.json")
 
     summary = {
         "feedback_rows_read": 0,
@@ -183,7 +196,8 @@ def main():
             semantic_forbidden_patterns=cand.get("semantic_forbidden_patterns") or [],
             semantic_required_any_terms=cand.get("semantic_required_any_terms") or [],
             expected_abstain_text=cand.get("expected_abstain_text"),
-            acceptable_abstain=cand.get("acceptable_abstain", True)
+            acceptable_abstain=cand.get("acceptable_abstain", True),
+            insecure_dev_no_ssl_verify=args.insecure_dev_no_ssl_verify
         )
 
         cand_update = {
