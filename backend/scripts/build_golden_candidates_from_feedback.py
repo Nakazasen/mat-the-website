@@ -17,10 +17,34 @@ if repo_root not in sys.path:
 if backend_root not in sys.path:
     sys.path.insert(0, backend_root)
 
-try:
-    from backend.main import supabase
-except ImportError:
-    from main import supabase
+supabase = None
+
+def _get_supabase_client():
+    global supabase
+    if supabase is not None:
+        return supabase
+    try:
+        from backend.main import supabase as main_supabase
+        if main_supabase is not None:
+            supabase = main_supabase
+            return supabase
+    except Exception:
+        pass
+    try:
+        from main import supabase as main_supabase
+        if main_supabase is not None:
+            supabase = main_supabase
+            return supabase
+    except Exception:
+        pass
+
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    if not url or not key:
+        raise ValueError("SUPABASE_URL and SUPABASE_KEY/SUPABASE_SERVICE_ROLE_KEY must be set in environment variables")
+    from supabase import create_client
+    supabase = create_client(url, key)
+    return supabase
 
 from backend.rag.golden_promotion_policy import (
     determine_trust_level,
@@ -30,6 +54,8 @@ from backend.rag.golden_promotion_policy import (
 )
 
 def main():
+    global supabase
+    supabase = _get_supabase_client()
     try:
         sys.stdout.reconfigure(encoding='utf-8')
         sys.stderr.reconfigure(encoding='utf-8')

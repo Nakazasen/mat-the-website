@@ -44,5 +44,11 @@ def test_golden_regression_workflow_rules():
     assert "--source json" in content
     # 11. workflow có DB source
     assert "--source db" in content
-    # 12. workflow DB rollout dùng rollback-mode off
-    assert content.count("--rollback-mode off") >= 2
+    # 12. workflow DB rollout dùng rollback-mode verified-canary
+    assert "--rollback-mode off" in content
+    assert "--rollback-mode verified-canary" in content
+
+    # 13. Candidate Intake steps
+    assert "build_golden_candidates_from_feedback.py" in content
+    assert "promote_golden_candidates.py" in content
+    assert "feedback-to-golden-promotion-report" in content

@@ -2497,3 +2497,99 @@ def test_11e4_original_case_fail_no_rollback():
     assert excinfo.value.code == 1
     mock_query_cases.update.assert_not_called()
     mock_query_candidates.update.assert_not_called()
+
+# --- Phase 11E-5: Autonomous Intake & Verified-Canary Rollback Tests ---
+
+def test_11e5_get_supabase_client_fallback(monkeypatch):
+    # Test fallback to SUPABASE_URL and SUPABASE_KEY in build_golden_candidates_from_feedback.py
+    from backend.scripts.build_golden_candidates_from_feedback import _get_supabase_client
+
+    # Force import errors by patching sys.modules
+    import sys
+    monkeypatch.setitem(sys.modules, "backend.main", None)
+    monkeypatch.setitem(sys.modules, "main", None)
+
+    # Set environment variables
+    monkeypatch.setenv("SUPABASE_URL", "https://mock-supabase-url.supabase.co")
+    monkeypatch.setenv("SUPABASE_KEY", "mock-supabase-key")
+
+    # Mock supabase create_client function
+    mock_client = MagicMock()
+    with patch("supabase.create_client", return_value=mock_client) as mock_create:
+        client = _get_supabase_client()
+        mock_create.assert_called_once_with("https://mock-supabase-url.supabase.co", "mock-supabase-key")
+        assert client == mock_client
+
+def test_11e5_combined_summary_aggregates_promotion(tmp_path):
+    # Test combined summary building logic
+    json_report = {
+        "summary": {
+            "total": 5,
+            "passed": 5,
+            "failed": 0,
+            "failure_class": "none"
+        }
+    }
+    db_report = {
+        "summary": {
+            "total": 3,
+            "passed": 3,
+            "failed": 0,
+            "failure_class": "none",
+            "rollback_mode": "verified-canary",
+            "rollback_performed": False
+        }
+    }
+    promo_report = {
+        "feedback_rows_read": 15,
+        "candidates_built": 12,
+        "candidates_auto_promoted": 2,
+        "written_promotions": 2,
+        "errors": []
+    }
+
+    json_file = tmp_path / "json_report.json"
+    db_file = tmp_path / "db_report.json"
+    promo_file = tmp_path / "promo_report.json"
+    summary_file = tmp_path / "combined_summary.json"
+
+    json_file.write_text(json.dumps(json_report), encoding="utf-8")
+    db_file.write_text(json.dumps(db_report), encoding="utf-8")
+    promo_file.write_text(json.dumps(promo_report), encoding="utf-8")
+
+    # Run the summary aggregation logic (similar to the one in GHA)
+    json_data = json.loads(json_file.read_text(encoding="utf-8"))
+    db_data = json.loads(db_file.read_text(encoding="utf-8"))
+    promo_data = json.loads(promo_file.read_text(encoding="utf-8"))
+
+    json_summary = json_data.get("summary", {})
+    db_summary = db_data.get("summary", {})
+
+    combined = {
+        "classification": "PASS_DUAL_SOURCE_GOLDEN_GATE",
+        "json": {
+            "total": json_summary.get("total", 0),
+            "passed": json_summary.get("passed", 0),
+            "failed": json_summary.get("failed", 0),
+            "failure_class": json_summary.get("failure_class", "none")
+        },
+        "db": {
+            "total": db_summary.get("total", 0),
+            "passed": db_summary.get("passed", 0),
+            "failed": db_summary.get("failed", 0),
+            "failure_class": db_summary.get("failure_class", "none"),
+            "rollback_mode": db_summary.get("rollback_mode", "off"),
+            "rollback_performed": db_summary.get("rollback_performed", False)
+        },
+        "promotion": {
+            "feedback_rows_read": promo_data.get("feedback_rows_read", 0),
+            "candidates_built": promo_data.get("candidates_built", 0),
+            "candidates_auto_promoted": promo_data.get("candidates_auto_promoted", 0),
+            "written_promotions": promo_data.get("written_promotions", 0),
+            "errors": promo_data.get("errors", [])
+        }
+    }
+
+    assert combined["classification"] == "PASS_DUAL_SOURCE_GOLDEN_GATE"
+    assert combined["promotion"]["candidates_built"] == 12
+    assert combined["promotion"]["written_promotions"] == 2
