@@ -896,7 +896,7 @@ def get_rag_context_for_oracle(
     except Exception:
         is_event = False
 
-    if not is_oracle_rag_enabled() and not is_event:
+    if exact_chapter is None and not is_oracle_rag_enabled() and not is_event:
         return None
 
 
@@ -1473,7 +1473,7 @@ def detect_intent(question: str) -> str:
     has_summary = any(kw in q_norm for kw in summary_keywords)
 
     has_chapter = ("chương" in q_norm or "chapter" in q_norm or "chương này" in q_norm or re.search(r"\bch\s*\d+", q_norm))
-    has_event_or_occur = any(kw in q_norm for kw in ["diễn ra", "sự kiện", "kể về", "kể lại", "có gì", "diễn biến"])
+    has_event_or_occur = any(kw in q_norm for kw in ["diễn ra", "sự kiện", "kể", "ke", "có gì", "diễn biến", "chuyện gì"])
 
     if has_summary or (has_chapter and has_event_or_occur) or ("chương này" in q_norm and any(kw in q_norm for kw in ["gì", "gi", "như thế nào", "ra sao", "kể", "ke"])):
         return "chapter_summary"
