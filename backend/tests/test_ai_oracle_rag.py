@@ -113,17 +113,12 @@ def test_get_rag_context_for_oracle_success():
 # Test 6: call_ai_provider_result formats prompt correctly and keeps old prompt when rag_context is empty
 @pytest.mark.asyncio
 async def test_call_ai_provider_result_prompt_formatting():
-    try:
-        import main
-        patch_path = "main.get_provider_router"
-    except ImportError:
-        patch_path = "backend.main.get_provider_router"
+    mock_router = MagicMock()
+    mock_router.route = AsyncMock()
 
     # 1. Without RAG context
-    with patch(patch_path) as mock_router_getter:
-        mock_router = MagicMock()
-        mock_router.route = AsyncMock()
-        mock_router_getter.return_value = mock_router
+    with patch("main.get_provider_router", return_value=mock_router, create=True), \
+         patch("backend.main.get_provider_router", return_value=mock_router, create=True):
 
         await call_ai_provider_result(
             question="Hàn Phong là ai?",
@@ -136,14 +131,14 @@ async def test_call_ai_provider_result_prompt_formatting():
         # Check that system_instruction does not contain RAG section
         args, kwargs = mock_router.route.call_args
         ai_request = args[0]
-        assert "[RAG_CONTEXT_STORY_CHUNKS]" not in ai_request.system_instruction
+        assert "[BẰNG CHỨNG TRÍCH ĐOẠN TỪ CÁC CHƯƠNG TRUYỆN]" not in ai_request.system_instruction
         assert "Wiki info" in ai_request.system_instruction
 
+    mock_router.route.reset_mock()
+
     # 2. With RAG context (Flag ON behavior)
-    with patch(patch_path) as mock_router_getter:
-        mock_router = MagicMock()
-        mock_router.route = AsyncMock()
-        mock_router_getter.return_value = mock_router
+    with patch("main.get_provider_router", return_value=mock_router, create=True), \
+         patch("backend.main.get_provider_router", return_value=mock_router, create=True):
 
         await call_ai_provider_result(
             question="Hàn Phong là ai?",
@@ -156,7 +151,7 @@ async def test_call_ai_provider_result_prompt_formatting():
         # Check that system_instruction contains RAG section
         args, kwargs = mock_router.route.call_args
         ai_request = args[0]
-        assert "[RAG_CONTEXT_STORY_CHUNKS]" in ai_request.system_instruction
+        assert "[BẰNG CHỨNG TRÍCH ĐOẠN TỪ CÁC CHƯƠNG TRUYỆN]" in ai_request.system_instruction
         assert "RAG content" in ai_request.system_instruction
         assert "Wiki info" in ai_request.system_instruction
 

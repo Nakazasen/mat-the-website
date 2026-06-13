@@ -11,6 +11,38 @@ def normalize_search_query(query: str) -> str:
         return ""
     return re.sub(r"\s+", " ", query.strip())
 
+def expand_query_synonyms(query: str) -> str:
+    """Corrects common typos or spelling variations in queries before matching."""
+    if not query:
+        return ""
+    expanded = query
+    synonyms = {
+        r"\bchu ván\b": "Chu Vấn",
+        r"\bchu van\b": "Chu Vấn",
+        r"\btrấn hy vọng\b": "trấn Hi Vọng",
+        r"\btran hy vong\b": "trấn Hi Vọng",
+        r"\bhy vọng\b": "Hi Vọng",
+        r"\bhy vong\b": "Hi Vọng",
+        r"\bhàn phung\b": "Hàn Phong",
+        r"\bhan phung\b": "Hàn Phong",
+        r"\blạc thanh thuỷ\b": "Lạc Thanh Thủy",
+        r"\blac thanh thuy\b": "Lạc Thanh Thủy",
+        r"\blâm nhã vi\b": "Lâm Nhã Vy",
+        r"\blam nha vi\b": "Lâm Nhã Vy",
+        r"\bzombies?\b": "zombie thây ma xác sống",
+        r"\btiêu diệt\b": "tiêu diệt giết kết liễu",
+        r"\bdiệt\b": "diệt giết kết liễu",
+        r"\bgiết\b": "giết tiêu diệt kết liễu",
+        r"\bthây ma cấp 8\b": "thây ma cấp 8 thây ma tay to",
+        r"\bthay ma cap 8\b": "thây ma cấp 8 thây ma tay to",
+        r"\bzombie cấp 8\b": "zombie cấp 8 thây ma tay to",
+        r"\bzombie cap 8\b": "zombie cấp 8 thây ma tay to",
+    }
+    for pattern, repl in synonyms.items():
+        expanded = re.sub(pattern, repl, expanded, flags=re.IGNORECASE)
+    return expanded
+
+
 def build_tsquery_terms(query: str) -> str:
     """Converts a plain text query into a format suitable for Postgres to_tsquery (simple config)."""
     normalized = normalize_search_query(query)
@@ -113,7 +145,14 @@ def get_keywords_proximity_boost(content_lower: str, non_stop_kws: list[str]) ->
         return 25.0
     return 0.0
 
-def score_lexical_result(row: dict, query: str, keywords: list[str]) -> tuple[float, list[str]]:
+def score_lexical_result(
+    row: dict,
+    query: str,
+    keywords: list[str],
+    use_asc: bool = False,
+    original_keywords: list[str] = None,
+    chapter_cap: int = None
+) -> tuple[float, list[str]]:
     """Calculates an improved lexical relevance score and reasons for a retrieved chunk row."""
     title = (row.get("chapter_title") or "").strip()
     content = (row.get("content_plain") or row.get("content") or "").strip()
@@ -144,12 +183,13 @@ def score_lexical_result(row: dict, query: str, keywords: list[str]) -> tuple[fl
     # 4. Individual keyword matches in chapter title and content (using \b boundaries to avoid partial match)
     non_stop_kws = []
     matched_non_stop = []
+    is_full_title_phrase = query_lower and query_lower in title_lower
     for kw in keywords:
         is_stop = kw in STOP_WORDS
         if not is_stop:
             non_stop_kws.append(kw)
 
-        kw_score_title = 2.0 if is_stop else 25.0
+        kw_score_title = (0.5 if is_full_title_phrase else 2.0) if is_stop else (5.0 if is_full_title_phrase else 25.0)
         kw_score_content = 1.0 if is_stop else 12.0
 
         has_title_match = bool(re.search(r'\b' + re.escape(kw) + r'\b', title_lower))
@@ -158,8 +198,9 @@ def score_lexical_result(row: dict, query: str, keywords: list[str]) -> tuple[fl
         if has_title_match:
             score += kw_score_title
             reasons.append(f"title_keyword:{kw}")
-            score += 25.0
-            reasons.append(f"title_exact_keyword:{kw}")
+            if not is_full_title_phrase:
+                score += 25.0
+                reasons.append(f"title_exact_keyword:{kw}")
             if not is_stop:
                 matched_non_stop.append(kw)
 
@@ -182,10 +223,39 @@ def score_lexical_result(row: dict, query: str, keywords: list[str]) -> tuple[fl
             score += 150.0
             reasons.append(f"chapter_match_boost:{chapter_num}")
 
-    # 7. Keyword coverage ratio penalty for multi-keyword queries
+    # 7. Keyword coverage ratio penalty for multi-keyword queries (using original keywords if available)
     has_chapter_match = any(w.startswith("chapter_match_boost:") for w in reasons)
-    if not has_chapter_match and len(non_stop_kws) > 1:
-        match_ratio = len(matched_non_stop) / len(non_stop_kws)
+    coverage_kws = original_keywords if original_keywords is not None else keywords
+    coverage_non_stop = [kw for kw in coverage_kws if kw not in STOP_WORDS]
+    if not has_chapter_match and len(coverage_non_stop) > 1:
+        matched_orig = []
+        for kw in coverage_non_stop:
+            has_match = bool(re.search(r'\b' + re.escape(kw) + r'\b', title_lower)) or bool(re.search(r'\b' + re.escape(kw) + r'\b', content_lower))
+            if has_match:
+                matched_orig.append(kw)
+            else:
+                # Check synonym equivalents
+                syn_map = {
+                    "zombie": ["thây", "ma", "xác", "sống"],
+                    "zombies": ["thây", "ma", "xác", "sống"],
+                    "tiêu diệt": ["giết", "kết", "liễu"],
+                    "diệt": ["giết", "kết", "liễu"],
+                    "giết": ["tiêu", "diệt", "kết", "liễu"],
+                    "hy vọng": ["hi", "vọng"],
+                    "lạc thanh thủy": ["lạc", "thanh", "thủy"],
+                    "chu vấn": ["chu", "vấn"],
+                    "thức tỉnh": ["nhận", "mở", "học"],
+                    "dị năng": ["kỹ", "năng", "lực", "hệ"]
+                }
+                matched_syn = False
+                for syn in syn_map.get(kw, []):
+                    if bool(re.search(r'\b' + re.escape(syn) + r'\b', title_lower)) or bool(re.search(r'\b' + re.escape(syn) + r'\b', content_lower)):
+                        matched_syn = True
+                        break
+                if matched_syn:
+                    matched_orig.append(kw)
+
+        match_ratio = len(matched_orig) / len(coverage_non_stop)
         if match_ratio < 0.35:
             score = 0.0
             reasons.append("penalty_low_coverage_zeroed")
@@ -194,11 +264,67 @@ def score_lexical_result(row: dict, query: str, keywords: list[str]) -> tuple[fl
             score *= penalty_factor
             reasons.append(f"penalty_low_coverage_scaled:{penalty_factor:.2f}")
 
+    # 8. Multi-word phrase/ngram match boost (e.g. "la thiên dật", "hàn phong")
+    words = [w for w in re.sub(r"[^\w\s\u00C0-\u024FĐđ]+", " ", query_lower).split() if w]
+    for n in [2, 3]:
+        for i in range(len(words) - n + 1):
+            ngram = " ".join(words[i:i+n])
+            if len(ngram.split()) >= n and ngram.split()[0] not in STOP_WORDS and ngram.split()[-1] not in STOP_WORDS:
+                if ngram in content_lower:
+                    score += 50.0
+                    reasons.append(f"content_ngram_phrase:{ngram}")
+                if ngram in title_lower:
+                    if ngram != query_lower:
+                        score += 80.0
+                        reasons.append(f"title_ngram_phrase:{ngram}")
+
+    # 9. Frequency-based density boost using word boundaries
+    for kw in non_stop_kws:
+        cnt = len(re.findall(r'\b' + re.escape(kw) + r'\b', content_lower))
+        if cnt > 1:
+            boost = min(5.0 * (cnt - 1), 20.0)
+            score += boost
+            reasons.append(f"freq_boost:{kw}:{cnt}:{boost}")
+
+    # 10. Temporal boost for early chapters if we are searching for the first/early events
+    if use_asc and chapter_num is not None:
+        temporal_boost = max(0.0, 500.0 - (chapter_num * 80.0))
+        score += temporal_boost
+        reasons.append(f"temporal_early_boost:{temporal_boost:.2f}")
+
+    # 11. Recency boost for chapters close to the cap (except when use_asc is True)
+    if not use_asc and chapter_num is not None and chapter_cap is not None:
+        diff = chapter_cap - chapter_num
+        if diff >= 0:
+            if diff == 0:
+                score += 250.0
+                reasons.append("recency_boost_exact")
+            elif diff <= 2:
+                score += 180.0
+                reasons.append("recency_boost_very_close")
+            elif diff <= 5:
+                score += 120.0
+                reasons.append("recency_boost_close")
+            elif diff <= 10:
+                score += 80.0
+                reasons.append("recency_boost_near")
+            elif diff <= 20:
+                score += 40.0
+                reasons.append("recency_boost_moderate")
+
     return score, reasons
 
-def merge_retrieval_results(result_lists: list[list[dict]], query: str, limit: int) -> list[dict]:
+def merge_retrieval_results(
+    result_lists: list[list[dict]],
+    query: str,
+    limit: int,
+    use_asc: bool = False,
+    original_query: str = None,
+    chapter_cap: int = None
+) -> list[dict]:
     """Deduplicates, scores, sorts, and formats retrieval results from multiple queries."""
     keywords = extract_search_keywords(query)
+    original_keywords = extract_search_keywords(original_query) if original_query else None
     unique_results = {}
 
     for results in result_lists:
@@ -214,8 +340,9 @@ def merge_retrieval_results(result_lists: list[list[dict]], query: str, limit: i
                 if r.get("temp_fts_match"):
                     unique_results[h]["temp_fts_match"] = True
 
-    # Calculate dynamic threshold based on number of non-stop keywords
-    non_stop_kws = [kw for kw in keywords if kw not in STOP_WORDS]
+    # Calculate dynamic threshold based on number of non-stop keywords (using original query to avoid synonym inflation)
+    threshold_kws = original_keywords if original_keywords is not None else keywords
+    non_stop_kws = [kw for kw in threshold_kws if kw not in STOP_WORDS]
     n_kws = len(non_stop_kws)
     if n_kws <= 1:
         threshold = 10.0
@@ -226,7 +353,14 @@ def merge_retrieval_results(result_lists: list[list[dict]], query: str, limit: i
 
     scored_list = []
     for r in unique_results.values():
-        score, reasons = score_lexical_result(r, query, keywords)
+        score, reasons = score_lexical_result(
+            r,
+            query,
+            keywords,
+            use_asc,
+            original_keywords=original_keywords,
+            chapter_cap=chapter_cap
+        )
 
         if score < threshold:
             continue
@@ -249,6 +383,7 @@ def merge_retrieval_results(result_lists: list[list[dict]], query: str, limit: i
             match_reasons.append("fts")
 
         formatted = {
+            "id": r.get("id"),
             "chapter_number": r.get("chapter_number"),
             "chapter_title": r.get("chapter_title"),
             "chunk_index": r.get("chunk_index"),
@@ -261,11 +396,30 @@ def merge_retrieval_results(result_lists: list[list[dict]], query: str, limit: i
         }
         scored_list.append(formatted)
 
-    # Sort by score (DESC), chapter_number (ASC), chunk_index (ASC)
-    # chapter_number ASC prioritizes earlier information and acts as a spoiler buffer
+    # Sort by score (DESC), chapter_number (ASC if use_asc else DESC), chunk_index (ASC)
     scored_list.sort(key=lambda item: (
         -item["score"],
-        item["chapter_number"] or 9999,
+        (item["chapter_number"] or 0) if use_asc else -(item["chapter_number"] or 0),
+        item["chunk_index"] or 0
+    ))
+
+    # Apply duplicate chapter penalty to encourage diversity
+    seen_chapters = {}
+    for item in scored_list:
+        ch_num = item.get("chapter_number")
+        if ch_num is not None:
+            count = seen_chapters.get(ch_num, 0)
+            if count > 0:
+                base_penalty = 0.95 if use_asc else 0.85
+                decay = 0.05 if use_asc else 0.15
+                penalty = max(0.4, base_penalty - decay * (count - 1))
+                item["score"] *= penalty
+            seen_chapters[ch_num] = count + 1
+
+    # Sort again after applying duplicate chapter penalty
+    scored_list.sort(key=lambda item: (
+        -item["score"],
+        (item["chapter_number"] or 0) if use_asc else -(item["chapter_number"] or 0),
         item["chunk_index"] or 0
     ))
 
@@ -280,6 +434,7 @@ def format_retrieval_result(row: dict) -> dict:
     preview = plain[:200] + "..." if len(plain) > 200 else plain
 
     return {
+        "id": row.get("id"),
         "chapter_number": row.get("chapter_number"),
         "chapter_title": row.get("chapter_title"),
         "chunk_index": row.get("chunk_index"),
@@ -346,10 +501,31 @@ def search_story_chunks_hybrid_lexical(
     """
     if not query or not query.strip():
         return []
+    original_query = query
+    query = expand_query_synonyms(query)
 
     if not supabase:
         print("Warning: Supabase client is None. Cannot perform hybrid search.")
         return []
+
+    # Extract explicit chapter mentions from query if exact_chapter is not provided
+    target_chaps = None
+    if exact_chapter is None:
+        query_chaps = extract_chapters_from_query(query)
+        if query_chaps:
+            valid_chaps = [c for c in query_chaps if chapter_cap is None or c <= chapter_cap]
+            if valid_chaps:
+                target_chaps = valid_chaps
+                # If there's exactly one target chapter, set it to exact_chapter for clean routing
+                if len(valid_chaps) == 1:
+                    exact_chapter = valid_chaps[0]
+
+    # Determine sort direction (ASC for early events, DESC for default recent events)
+    use_asc = False
+    q_lower = query.lower()
+    temporal_asc_keywords = ["đầu tiên", "ban đầu", "mở đầu", "sớm nhất", "đầu truyện", "mới đầu", "thức tỉnh", "thuc tinh"]
+    if any(k in q_lower for k in temporal_asc_keywords):
+        use_asc = True
 
     result_lists = []
 
@@ -361,9 +537,12 @@ def search_story_chunks_hybrid_lexical(
             q = supabase.table("story_chunks").select("*")
             if exact_chapter is not None:
                 q = q.eq("chapter_number", exact_chapter)
+            elif target_chaps:
+                q = q.in_("chapter_number", target_chaps)
             elif chapter_cap is not None:
                 q = q.lte("chapter_number", chapter_cap)
-            q = q.limit(limit * 2)
+            q = q.order("chapter_number", desc=not use_asc)
+            q = q.limit(200)
             q = q.text_search("content_plain", tsquery, options={"config": "simple"})
             resp = q.execute()
             for row in resp.data or []:
@@ -379,9 +558,12 @@ def search_story_chunks_hybrid_lexical(
         q = supabase.table("story_chunks").select("*").ilike("content_plain", f"%{query.strip()}%")
         if exact_chapter is not None:
             q = q.eq("chapter_number", exact_chapter)
+        elif target_chaps:
+            q = q.in_("chapter_number", target_chaps)
         elif chapter_cap is not None:
             q = q.lte("chapter_number", chapter_cap)
-        q = q.limit(limit * 2)
+        q = q.order("chapter_number", desc=not use_asc)
+        q = q.limit(200)
         resp = q.execute()
         phrase_content_results = resp.data or []
     except Exception as e:
@@ -394,9 +576,12 @@ def search_story_chunks_hybrid_lexical(
         q = supabase.table("story_chunks").select("*").ilike("chapter_title", f"%{query.strip()}%")
         if exact_chapter is not None:
             q = q.eq("chapter_number", exact_chapter)
+        elif target_chaps:
+            q = q.in_("chapter_number", target_chaps)
         elif chapter_cap is not None:
             q = q.lte("chapter_number", chapter_cap)
-        q = q.limit(limit * 2)
+        q = q.order("chapter_number", desc=not use_asc)
+        q = q.limit(200)
         resp = q.execute()
         phrase_title_results = resp.data or []
     except Exception as e:
@@ -419,9 +604,12 @@ def search_story_chunks_hybrid_lexical(
                 q = supabase.table("story_chunks").select("*").or_(",".join(or_parts))
                 if exact_chapter is not None:
                     q = q.eq("chapter_number", exact_chapter)
+                elif target_chaps:
+                    q = q.in_("chapter_number", target_chaps)
                 elif chapter_cap is not None:
                     q = q.lte("chapter_number", chapter_cap)
-                q = q.limit(limit * 2)
+                q = q.order("chapter_number", desc=not use_asc)
+                q = q.limit(200)
                 resp = q.execute()
                 keyword_results = resp.data or []
             except Exception as e:
@@ -429,7 +617,7 @@ def search_story_chunks_hybrid_lexical(
     result_lists.append(keyword_results)
 
     # Merge, score, deduplicate, and limit
-    return merge_retrieval_results(result_lists, query, limit)
+    return merge_retrieval_results(result_lists, query, limit, use_asc=use_asc, original_query=original_query, chapter_cap=chapter_cap)
 
 
 def normalize_vietnamese_text(text: str) -> str:
@@ -541,6 +729,8 @@ def search_wiki_entries(
     """
     if not query or not query.strip():
         return []
+    orig_query = query
+    query = expand_query_synonyms(query)
     if not supabase:
         print("Warning: Supabase client is None in search_wiki_entries.")
         return []
@@ -602,7 +792,8 @@ def search_wiki_entries(
         scored_rows.sort(key=lambda x: x[0], reverse=True)
 
         results = []
-        non_stop_kws = [kw for kw in keywords if kw not in STOP_WORDS]
+        orig_keywords = extract_search_keywords(orig_query)
+        non_stop_kws = [kw for kw in orig_keywords if kw not in STOP_WORDS]
         n_kws = len(non_stop_kws)
         threshold = 12.0 if n_kws >= 2 else (5.0 if n_kws == 1 else 0.0)
 
@@ -644,6 +835,8 @@ def search_provisional_library(
     """
     if not query or not query.strip():
         return []
+    orig_query = query
+    query = expand_query_synonyms(query)
     if not supabase:
         print("Warning: Supabase client is None in search_provisional_library.")
         return []
@@ -716,9 +909,12 @@ def search_provisional_library(
         summaries = {}
         if pids:
             try:
-                sum_resp = supabase.table("provisional_library_feedback_summary").select("*").in_("provisional_id", pids).execute()
-                for s in (sum_resp.data or []):
-                    summaries[s.get("provisional_id")] = s
+                chunk_size = 100
+                for i in range(0, len(pids), chunk_size):
+                    chunk_ids = pids[i:i+chunk_size]
+                    sum_resp = supabase.table("provisional_library_feedback_summary").select("*").in_("provisional_id", chunk_ids).execute()
+                    for s in (sum_resp.data or []):
+                        summaries[s.get("provisional_id")] = s
             except Exception as e:
                 print(f"Error fetching provisional feedback summaries: {e}")
 
@@ -908,7 +1104,8 @@ def search_provisional_library(
         scored_rows.sort(key=lambda x: (x[0], x[1]), reverse=True)
 
         results = []
-        non_stop_kws = [kw for kw in keywords if kw not in STOP_WORDS]
+        orig_keywords = extract_search_keywords(orig_query)
+        non_stop_kws = [kw for kw in orig_keywords if kw not in STOP_WORDS]
         n_kws = len(non_stop_kws)
         threshold = 15.0 if n_kws >= 2 else (8.0 if n_kws == 1 else 0.0)
 

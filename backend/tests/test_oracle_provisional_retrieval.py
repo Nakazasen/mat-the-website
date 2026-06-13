@@ -122,6 +122,14 @@ class MockQueryBuilder:
         self.filters[f"neq_{field}"] = value
         return self
 
+    def lte(self, field, value):
+        self.filters[f"lte_{field}"] = value
+        return self
+
+    def order(self, field, desc=True):
+        self.filters[f"order_{field}"] = desc
+        return self
+
     def limit(self, value):
         self.filters["limit"] = value
         return self
@@ -151,6 +159,15 @@ class MockQueryBuilder:
                     val = row.get(field) or row.get("id")
                     if val == v:
                         keep = False
+                elif k.startswith("lte_"):
+                    field = k[4:]
+                    val = row.get(field)
+                    if val is not None and v is not None:
+                        try:
+                            if int(val) > int(v):
+                                keep = False
+                        except (ValueError, TypeError):
+                            pass
             if keep:
                 filtered.append(row)
         return MockResponse(filtered)

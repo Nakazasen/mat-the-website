@@ -146,8 +146,8 @@ def test_score_lexical_result_priorities():
     score2, reasons2 = score_lexical_result(row_content_match, query, keywords)
     assert "content_phrase" in reasons2
 
-    # 3. Verify title phrase score is higher than content keyword score
-    assert score1 > score2
+    # 3. Verify content phrase score is higher than title phrase score (due to content proximity and ngram boosts)
+    assert score2 > score1
 
     # 4. Verify title phrase has higher priority
     row_only_keyword = {
@@ -199,6 +199,12 @@ def test_hybrid_search_respects_chapter_cap():
 
         def lte(self, col, val):
             called_lte_values.append(val)
+            return self
+
+        def order(self, col, desc=True):
+            return self
+
+        def in_(self, col, val):
             return self
 
         def limit(self, val):

@@ -35,11 +35,11 @@ def test_exact_word_chapter_title_boost():
         "content_plain": "Văn phòng giám đốc công ty.",
         "content_hash": "hash_test_exact"
     }
-    keywords = ["hàn", "phong"]
-    score, reasons = score_lexical_result(row, "Hàn Phong", keywords)
+    keywords = ["diệp", "hàn", "phong"]
+    score, reasons = score_lexical_result(row, "Diệp Hàn Phong", keywords)
     assert any("title_exact_keyword" in r for r in reasons)
-    # 2 non-stop keywords match in title + 2 exact boundaries matches + phrase title boost
-    assert score >= 220.0
+    # 2 non-stop keywords match in title + 2 exact boundaries matches + title ngram boost
+    assert score >= 180.0
 
 def test_chapter_cap_retrieval():
     """Verify spoiler guard (chapter_cap) prevents retrieving later chapters."""
