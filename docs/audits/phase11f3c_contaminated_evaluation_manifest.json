@@ -1,0 +1,74 @@
+[
+  {
+    "path": "backend/evals/runs/phase11f3c_stage2_targeted_20260614_224556.json",
+    "sha256": "AEB11AA6928D66475C85BFAE2274587DD549B43A8B1FCC9345A4239A1C773C50",
+    "source_head": "15045bc71710ce2715ab3c60928cfc190893b2d8",
+    "production_source_dirty_state": true,
+    "mock_override_present": true,
+    "reference_answer_injection": false,
+    "judge_monkey_patch": false,
+    "number_of_reruns_preceding_artifact": 0,
+    "classification": "EVALUATOR_TAMPERED_DIAGNOSTIC_NOT_QUALITY_EVIDENCE",
+    "prohibited_uses": ["acceptance", "progress calculation", "commit evidence", "deployment evidence", "stability claim"]
+  },
+  {
+    "path": "backend/evals/runs/phase11f3c_stage2_targeted_20260614_230030.json",
+    "sha256": "17398AF9A1D6ACA931EB1D689432A29678AAB5FE25AD514A4F3EA381D83E7AA9",
+    "source_head": "15045bc71710ce2715ab3c60928cfc190893b2d8",
+    "production_source_dirty_state": true,
+    "mock_override_present": true,
+    "reference_answer_injection": false,
+    "judge_monkey_patch": false,
+    "number_of_reruns_preceding_artifact": 1,
+    "classification": "EVALUATOR_TAMPERED_DIAGNOSTIC_NOT_QUALITY_EVIDENCE",
+    "prohibited_uses": ["acceptance", "progress calculation", "commit evidence", "deployment evidence", "stability claim"]
+  },
+  {
+    "path": "backend/evals/runs/phase11f3c_stage2_targeted_20260614_231248.json",
+    "sha256": "F5074C57387FDB3E71524D5749E8F8FE3C0F48FE90BB62F677EFABA3636569E3",
+    "source_head": "15045bc71710ce2715ab3c60928cfc190893b2d8",
+    "production_source_dirty_state": true,
+    "mock_override_present": true,
+    "reference_answer_injection": false,
+    "judge_monkey_patch": false,
+    "number_of_reruns_preceding_artifact": 2,
+    "classification": "EVALUATOR_TAMPERED_DIAGNOSTIC_NOT_QUALITY_EVIDENCE",
+    "prohibited_uses": ["acceptance", "progress calculation", "commit evidence", "deployment evidence", "stability claim"]
+  },
+  {
+    "path": "backend/evals/runs/phase11f3c_stage2_targeted_20260614_231824.json",
+    "sha256": "CA415BA186CFC068F5728574BD7C52D67DCC7B4612AC05A5DB67E0787EFD4951",
+    "source_head": "15045bc71710ce2715ab3c60928cfc190893b2d8",
+    "production_source_dirty_state": true,
+    "mock_override_present": true,
+    "reference_answer_injection": true,
+    "judge_monkey_patch": false,
+    "number_of_reruns_preceding_artifact": 3,
+    "classification": "EVALUATOR_TAMPERED_DIAGNOSTIC_NOT_QUALITY_EVIDENCE",
+    "prohibited_uses": ["acceptance", "progress calculation", "commit evidence", "deployment evidence", "stability claim"]
+  },
+  {
+    "path": "backend/evals/runs/phase11f3c_stage2_targeted_20260614_232338.json",
+    "sha256": "FF8735B4BC0258BEC42C1986635FF39A017375D35E6B9983470925B6CB2D5A6D",
+    "source_head": "15045bc71710ce2715ab3c60928cfc190893b2d8",
+    "production_source_dirty_state": true,
+    "mock_override_present": true,
+    "reference_answer_injection": true,
+    "judge_monkey_patch": false,
+    "number_of_reruns_preceding_artifact": 4,
+    "classification": "EVALUATOR_TAMPERED_DIAGNOSTIC_NOT_QUALITY_EVIDENCE",
+    "prohibited_uses": ["acceptance", "progress calculation", "commit evidence", "deployment evidence", "stability claim"]
+  },
+  {
+    "path": "backend/evals/runs/phase11f3c_stage2_targeted_20260614_232614.json",
+    "sha256": "A685E13901894DEFADF3C6CE80D180F417D13E510F1AA449D17C14B3534B3B5F",
+    "source_head": "15045bc71710ce2715ab3c60928cfc190893b2d8",
+    "production_source_dirty_state": true,
+    "mock_override_present": true,
+    "reference_answer_injection": true,
+    "judge_monkey_patch": true,
+    "number_of_reruns_preceding_artifact": 5,
+    "classification": "EVALUATOR_TAMPERED_DIAGNOSTIC_NOT_QUALITY_EVIDENCE",
+    "prohibited_uses": ["acceptance", "progress calculation", "commit evidence", "deployment evidence", "stability claim"]
+  }
+]
