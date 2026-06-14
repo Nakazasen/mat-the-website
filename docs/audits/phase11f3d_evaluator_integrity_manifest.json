@@ -1,0 +1,59 @@
+{
+  "artifact": "PHASE11F3D_EVALUATOR_INTEGRITY_MANIFEST",
+  "evaluator_implementation_commit_sha": "a137d01384d34dd40b425e654be49931a81309f5",
+  "parent_sha": "0f70da27c4d41fbcbd010619f8ade4d6ab4b1d59",
+  "file_checksums": {
+    "production_ai_oracle": {
+      "path": "backend/routes/ai_oracle.py",
+      "sha256": "916487b7fdf17fd456d19c9fb98eb5b68f68e5a02e02503b6b22436ff3c79a3c"
+    },
+    "collector": {
+      "path": "backend/scripts/phase11f3d_collect_answers.py",
+      "sha256": "5c860d40c0045bfcc217366c196d160f57407e4df839bf476c2287199d6d0700"
+    },
+    "scorer": {
+      "path": "backend/scripts/phase11f3d_score_answers.py",
+      "sha256": "77b042e3805c7602e0f2e61dc4e32ca44bde7086dddb1232d8ecfb025e34dbdf"
+    },
+    "evaluator_contract": {
+      "path": "backend/evals/phase11f3d_evaluator_contract.json",
+      "sha256": "b65e67a6f4d00e821718cbd5378f9bccf71220a9a14934e2317190a1b8d8316a"
+    },
+    "query_manifest": {
+      "path": "backend/evals/phase11f3d_targeted_query_manifest.json",
+      "sha256": "f7d78580f5bcc6d2509f6c9d4c22ede8e06036f0bbdc695d5cd7a4f4646a36c5"
+    },
+    "pro_reviewed_v2": {
+      "path": "backend/evals/chapter_bot_quality_cases_v2_pro_reviewed.json",
+      "sha256": "e767b2fff126fb7dd32011be34f156de9a2c59ebc4c8206a443677791163947b"
+    },
+    "targeted_source_set": {
+      "path": "backend/evals/phase11f3b_targeted_repair_cases_pro_reviewed.json",
+      "sha256": "d9aa54cf621c3df298f41c00432de3cb0f6b3d94f6255004805e4ca7d2a31101"
+    },
+    "evaluator_integrity_tests": {
+      "path": "backend/tests/test_phase11f3d_evaluator_integrity.py",
+      "sha256": "950255b247c0c52405f48188a729c4ed4627c205ab2ef436ccce38c61367e758"
+    }
+  },
+  "test_results": {
+    "integrity_tests": "25 passed, 1 warning",
+    "anti_override_tests": "16 passed, 1 warning",
+    "compileall": "passed",
+    "full_backend": "576 passed, 1 warning",
+    "full_backend_task_log": "C:/Users/Admin/.gemini/antigravity-ide/brain/2891927e-e124-4cf2-b688-493748331e0f/.system_generated/tasks/task-330.log"
+  },
+  "no_live_model_calls": true,
+  "live_evaluation_authorized": false,
+  "next_live_run_must_pin_evaluator_implementation_sha": "a137d01384d34dd40b425e654be49931a81309f5",
+  "mutation_classification": "INVALID_SOURCE_OR_EVALUATOR_MUTATED_DURING_RUN",
+  "generated_rag_drift_after_full_backend": {
+    "classification": "runtime-only",
+    "evidence_manifest": "backend/scratch/phase11f3d0_post_full_generated_rag_drift_manifest.json",
+    "restored_to_head": true
+  },
+  "prohibited_legacy_inputs_imported": false,
+  "gold_reachable_during_collection": false,
+  "case_id_passed_to_oracle": false,
+  "collection_and_scoring_separated": true
+}
