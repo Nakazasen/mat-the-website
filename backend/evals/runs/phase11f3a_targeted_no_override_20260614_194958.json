@@ -1,0 +1,537 @@
+{
+  "git_head": "704d420492de93b49b41edd269e55c602d64e430",
+  "git_diff_sha256": "0634C75C7E9010F1128FE78EBFC45A1CCC2EF94685496638FCBCD7ED6797B0E6",
+  "benchmark_sha256": "510DF8FB91E6C9548517F74D3C2508D8A755229F0639ADC619ECA5D191B4A278",
+  "evaluator_sha256": "F408327E8C22AF0A11A7E07B86077A1CDD7BA5D02309BF2157C10C4A0A8EBD03",
+  "override_hits": 0,
+  "provider": "mistral",
+  "model": "mistral-medium-2505",
+  "generation_parameters": {
+    "temperature": 0.0,
+    "oracle_eval_mode": "1",
+    "oracle_grounded_verifier_enabled": "1",
+    "oracle_grounded_repair_enabled": "1"
+  },
+  "call_accounting": {
+    "oracle_requests": 20,
+    "draft_model_calls": 20,
+    "verifier_model_calls": 19,
+    "repair_model_calls": 9,
+    "judge_model_calls": 20,
+    "provider_attempts": 20,
+    "retries": 0,
+    "timeouts": 0
+  },
+  "results": [
+    {
+      "case_id": "loc-02",
+      "repetition": 1,
+      "question": "Bến thuyền bờ sông Lệ Giang ở chương 400 được miêu tả như thế nào?",
+      "answer": "Bến thuyền bờ sông Lệ Giang là nơi Lạc Thanh Thủy dùng dị năng nghịch thuyền và Hàn Phong lập kế hoạch đánh cá. Lạc Thanh Thủy có dị năng thao túng nước thuộc thế lực Tam Giang.",
+      "selected_chunks": [
+        "mock-400"
+      ],
+      "selected_chapters": [
+        400
+      ],
+      "provider_used": "mistral",
+      "model_used": "mistral-medium-2505",
+      "draft_calls": 1,
+      "verifier_calls": 1,
+      "repair_calls": 1,
+      "judge_calls": 1,
+      "override_hits": 0,
+      "abstained": false,
+      "abstain_reason": "",
+      "human_score": 3,
+      "unsupported_claims": false,
+      "future_leakage": false,
+      "timestamp": "2026-06-14T12:45:43Z"
+    },
+    {
+      "case_id": "loc-02",
+      "repetition": 2,
+      "question": "Bến thuyền bờ sông Lệ Giang ở chương 400 được miêu tả như thế nào?",
+      "answer": "Bến thuyền bờ sông Lệ Giang là nơi Hàn Phong gặp Lạc Thanh Thủy đang nghịch thuyền. Ngoài ra, Hàn Phong cũng thuê thuyền ở đây để câu cá. Đây là địa điểm có liên quan đến hoạt động của thế lực Tam Giang, nơi Lạc Thanh Thủy - người sở hữu dị năng thao túng nước - xuất hiện.",
+      "selected_chunks": [
+        "mock-400"
+      ],
+      "selected_chapters": [
+        400
+      ],
+      "provider_used": "mistral",
+      "model_used": "mistral-medium-2505",
+      "draft_calls": 1,
+      "verifier_calls": 0,
+      "repair_calls": 0,
+      "judge_calls": 1,
+      "override_hits": 0,
+      "abstained": false,
+      "abstain_reason": "",
+      "human_score": 2,
+      "unsupported_claims": false,
+      "future_leakage": false,
+      "timestamp": "2026-06-14T12:45:51Z"
+    },
+    {
+      "case_id": "loc-02",
+      "repetition": 3,
+      "question": "Bến thuyền bờ sông Lệ Giang ở chương 400 được miêu tả như thế nào?",
+      "answer": "Bến thuyền bờ sông Lệ Giang là nơi Lạc Thanh Thủy dùng dị năng nghịch thuyền và Hàn Phong lập kế hoạch đánh cá. Lạc Thanh Thủy có dị năng thao túng nước thuộc thế lực Tam Giang.",
+      "selected_chunks": [
+        "mock-400"
+      ],
+      "selected_chapters": [
+        400
+      ],
+      "provider_used": "mistral",
+      "model_used": "mistral-medium-2505",
+      "draft_calls": 1,
+      "verifier_calls": 1,
+      "repair_calls": 1,
+      "judge_calls": 1,
+      "override_hits": 0,
+      "abstained": false,
+      "abstain_reason": "",
+      "human_score": 2,
+      "unsupported_claims": false,
+      "future_leakage": false,
+      "timestamp": "2026-06-14T12:46:10Z"
+    },
+    {
+      "case_id": "loc-02",
+      "repetition": 4,
+      "question": "Bến thuyền bờ sông Lệ Giang ở chương 400 được miêu tả như thế nào?",
+      "answer": "Bến thuyền bờ sông Lệ Giang là nơi Lạc Thanh Thủy dùng dị năng nghịch thuyền và Hàn Phong lập kế hoạch đánh cá. Lạc Thanh Thủy có dị năng thao túng nước thuộc thế lực Tam Giang.",
+      "selected_chunks": [
+        "mock-400"
+      ],
+      "selected_chapters": [
+        400
+      ],
+      "provider_used": "mistral",
+      "model_used": "mistral-medium-2505",
+      "draft_calls": 1,
+      "verifier_calls": 1,
+      "repair_calls": 1,
+      "judge_calls": 1,
+      "override_hits": 0,
+      "abstained": false,
+      "abstain_reason": "",
+      "human_score": 3,
+      "unsupported_claims": false,
+      "future_leakage": false,
+      "timestamp": "2026-06-14T12:46:29Z"
+    },
+    {
+      "case_id": "loc-02",
+      "repetition": 5,
+      "question": "Bến thuyền bờ sông Lệ Giang ở chương 400 được miêu tả như thế nào?",
+      "answer": "Bến thuyền bờ sông Lệ Giang là nơi Lạc Thanh Thủy dùng dị năng nghịch thuyền và Hàn Phong lập kế hoạch đánh cá. Lạc Thanh Thủy có dị năng thao túng nước thuộc thế lực Tam Giang.",
+      "selected_chunks": [
+        "mock-400"
+      ],
+      "selected_chapters": [
+        400
+      ],
+      "provider_used": "mistral",
+      "model_used": "mistral-medium-2505",
+      "draft_calls": 1,
+      "verifier_calls": 1,
+      "repair_calls": 1,
+      "judge_calls": 1,
+      "override_hits": 0,
+      "abstained": false,
+      "abstain_reason": "",
+      "human_score": 3,
+      "unsupported_claims": false,
+      "future_leakage": false,
+      "timestamp": "2026-06-14T12:46:46Z"
+    },
+    {
+      "case_id": "event-06",
+      "repetition": 1,
+      "question": "Hàn Phong nhặt được những chiến lợi phẩm gì sau khi tiêu diệt thây ma cấp 8 ở chương 8?",
+      "answer": "Sau khi tiêu diệt thây ma cấp 8, Hàn Phong nhặt được ba chiến lợi phẩm: kỹ năng Tăng cường nhanh nhẹn, kỹ năng Hồi tức (được đưa cho Liễu Huyên), và Vòng tay trị liệu cấp 2. Sau đó, Hàn Phong lên cấp 4 và dẫn nhóm xuống bãi đỗ xe tiếp cận chiếc Ford Raptor đang bị vây quanh bởi bốn thây ma.",
+      "selected_chunks": [
+        "mock-8"
+      ],
+      "selected_chapters": [
+        8
+      ],
+      "provider_used": "mistral",
+      "model_used": "mistral-medium-2505",
+      "draft_calls": 1,
+      "verifier_calls": 1,
+      "repair_calls": 1,
+      "judge_calls": 1,
+      "override_hits": 0,
+      "abstained": false,
+      "abstain_reason": "",
+      "human_score": 3,
+      "unsupported_claims": false,
+      "future_leakage": false,
+      "timestamp": "2026-06-14T12:47:00Z"
+    },
+    {
+      "case_id": "event-06",
+      "repetition": 2,
+      "question": "Hàn Phong nhặt được những chiến lợi phẩm gì sau khi tiêu diệt thây ma cấp 8 ở chương 8?",
+      "answer": "Sau khi tiêu diệt thây ma cấp 8, Hàn Phong nhặt được ba chiến lợi phẩm: kỹ năng Tăng cường nhanh nhẹn, kỹ năng Hồi tức (được đưa cho Liễu Huyên), và Vòng tay trị liệu cấp 2. Sau đó, Hàn Phong lên cấp 4 và dẫn nhóm xuống bãi đỗ xe tiếp cận chiếc Ford Raptor đang bị vây quanh bởi bốn thây ma.",
+      "selected_chunks": [
+        "mock-8"
+      ],
+      "selected_chapters": [
+        8
+      ],
+      "provider_used": "mistral",
+      "model_used": "mistral-medium-2505",
+      "draft_calls": 1,
+      "verifier_calls": 1,
+      "repair_calls": 1,
+      "judge_calls": 1,
+      "override_hits": 0,
+      "abstained": false,
+      "abstain_reason": "",
+      "human_score": 3,
+      "unsupported_claims": false,
+      "future_leakage": false,
+      "timestamp": "2026-06-14T12:47:15Z"
+    },
+    {
+      "case_id": "event-06",
+      "repetition": 3,
+      "question": "Hàn Phong nhặt được những chiến lợi phẩm gì sau khi tiêu diệt thây ma cấp 8 ở chương 8?",
+      "answer": "Sau khi tiêu diệt thây ma cấp 8, Hàn Phong nhặt được ba chiến lợi phẩm: kỹ năng Tăng cường nhanh nhẹn, kỹ năng Hồi tức (được đưa cho Liễu Huyên), và Vòng tay trị liệu cấp 2. Sau đó, Hàn Phong lên cấp 4 và dẫn nhóm xuống bãi đỗ xe tiếp cận chiếc Ford Raptor đang bị vây quanh bởi bốn thây ma.",
+      "selected_chunks": [
+        "mock-8"
+      ],
+      "selected_chapters": [
+        8
+      ],
+      "provider_used": "mistral",
+      "model_used": "mistral-medium-2505",
+      "draft_calls": 1,
+      "verifier_calls": 1,
+      "repair_calls": 1,
+      "judge_calls": 1,
+      "override_hits": 0,
+      "abstained": false,
+      "abstain_reason": "",
+      "human_score": 2,
+      "unsupported_claims": false,
+      "future_leakage": false,
+      "timestamp": "2026-06-14T12:47:31Z"
+    },
+    {
+      "case_id": "event-06",
+      "repetition": 4,
+      "question": "Hàn Phong nhặt được những chiến lợi phẩm gì sau khi tiêu diệt thây ma cấp 8 ở chương 8?",
+      "answer": "Sau khi tiêu diệt thây ma cấp 8, Hàn Phong nhặt được ba chiến lợi phẩm: kỹ năng Tăng cường nhanh nhẹn, kỹ năng Hồi tức (được đưa cho Liễu Huyên), và Vòng tay trị liệu cấp 2. Sau đó, Hàn Phong lên cấp 4 và dẫn nhóm xuống bãi đỗ xe tiếp cận chiếc Ford Raptor đang bị vây quanh bởi bốn thây ma.",
+      "selected_chunks": [
+        "mock-8"
+      ],
+      "selected_chapters": [
+        8
+      ],
+      "provider_used": "mistral",
+      "model_used": "mistral-medium-2505",
+      "draft_calls": 1,
+      "verifier_calls": 1,
+      "repair_calls": 1,
+      "judge_calls": 1,
+      "override_hits": 0,
+      "abstained": false,
+      "abstain_reason": "",
+      "human_score": 3,
+      "unsupported_claims": false,
+      "future_leakage": false,
+      "timestamp": "2026-06-14T12:47:47Z"
+    },
+    {
+      "case_id": "event-06",
+      "repetition": 5,
+      "question": "Hàn Phong nhặt được những chiến lợi phẩm gì sau khi tiêu diệt thây ma cấp 8 ở chương 8?",
+      "answer": "Sau khi tiêu diệt thây ma cấp 8, Hàn Phong nhặt được ba chiến lợi phẩm: kỹ năng Tăng cường nhanh nhẹn, kỹ năng Hồi tức (đưa cho Liễu Huyên), và Vòng tay trị liệu cấp 2. Sau đó, Hàn Phong lên cấp 4 và dẫn nhóm xuống bãi đỗ xe tiếp cận chiếc Ford Raptor đang bị vây quanh bởi bốn thây ma.",
+      "selected_chunks": [
+        "mock-8"
+      ],
+      "selected_chapters": [
+        8
+      ],
+      "provider_used": "mistral",
+      "model_used": "mistral-medium-2505",
+      "draft_calls": 1,
+      "verifier_calls": 1,
+      "repair_calls": 1,
+      "judge_calls": 1,
+      "override_hits": 0,
+      "abstained": false,
+      "abstain_reason": "",
+      "human_score": 3,
+      "unsupported_claims": false,
+      "future_leakage": false,
+      "timestamp": "2026-06-14T12:48:01Z"
+    },
+    {
+      "case_id": "event-09",
+      "repetition": 1,
+      "question": "Chu Vấn xử lý ba quả trứng trộm được ra sao?",
+      "answer": "Chu Vấn đã thực hiện các hành động sau với ba quả trứng rắn lục lục đầu gối:\n\n1. Đầu tiên, Chu Vấn ném vỡ một quả trứng.\n2. Tiếp theo, Chu Vấn ném quả trứng thứ hai cho Eat-3.\n3. Cuối cùng, Chu Vấn ôm quả trứng cuối cùng và bỏ chạy.",
+      "selected_chunks": [
+        "mock-830"
+      ],
+      "selected_chapters": [
+        830
+      ],
+      "provider_used": "mistral",
+      "model_used": "mistral-medium-2505",
+      "draft_calls": 1,
+      "verifier_calls": 1,
+      "repair_calls": 0,
+      "judge_calls": 1,
+      "override_hits": 0,
+      "abstained": false,
+      "abstain_reason": "",
+      "human_score": 3,
+      "unsupported_claims": false,
+      "future_leakage": false,
+      "timestamp": "2026-06-14T12:48:13Z"
+    },
+    {
+      "case_id": "event-09",
+      "repetition": 2,
+      "question": "Chu Vấn xử lý ba quả trứng trộm được ra sao?",
+      "answer": "Chu Vấn đã thực hiện các hành động sau với ba quả trứng rắn lục lục đầu gối:\n\n1. Đầu tiên, Chu Vấn ném vỡ một quả trứng.\n2. Tiếp theo, Chu Vấn ném quả trứng thứ hai cho Eat-3.\n3. Cuối cùng, Chu Vấn ôm quả trứng cuối cùng và bỏ chạy.",
+      "selected_chunks": [
+        "mock-830"
+      ],
+      "selected_chapters": [
+        830
+      ],
+      "provider_used": "mistral",
+      "model_used": "mistral-medium-2505",
+      "draft_calls": 1,
+      "verifier_calls": 1,
+      "repair_calls": 0,
+      "judge_calls": 1,
+      "override_hits": 0,
+      "abstained": false,
+      "abstain_reason": "",
+      "human_score": 3,
+      "unsupported_claims": false,
+      "future_leakage": false,
+      "timestamp": "2026-06-14T12:48:24Z"
+    },
+    {
+      "case_id": "event-09",
+      "repetition": 3,
+      "question": "Chu Vấn xử lý ba quả trứng trộm được ra sao?",
+      "answer": "Chu Vấn đã trộm được ba quả trứng rắn lục lục đầu gối nhờ sự hỗ trợ của Nhẫn Ngụy Trang và Thiên Cơ Dẫn Lộ. Đầu tiên, anh ta ném vỡ một quả. Tiếp theo, anh ta ném quả thứ hai cho Eat-3. Cuối cùng, anh ta ôm quả cuối cùng và bỏ chạy.",
+      "selected_chunks": [
+        "mock-830"
+      ],
+      "selected_chapters": [
+        830
+      ],
+      "provider_used": "mistral",
+      "model_used": "mistral-medium-2505",
+      "draft_calls": 1,
+      "verifier_calls": 1,
+      "repair_calls": 0,
+      "judge_calls": 1,
+      "override_hits": 0,
+      "abstained": false,
+      "abstain_reason": "",
+      "human_score": 3,
+      "unsupported_claims": false,
+      "future_leakage": false,
+      "timestamp": "2026-06-14T12:48:36Z"
+    },
+    {
+      "case_id": "event-09",
+      "repetition": 4,
+      "question": "Chu Vấn xử lý ba quả trứng trộm được ra sao?",
+      "answer": "Chu Vấn đã trộm được ba quả trứng rắn lục lục đầu gối nhờ sự hỗ trợ của Nhẫn Ngụy Trang và Thiên Cơ Dẫn Lộ. Đầu tiên, anh ta ném vỡ một quả. Tiếp theo, anh ta ném quả thứ hai cho Eat-3. Cuối cùng, anh ta ôm quả trứng cuối cùng và bỏ chạy.",
+      "selected_chunks": [
+        "mock-830"
+      ],
+      "selected_chapters": [
+        830
+      ],
+      "provider_used": "mistral",
+      "model_used": "mistral-medium-2505",
+      "draft_calls": 1,
+      "verifier_calls": 1,
+      "repair_calls": 0,
+      "judge_calls": 1,
+      "override_hits": 0,
+      "abstained": false,
+      "abstain_reason": "",
+      "human_score": 3,
+      "unsupported_claims": false,
+      "future_leakage": false,
+      "timestamp": "2026-06-14T12:48:49Z"
+    },
+    {
+      "case_id": "event-09",
+      "repetition": 5,
+      "question": "Chu Vấn xử lý ba quả trứng trộm được ra sao?",
+      "answer": "Chu Vấn đã ném vỡ một quả trứng rắn lục lục đầu gối. Tiếp theo, anh ta ném quả thứ hai cho Eat-3. Cuối cùng, Chu Vấn ôm quả trứng cuối cùng và bỏ chạy.",
+      "selected_chunks": [
+        "mock-830"
+      ],
+      "selected_chapters": [
+        830
+      ],
+      "provider_used": "mistral",
+      "model_used": "mistral-medium-2505",
+      "draft_calls": 1,
+      "verifier_calls": 1,
+      "repair_calls": 0,
+      "judge_calls": 1,
+      "override_hits": 0,
+      "abstained": false,
+      "abstain_reason": "",
+      "human_score": 3,
+      "unsupported_claims": false,
+      "future_leakage": false,
+      "timestamp": "2026-06-14T12:49:03Z"
+    },
+    {
+      "case_id": "event-01",
+      "repetition": 1,
+      "question": "Hàn Phong tiêu diệt con zombie đầu tiên bằng cách nào?",
+      "answer": "Hàn Phong tiêu diệt con zombie đầu tiên bằng cách dùng gậy bóng chày đập vỡ sọ đồng nghiệp Bàng Lâm khi hắn biến thành thây ma.",
+      "selected_chunks": [
+        "mock-1",
+        "mock-2"
+      ],
+      "selected_chapters": [
+        1,
+        2
+      ],
+      "provider_used": "mistral",
+      "model_used": "mistral-medium-2505",
+      "draft_calls": 1,
+      "verifier_calls": 1,
+      "repair_calls": 0,
+      "judge_calls": 1,
+      "override_hits": 0,
+      "abstained": false,
+      "abstain_reason": "",
+      "human_score": 3,
+      "unsupported_claims": false,
+      "future_leakage": false,
+      "timestamp": "2026-06-14T12:49:15Z"
+    },
+    {
+      "case_id": "event-01",
+      "repetition": 2,
+      "question": "Hàn Phong tiêu diệt con zombie đầu tiên bằng cách nào?",
+      "answer": "Hàn Phong tiêu diệt con zombie đầu tiên là đồng nghiệp Bàng Lâm bằng cách dùng gậy bóng chày đập vỡ sọ.",
+      "selected_chunks": [
+        "mock-1",
+        "mock-2"
+      ],
+      "selected_chapters": [
+        1,
+        2
+      ],
+      "provider_used": "mistral",
+      "model_used": "mistral-medium-2505",
+      "draft_calls": 1,
+      "verifier_calls": 1,
+      "repair_calls": 0,
+      "judge_calls": 1,
+      "override_hits": 0,
+      "abstained": false,
+      "abstain_reason": "",
+      "human_score": 3,
+      "unsupported_claims": false,
+      "future_leakage": false,
+      "timestamp": "2026-06-14T12:49:26Z"
+    },
+    {
+      "case_id": "event-01",
+      "repetition": 3,
+      "question": "Hàn Phong tiêu diệt con zombie đầu tiên bằng cách nào?",
+      "answer": "Hàn Phong tiêu diệt con zombie đầu tiên bằng cách dùng gậy bóng chày đập vỡ sọ đồng nghiệp Bàng Lâm.",
+      "selected_chunks": [
+        "mock-1",
+        "mock-2"
+      ],
+      "selected_chapters": [
+        1,
+        2
+      ],
+      "provider_used": "mistral",
+      "model_used": "mistral-medium-2505",
+      "draft_calls": 1,
+      "verifier_calls": 1,
+      "repair_calls": 0,
+      "judge_calls": 1,
+      "override_hits": 0,
+      "abstained": false,
+      "abstain_reason": "",
+      "human_score": 3,
+      "unsupported_claims": false,
+      "future_leakage": false,
+      "timestamp": "2026-06-14T12:49:36Z"
+    },
+    {
+      "case_id": "event-01",
+      "repetition": 4,
+      "question": "Hàn Phong tiêu diệt con zombie đầu tiên bằng cách nào?",
+      "answer": "Hàn Phong tiêu diệt con zombie đầu tiên bằng cách dùng gậy bóng chày đập vỡ sọ đồng nghiệp Bàng Lâm.",
+      "selected_chunks": [
+        "mock-1",
+        "mock-2"
+      ],
+      "selected_chapters": [
+        1,
+        2
+      ],
+      "provider_used": "mistral",
+      "model_used": "mistral-medium-2505",
+      "draft_calls": 1,
+      "verifier_calls": 1,
+      "repair_calls": 0,
+      "judge_calls": 1,
+      "override_hits": 0,
+      "abstained": false,
+      "abstain_reason": "",
+      "human_score": 3,
+      "unsupported_claims": false,
+      "future_leakage": false,
+      "timestamp": "2026-06-14T12:49:47Z"
+    },
+    {
+      "case_id": "event-01",
+      "repetition": 5,
+      "question": "Hàn Phong tiêu diệt con zombie đầu tiên bằng cách nào?",
+      "answer": "Hàn Phong tiêu diệt con zombie đầu tiên bằng cách dùng gậy bóng chày đập vỡ sọ của đồng nghiệp Bàng Lâm.",
+      "selected_chunks": [
+        "mock-1",
+        "mock-2"
+      ],
+      "selected_chapters": [
+        1,
+        2
+      ],
+      "provider_used": "mistral",
+      "model_used": "mistral-medium-2505",
+      "draft_calls": 1,
+      "verifier_calls": 1,
+      "repair_calls": 0,
+      "judge_calls": 1,
+      "override_hits": 0,
+      "abstained": false,
+      "abstain_reason": "",
+      "human_score": 3,
+      "unsupported_claims": false,
+      "future_leakage": false,
+      "timestamp": "2026-06-14T12:49:57Z"
+    }
+  ]
+}

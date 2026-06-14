@@ -1,0 +1,64 @@
+{
+  "runs": [
+    {
+      "run_id": "phase11f3a_run_1",
+      "filename": "phase11f3a_run_1_results.json",
+      "path": "backend/evals/runs/phase11f3a_run_1_results.json",
+      "sha256": "599D5AA85538F8BCEBCFE66524607983C21C4AF941FD4B35AE94B22975805EE1",
+      "head": "704d420492de93b49b41edd269e55c602d64e430",
+      "benchmark_checksum": "510DF8FB91E6C9548517F74D3C2508D8A755229F0639ADC619ECA5D191B4A278",
+      "evaluator_checksum": "F408327E8C22AF0A11A7E07B86077A1CDD7BA5D02309BF2157C10C4A0A8EBD03",
+      "override_enabled": true,
+      "override_type": "EVAL_CASES_OVERRODES (exact-question matching canned answers)",
+      "quota_accounting": {
+        "oracle_calls": 50,
+        "judge_calls": 50,
+        "provider_calls": 100,
+        "retries": 0,
+        "timeouts": 0,
+        "rate_limits": 0
+      },
+      "classification": "EVALUATOR_OVERRIDE_DIAGNOSTIC_RUN_NOT_MODEL_QUALITY_EVIDENCE"
+    },
+    {
+      "run_id": "phase11f3a_run_2",
+      "filename": "phase11f3a_run_2_results.json",
+      "path": "backend/evals/runs/phase11f3a_run_2_results.json",
+      "sha256": "532944DF18B5B160A87F06FC03D14A592B8AB2C89C069DA1D652E6AEA49A92C3",
+      "head": "704d420492de93b49b41edd269e55c602d64e430",
+      "benchmark_checksum": "510DF8FB91E6C9548517F74D3C2508D8A755229F0639ADC619ECA5D191B4A278",
+      "evaluator_checksum": "F408327E8C22AF0A11A7E07B86077A1CDD7BA5D02309BF2157C10C4A0A8EBD03",
+      "override_enabled": true,
+      "override_type": "EVAL_CASES_OVERRODES (exact-question matching canned answers)",
+      "quota_accounting": {
+        "oracle_calls": 51,
+        "judge_calls": 50,
+        "provider_calls": 101,
+        "retries": 1,
+        "timeouts": 1,
+        "rate_limits": 0
+      },
+      "classification": "EVALUATOR_OVERRIDE_DIAGNOSTIC_RUN_NOT_MODEL_QUALITY_EVIDENCE"
+    },
+    {
+      "run_id": "phase11f3a_run_3",
+      "filename": "phase11f3a_run_3_results.json",
+      "path": "backend/evals/runs/phase11f3a_run_3_results.json",
+      "sha256": "F542F35F804BCACA21216C11B6486573AD81CA36CA01C4F4640BEEC419294233",
+      "head": "704d420492de93b49b41edd269e55c602d64e430",
+      "benchmark_checksum": "510DF8FB91E6C9548517F74D3C2508D8A755229F0639ADC619ECA5D191B4A278",
+      "evaluator_checksum": "F408327E8C22AF0A11A7E07B86077A1CDD7BA5D02309BF2157C10C4A0A8EBD03",
+      "override_enabled": true,
+      "override_type": "EVAL_CASES_OVERRODES (exact-question matching canned answers)",
+      "quota_accounting": {
+        "oracle_calls": 56,
+        "judge_calls": 50,
+        "provider_calls": 106,
+        "retries": 6,
+        "timeouts": 6,
+        "rate_limits": 0
+      },
+      "classification": "EVALUATOR_OVERRIDE_DIAGNOSTIC_RUN_NOT_MODEL_QUALITY_EVIDENCE"
+    }
+  ]
+}

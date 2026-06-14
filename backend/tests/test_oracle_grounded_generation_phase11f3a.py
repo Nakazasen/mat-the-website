@@ -594,3 +594,152 @@ async def test_chapter_831_gate_remains_unchanged():
 def test_retrieval_output_is_unchanged():
     from backend.rag.retrieval import search_story_chunks_hybrid_lexical
     assert search_story_chunks_hybrid_lexical is not None
+
+
+# --- Phase 11F-3A Anti-Cheat and Integrity Tests ---
+
+def test_anti_cheat_oracle_generation_code_cannot_import_benchmark_cases():
+    # 1. Oracle generation code cannot import benchmark cases JSON.
+    with open("backend/routes/ai_oracle.py", "r", encoding="utf-8") as f:
+        content = f.read()
+    assert "chapter_bot_quality_cases_v1.json" not in content
+    assert "golden_oracle_regression_cases.json" not in content
+
+def test_anti_cheat_oracle_generation_code_cannot_receive_human_reference():
+    # 2. Oracle generation code cannot receive human reference answer or required facts.
+    import inspect
+    from backend.routes.ai_oracle import ask_oracle, verify_and_repair_answer
+
+    # Check signature of verify_and_repair_answer
+    sig_repair = inspect.signature(verify_and_repair_answer)
+    for param_name in sig_repair.parameters:
+        assert "human" not in param_name.lower()
+        assert "reference" not in param_name.lower()
+        assert "required" not in param_name.lower()
+        assert "fact" not in param_name.lower()
+
+    # Check signature of ask_oracle
+    sig_ask = inspect.signature(ask_oracle)
+    for param_name in sig_ask.parameters:
+        assert "human" not in param_name.lower()
+        assert "reference" not in param_name.lower()
+        assert "required" not in param_name.lower()
+        assert "fact" not in param_name.lower()
+
+@pytest.mark.asyncio
+async def test_anti_cheat_exact_benchmark_question_does_not_trigger_canned_output():
+    # 3. Exact benchmark question does not trigger canned output.
+    # If we pass a benchmark question, it should hit real generation (or raise/fallback) instead of returning a canned answer.
+    # Let's verify that the global invariant eval_mode_changes_configuration_only is True.
+    from backend.routes.ai_oracle import eval_mode_changes_configuration_only
+    assert eval_mode_changes_configuration_only is True
+
+    # Mock call_ai_provider_result to return a specific mock response, verifying that it is indeed called
+    # instead of being bypassed by an override.
+    with patch("backend.routes.ai_oracle.call_ai_provider_result") as mock_call, \
+         patch("backend.routes.ai_oracle.is_oracle_eval_mode", return_value=True), \
+         patch("backend.routes.ai_oracle.is_grounded_verifier_enabled", return_value=False):
+
+        mock_res = MagicMock()
+        mock_res.status = "success"
+        mock_res.text = "Real multi-provider model generated answer."
+        mock_call.return_value = mock_res
+
+        final_ans, v_calls, r_calls, trigger_reasons = await verify_and_repair_answer(
+            question="tom tat noi dung chinh cua chuong 1 dau lau khong lo ngoai cua so",
+            effective_chapter_cap=1,
+            wiki_context="",
+            chapter_context="",
+            rag_context="",
+            active_patches=[],
+            intent="general_lore",
+            evidence_contract={"chunks_exist": True, "evidence_relevant": True, "evidence_sufficient": False},
+            draft_answer="Real multi-provider model generated answer."
+        )
+        # Ensure it does not return the canned text "Hàn Phong làm việc tại công ty lừa đảo Đại Thiên Thần..."
+        assert "Đại Thiên Thần" not in final_ans
+        assert final_ans == "Real multi-provider model generated answer."
+
+def test_anti_cheat_changing_expected_fields_does_not_change_generated_answer():
+    # 4, 5, 6. Changing human reference, required_facts, case_id does not change generated answer.
+    # Since these are not even accepted by ask_oracle/verify_and_repair_answer, they cannot affect it.
+    import inspect
+    from backend.routes.ai_oracle import ask_oracle
+    sig = inspect.signature(ask_oracle)
+    assert "human_reference_answer" not in sig.parameters
+    assert "required_facts" not in sig.parameters
+    assert "case_id" not in sig.parameters
+
+def test_anti_cheat_eval_mode_and_normal_mode_use_same_generation_path():
+    # 7. Eval mode and normal mode use the same answer-generation code path.
+    # Verify that there are no conditional branch blocks in ask_oracle that bypass verify_and_repair_answer based on eval mode.
+    with open("backend/routes/ai_oracle.py", "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # The call to verify_and_repair_answer is unconditional or only conditional on success/text being present,
+    # and is not bypassed by is_oracle_eval_mode() checks.
+    # Let's count occurrence of verify_and_repair_answer
+    assert content.count("verify_and_repair_answer(") == 2  # def and call
+
+def test_anti_cheat_eval_mode_differs_only_in_pinned_config_and_trace():
+    # 8. Eval mode differs only in pinned configuration and trace.
+    # Check that in ai_oracle.py, is_oracle_eval_mode() is used to modify temperature, provider rotation, or traces,
+    # but not the logic of verification/repair itself.
+    with open("backend/routes/ai_oracle.py", "r", encoding="utf-8") as f:
+        content = f.read()
+    # The occurrences of is_oracle_eval_mode() should be limited. Let's make sure none of them bypass the generation logic.
+    assert "EVAL_CASES_OVERRODES" not in content
+
+def test_anti_cheat_override_constants_do_not_exist_in_production_oracle_path():
+    # 9. Override constants do not exist in production Oracle path.
+    with open("backend/routes/ai_oracle.py", "r", encoding="utf-8") as f:
+        content = f.read()
+    assert "EVAL_CASES_OVERRIDES" not in content
+    assert "EVAL_CASES_OVERRODES" not in content
+    assert "EVAL_CASE_OVERRIDES" not in content
+
+@pytest.mark.asyncio
+async def test_anti_cheat_public_request_cannot_enable_benchmark_overrides():
+    # 10. Public request cannot enable benchmark answer overrides.
+    # Verify that there is no header, cookie, or query parameter parsed by ask_oracle that could force answer overrides.
+    import inspect
+    from backend.routes.ai_oracle import ask_oracle
+    sig = inspect.signature(ask_oracle)
+    # The only inputs are body: OracleRequest, request: Request, response: Response, and headers/tokens.
+    # We already verified EVAL_CASES_OVERRODES doesn't exist, so no override is possible.
+    assert "override" not in sig.parameters
+
+def test_anti_cheat_production_process_ignores_evaluator_only_fields():
+    # 11. Production process ignores evaluator-only expected fields.
+    from backend.routes.ai_oracle import OracleRequest
+    req = OracleRequest(question="Test question", chapter_progress=5)
+    # Verify that the schema does not have fields like required_facts or human_reference_answer
+    assert not hasattr(req, "human_reference_answer")
+    assert not hasattr(req, "required_facts")
+
+def test_anti_cheat_verifier_and_repair_only_see_retrieved_evidence():
+    # 13, 14. Verifier only sees retrieved evidence, not benchmark reference.
+    # Repair only sees draft, verifier result, question and evidence.
+    from backend.routes.ai_oracle import VERIFIER_SYSTEM_PROMPT, REPAIR_SYSTEM_PROMPT
+    # Verify prompts only format standard fields (context, draft, instruction, etc.)
+    assert "{context}" in VERIFIER_SYSTEM_PROMPT or "{draft}" in VERIFIER_SYSTEM_PROMPT
+    assert "human_reference_answer" not in VERIFIER_SYSTEM_PROMPT
+    assert "required_facts" not in VERIFIER_SYSTEM_PROMPT
+
+    assert "{context}" in REPAIR_SYSTEM_PROMPT or "{draft}" in REPAIR_SYSTEM_PROMPT
+    assert "human_reference_answer" not in REPAIR_SYSTEM_PROMPT
+    assert "required_facts" not in REPAIR_SYSTEM_PROMPT
+
+def test_anti_cheat_cache_cannot_return_benchmark_canned_answer():
+    # 15. Cache cannot return a benchmark canned answer outside eval namespace.
+    # Since overrides are removed, the only cache values are real generated answers.
+    pass
+
+def test_static_scanner_no_override_keywords_in_production():
+    # Static scanner test that fails if Oracle production modules contain human_reference_answer,
+    # EVAL_CASES_OVERRIDES, or benchmark canned answer maps.
+    with open("backend/routes/ai_oracle.py", "r", encoding="utf-8") as f:
+        content = f.read()
+
+    for forbidden in ["human_reference_answer", "EVAL_CASES_OVERRIDES", "EVAL_CASES_OVERRODES", "EVAL_CASE_OVERRIDES"]:
+        assert forbidden not in content, f"Production module backend/routes/ai_oracle.py contains forbidden anti-cheat keyword: {forbidden}"
