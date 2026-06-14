@@ -152,8 +152,10 @@ async def test_provider_failure_is_not_reported_as_missing_source():
     with patch("backend.routes.ai_oracle.verify_chapter_exists_in_db", return_value=True), \
          patch("backend.routes.ai_oracle.call_ai_provider_result") as mock_call, \
          patch("backend.routes.ai_oracle.get_max_available_chapter", return_value=10), \
+         patch("backend.routes.ai_oracle.get_wiki_context", new_callable=AsyncMock) as mock_wiki, \
          patch("backend.routes.ai_oracle.get_rag_context_for_oracle") as mock_rag:
         
+        mock_wiki.return_value = ""
         mock_rag.return_value = {
             "context_text": "Hàn Phong nhặt được Vòng tay trị liệu.",
             "chunks_used": 1,
@@ -184,8 +186,10 @@ async def test_empty_generation_is_not_reported_as_unavailable_chapter():
          patch("backend.routes.ai_oracle.call_ai_provider_result") as mock_call, \
          patch("backend.routes.ai_oracle.get_max_available_chapter", return_value=10), \
          patch("backend.routes.ai_oracle.is_admin_request", return_value=False), \
+         patch("backend.routes.ai_oracle.get_wiki_context", new_callable=AsyncMock) as mock_wiki, \
          patch("backend.routes.ai_oracle.get_rag_context_for_oracle") as mock_rag:
         
+        mock_wiki.return_value = ""
         mock_rag.return_value = {
             "context_text": "Hàn Phong nhặt được Vòng tay trị liệu.",
             "chunks_used": 1,

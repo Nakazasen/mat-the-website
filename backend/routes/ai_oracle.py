@@ -15,6 +15,7 @@ import hashlib
 import json
 import os
 import re
+import sys
 import asyncio
 import contextvars
 from datetime import datetime, timedelta, timezone
@@ -226,7 +227,6 @@ def extract_entity_name(question: str) -> str:
 
 
 def get_curated_wiki_override(name: str, chapter_cap: int | None) -> dict | None:
-    import sys
     if "pytest" in sys.modules or "unittest" in sys.modules:
         return None
     if not name:
@@ -942,61 +942,6 @@ def run_deterministic_guard(
         except ValueError:
             pass
 
-    q_low = question.lower()
-    if "lệ giang" in q_low and "400" in q_low:
-        if any(x in ans_lower for x in ["phòng thử nghiệm", "phòng thí nghiệm", "sữa ngọc", "shield"]):
-            violations.append("IRRELEVANT_LABORATORY_INFO")
-        if "bến thuyền" not in ans_lower:
-            violations.append("MISSING_BEN_THUYEN_KEYWORD")
-
-    # Custom guards for failed benchmark cases
-    # sum-01
-    if "chương 1" in q_low or "chuông 1" in q_low:
-        if any(x in q_low for x in ["tóm tắt", "diễn biến", "nội dung"]):
-            if not any(x in ans_lower for x in ["3000", "ba nghìn"]):
-                violations.append("MISSING_LUONG_3000")
-            if not any(x in ans_lower for x in ["lý bình", "đòi nợ", "nợ"]):
-                violations.append("MISSING_LY_BINH_DOI_NO")
-            if "bàng lâm" in ans_lower:
-                if any(x in ans_lower for x in ["giết", "tiêu diệt", "chết", "kết liễu", "đập vỡ sọ"]):
-                    violations.append("FUTURE_LEAKAGE_BANG_LAM_DEATH")
-
-    # sum-03
-    if "chương 3" in q_low or "chuông 3" in q_low:
-        if any(x in q_low for x in ["tóm tắt", "diễn biến", "nội dung", "nói về"]):
-            if not any(x in ans_lower for x in ["thao túng hàn băng", "hàn băng"]):
-                violations.append("MISSING_THAO_TUNG_HAN_BANG")
-            if not any(x in ans_lower for x in ["thử nghiệm", "băng thương", "xuyên xác"]):
-                violations.append("MISSING_THU_NGHIEM")
-            if "chặn cửa" not in ans_lower and "ngủ" not in ans_lower:
-                violations.append("MISSING_CHAN_CUA_NGU")
-
-    # sum-12
-    if "chương 400" in q_low or ("lệ giang" in q_low and "400" in q_low):
-        if any(x in q_low for x in ["tóm tắt", "diễn biến", "nội dung"]):
-            if "lạc thanh thủy" not in ans_lower:
-                violations.append("MISSING_LAC_THANH_THUY")
-            if not any(x in ans_lower for x in ["thuyền", "đánh cá", "câu cá"]):
-                violations.append("MISSING_THUYEN_FISHING")
-            if "phòng thử nghiệm" not in ans_lower and "phòng thí nghiệm" not in ans_lower:
-                violations.append("MISSING_PHONG_THU_NGHIEM")
-
-    # event-05
-    if ("chương 7" in q_low or "chuông 7" in q_low) and ("tầng 1" in q_low or "lầu 1" in q_low or "trận chiến" in q_low):
-        if not any(x in ans_lower for x in ["cấp 8", "level 8", "lv8", "lv 8", "cấp tám"]):
-            violations.append("MISSING_LEVEL_8_ZOMBIE")
-        if "tay trái" not in ans_lower and "cánh tay" not in ans_lower:
-            violations.append("MISSING_LEFT_ARM_DETAIL")
-        if not any(x in ans_lower for x in ["giật bay đao", "bay đao", "rơi đao"]):
-            violations.append("MISSING_DISARMED_DETAIL")
-
-    # loc-05
-    if "tam giang" in q_low and "830" in q_low:
-        if "di tản" not in ans_lower:
-            violations.append("MISSING_DI_TAN")
-        if "căn cứ" not in ans_lower:
-            violations.append("MISSING_CAN_CU")
-
     return {
         "passed": len(violations) == 0,
         "violations": violations,
@@ -1057,114 +1002,6 @@ Hướng dẫn sửa đổi từ Verifier:
 Hãy trả về câu trả lời hoàn chỉnh cuối cùng của bạn.
 """.strip()
 
-def construct_fallback_grounded_answer(question: str, wiki_context: str, rag_context: str) -> str:
-    ans = ""
-    q_low = question.lower()
-    
-    # Chapter 830 / 830 Lệ Giang / Chu Vấn
-    if "830" in q_low or "chương 830" in q_low or "chu vấn" in q_low or "trứng" in q_low or "la thiên dật" in q_low:
-        if "tam giang" in q_low:
-            ans += "Huyện Tam Giang là một căn cứ người sống sót khác được tiến hành di tản triệt để trước khi chiến dịch bắt đầu."
-        elif any(x in q_low for x in ["tóm tắt", "diễn biến", "nội dung"]):
-            ans += "Chu chuẩn bị chiến dịch Lệ Giang di tản người dân trấn Hi Vọng và Tam Giang. La Thiên Dật dùng kỹ năng xé mây tạo hố trời chiếu sáng Diễn Giang. Chu Vấn thực hiện trộm ba quả trứng rắn lục lục đầu gối nhờ Nhẫn Ngụy Trang và Thiên Cơ Dẫn Lộ, sau đó ném vỡ một quả, ném quả thứ hai cho Eat-3 và ôm quả cuối cùng bỏ chạy."
-        elif "chu vấn" in q_low or "trộm trứng" in q_low or "trứng" in q_low:
-            ans += "Chu Vấn sử dụng Nhẫn Ngụy Trang và Thiên Cơ Dẫn Lộ để trộm ba quả trứng rắn lục lục đầu gối trong chương 830. Khi bị truy đuổi, hắn ném vỡ một quả, ném quả thứ hai cho Eat-3 và tự mình ôm quả cuối cùng bỏ chạy."
-        else:
-            ans += "Chu chuẩn bị chiến dịch Lệ Giang di tản người dân trấn Hi Vọng và Tam Giang. La Thiên Dật dùng kỹ năng xé mây tạo hố trời chiếu sáng Diễn Giang. Chu Vấn thực hiện trộm ba quả trứng rắn lục lục đầu gối nhờ Nhẫn Ngụy Trang và Thiên Cơ Dẫn Lộ, sau đó ném vỡ một quả, ném quả thứ hai cho Eat-3 và ôm quả cuối cùng bỏ chạy."
-
-    # Chapter 829
-    elif "chương 829" in q_low:
-        ans += "Hàn Phong thương lượng với đoàn đại biểu chính phủ (dẫn đầu là Hoàng Khải) về chiến dịch Lệ Giang. Hắn đưa ra các yêu cầu khắt khe và tuyên bố cung cấp bảy chiến lực tiến hoá giả (thực chất là Băng Nô cấu tạo từ băng) để tham gia chiến đấu."
-
-    # Chapter 800
-    elif "chương 800" in q_low:
-        ans += "Hàn Phong đứng dưới mưa đông ở Liễu Lâm Diễn Giang suy ngẫm về thần minh và sự sống. Hắn thảo luận cùng Ngô Soái về đa vũ trụ và Trời Sinh Voi Sinh Cỏ. Sau đó, họ phân chia chiến lợi phẩm từ việc tiêu diệt Thể Thôn Phệ Eat-3 và Hàn Phong dùng thẻ tiến giai thăng cấp Thao Túng Hàn Băng lên ngũ giai."
-
-    # Chapter 400
-    elif "chương 400" in q_low or ("lệ giang" in q_low and "400" in q_low):
-        if any(x in q_low for x in ["tóm tắt", "diễn biến", "nội dung", "nguỵ tạo"]):
-            ans += "Hàn Phong gặp Lạc Thanh Thủy nghịch thuyền ở sông Lệ Giang, lập kế hoạch đánh cá. Sau đó hắn đến phòng thử nghiệm ngụy tạo quy trình chiết xuất từ thây ma Shield để che giấu nguồn gốc sữa ngọc biến dị giúp tăng chống chịu."
-        else:
-            ans += "Bến thuyền bờ sông Lệ Giang là nơi Lạc Thanh Thủy dùng dị năng nghịch thuyền và Hàn Phong lập kế hoạch đánh cá. Lạc Thanh Thủy có dị năng thao túng nước thuộc thế lực Tam Giang."
-
-    # Chapter 200
-    elif "chương 200" in q_low or "đại hắc cẩu" in q_low or "chó đen" in q_low:
-        ans += "Hàn Phong sử dụng thẻ tiến giai sơ cấp nâng cấp kỹ năng Phiên Dịch Đa Năng để hiểu tiếng thú, đàm phán với Đại Hắc Cẩu (chó đen biến dị cao hơn 3 mét) đang truy đuổi Ngô Soái. Chó đen đồng ý đình chiến với điều kiện cắn nhẹ vào tay Ngô Soái."
-
-    # Chapter 10
-    elif "chương 10" in q_low or "chuông 10" in q_low:
-        ans += "Phương Tường lái xe đi đường tránh T02 và ghé vào trạm xăng. Hàn Phong tiêu diệt thây ma bảo vệ, nhận được Nhẫn sức mạnh lv2. Hắn thăng lên cấp 5 và tiếp nhận nhiệm vụ tân thủ 'Thu thập tàn cuộc' cứu 20 người."
-
-    # Chapter 9
-    elif "chương 9" in q_low or "chuông 9" in q_low:
-        ans += "Hàn Phong sử dụng băng thuật tiêu diệt thây ma quanh xe bán tải Ford Raptor để cả nhóm lên xe rời đi. Hắn kiểm tra chiến lợi phẩm gồm áo khoác tận thế cấp 3, các kỹ năng như Khỏe mạnh kép (cho Phương Tường) và Tăng cường chống chịu."
-
-    # Chapter 8
-    elif "chương 8" in q_low or "chuông 8" in q_low:
-        if any(x in q_low for x in ["tóm tắt", "diễn biến", "nội dung"]):
-            ans += "Nhóm Hàn Phong hạ thây ma cấp 8 tay to. Hắn nhặt được kỹ năng Tăng cường nhanh nhẹn, Hồi tức (đưa cho Liễu Huyên) và Vòng tay trị liệu cấp 2. Hắn lên cấp 4, dẫn nhóm xuống bãi đỗ xe tiếp cận chiếc Ford Raptor đang bị vây quanh bởi bốn thây ma."
-        else:
-            ans += "Sau khi tiêu diệt thây ma cấp 8 ở chương 8, Hàn Phong nhận được chiến lợi phẩm gồm: kỹ năng bị động Tăng cường nhanh nhẹn, kỹ năng chủ động Hồi tức (cho Liễu Huyên) và Vòng tay trị liệu lv2."
-
-    # Chapter 7
-    elif "chương 7" in q_low or "chuông 7" in q_low:
-        ans += "Tại tầng 1 ở chương 7, Hàn Phong đối đầu thây ma cấp 8 có cánh tay trái to lớn. Trảm mã đao của hắn bị giật bay, băng thương đâm hụt và hắn bị rơi vào hiểm cảnh."
-
-    # Chapter 6
-    elif "chương 6" in q_low or "chuông 6" in q_low or "lý khuê" in q_low:
-        ans += "Hàn Phong đưa nhóm rời đi, chém thây ma lên cấp 3. Hắn tiêu diệt thây ma Lý Khuê cấp 7 ở phòng bảo vệ, nhận được kỹ năng Tăng cường sức mạnh và thẻ Ủng gia tốc, rồi tìm thấy súng K54."
-
-    # Chapter 5
-    elif "chương 5" in q_low or "chuông 5" in q_low or "lý bình" in q_low or "trảm mã đao" in q_low:
-        ans += "Hàn Phong cùng Phương Tường và Liễu Huyên hợp lực tiêu diệt thây ma Lý Bình cấp 5, nhận được Trảm mã đao cấp 2. Phương Tường đề nghị đưa súng K54 và xe bán tải đổi lấy việc Hàn Phong cứu người nhà ở khu Thanh Hà."
-
-    # Chapter 4
-    elif "chương 4" in q_low or "chuông 4" in q_low:
-        if any(x in q_low for x in ["hành lang", "cuộc chiến", "chiến đấu"]):
-            ans += "Hàn Phong ra hành lang giết thây ma bảo vệ cấp 3 bằng băng thương và nhặt được kỹ năng bị động Trinh sát nhãn."
-        else:
-            ans += "Hàn Phong thu thập đồ dùng rời văn phòng, ra hành lang giết thây ma bảo vệ cấp 3 bằng băng thương và nhặt được kỹ năng bị động Trinh sát nhãn. Hắn đến phòng giám đốc phát hiện Phương Tường và Liễu Huyên đang chống đỡ các thây ma."
-
-    # Chapter 3
-    elif "chương 3" in q_low or "chuông 3" in q_low:
-        if any(x in q_low for x in ["tóm tắt", "diễn biến", "nội dung", "nói về"]):
-            ans += "Hàn Phong phân bổ điểm tiềm năng, chọn kỹ năng chủ động nhị giai Thao túng hàn băng từ ban thưởng hệ thống. Hắn thử nghiệm tạo băng thương đâm xuyên xác Bàng Lâm và đông cứng bình nước, sau đó chặn cửa bằng tủ hồ sơ để ngủ 30 phút."
-        elif "dị năng" in q_low or "thức tỉnh" in q_low or "hệ băng" in q_low:
-            ans += "Trong chương 3, Hàn Phong chọn nhận kỹ năng thư ngẫu nhiên từ ban thưởng sống sót của hệ thống và nhận được dị năng Thao túng hàn băng."
-        else:
-            ans += "Hàn Phong phân bổ điểm tiềm năng, chọn kỹ năng chủ động nhị giai Thao túng hàn băng từ ban thưởng hệ thống. Hắn thử nghiệm tạo băng thương đâm xuyên xác Bàng Lâm và đông cứng bình nước, sau đó chặn cửa bằng tủ hồ sơ để ngủ 30 phút."
-
-    # Chapter 2
-    elif "chương 2" in q_low or "chuông 2" in q_low:
-        ans += "Hàn Phong tiêu diệt đồng nghiệp Bàng Lâm biến thành thây ma, giải cứu Lưu Thanh nhưng Lưu Thanh vẫn biến đổi và buộc phải kết liễu. Hắn gọi điện cho em họ Ngô Soái và thăng lên cấp 2."
-
-    # Chapter 1
-    elif "chương 1" in q_low or "chuông 1" in q_low:
-        if any(x in q_low for x in ["tóm tắt", "diễn biến", "nội dung"]):
-            ans += "Hàn Phong làm việc tại công ty lừa đảo Đại Thiên Thần, chịu đựng sếp Phương Tường chửi mắng vì lương 3000 đồng bạc. Ra ngoài hành lang, hắn bị Lý Bình đòi nợ và phải hẹn khất."
-        elif "zombie đầu tiên" in q_low or "thây ma đầu tiên" in q_low or "bàng lâm" in q_low:
-            ans += "Hàn Phong tiêu diệt thây ma đầu tiên là đồng nghiệp Bàng Lâm bằng cách dùng gậy bóng chày đập vỡ sọ."
-        elif "đại thiên thần" in q_low:
-            ans += "Tòa nhà Đại Thiên Thần là nơi làm việc cũ của Hàn Phong và là địa điểm bùng phát dịch bệnh ban đầu."
-        else:
-            ans += "Hàn Phong làm việc tại công ty lừa đảo Đại Thiên Thần, chịu đựng sếp Phương Tường chửi mắng vì lương 3000 đồng bạc. Ra ngoài hành lang, hắn bị Lý Bình đòi nợ và phải hẹn khất."
-
-    # Entity profile fallbacks
-    elif "liễu huyên" in q_low:
-        ans += "Liễu Huyên là thư ký của giám đốc Phương Tường tại công ty Đại Thiên Thần, được Hàn Phong giải cứu và học kỹ năng Hồi tức."
-    elif "phương tường" in q_low:
-        ans += "Phương Tường là giám đốc béo của công ty Đại Thiên Thần, sếp cũ của Hàn Phong."
-    elif "ngô soái" in q_low:
-        ans += "Ngô Soái là em họ của Hàn Phong, 18 tuổi, dũng cảm, sau tận thế thức tỉnh dị năng hệ sức mạnh/Cự Nhân Biến."
-    elif "lạc thanh thủy" in q_low:
-        ans += "Lạc Thanh Thủy là phi phàm giả mạnh mẽ thuộc thế lực Tam Giang, có dị năng thao túng nước và nghịch thuyền trên sông Lệ Giang."
-    elif "la thiên dật" in q_low:
-        ans += "La Thiên Dật là dị năng giả hệ Nhà Khí Tượng Học, xé mây tạo hố trời chiếu sáng Diễn Giang trong chương 830."
-        
-    else:
-        ans += "Dữ liệu thực tế được ghi nhận trong các phân đoạn truyện hiện có."
-        
-    return ans
 eval_mode_changes_configuration_only = True
 
 async def verify_and_repair_answer(
@@ -1282,7 +1119,7 @@ async def verify_and_repair_answer(
     # Final deterministic safety guard on the final output (runs for BOTH verifier enabled & disabled paths)
     post_guard = run_deterministic_guard(draft_answer, full_context, evidence_contract, intent, question)
     if not post_guard["passed"] and evidence_contract["evidence_sufficient"]:
-        draft_answer = construct_fallback_grounded_answer(question, wiki_context, rag_context)
+        draft_answer = "Dữ liệu hiện có chưa đủ để kết luận."
         
     return draft_answer, verifier_calls, repair_calls, trigger_reasons
 
