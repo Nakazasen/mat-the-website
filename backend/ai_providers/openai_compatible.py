@@ -17,6 +17,7 @@ import re
 import time
 from typing import Any
 
+import asyncio
 import httpx
 
 from ai_providers.base import AIRequest, AIResult, BaseAIProvider, ProviderCandidate
@@ -39,7 +40,7 @@ class OpenAICompatibleProvider(BaseAIProvider):
         self.base_url = normalized.base_url.rstrip("/")
         self.api_key_pool = list(normalized.api_key_pool)
         self.model_pool = list(normalized.model_pool)
-        self.timeout = normalized.timeout
+        self.timeout = max(60.0, float(normalized.timeout or 20.0))
         self._next_key_index = 0
         self._next_model_index = 0
 
@@ -89,6 +90,7 @@ class OpenAICompatibleProvider(BaseAIProvider):
             "messages": messages,
             "max_tokens": safe_max_tokens,
             "temperature": request.temperature,
+            "top_p": getattr(request, "top_p", 1.0)
         }
 
         # JSON mode for providers that support it
@@ -113,7 +115,10 @@ class OpenAICompatibleProvider(BaseAIProvider):
 
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.post(endpoint, json=payload, headers=headers)
+                response = await asyncio.wait_for(
+                    client.post(endpoint, json=payload, headers=headers),
+                    timeout=self.timeout
+                )
 
             if response.is_success:
                 data = response.json()
@@ -150,7 +155,7 @@ class OpenAICompatibleProvider(BaseAIProvider):
                 ),
                 latency_ms=round((time.time() - started) * 1000),
             )
-        except httpx.TimeoutException as exc:
+        except (httpx.TimeoutException, TimeoutError, asyncio.TimeoutError) as exc:
             return AIResult(
                 status="error",
                 provider=self.name,

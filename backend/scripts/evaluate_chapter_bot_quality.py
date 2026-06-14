@@ -20,6 +20,9 @@ load_dotenv(os.path.join(backend_path, ".env"), override=True)
 # Set environment variables for tracing and bypass keys check
 os.environ["ORACLE_RAG_TRACE"] = "1"
 os.environ["ORACLE_FEEDBACK_ADMIN_TOKEN"] = "eval-admin-token"
+os.environ["ORACLE_EVAL_MODE"] = "1"
+os.environ["ORACLE_GROUNDED_VERIFIER_ENABLED"] = "1"
+os.environ["ORACLE_GROUNDED_REPAIR_ENABLED"] = "1"
 
 # Quota tracker for call accounting
 quota_tracker = {
@@ -116,12 +119,16 @@ Hãy trả về một đối tượng JSON duy nhất có dạng:
         res = await router.route(req)
         if res.status == "success" and res.text:
             raw_text = res.text.strip()
-            if raw_text.startswith("```json"):
-                raw_text = raw_text[7:]
-            if raw_text.endswith("```"):
-                raw_text = raw_text[:-3]
-            raw_text = raw_text.strip()
             import re
+            match = re.search(r"(\{.*\})", raw_text, re.DOTALL)
+            if match:
+                raw_text = match.group(1)
+            else:
+                if raw_text.startswith("```json"):
+                    raw_text = raw_text[7:]
+                if raw_text.endswith("```"):
+                    raw_text = raw_text[:-3]
+                raw_text = raw_text.strip()
             cleaned_text = re.sub(r'\\(?![/"\\bfnrtu])', r'\\\\', raw_text)
             cleaned_text = re.sub(r'\bTrue\b', 'true', cleaned_text)
             cleaned_text = re.sub(r'\bFalse\b', 'false', cleaned_text)
@@ -234,35 +241,43 @@ async def evaluate_case(idx, case, sem):
         bot_answer = bot_res.answer or ""
         
         # Retrieve the source context text used by the bot to pass to the Judge
-        selected_chunk_ids = trace.get("selected_chunk_ids") or []
         source_context_parts = []
         try:
-            try:
-                from main import supabase
-            except ImportError:
-                from backend.main import supabase
+            if os.getenv("SUPABASE_OFFLINE") == "1":
+                rag_context = trace.get("rag_context") or ""
+                wiki_context = trace.get("wiki_context") or ""
+                if rag_context:
+                    source_context_parts.append(rag_context)
+                if wiki_context:
+                    source_context_parts.append(wiki_context)
+            else:
+                selected_chunk_ids = trace.get("selected_chunk_ids") or []
+                try:
+                    from main import supabase
+                except ImportError:
+                    from backend.main import supabase
 
-            if selected_chunk_ids and supabase:
-                resp = supabase.table("story_chunks").select("chapter_number, chunk_index, content_plain").in_("id", selected_chunk_ids).execute()
-                for row in (resp.data or []):
-                    source_context_parts.append(f"[Chương {row['chapter_number']} chunk {row['chunk_index']}]:\n{row['content_plain']}")
-            
-            # Also get the entity profile if it was an identity query
-            from backend.routes.ai_oracle import is_identity_question, extract_entity_name
-            if is_identity_question(case["question"]):
-                ent = extract_entity_name(case["question"])
-                if ent and len(ent) >= 2:
-                    # Search wiki_entries
-                    w_res = supabase.table("wiki_entries").select("title, summary, content").ilike("title", f"%{ent}%").limit(1).execute()
-                    if w_res.data:
-                        w_row = w_res.data[0]
-                        source_context_parts.append(f"[WIKI {w_row['title']}]:\n{w_row.get('summary') or w_row.get('content') or ''}")
-                    
-                    # Search provisional_library
-                    p_res = supabase.table("provisional_library").select("name, summary").ilike("name", f"%{ent}%").limit(1).execute()
-                    if p_res.data:
-                        p_row = p_res.data[0]
-                        source_context_parts.append(f"[PROVISIONAL {p_row['name']}]:\n{p_row.get('summary') or ''}")
+                if selected_chunk_ids and supabase:
+                    resp = supabase.table("story_chunks").select("chapter_number, chunk_index, content_plain").in_("id", selected_chunk_ids).execute()
+                    for row in (resp.data or []):
+                        source_context_parts.append(f"[Chương {row['chapter_number']} chunk {row['chunk_index']}]:\n{row['content_plain']}")
+                
+                # Also get the entity profile if it was an identity query
+                from backend.routes.ai_oracle import is_identity_question, extract_entity_name
+                if is_identity_question(case["question"]):
+                    ent = extract_entity_name(case["question"])
+                    if ent and len(ent) >= 2:
+                        # Search wiki_entries
+                        w_res = supabase.table("wiki_entries").select("title, summary, content").ilike("title", f"%{ent}%").limit(1).execute()
+                        if w_res.data:
+                            w_row = w_res.data[0]
+                            source_context_parts.append(f"[WIKI {w_row['title']}]:\n{w_row.get('summary') or w_row.get('content') or ''}")
+                        
+                        # Search provisional_library
+                        p_res = supabase.table("provisional_library").select("name, summary").ilike("name", f"%{ent}%").limit(1).execute()
+                        if p_res.data:
+                            p_row = p_res.data[0]
+                            source_context_parts.append(f"[PROVISIONAL {p_row['name']}]:\n{p_row.get('summary') or ''}")
         except Exception as e:
             print(f"Warning fetching source context for judge: {e}")
 

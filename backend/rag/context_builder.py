@@ -59,7 +59,14 @@ def build_rag_context_block(
     citations = []
     current_total_chars = 0
 
-    for r in results[:max_chunks]:
+    # Select the top max_chunks by relevance first, then sort them chronologically
+    selected_results = results[:max_chunks]
+    selected_results = sorted(
+        selected_results,
+        key=lambda x: (x.get("chapter_number") or 0, x.get("chunk_index") or 0)
+    )
+
+    for r in selected_results:
         chapter_number = r.get("chapter_number")
         chapter_title = (r.get("chapter_title") or "").strip()
         chunk_index = r.get("chunk_index")

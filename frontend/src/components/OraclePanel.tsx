@@ -38,6 +38,7 @@ interface Message {
     role: "user" | "oracle";
     text: string;
     source?: "cache" | "local_wiki" | "gemini" | "ai_provider" | string;
+    citations?: any[];
 }
 
 interface OraclePanelProps {
@@ -60,6 +61,7 @@ interface OracleErrorPayload {
     error_code?: DiagnosticCode;
     answer?: string;
     source?: "cache" | "local_wiki" | "gemini" | "ai_provider" | string;
+    citations?: any[];
 }
 
 interface FloatingPosition {
@@ -231,6 +233,7 @@ export default function OraclePanel({
                     role: "oracle",
                     text: payload.answer ?? dictionary.oracle.invalidResponse,
                     source: payload.source,
+                    citations: payload.citations,
                 },
             ]);
         } catch {
@@ -390,6 +393,52 @@ export default function OraclePanel({
                                 >
                                     {isAdminDebug ? message.text : cleanMessageText(message.text)}
                                 </div>
+                                {message.role === "oracle" && message.citations && message.citations.length > 0 && (
+                                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "4px", paddingLeft: "4px" }}>
+                                        {(() => {
+                                            const seen = new Set();
+                                            const formatted: { label: string; key: string }[] = [];
+                                            for (const cit of message.citations) {
+                                                let label = "";
+                                                let key = "";
+                                                if (cit.source === "story_chunks") {
+                                                    const chNum = cit.chapter_number;
+                                                    label = cit.chapter_title ? `Chương ${chNum}: ${cit.chapter_title}` : `Chương ${chNum}`;
+                                                    key = `ch-${chNum}`;
+                                                } else if (cit.source === "wiki") {
+                                                    label = `Wiki: ${cit.chapter_title || cit.title}`;
+                                                    key = `wiki-${cit.chapter_title || cit.title}`;
+                                                } else if (cit.source === "provisional") {
+                                                    label = `Thư viện: ${cit.chapter_title || cit.title}`;
+                                                    key = `prov-${cit.chapter_title || cit.title}`;
+                                                }
+                                                if (label && !seen.has(key)) {
+                                                    seen.add(key);
+                                                    formatted.push({ label, key });
+                                                }
+                                            }
+                                            return formatted.map(cit => (
+                                                <span
+                                                    key={cit.key}
+                                                    style={{
+                                                        display: "inline-flex",
+                                                        alignItems: "center",
+                                                        padding: "2px 8px",
+                                                        borderRadius: "4px",
+                                                        background: "rgba(57, 255, 20, 0.05)",
+                                                        border: "1px solid rgba(57, 255, 20, 0.15)",
+                                                        color: "rgba(57, 255, 20, 0.8)",
+                                                        fontSize: "9px",
+                                                        fontFamily: "monospace",
+                                                        cursor: "default",
+                                                    }}
+                                                >
+                                                    {cit.label}
+                                                </span>
+                                            ));
+                                        })()}
+                                    </div>
+                                )}
                                 {message.source && (
                                     <div style={{ fontSize: "9px", color: "rgba(255,255,255,0.25)", fontFamily: "monospace", paddingLeft: "4px" }}>
                                         {((dictionary?.oracle?.sources as Record<string, string>)?.[message.source]) ?? message.source}

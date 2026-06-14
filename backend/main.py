@@ -139,6 +139,18 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+_SUPABASE_OFFLINE = os.getenv("SUPABASE_OFFLINE") == "1"
+if not _SUPABASE_OFFLINE:
+    try:
+        if SUPABASE_URL:
+            r = httpx.get(SUPABASE_URL, timeout=1.0)
+            _SUPABASE_OFFLINE = False
+        else:
+            _SUPABASE_OFFLINE = True
+    except Exception:
+        _SUPABASE_OFFLINE = True
+        print("DEBUG: Supabase detected as OFFLINE in main.py. Using local offline mocks.")
+
 # === CLOUDFLARE R2 CLIENT ===
 
 R2_ACCESS_KEY = os.getenv("R2_ACCESS_KEY_ID")
@@ -237,19 +249,31 @@ def resolve_ai_provider_config() -> dict:
 
     Falls back to empty config if the column doesn't exist yet.
     """
-    try:
-        settings = (
-            supabase.table("novel_settings")
-            .select("ai_provider_config")
-            .eq("id", 1)
-            .single()
-            .execute()
-        )
-        config = (settings.data or {}).get("ai_provider_config") or {}
-        if isinstance(config, dict):
-            return config
-    except Exception as e:
-        print(f"DEBUG: resolve_ai_provider_config error: {e}")
+    if not _SUPABASE_OFFLINE:
+        try:
+            settings = (
+                supabase.table("novel_settings")
+                .select("ai_provider_config")
+                .eq("id", 1)
+                .single()
+                .execute()
+            )
+            config = (settings.data or {}).get("ai_provider_config") or {}
+            if isinstance(config, dict) and config:
+                return config
+        except Exception as e:
+            print(f"DEBUG: resolve_ai_provider_config error: {e}")
+
+    # Offline fallback
+    fallback_path = os.path.join(os.path.dirname(__file__), "ai_provider_config_fallback.json")
+    if os.path.exists(fallback_path):
+        print("DEBUG: Loading local fallback AI provider config.")
+        try:
+            with open(fallback_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as fe:
+            print(f"DEBUG: Error loading fallback AI provider config: {fe}")
+
     return {}
 
 

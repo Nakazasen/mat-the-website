@@ -36,6 +36,7 @@ class AIRequest:
     glossary_terms: list[dict[str, Any]] = field(default_factory=list)
     max_output_tokens: int = 4096
     temperature: float = 0.7
+    top_p: float = 1.0
     strategy: str = "waterfall"
     job_id: Optional[str] = None
 

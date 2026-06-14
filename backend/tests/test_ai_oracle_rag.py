@@ -156,7 +156,7 @@ async def test_call_ai_provider_result_prompt_formatting():
         assert "Wiki info" in ai_request.system_instruction
 
 @pytest.mark.asyncio
-async def test_ask_oracle_endpoint_rag_routing():
+async def test_ask_oracle_endpoint_rag_routing(monkeypatch):
     import sys
     print("\nALL AI ORACLE MODULES IN SYS:", [k for k in sys.modules.keys() if "ai_oracle" in k])
     try:
@@ -168,8 +168,7 @@ async def test_ask_oracle_endpoint_rag_routing():
     client = TestClient(app)
 
     # 1. When ORACLE_RAG_ENABLED is OFF
-    if "ORACLE_RAG_ENABLED" in os.environ:
-        del os.environ["ORACLE_RAG_ENABLED"]
+    monkeypatch.delenv("ORACLE_RAG_ENABLED", raising=False)
 
     with patch_oracle_func("call_ai_provider_result") as mock_call, \
          patch_oracle_func("check_cache", return_value=None), \
@@ -201,14 +200,14 @@ async def test_ask_oracle_endpoint_rag_routing():
         assert len(args) < 5 or args[4] == ""
 
     # 2. When ORACLE_RAG_ENABLED is ON
-    os.environ["ORACLE_RAG_ENABLED"] = "true"
+    monkeypatch.setenv("ORACLE_RAG_ENABLED", "true")
 
     with patch_oracle_func("call_ai_provider_result") as mock_call, \
          patch_oracle_func("check_cache", return_value=None), \
          patch_oracle_func("get_wiki_context", return_value=""), \
          patch_oracle_func("get_chapter_context", return_value=""), \
          patch_oracle_func("check_rate_limit", return_value=True), \
-         patch_oracle_func("get_rag_context_for_oracle", return_value={"context_text": "Mock RAG Context", "citations": []}):
+         patch_oracle_func("get_rag_context_for_oracle", return_value={"context_text": "Mock RAG Context containing Hàn Phong", "citations": [{"id": "chunk-1", "chapter_number": 1, "source": "story_chunks"}]}):
 
         mock_result = MagicMock()
         mock_result.status = "success"
@@ -224,11 +223,7 @@ async def test_ask_oracle_endpoint_rag_routing():
         assert response.json()["answer"] == "Mock RAG answer that is long enough to pass validation"
 
         args, kwargs = mock_call.call_args
-        assert args[4] == "Mock RAG Context"
-
-    # Cleanup
-    if "ORACLE_RAG_ENABLED" in os.environ:
-        del os.environ["ORACLE_RAG_ENABLED"]
+        assert args[4] == "Mock RAG Context containing Hàn Phong"
 
 
 @pytest.mark.asyncio
