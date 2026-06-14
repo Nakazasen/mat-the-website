@@ -17,12 +17,7 @@ if parent_path not in sys.path:
 
 load_dotenv(os.path.join(backend_path, ".env"), override=True)
 
-# Set environment variables for tracing and bypass keys check
-os.environ["ORACLE_RAG_TRACE"] = "1"
-os.environ["ORACLE_FEEDBACK_ADMIN_TOKEN"] = "eval-admin-token"
-os.environ["ORACLE_EVAL_MODE"] = "1"
-os.environ["ORACLE_GROUNDED_VERIFIER_ENABLED"] = "1"
-os.environ["ORACLE_GROUNDED_REPAIR_ENABLED"] = "1"
+# Environment variables will be set in main() to avoid contaminating unit tests
 
 # Quota tracker for call accounting
 quota_tracker = {
@@ -372,6 +367,13 @@ async def evaluate_case(idx, case, sem):
         }
 
 async def main():
+    # Set environment variables for tracing and bypass keys check
+    os.environ["ORACLE_RAG_TRACE"] = "1"
+    os.environ["ORACLE_FEEDBACK_ADMIN_TOKEN"] = "eval-admin-token"
+    os.environ["ORACLE_EVAL_MODE"] = "1"
+    os.environ["ORACLE_GROUNDED_VERIFIER_ENABLED"] = "1"
+    os.environ["ORACLE_GROUNDED_REPAIR_ENABLED"] = "1"
+
     start_eval_time = time.perf_counter()
     cases_path = os.path.join(backend_path, "evals", "chapter_bot_quality_cases_v1.json")
     if not os.path.exists(cases_path):
