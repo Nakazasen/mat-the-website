@@ -1,0 +1,62 @@
+[
+  {
+    "case_id": "char-03",
+    "question": "Bàng Lâm là ai?",
+    "chapter_progress": 0
+  },
+  {
+    "case_id": "char-04",
+    "question": "Lý Khuê là ai?",
+    "chapter_progress": 0
+  },
+  {
+    "case_id": "sum-07",
+    "question": "Nội dung tóm tắt chính của Chương 7: Nguy cơ.",
+    "chapter_progress": 0
+  },
+  {
+    "case_id": "sum-08",
+    "question": "Hãy tóm tắt ngắn gọn diễn biến của Chương 8.",
+    "chapter_progress": 0
+  },
+  {
+    "case_id": "sum-09",
+    "question": "Chương 9 nói về diễn biến gì?",
+    "chapter_progress": 0
+  },
+  {
+    "case_id": "sum-10",
+    "question": "Tóm tắt diễn biến Chương 10: Tiếp nhận nhiệm vụ.",
+    "chapter_progress": 0
+  },
+  {
+    "case_id": "sum-05",
+    "question": "Tóm tắt Chương 5: Thẻ vật phẩm.",
+    "chapter_progress": 0
+  },
+  {
+    "case_id": "char-07",
+    "question": "La Thiên Dật là ai?",
+    "chapter_progress": 0
+  },
+  {
+    "case_id": "sum-01",
+    "question": "Tóm tắt nội dung chính của Chương 1: Đầu lâu khổng lồ ngoài cửa sổ.",
+    "chapter_progress": 0
+  },
+  {
+    "case_id": "sum-11",
+    "question": "Tóm tắt diễn biến của Chương 200: Đại Hắc Cẩu.",
+    "chapter_progress": 0
+  },
+  {
+    "case_id": "event-08",
+    "question": "Chu Vấn trộm trứng rắn lục như thế nào ở chương 830?",
+    "chapter_progress": 0
+  },
+  {
+    "case_id": "char-10",
+    "question": "Ngô Soái là ai?",
+    "chapter_progress": 0
+  }
+]

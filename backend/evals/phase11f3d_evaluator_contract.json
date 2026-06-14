@@ -1,0 +1,41 @@
+{
+  "contract_version": "11F3D_IMMUTABLE_CLEAN_V1",
+  "collection_and_scoring_separated": true,
+  "gold_loaded_after_collection_sealed": true,
+  "case_id_passed_to_oracle": false,
+  "cache_bypass": true,
+  "silent_provider_fallback": false,
+  "override_hits_allowed": 0,
+  "benchmark_fields_reachable_allowed": false,
+  "source_mutation_invalidates_run": true,
+  "collector_mutation_invalidates_run": true,
+  "scorer_mutation_invalidates_run": true,
+  "query_manifest_mutation_invalidates_run": true,
+  "raw_answers_mutable_after_seal": false,
+  "legacy_evaluators_prohibited": true,
+  "contaminated_artifacts_prohibited": true,
+  "live_run_protocol": {
+    "executions_per_targeted_case_baseline": 1,
+    "pinned_provider_required": true,
+    "pinned_model_required": true,
+    "pinned_temperature_required": true,
+    "explicit_timeout_required": true,
+    "provider_or_model_changing_retries_allowed": false,
+    "evaluator_edits_during_or_after_run_allowed": false,
+    "checksum_mismatch_invalidates_entire_run": true,
+    "execute_now": false
+  },
+  "clean_worktree_requirement": {
+    "fresh_detached_worktree_or_equivalent_clean_checkout_required": true,
+    "recursive_globs_for_inputs_allowed": false,
+    "explicit_committed_input_paths_only": true
+  },
+  "failure_classifications": [
+    "INVALID_SOURCE_OR_EVALUATOR_MUTATED_DURING_RUN",
+    "INVALID_BENCHMARK_FIELDS_REACHABLE_DURING_COLLECTION",
+    "INVALID_OVERRIDE_HIT_DETECTED",
+    "INVALID_UNSEALED_RAW_ANSWER_ARTIFACT",
+    "INVALID_DUPLICATE_CASE_IDS",
+    "INVALID_MISSING_CASES"
+  ]
+}
