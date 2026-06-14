@@ -1,0 +1,149 @@
+{
+  "created_for": "Phase 11F-3C0B",
+  "classification": "QUALITY_EVIDENCE_REVOKED",
+  "records": [
+    {
+      "path": "backend/evals/runs/phase11f3a_no_override_run1_20260614_212800.json",
+      "sha256": "62d29f973e072beafdcc7520d66697918fb0ca3f85841be328e85f27870a639a",
+      "previous_classification": "CLEAN_NO_OVERRIDE_RUN1",
+      "new_classification": "ANSWER_OVERRIDE_CONTAMINATED_RUN_NOT_CLEAN_QUALITY_EVIDENCE",
+      "confirmed_contaminated_cases": [
+        "sum-01",
+        "sum-03",
+        "event-09"
+      ],
+      "insufficient_trace_cases": [
+        "8 cases identified in phase11f3c0_run1_impact.json"
+      ],
+      "reason": "Literal source-coded answer outputs were detected for 3 cases and 8 cases had insufficient provenance trace.",
+      "prohibited_uses": [
+        "generation quality acceptance",
+        "progress calculation",
+        "deployment evidence",
+        "clean no-override claim"
+      ]
+    },
+    {
+      "path": "backend/evals/runs/phase11f3a_targeted_no_override_20260614_194958.json",
+      "sha256": "e914cf3e2263adc5c781284e4cfe8bd246a880aae0e25da77825f5c7fa08da1c",
+      "previous_classification": "TARGETED_11F3A_ACCEPTANCE",
+      "new_classification": "ANSWER_OVERRIDE_CONTAMINATED_TARGETED_RUN_NOT_CLEAN_QUALITY_EVIDENCE",
+      "confirmed_contaminated_cases": [
+        "loc-02 x4"
+      ],
+      "insufficient_trace_cases": [],
+      "reason": "Four targeted executions matched source-coded answer literals.",
+      "prohibited_uses": [
+        "generation quality acceptance",
+        "progress calculation",
+        "deployment evidence",
+        "clean no-override claim"
+      ]
+    },
+    {
+      "path": "backend/evals/runs/phase11f3c_stage2_targeted_20260614_224556.json",
+      "sha256": "aeb11aa6928d66475c85bfae2274587dd549b43a8b1fcc9345a4239a1c773c50",
+      "previous_classification": "PHASE11F3C_STAGE2_ARTIFACT",
+      "new_classification": "CONTAMINATED_STAGE2_ARTIFACT_PROHIBITED",
+      "confirmed_contaminated_cases": [],
+      "insufficient_trace_cases": [],
+      "reason": "Phase 11F-3C Stage 2 artifacts are invalidated by contaminated override lineage and prohibited for quality evidence.",
+      "prohibited_uses": [
+        "generation quality acceptance",
+        "progress calculation",
+        "deployment evidence",
+        "clean no-override claim"
+      ]
+    },
+    {
+      "path": "backend/evals/runs/phase11f3c_stage2_targeted_20260614_230030.json",
+      "sha256": "17398af9a1d6aca931eb1d689432a29678aab5fe25ad514a4f3ea381d83e7aa9",
+      "previous_classification": "PHASE11F3C_STAGE2_ARTIFACT",
+      "new_classification": "CONTAMINATED_STAGE2_ARTIFACT_PROHIBITED",
+      "confirmed_contaminated_cases": [],
+      "insufficient_trace_cases": [],
+      "reason": "Phase 11F-3C Stage 2 artifacts are invalidated by contaminated override lineage and prohibited for quality evidence.",
+      "prohibited_uses": [
+        "generation quality acceptance",
+        "progress calculation",
+        "deployment evidence",
+        "clean no-override claim"
+      ]
+    },
+    {
+      "path": "backend/evals/runs/phase11f3c_stage2_targeted_20260614_231248.json",
+      "sha256": "f5074c57387fdb3e71524d5749e8f8fe3c0f48fe90bb62f677efaba3636569e3",
+      "previous_classification": "PHASE11F3C_STAGE2_ARTIFACT",
+      "new_classification": "CONTAMINATED_STAGE2_ARTIFACT_PROHIBITED",
+      "confirmed_contaminated_cases": [],
+      "insufficient_trace_cases": [],
+      "reason": "Phase 11F-3C Stage 2 artifacts are invalidated by contaminated override lineage and prohibited for quality evidence.",
+      "prohibited_uses": [
+        "generation quality acceptance",
+        "progress calculation",
+        "deployment evidence",
+        "clean no-override claim"
+      ]
+    },
+    {
+      "path": "backend/evals/runs/phase11f3c_stage2_targeted_20260614_231824.json",
+      "sha256": "ca415ba186cfc068f5728574bd7c52d67dcc7b4612ac05a5db67e0787efd4951",
+      "previous_classification": "PHASE11F3C_STAGE2_ARTIFACT",
+      "new_classification": "CONTAMINATED_STAGE2_ARTIFACT_PROHIBITED",
+      "confirmed_contaminated_cases": [],
+      "insufficient_trace_cases": [],
+      "reason": "Phase 11F-3C Stage 2 artifacts are invalidated by contaminated override lineage and prohibited for quality evidence.",
+      "prohibited_uses": [
+        "generation quality acceptance",
+        "progress calculation",
+        "deployment evidence",
+        "clean no-override claim"
+      ]
+    },
+    {
+      "path": "backend/evals/runs/phase11f3c_stage2_targeted_20260614_232338.json",
+      "sha256": "ff8735b4bc0258bec42c1986635ff39a017375d35e6b9983470925b6cb2d5a6d",
+      "previous_classification": "PHASE11F3C_STAGE2_ARTIFACT",
+      "new_classification": "CONTAMINATED_STAGE2_ARTIFACT_PROHIBITED",
+      "confirmed_contaminated_cases": [],
+      "insufficient_trace_cases": [],
+      "reason": "Phase 11F-3C Stage 2 artifacts are invalidated by contaminated override lineage and prohibited for quality evidence.",
+      "prohibited_uses": [
+        "generation quality acceptance",
+        "progress calculation",
+        "deployment evidence",
+        "clean no-override claim"
+      ]
+    },
+    {
+      "path": "backend/evals/runs/phase11f3c_stage2_targeted_20260614_232614.json",
+      "sha256": "a685e13901894defadf3c6ce80d180f417d13e510f1aa449d17c14b3534b3b5f",
+      "previous_classification": "PHASE11F3C_STAGE2_ARTIFACT",
+      "new_classification": "CONTAMINATED_STAGE2_ARTIFACT_PROHIBITED",
+      "confirmed_contaminated_cases": [],
+      "insufficient_trace_cases": [],
+      "reason": "Phase 11F-3C Stage 2 artifacts are invalidated by contaminated override lineage and prohibited for quality evidence.",
+      "prohibited_uses": [
+        "generation quality acceptance",
+        "progress calculation",
+        "deployment evidence",
+        "clean no-override claim"
+      ]
+    },
+    {
+      "path": "backend/evals/runs/phase11f3c_stage1_targeted_20260614_223228.json",
+      "sha256": "4cf4327545410ef5822463c914ad0e938d02ba1aa11d66400e2f2a68987e7993",
+      "previous_classification": "PHASE11F3C_STAGE1_DIAGNOSTIC",
+      "new_classification": "STAGE1_DIAGNOSTIC_NOT_ACCEPTED",
+      "confirmed_contaminated_cases": [],
+      "insufficient_trace_cases": [],
+      "reason": "Former Stage 1 diagnostic is not accepted as clean quality evidence.",
+      "prohibited_uses": [
+        "generation quality acceptance",
+        "progress calculation",
+        "deployment evidence",
+        "clean no-override claim"
+      ]
+    }
+  ]
+}

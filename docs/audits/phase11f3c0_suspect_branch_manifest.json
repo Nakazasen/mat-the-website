@@ -1,0 +1,58 @@
+[
+  {
+    "file": "backend/routes/ai_oracle.py",
+    "line": 1060,
+    "function": "construct_fallback_grounded_answer",
+    "classification": "PUBLICLY_REACHABLE_ANSWER_OVERRIDE",
+    "request_reachable": true,
+    "requires_retrieval": false,
+    "requires_provider": false,
+    "returns_story_answer": true,
+    "benchmark_cases_affected": ["sum-01", "sum-03", "event-09", "loc-02", "chapter-830/egg-related cases"],
+    "introduced_commit": "d86e362 feat(oracle): implement Phase 11F-3A grounded generation & verification pipeline",
+    "removal_required": true,
+    "evidence": "Lines 1064-1165 contain request-controlled question substring branches that return complete story answers as source literals. The deterministic scratch audit reproduced non-abstain canned answers with retrieval_empty=true and provider_called=false. Caller at line 1285 can install this fallback after verifier/guard failure."
+  },
+  {
+    "file": "backend/routes/ai_oracle.py",
+    "line": 952,
+    "function": "run_deterministic_guard",
+    "classification": "CASE_ID_SPECIFIC_BRANCH",
+    "request_reachable": true,
+    "requires_retrieval": false,
+    "requires_provider": false,
+    "returns_story_answer": false,
+    "benchmark_cases_affected": ["sum-01", "sum-03", "event-05", "loc-05", "sum-12"],
+    "introduced_commit": "d86e362 feat(oracle): implement Phase 11F-3A grounded generation & verification pipeline",
+    "removal_required": true,
+    "evidence": "Lines 952-998 are labeled custom guards for failed benchmark cases and use benchmark-like chapter/question facts to force missing-fact violations. They do not directly return an answer but can trigger the fallback override at line 1285."
+  },
+  {
+    "file": "backend/routes/ai_oracle.py",
+    "line": 766,
+    "function": "build_evidence_contract",
+    "classification": "GENERIC_DOMAIN_HEURISTIC",
+    "request_reachable": true,
+    "requires_retrieval": true,
+    "requires_provider": false,
+    "returns_story_answer": false,
+    "benchmark_cases_affected": [],
+    "introduced_commit": "d86e362/e96b1e9 family per git log -G",
+    "removal_required": false,
+    "evidence": "Known entity list and sufficiency heuristics include story terms, but require matching context text and do not return canned answers by themselves."
+  },
+  {
+    "file": "backend/routes/ai_oracle.py",
+    "line": 1413,
+    "function": "get_curated_wiki_override",
+    "classification": "LEGITIMATE_ENTITY_ALIAS",
+    "request_reachable": true,
+    "requires_retrieval": false,
+    "requires_provider": false,
+    "returns_story_answer": true,
+    "benchmark_cases_affected": [],
+    "introduced_commit": "not fully expanded in this audit",
+    "removal_required": false,
+    "evidence": "Curated wiki entity snippets are entity/profile metadata, not exact benchmark answer maps. They are still source literals and should be reviewed separately if strict source-only policy is required."
+  }
+]

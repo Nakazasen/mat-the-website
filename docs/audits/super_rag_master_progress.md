@@ -18,20 +18,31 @@ This file tracks the autonomous progress of the Super RAG Quality Program.
 
 ---
 
-## Active Metrics Log (CURRENT STATUS: AUDIT / DOWNGRADED)
+## Active Metrics Log (CURRENT STATUS: CLEANUP / QUALITY EVIDENCE REVOKED)
 
-- **Master Phase 4 progress**: 55-60% (benchmark gold integrity has PASS, generation needs repair, official full Run 1 remains 68%)
-- **Overall Super-RAG progress**: 45-47% (benchmark gold integrity has PASS, generation needs repair, deploy not authorized)
+- **Pro-reviewed benchmark V2**: still valid as a source-grounded benchmark artifact.
+- **Run 1 generation acceptance**: REVOKED due to confirmed source-coded answer override contamination.
+- **Targeted 11F-3A acceptance**: REVOKED due to confirmed source-coded answer override contamination.
+- **Generation clean baseline**: not currently established; must be rebuilt after override removal.
+- **Production deploy**: remains unauthorized.
+- **Master Phase 4 progress**: 40-45%.
+- **Overall Super-RAG progress**: 40-43%.
 
 ### Retrieval Metrics
-- **Recall@5**: 90.00% (Phase 11F-3A)
-- **Recall@10**: 90.00% (Phase 11F-3A)
-- **MRR**: 0.8707 (Phase 11F-3A)
-- **Wrong Selected Chapter**: 2.00% (Phase 11F-3A)
-- **Future Spoiler Leakage**: 0.00% (Phase 11F-3A)
+- **Recall@5**: 90.00% (Phase 11F-3A historical retrieval trace; not generation acceptance)
+- **Recall@10**: 90.00% (Phase 11F-3A historical retrieval trace; not generation acceptance)
+- **MRR**: 0.8707 (Phase 11F-3A historical retrieval trace; not generation acceptance)
+- **Wrong Selected Chapter**: 2.00% (Phase 11F-3A historical retrieval trace; not generation acceptance)
+- **Future Spoiler Leakage**: 0.00% (Phase 11F-3A historical retrieval trace; not generation acceptance)
 
-### Generation Metrics (Contaminated - To Be Re-evaluated)
-- **Score >= 2 Rate**: CONTAMINATED (previously reported 100.00%)
-- **Score = 3 Rate**: CONTAMINATED (previously reported 92.00%)
-- **Unsupported Claims (Hallucinations)**: CONTAMINATED (previously reported 0.00%)
-- **Abstention Accuracy**: CONTAMINATED (previously reported 100.00%)
+### Generation Metrics (Revoked - To Be Re-established)
+- **Score >= 2 Rate**: REVOKED (Run 1 was contaminated by source-coded answer overrides)
+- **Score = 3 Rate**: REVOKED (Run 1 was contaminated by source-coded answer overrides)
+- **Unsupported Claims (Hallucinations)**: REVOKED (Run 1 was contaminated by source-coded answer overrides)
+- **Abstention Accuracy**: REVOKED (Run 1 was contaminated by source-coded answer overrides)
+
+### Revoked Evidence
+- `backend/evals/runs/phase11f3a_no_override_run1_20260614_212800.json`
+- `backend/evals/runs/phase11f3a_targeted_no_override_20260614_194958.json`
+- Phase 11F-3C Stage 2 artifacts
+- Phase 11F-3C Stage 1 diagnostic artifacts, where present
