@@ -1,0 +1,18 @@
+{
+  "rejected_file_path": "backend/evals/chapter_bot_quality_cases_v2_source_grounded.json",
+  "rejected_sha256": "35D2378537B36E13734CA2C406A43DC1131F332C8A94A1AB908146E1546F2414",
+  "rejection_classification": "FAIL_PHASE_11F3B_FLASH_V2_NOT_SOURCE_GROUNDED",
+  "genuinely_manual_reviews": 0,
+  "invalid_confirmed": 15,
+  "false_invalid_supported": 14,
+  "partial": 2,
+  "ambiguous": 1,
+  "unjustified_scoring_changes": 15,
+  "prohibited_uses": [
+    "evaluator input",
+    "quality acceptance",
+    "production optimization",
+    "progress calculation",
+    "deployment evidence"
+  ]
+}

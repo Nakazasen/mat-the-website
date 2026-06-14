@@ -1,0 +1,2952 @@
+[
+  {
+    "case_id": "sum-01",
+    "category": "chapter_summary",
+    "question": "Tóm tắt nội dung chính của Chương 1: Đầu lâu khổng lồ ngoài cửa sổ.",
+    "chapter_progress": 1,
+    "explicit_target_chapter": 1,
+    "allowed_chapter_range": [
+      1
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "Hàn Phong",
+      "Đại Thiên Thần",
+      "giám đốc",
+      "chửi",
+      "lương 3000"
+    ],
+    "optional_facts": [
+      "Lý Bình",
+      "khất nợ"
+    ],
+    "forbidden_facts": [
+      "Chu Vấn",
+      "rắn lục",
+      "Eat-3"
+    ],
+    "important_event_clusters": [
+      "mâu thuẫn với giám đốc",
+      "giang hồ đòi nợ ở hành lang"
+    ],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Hàn Phong làm việc tại công ty lừa đảo Đại Thiên Thần, chịu đựng sếp Phương Tường chửi mắng vì lương 3000 đồng bạc. Ra ngoài hành lang, hắn bị Lý Bình đòi nợ và phải hẹn khất.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "Hàn Phong",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Đại Thiên Thần",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "giám đốc",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "chửi",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "lương 3000",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Lý Bình",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "khất nợ",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": [
+      1
+    ]
+  },
+  {
+    "case_id": "sum-02",
+    "category": "chapter_summary",
+    "question": "Tóm tắt diễn biến chính của Chương 2: Tận thế hàng lâm.",
+    "chapter_progress": 2,
+    "explicit_target_chapter": 2,
+    "allowed_chapter_range": [
+      1,
+      2
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "Bàng Lâm",
+      "Lưu Thanh",
+      "Ngô Soái",
+      "cấp 2"
+    ],
+    "optional_facts": [
+      "Tô Minh",
+      "Tô Tâm",
+      "Hồ Hán Thương"
+    ],
+    "forbidden_facts": [
+      "Thao túng hàn băng",
+      "Lạc Thanh Thủy"
+    ],
+    "important_event_clusters": [
+      "tiêu diệt Bàng Lâm",
+      "Lưu Thanh bị cắn",
+      "Ngô Soái lên cấp 2"
+    ],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Hàn Phong tiêu diệt đồng nghiệp Bàng Lâm biến thành thây ma, cứu Lưu Thanh nhưng Lưu Thanh vẫn biến đổi và buộc phải kết liễu. Hắn gọi điện cho em họ Ngô Soái biết cậu đã lên cấp 2 trước khi mất sóng, và bản thân thăng lên cấp 2.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "Bàng Lâm",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Lưu Thanh",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Ngô Soái",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "cấp 2",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Tô Minh",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Tô Tâm",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Hồ Hán Thương",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": [
+      2
+    ]
+  },
+  {
+    "case_id": "sum-03",
+    "category": "chapter_summary",
+    "question": "Chương 3 nói về nội dung gì?",
+    "chapter_progress": 3,
+    "explicit_target_chapter": 3,
+    "allowed_chapter_range": [
+      1,
+      3
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "Thao túng hàn băng",
+      "thử nghiệm",
+      "chặn cửa",
+      "ngủ"
+    ],
+    "optional_facts": [
+      "băng thương",
+      "non bộ"
+    ],
+    "forbidden_facts": [
+      "Lạc Thanh Thủy",
+      "Lâm Nhã Vy"
+    ],
+    "important_event_clusters": [
+      "phân bổ điểm tiềm năng",
+      "chọn kỹ năng Thao túng hàn băng",
+      "thử nghiệm dị năng"
+    ],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Hàn Phong phân bổ điểm tiềm năng, chọn kỹ năng chủ động nhị giai Thao túng hàn băng từ ban thưởng hệ thống. Hắn thử nghiệm tạo băng thương đâm xuyên xác Bàng Lâm và đông cứng bình nước, sau đó chặn cửa bằng tủ hồ sơ để ngủ 30 phút.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "Thao túng hàn băng",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "thử nghiệm",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "chặn cửa",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "ngủ",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "băng thương",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "non bộ",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": [
+      3
+    ]
+  },
+  {
+    "case_id": "sum-04",
+    "category": "chapter_summary",
+    "question": "Hãy tóm tắt Chương 4 của bộ truyện.",
+    "chapter_progress": 4,
+    "explicit_target_chapter": 4,
+    "allowed_chapter_range": [
+      1,
+      4
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "Phương Tường",
+      "Liễu Huyên",
+      "Trinh sát nhãn",
+      "hành lang"
+    ],
+    "optional_facts": [
+      "Cổ Chính",
+      "Lý Bình",
+      "băng thương"
+    ],
+    "forbidden_facts": [
+      "Lạc Thanh Thủy",
+      "Lâm Nhã Vy"
+    ],
+    "important_event_clusters": [
+      "tiêu diệt thây ma ở hành lang",
+      "nhận kỹ năng Trinh sát nhãn",
+      "phát hiện Phương Tường và Liễu Huyên"
+    ],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Hàn Phong thu thập đồ dùng rời văn phòng, ra hành lang giết thây ma bảo vệ cấp 3 bằng băng thương và nhặt được kỹ năng bị động Trinh sát nhãn. Hắn đến phòng giám đốc phát hiện Phương Tường và Liễu Huyên đang chống đỡ các thây ma.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "Phương Tường",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Liễu Huyên",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Trinh sát nhãn",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "hành lang",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Cổ Chính",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Lý Bình",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "băng thương",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": [
+      4
+    ]
+  },
+  {
+    "case_id": "sum-05",
+    "category": "chapter_summary",
+    "question": "Tóm tắt Chương 5: Thẻ vật phẩm.",
+    "chapter_progress": 5,
+    "explicit_target_chapter": 5,
+    "allowed_chapter_range": [
+      1,
+      5
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "Lý Bình",
+      "Trảm mã đao",
+      "K54",
+      "Thanh Hà"
+    ],
+    "optional_facts": [
+      "súng",
+      "bán tải"
+    ],
+    "forbidden_facts": [
+      "Lạc Thanh Thủy",
+      "Lâm Nhã Vy"
+    ],
+    "important_event_clusters": [
+      "tiêu diệt Lý Bình",
+      "sử dụng thẻ nhận Trảm mã đao",
+      "thỏa thuận cứu người nhà"
+    ],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Hàn Phong cùng Phương Tường và Liễu Huyên hợp lực tiêu diệt thây ma Lý Bình cấp 5, nhận được Trảm mã đao cấp 2. Phương Tường đề nghị đưa súng K54 và xe bán tải đổi lấy việc Hàn Phong cứu người nhà ở khu Thanh Hà.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "Lý Bình",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Trảm mã đao",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "K54",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Thanh Hà",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "súng",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "bán tải",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": [
+      5
+    ]
+  },
+  {
+    "case_id": "sum-06",
+    "category": "chapter_summary",
+    "question": "Hãy tóm tắt ngắn gọn Chương 6.",
+    "chapter_progress": 6,
+    "explicit_target_chapter": 6,
+    "allowed_chapter_range": [
+      1,
+      6
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "Lý Khuê",
+      "Tăng cường sức mạnh",
+      "Ủng gia tốc",
+      "súng"
+    ],
+    "optional_facts": [
+      "cấp 3",
+      "thăng cấp"
+    ],
+    "forbidden_facts": [
+      "Lạc Thanh Thủy",
+      "Lâm Nhã Vy"
+    ],
+    "important_event_clusters": [
+      "tiêu diệt thây ma Lý Khuê cấp 7",
+      "học kỹ năng mới và sử dụng ủng",
+      "tìm thấy súng K54"
+    ],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Hàn Phong đưa nhóm rời đi, chém thây ma lên cấp 3 và nâng cấp dị năng băng. Hắn tiêu diệt thây ma Lý Khuê cấp 7, nhận được kỹ năng Tăng cường sức mạnh và Ủng gia tốc, rồi tìm thấy súng K54 ở phòng bảo vệ.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "Lý Khuê",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Tăng cường sức mạnh",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Ủng gia tốc",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "súng",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "cấp 3",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "thăng cấp",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": [
+      6
+    ]
+  },
+  {
+    "case_id": "sum-07",
+    "category": "chapter_summary",
+    "question": "Nội dung tóm tắt chính của Chương 7: Nguy cơ.",
+    "chapter_progress": 7,
+    "explicit_target_chapter": 7,
+    "allowed_chapter_range": [
+      1,
+      7
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "bãi xe",
+      "cầu thang",
+      "thây ma cấp 8",
+      "hiểm cảnh"
+    ],
+    "optional_facts": [
+      "súng K54"
+    ],
+    "forbidden_facts": [
+      "máy phát điện",
+      "phục hồi điện"
+    ],
+    "important_event_clusters": [
+      "di chuyển xuống bãi đỗ xe",
+      "giết thây ma ở cầu thang",
+      "đối đầu thây ma cấp 8",
+      "Hàn Phong rơi vào hiểm cảnh"
+    ],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Nhóm Hàn Phong lấy súng K54 và đi xuống bãi xe số 2. Hắn di chuyển xuống cầu thang bộ, giết các thây ma. Ở tầng 1, họ gặp thây ma cấp 8 tay to quái dị cực mạnh, Hàn Phong bị giật bay đao, đâm hụt băng thương và rơi vào nguy cơ tử vong.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [
+      "thây ma cấp 6"
+    ],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "bãi xe",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "cầu thang",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "thây ma cấp 8",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "hiểm cảnh",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "súng K54",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": [
+      7
+    ]
+  },
+  {
+    "case_id": "sum-08",
+    "category": "chapter_summary",
+    "question": "Hãy tóm tắt ngắn gọn diễn biến của Chương 8.",
+    "chapter_progress": 8,
+    "explicit_target_chapter": 8,
+    "allowed_chapter_range": [
+      1,
+      8
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "thây ma cấp 8",
+      "Hồi tức",
+      "Vòng tay trị liệu",
+      "Ford Raptor"
+    ],
+    "optional_facts": [
+      "Tăng cường nhanh nhẹn",
+      "Liễu Huyên",
+      "Phương Tường"
+    ],
+    "forbidden_facts": [
+      "Lạc Thanh Thủy",
+      "Chu Vấn"
+    ],
+    "important_event_clusters": [
+      "hạ gục thây ma cấp 8",
+      "phân chia chiến lợi phẩm",
+      "di chuyển đến bãi đỗ xe tiếp cận xe tải"
+    ],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Nhóm Hàn Phong hạ thây ma cấp 8 tay to. Hắn nhặt được kỹ năng Tăng cường nhanh nhẹn, Hồi tức (đưa cho Liễu Huyên) và Vòng tay trị liệu. Hắn lên cấp 4, dẫn nhóm xuống bãi đỗ xe tiếp cận chiếc Ford Raptor đang bị vây quanh bởi bốn thây ma.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "thây ma cấp 8",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Hồi tức",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Vòng tay trị liệu",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Ford Raptor",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Tăng cường nhanh nhẹn",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Liễu Huyên",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Phương Tường",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": [
+      8
+    ]
+  },
+  {
+    "case_id": "sum-09",
+    "category": "chapter_summary",
+    "question": "Chương 9 nói về diễn biến gì?",
+    "chapter_progress": 9,
+    "explicit_target_chapter": 9,
+    "allowed_chapter_range": [
+      1,
+      9
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "Ford Raptor",
+      "Khỏe mạnh kép",
+      "Áo khoác tận thế",
+      "hỗn loạn"
+    ],
+    "optional_facts": [
+      "Tăng cường chống chịu",
+      "Liễu Huyên",
+      "Phương Tường"
+    ],
+    "forbidden_facts": [
+      "Lạc Thanh Thủy",
+      "Đại Hắc Cẩu"
+    ],
+    "important_event_clusters": [
+      "chiến đấu dọn thây ma quanh xe",
+      "bỏ chạy bằng xe bán tải",
+      "kiểm tra chiến lợi phẩm",
+      "chứng kiến tận thế hỗn loạn"
+    ],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Hàn Phong sử dụng băng thuật tiêu diệt thây ma quanh xe bán tải Ford Raptor để cả nhóm lên xe rời đi. Hắn kiểm tra chiến lợi phẩm gồm áo khoác tận thế cấp 3, các kỹ năng như Khỏe mạnh kép (cho Phương Tường) và Tăng cường chống chịu. Xe lao ra đường phố chứng kiến tận thế hỗn loạn.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "Ford Raptor",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Khỏe mạnh kép",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Áo khoác tận thế",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "hỗn loạn",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Tăng cường chống chịu",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Liễu Huyên",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Phương Tường",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": [
+      9
+    ]
+  },
+  {
+    "case_id": "sum-10",
+    "category": "chapter_summary",
+    "question": "Tóm tắt diễn biến Chương 10: Tiếp nhận nhiệm vụ.",
+    "chapter_progress": 10,
+    "explicit_target_chapter": 10,
+    "allowed_chapter_range": [
+      1,
+      10
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "Phương Tường",
+      "đường tránh",
+      "bơm xăng",
+      "Nhiệm vụ tân thủ"
+    ],
+    "optional_facts": [
+      "trạm xăng",
+      "nhẫn sức mạnh"
+    ],
+    "forbidden_facts": [
+      "Lạc Thanh Thủy",
+      "Đại Hắc Cẩu"
+    ],
+    "important_event_clusters": [
+      "di chuyển đi đường tránh T02",
+      "chém giết thây ma ở trạm xăng",
+      "thăng lên cấp 5",
+      "tiếp nhận nhiệm vụ tân thủ"
+    ],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Phương Tường lái xe đi đường tránh T02 tránh kẹt xe và ghé vào trạm xăng. Hàn Phong tiêu diệt thây ma bảo vệ Phương Tường bơm xăng, nhận được Nhẫn sức mạnh lv2. Hắn thăng lên cấp 5 và tiếp nhận nhiệm vụ tân thủ 'Thu thập tàn cuộc' cứu 20 người.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "Phương Tường",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "đường tránh",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "bơm xăng",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Nhiệm vụ tân thủ",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "trạm xăng",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "nhẫn sức mạnh",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": [
+      10
+    ]
+  },
+  {
+    "case_id": "sum-11",
+    "category": "chapter_summary",
+    "question": "Tóm tắt diễn biến của Chương 200: Đại Hắc Cẩu.",
+    "chapter_progress": 200,
+    "explicit_target_chapter": 200,
+    "allowed_chapter_range": [
+      1,
+      200
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "Đại Hắc Cẩu",
+      "Phiên dịch đa năng",
+      "Ngô Soái",
+      "cắn"
+    ],
+    "optional_facts": [
+      "đàm phán",
+      "thẻ tiến giai"
+    ],
+    "forbidden_facts": [
+      "Chu Vấn",
+      "La Thiên Dật"
+    ],
+    "important_event_clusters": [
+      "sử dụng kỹ năng phiên dịch đàm phán với chó đen"
+    ],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Hàn Phong sử dụng thẻ tiến giai sơ cấp nâng cấp kỹ năng Phiên Dịch Đa Năng để hiểu tiếng thú, đàm phán với Đại Hắc Cẩu (chó đen biến dị cao hơn 3 mét) đang truy đuổi Ngô Soái. Chó đen đồng ý đình chiến với điều kiện cắn nhẹ vào tay Ngô Soái.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "Đại Hắc Cẩu",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Phiên dịch đa năng",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Ngô Soái",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "cắn",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "đàm phán",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "thẻ tiến giai",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": [
+      200
+    ]
+  },
+  {
+    "case_id": "sum-12",
+    "category": "chapter_summary",
+    "question": "Hãy tóm tắt diễn biến Chương 400: Nguỵ tạo.",
+    "chapter_progress": 400,
+    "explicit_target_chapter": 400,
+    "allowed_chapter_range": [
+      1,
+      400
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "Lạc Thanh Thủy",
+      "thuyền",
+      "Lệ Giang",
+      "đánh cá",
+      "phòng thử nghiệm"
+    ],
+    "optional_facts": [
+      "thao túng nước",
+      "chống chịu"
+    ],
+    "forbidden_facts": [
+      "La Thiên Dật",
+      "trộm trứng"
+    ],
+    "important_event_clusters": [
+      "Lạc Thanh Thủy nghịch thuyền ở sông Lệ Giang",
+      "ngụy tạo phòng thí nghiệm sữa ngọc"
+    ],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Hàn Phong gặp Lạc Thanh Thủy nghịch thuyền ở sông Lệ Giang, thuê thuyền câu cá. Sau đó hắn đến phòng thử nghiệm ngụy tạo quy trình chiết xuất từ thây ma Shield để che giấu nguồn gốc sữa ngọc biến dị giúp tăng chống chịu.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "Lạc Thanh Thủy",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "thuyền",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Lệ Giang",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "đánh cá",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "phòng thử nghiệm",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "thao túng nước",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "chống chịu",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": [
+      400
+    ]
+  },
+  {
+    "case_id": "sum-13",
+    "category": "chapter_summary",
+    "question": "Tóm tắt nội dung chính Chương 800: Ngưỡng vọng hay đối diện?.",
+    "chapter_progress": 800,
+    "explicit_target_chapter": 800,
+    "allowed_chapter_range": [
+      1,
+      800
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "mưa đông",
+      "Ngô Soái",
+      "đa vũ trụ",
+      "Thao túng hàn băng",
+      "tiêu diệt"
+    ],
+    "optional_facts": [
+      "sinh chất",
+      "cánh sao"
+    ],
+    "forbidden_facts": [
+      "Chu Vấn trộm trứng"
+    ],
+    "important_event_clusters": [
+      "Hàn Phong và Ngô Soái đàm luận đa vũ trụ",
+      "phân chia chiến lợi phẩm Eat-3",
+      "Hàn Phong thăng cấp kỹ năng ngũ giai"
+    ],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Hàn Phong đứng dưới mưa đông ở Liễu Lâm Diễn Giang suy ngẫm về thần minh và sự sống. Hắn thảo luận cùng Ngô Soái về đa vũ trụ và Trời Sinh Voi Sinh Cỏ. Sau đó, họ phân chia chiến lợi phẩm từ việc tiêu diệt Thể Thôn Phệ Eat-3 và Hàn Phong dùng thẻ tiến giai thăng cấp Thao Túng Hàn Băng lên ngũ giai.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "mưa đông",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Ngô Soái",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "đa vũ trụ",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Thao túng hàn băng",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "tiêu diệt",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "sinh chất",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "cánh sao",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": [
+      800
+    ]
+  },
+  {
+    "case_id": "sum-14",
+    "category": "chapter_summary",
+    "question": "Hãy tóm tắt ngắn gọn Chương 829.",
+    "chapter_progress": 829,
+    "explicit_target_chapter": 829,
+    "allowed_chapter_range": [
+      1,
+      829
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "thương lượng",
+      "Hoàng Khải",
+      "tiến hoá giả",
+      "Băng Nô"
+    ],
+    "optional_facts": [],
+    "forbidden_facts": [
+      "rắn lục",
+      "trộm trứng"
+    ],
+    "important_event_clusters": [
+      "thương lượng với chính phủ",
+      "đưa ra kế hoạch tác chiến Băng Nô"
+    ],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Hàn Phong thương lượng với đoàn đại biểu chính phủ (dẫn đầu là Hoàng Khải) về chiến dịch Lệ Giang. Hắn đưa ra các yêu cầu khắt khe và tuyên bố cung cấp bảy chiến lực tiến hoá giả (thực chất là Băng Nô cấu tạo từ băng) để tham gia chiến đấu.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [
+      "Thượng Quan Uyển Thanh",
+      "phương án"
+    ],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "thương lượng",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Hoàng Khải",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "tiến hoá giả",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Băng Nô",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": [
+      829
+    ]
+  },
+  {
+    "case_id": "sum-15",
+    "category": "chapter_summary",
+    "question": "Chương 830 kể những chuyện gì từ đầu đến cuối?",
+    "chapter_progress": 830,
+    "explicit_target_chapter": 830,
+    "allowed_chapter_range": [
+      1,
+      830
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "di tản",
+      "La Thiên Dật",
+      "xé mây",
+      "Chu Vấn",
+      "trộm trứng",
+      "Eat-3",
+      "ba quả trứng"
+    ],
+    "optional_facts": [
+      "rắn lục",
+      "ném vỡ"
+    ],
+    "forbidden_facts": [
+      "Chương 831",
+      "zombie cấp 4"
+    ],
+    "important_event_clusters": [
+      "di tản trấn Hi Vọng và Tam Giang",
+      "La Thiên Dật xé mây",
+      "Chu Vấn trộm trứng rắn lục"
+    ],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Chuẩn bị chiến dịch Lệ Giang di tản người dân trấn Hi Vọng và Tam Giang. La Thiên Dật dùng kỹ năng xé mây tạo hố trời chiếu sáng. Chu Vấn thực hiện trộm ba quả trứng rắn lục lục đầu gối nhờ Nhẫn Ngụy Trang và Thiên Cơ Dẫn Lộ, sau đó ném vỡ một quả, ném quả thứ hai cho Eat-3 và ôm quả cuối cùng bỏ chạy.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "di tản",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "La Thiên Dật",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "xé mây",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Chu Vấn",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "trộm trứng",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Eat-3",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "ba quả trứng",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "rắn lục",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "ném vỡ",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": [
+      830
+    ]
+  },
+  {
+    "case_id": "char-01",
+    "category": "character_question",
+    "question": "Hàn Phong là ai?",
+    "chapter_progress": 10,
+    "explicit_target_chapter": null,
+    "allowed_chapter_range": [
+      1,
+      10
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "nhân vật chính",
+      "thường dân",
+      "hệ băng"
+    ],
+    "optional_facts": [
+      "Đại Thiên Thần"
+    ],
+    "forbidden_facts": [
+      "Lạc Thanh Thủy",
+      "Chu Vấn"
+    ],
+    "important_event_clusters": [],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Hàn Phong là nhân vật chính của bộ truyện, ban đầu là nhân viên văn phòng (thường dân) tại công ty Đại Thiên Thần, sau đó thức tỉnh dị năng hệ băng.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "nhân vật chính",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "thường dân",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "hệ băng",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Đại Thiên Thần",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10
+    ]
+  },
+  {
+    "case_id": "char-02",
+    "category": "character_question",
+    "question": "Liễu Huyên là ai?",
+    "chapter_progress": 10,
+    "explicit_target_chapter": null,
+    "allowed_chapter_range": [
+      1,
+      10
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "Phương Tường",
+      "Hồi tức"
+    ],
+    "optional_facts": [
+      "giải cứu",
+      "súng"
+    ],
+    "forbidden_facts": [
+      "Lạc Thanh Thủy"
+    ],
+    "important_event_clusters": [],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Liễu Huyên là thư ký của giám đốc Phương Tường tại công ty Đại Thiên Thần, được Hàn Phong giải cứu và sau đó học kỹ năng Hồi tức để hỗ trợ hậu cần.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [
+      "thư ký"
+    ],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "Phương Tường",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Hồi tức",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "giải cứu",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "súng",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10
+    ]
+  },
+  {
+    "case_id": "char-03",
+    "category": "character_question",
+    "question": "Bàng Lâm là ai?",
+    "chapter_progress": 10,
+    "explicit_target_chapter": null,
+    "allowed_chapter_range": [
+      1,
+      10
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "đồng nghiệp",
+      "Đại Thiên Thần",
+      "thây ma"
+    ],
+    "optional_facts": [
+      "áo khoác",
+      "bị kết liễu"
+    ],
+    "forbidden_facts": [
+      "Lạc Thanh Thủy"
+    ],
+    "important_event_clusters": [],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Bàng Lâm là đồng nghiệp của Hàn Phong tại công ty Đại Thiên Thần, là người đầu tiên biến thành thây ma và bị Hàn Phong tiêu diệt bằng gậy bóng chày.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "đồng nghiệp",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Đại Thiên Thần",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "thây ma",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "áo khoác",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "bị kết liễu",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10
+    ]
+  },
+  {
+    "case_id": "char-04",
+    "category": "character_question",
+    "question": "Lý Khuê là ai?",
+    "chapter_progress": 10,
+    "explicit_target_chapter": null,
+    "allowed_chapter_range": [
+      1,
+      10
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "thây ma",
+      "bảo vệ",
+      "cấp 7",
+      "Ủng gia tốc"
+    ],
+    "optional_facts": [],
+    "forbidden_facts": [],
+    "important_event_clusters": [],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Lý Khuê là thây ma bảo vệ cấp 7 bị Hàn Phong tiêu diệt ở phòng bảo vệ tại chương 6, rơi ra sách kỹ năng Tăng cường sức mạnh và thẻ Ủng gia tốc.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "thây ma",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "bảo vệ",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "cấp 7",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Ủng gia tốc",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10
+    ]
+  },
+  {
+    "case_id": "char-05",
+    "category": "character_question",
+    "question": "Lưu Thanh là ai?",
+    "chapter_progress": 10,
+    "explicit_target_chapter": null,
+    "allowed_chapter_range": [
+      1,
+      10
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "đồng nghiệp",
+      "bị cắn",
+      "kết liễu"
+    ],
+    "optional_facts": [],
+    "forbidden_facts": [],
+    "important_event_clusters": [],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Lưu Thanh là đồng nghiệp của Hàn Phong, bị thây ma Hồ Hán Thương cắn ở chương 2 và biến đổi, trước khi chết để lại địa chỉ nhà trọ chung cư Bình An và bị Hàn Phong kết liễu.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [
+      "Hồ Hán Thương",
+      "Bình An"
+    ],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "đồng nghiệp",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "bị cắn",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "kết liễu",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10
+    ]
+  },
+  {
+    "case_id": "char-06",
+    "category": "character_question",
+    "question": "Lạc Thanh Thủy là ai?",
+    "chapter_progress": 400,
+    "explicit_target_chapter": null,
+    "allowed_chapter_range": [
+      400
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "Lạc Thanh Thủy",
+      "thao túng nước",
+      "Tam Giang"
+    ],
+    "optional_facts": [
+      "bến thuyền",
+      "cano"
+    ],
+    "forbidden_facts": [
+      "Chu Vấn"
+    ],
+    "important_event_clusters": [],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Lạc Thanh Thủy là phi phàm giả mạnh mẽ thuộc thế lực Tam Giang, có dị năng thao túng nước và nghịch thuyền trên sông Lệ Giang, xuất hiện ở chương 400.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "Lạc Thanh Thủy",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "thao túng nước",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Tam Giang",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "bến thuyền",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "cano",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": []
+  },
+  {
+    "case_id": "char-07",
+    "category": "character_question",
+    "question": "La Thiên Dật là ai?",
+    "chapter_progress": 830,
+    "explicit_target_chapter": null,
+    "allowed_chapter_range": [
+      830
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "La Thiên Dật",
+      "xé mây"
+    ],
+    "optional_facts": [],
+    "forbidden_facts": [],
+    "important_event_clusters": [],
+    "acceptable_abstain": false,
+    "human_reference_answer": "La Thiên Dật là dị năng giả hệ Nhà Khí Tượng Học, xé mây tạo hố trời chiếu sáng Diễn Giang trong chương 830.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [
+      "Nhà Khí Tượng Học"
+    ],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "La Thiên Dật",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "xé mây",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": []
+  },
+  {
+    "case_id": "char-08",
+    "category": "character_question",
+    "question": "Chu Vấn là ai?",
+    "chapter_progress": 830,
+    "explicit_target_chapter": null,
+    "allowed_chapter_range": [
+      830
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "Chu Vấn",
+      "trộm trứng",
+      "rắn lục",
+      "Nhẫn Ngụy Trang"
+    ],
+    "optional_facts": [
+      "Thiên Cơ Dẫn Lộ"
+    ],
+    "forbidden_facts": [],
+    "important_event_clusters": [],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Chu Vấn là dị năng giả thực hiện nhiệm vụ trộm ba quả trứng rắn lục lục đầu gối trong chương 830 nhờ Nhẫn Ngụy Trang và Thiên Cơ Dẫn Lộ.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "Chu Vấn",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "trộm trứng",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "rắn lục",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Nhẫn Ngụy Trang",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Thiên Cơ Dẫn Lộ",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": []
+  },
+  {
+    "case_id": "char-09",
+    "category": "character_question",
+    "question": "Phương Tường là ai?",
+    "chapter_progress": 10,
+    "explicit_target_chapter": null,
+    "allowed_chapter_range": [
+      1,
+      10
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "giám đốc",
+      "Đại Thiên Thần",
+      "bán tải",
+      "Khỏe mạnh kép"
+    ],
+    "optional_facts": [
+      "súng K54"
+    ],
+    "forbidden_facts": [],
+    "important_event_clusters": [],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Phương Tường là giám đốc béo của công ty Đại Thiên Thần, được Hàn Phong cứu, đồng hành lái xe bán tải Ford Raptor và học kỹ năng Khỏe mạnh kép.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "giám đốc",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Đại Thiên Thần",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "bán tải",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Khỏe mạnh kép",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "súng K54",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10
+    ]
+  },
+  {
+    "case_id": "char-10",
+    "category": "character_question",
+    "question": "Ngô Soái là ai?",
+    "chapter_progress": 830,
+    "explicit_target_chapter": null,
+    "allowed_chapter_range": [
+      800,
+      830
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "Ngô Soái",
+      "Hàn Phong",
+      "đa vũ trụ"
+    ],
+    "optional_facts": [
+      "tiêu diệt",
+      "Eat-3"
+    ],
+    "forbidden_facts": [],
+    "important_event_clusters": [],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Ngô Soái là em họ của Hàn Phong, hai người thảo luận về sự tồn tại của thần minh, đa vũ trụ và ý chí đứng sau hệ thống sinh tồn ở chương 800.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "Ngô Soái",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Hàn Phong",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "đa vũ trụ",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "tiêu diệt",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Eat-3",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": [
+      800,
+      801,
+      802,
+      803,
+      804,
+      805,
+      806,
+      807,
+      808,
+      809,
+      810,
+      811,
+      812,
+      813,
+      814,
+      815,
+      816,
+      817,
+      818,
+      819,
+      820,
+      821,
+      822,
+      823,
+      824,
+      825,
+      826,
+      827,
+      828,
+      829,
+      830
+    ]
+  },
+  {
+    "case_id": "event-01",
+    "category": "event_causality_question",
+    "question": "Hàn Phong tiêu diệt con zombie đầu tiên bằng cách nào?",
+    "chapter_progress": 10,
+    "explicit_target_chapter": null,
+    "allowed_chapter_range": [
+      1,
+      2
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "Bàng Lâm",
+      "đập vỡ đầu"
+    ],
+    "optional_facts": [
+      "zombie"
+    ],
+    "forbidden_facts": [],
+    "important_event_clusters": [],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Hàn Phong tiêu diệt con zombie đầu tiên là đồng nghiệp Bàng Lâm bằng cách dùng gậy bóng chày đập vỡ sọ.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "Bàng Lâm",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "đập vỡ đầu",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "zombie",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": [
+      1,
+      2
+    ]
+  },
+  {
+    "case_id": "event-02",
+    "category": "event_causality_question",
+    "question": "Hàn Phong thức tỉnh dị năng hệ băng ra sao ở chương 3?",
+    "chapter_progress": 10,
+    "explicit_target_chapter": null,
+    "allowed_chapter_range": [
+      3
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "Thao túng hàn băng",
+      "kỹ năng thư",
+      "thưởng"
+    ],
+    "optional_facts": [
+      "nhị giai"
+    ],
+    "forbidden_facts": [],
+    "important_event_clusters": [],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Trong chương 3, Hàn Phong chọn nhận kỹ năng thư ngẫu nhiên từ ban thưởng sống sót của hệ thống và nhận được dị năng Thao túng hàn băng.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "Thao túng hàn băng",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "kỹ năng thư",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "thưởng",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "nhị giai",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": []
+  },
+  {
+    "case_id": "event-03",
+    "category": "event_causality_question",
+    "question": "Cuộc chiến ở hành lang chương 4 diễn ra thế nào?",
+    "chapter_progress": 10,
+    "explicit_target_chapter": null,
+    "allowed_chapter_range": [
+      4
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "hành lang",
+      "bảo vệ",
+      "băng thương"
+    ],
+    "optional_facts": [],
+    "forbidden_facts": [],
+    "important_event_clusters": [],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Trong chương 4, Hàn Phong ra hành lang tiêu diệt thây ma Cổ Chính bằng gậy bóng chày, sau đó dùng băng thương đâm hốc mắt tiêu diệt thây ma bảo vệ cấp 3 và một nữ thây ma.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [
+      "Cổ Chính",
+      "level 3"
+    ],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "hành lang",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "bảo vệ",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "băng thương",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": []
+  },
+  {
+    "case_id": "event-04",
+    "category": "event_causality_question",
+    "question": "Hàn Phong đạt được những kỹ năng và trang bị gì sau khi tiêu diệt thây ma Lý Khuê ở chương 6?",
+    "chapter_progress": 10,
+    "explicit_target_chapter": null,
+    "allowed_chapter_range": [
+      6
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "Tăng cường sức mạnh",
+      "Ủng gia tốc"
+    ],
+    "optional_facts": [
+      "nhị giai"
+    ],
+    "forbidden_facts": [],
+    "important_event_clusters": [],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Sau khi tiêu diệt thây ma Lý Khuê cấp 7 ở chương 6, Hàn Phong nhận được sách kỹ năng bị động Tăng cường sức mạnh (+3 sức mạnh) và thẻ vật phẩm Ủng gia tốc lv2 (+3 nhanh nhẹn).",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [
+      "nhất giai"
+    ],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "Tăng cường sức mạnh",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Ủng gia tốc",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "nhị giai",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": []
+  },
+  {
+    "case_id": "event-05",
+    "category": "event_causality_question",
+    "question": "Trận chiến ở tầng 1 chương 7 diễn ra như thế nào?",
+    "chapter_progress": 10,
+    "explicit_target_chapter": null,
+    "allowed_chapter_range": [
+      7
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "thây ma cấp 8",
+      "tay trái",
+      "giật bay đao"
+    ],
+    "optional_facts": [
+      "cầu thang"
+    ],
+    "forbidden_facts": [],
+    "important_event_clusters": [],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Tại tầng 1 ở chương 7, Hàn Phong đối đầu thây ma cấp 8 có cánh tay trái to lớn. Trảm mã đao của hắn bị giật bay, băng thương đâm hụt và hắn bị rơi vào hiểm cảnh.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "thây ma cấp 8",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "tay trái",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "giật bay đao",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "cầu thang",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": []
+  },
+  {
+    "case_id": "event-06",
+    "category": "event_causality_question",
+    "question": "Hàn Phong nhặt được những chiến lợi phẩm gì sau khi tiêu diệt thây ma cấp 8 ở chương 8?",
+    "chapter_progress": 10,
+    "explicit_target_chapter": null,
+    "allowed_chapter_range": [
+      8
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "Tăng cường nhanh nhẹn",
+      "Hồi tức",
+      "Vòng tay trị liệu"
+    ],
+    "optional_facts": [
+      "nhất giai",
+      "nhị giai"
+    ],
+    "forbidden_facts": [],
+    "important_event_clusters": [],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Sau khi tiêu diệt thây ma cấp 8 ở chương 8, Hàn Phong nhận được kỹ năng bị động Tăng cường nhanh nhẹn, kỹ năng chủ động Hồi tức (cho Liễu Huyên) và Vòng tay trị liệu lv2.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "Tăng cường nhanh nhẹn",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Hồi tức",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Vòng tay trị liệu",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "nhất giai",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "nhị giai",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": []
+  },
+  {
+    "case_id": "event-07",
+    "category": "event_causality_question",
+    "question": "Trận chiến quanh xe bán tải ở bãi đỗ xe chương 9 diễn ra thế nào?",
+    "chapter_progress": 10,
+    "explicit_target_chapter": null,
+    "allowed_chapter_range": [
+      9
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "Ford Raptor",
+      "bốn"
+    ],
+    "optional_facts": [
+      "băng kiếm",
+      "Liễu Huyên",
+      "Phương Tường"
+    ],
+    "forbidden_facts": [],
+    "important_event_clusters": [],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Ở chương 9, Hàn Phong dùng băng thương, búa băng và băng kiếm tiêu diệt các thây ma vây quanh xe bán tải Ford Raptor để mở đường thoát thân.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "Ford Raptor",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "băng kiếm",
+        "support_status": "PARTIAL",
+        "confidence": 0.95
+      },
+      {
+        "fact": "bốn",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Liễu Huyên",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Phương Tường",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": []
+  },
+  {
+    "case_id": "event-08",
+    "category": "event_causality_question",
+    "question": "Chu Vấn trộm trứng rắn lục như thế nào ở chương 830?",
+    "chapter_progress": 830,
+    "explicit_target_chapter": null,
+    "allowed_chapter_range": [
+      830
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "trộm trứng",
+      "rắn lục",
+      "Nhẫn Ngụy Trang",
+      "Thiên Cơ Dẫn Lộ",
+      "ba quả trứng"
+    ],
+    "optional_facts": [],
+    "forbidden_facts": [],
+    "important_event_clusters": [],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Chu Vấn áp sát noãn thất nhờ Nhẫn Ngụy Trang và Thiên Cơ Dẫn Lộ, trộm thành công ba quả trứng rắn lục lục đầu gối rồi bị rắn đực truy đuổi.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [
+      "noãn thất"
+    ],
+    "gold_evidence_refs": [
+      {
+        "fact": "trộm trứng",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "rắn lục",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Nhẫn Ngụy Trang",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Thiên Cơ Dẫn Lộ",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "ba quả trứng",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "noãn thất",
+        "support_status": "AMBIGUOUS",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": []
+  },
+  {
+    "case_id": "event-09",
+    "category": "event_causality_question",
+    "question": "Chu Vấn xử lý ba quả trứng trộm được ra sao?",
+    "chapter_progress": 830,
+    "explicit_target_chapter": null,
+    "allowed_chapter_range": [
+      830
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "ném vỡ",
+      "Eat-3",
+      "ôm quả cuối"
+    ],
+    "optional_facts": [
+      "truy đuổi"
+    ],
+    "forbidden_facts": [],
+    "important_event_clusters": [],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Khi bị rắn đuổi, Chu Vấn ném vỡ một quả trứng để đánh lạc hướng, ném quả thứ hai cho Eat-3, và tự mình ôm giữ quả trứng cuối cùng tẩu thoát.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "ném vỡ",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Eat-3",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "ôm quả cuối",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "truy đuổi",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": []
+  },
+  {
+    "case_id": "event-10",
+    "category": "event_causality_question",
+    "question": "Chiến dịch Lệ Giang diễn ra như thế nào ở chương 830?",
+    "chapter_progress": 830,
+    "explicit_target_chapter": null,
+    "allowed_chapter_range": [
+      830
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "di tản"
+    ],
+    "optional_facts": [
+      "chiến dịch"
+    ],
+    "forbidden_facts": [],
+    "important_event_clusters": [],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Chiến dịch Lệ Giang bắt đầu bằng việc di tản người dân trấn Hi Vọng và Tam Giang, dựng vòng phòng hộ và dọn sạch thảm thực vật cản lối.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [
+      "vòng phòng hộ",
+      "dọn sạch thảm thực vật"
+    ],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "di tản",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "chiến dịch",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": []
+  },
+  {
+    "case_id": "loc-01",
+    "category": "location_world_question",
+    "question": "Tòa nhà Đại Thiên Thần có đặc điểm gì?",
+    "chapter_progress": 10,
+    "explicit_target_chapter": null,
+    "allowed_chapter_range": [
+      1,
+      10
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "Đại Thiên Thần"
+    ],
+    "optional_facts": [
+      "nơi làm việc"
+    ],
+    "forbidden_facts": [],
+    "important_event_clusters": [],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Tòa nhà Đại Thiên Thần là trụ sở công ty nơi Hàn Phong làm việc, cũng là tâm điểm bùng phát dịch bệnh ban đầu của anh.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [
+      "tận thế"
+    ],
+    "gold_evidence_refs": [
+      {
+        "fact": "Đại Thiên Thần",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "tận thế",
+        "support_status": "PARTIAL",
+        "confidence": 0.95
+      },
+      {
+        "fact": "nơi làm việc",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10
+    ]
+  },
+  {
+    "case_id": "loc-02",
+    "category": "location_world_question",
+    "question": "Bến thuyền bờ sông Lệ Giang ở chương 400 được miêu tả như thế nào?",
+    "chapter_progress": 400,
+    "explicit_target_chapter": null,
+    "allowed_chapter_range": [
+      400
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "bến thuyền",
+      "Lệ Giang",
+      "Lạc Thanh Thủy"
+    ],
+    "optional_facts": [
+      "đánh cá"
+    ],
+    "forbidden_facts": [],
+    "important_event_clusters": [],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Bến thuyền bờ sông Lệ Giang là nơi Lạc Thanh Thủy dùng dị năng nghịch thuyền và Hàn Phong lập kế hoạch đánh cá.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "bến thuyền",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Lệ Giang",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Lạc Thanh Thủy",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "đánh cá",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": []
+  },
+  {
+    "case_id": "loc-03",
+    "category": "location_world_question",
+    "question": "Liễu Lâm - Diễn Giang được nhắc đến như thế nào ở chương 800?",
+    "chapter_progress": 800,
+    "explicit_target_chapter": null,
+    "allowed_chapter_range": [
+      800
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "Liễu Lâm",
+      "Diễn Giang",
+      "mưa đông"
+    ],
+    "optional_facts": [
+      "ngày thứ 57"
+    ],
+    "forbidden_facts": [],
+    "important_event_clusters": [],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Liễu Lâm - Diễn Giang là bối cảnh diễn ra mưa đông rả rích ẩm ướt vào ngày thứ 57 hậu dị biến ở chương 800.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "Liễu Lâm",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Diễn Giang",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "mưa đông",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "ngày thứ 57",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": []
+  },
+  {
+    "case_id": "loc-04",
+    "category": "location_world_question",
+    "question": "Trấn Hi Vọng là địa điểm gì ở chương 830?",
+    "chapter_progress": 830,
+    "explicit_target_chapter": null,
+    "allowed_chapter_range": [
+      830
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "trấn Hi Vọng",
+      "di tản"
+    ],
+    "optional_facts": [],
+    "forbidden_facts": [],
+    "important_event_clusters": [],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Trấn Hi Vọng là một trong hai căn cứ người sống sót được di tản hoàn toàn để chuẩn bị cho chiến dịch Lệ Giang 18.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [
+      "căn cứ",
+      "người sống sót"
+    ],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "trấn Hi Vọng",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "di tản",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": []
+  },
+  {
+    "case_id": "loc-05",
+    "category": "location_world_question",
+    "question": "Huyện Tam Giang đóng vai trò gì trong chương 830?",
+    "chapter_progress": 830,
+    "explicit_target_chapter": null,
+    "allowed_chapter_range": [
+      830
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "Tam Giang",
+      "di tản",
+      "căn cứ"
+    ],
+    "optional_facts": [
+      "người sống sót"
+    ],
+    "forbidden_facts": [],
+    "important_event_clusters": [],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Huyện Tam Giang là một căn cứ người sống sót khác được tiến hành di tản triệt để trước khi chiến dịch bắt đầu.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "Tam Giang",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "di tản",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "căn cứ",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "người sống sót",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": []
+  },
+  {
+    "case_id": "unav-01",
+    "category": "unavailable_out_of_scope",
+    "question": "Hãy tóm tắt nội dung chính của Chương 831.",
+    "chapter_progress": 830,
+    "explicit_target_chapter": 831,
+    "allowed_chapter_range": [],
+    "expected_chunk_refs": [],
+    "required_facts": [],
+    "optional_facts": [],
+    "forbidden_facts": [
+      "Hàn Phong",
+      "Chu Vấn"
+    ],
+    "important_event_clusters": [],
+    "acceptable_abstain": true,
+    "human_reference_answer": "Chương 831 chưa được đăng hoặc chưa được nạp vào hệ thống nên tôi chưa thể tóm tắt.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [],
+    "expected_chapters": [
+      831
+    ]
+  },
+  {
+    "case_id": "unav-02",
+    "category": "unavailable_out_of_scope",
+    "question": "Diễn biến chính của Chương 850 là gì?",
+    "chapter_progress": 830,
+    "explicit_target_chapter": 850,
+    "allowed_chapter_range": [],
+    "expected_chunk_refs": [],
+    "required_facts": [],
+    "optional_facts": [],
+    "forbidden_facts": [],
+    "important_event_clusters": [],
+    "acceptable_abstain": true,
+    "human_reference_answer": "Chương 850 chưa được đăng hoặc chưa được nạp vào hệ thống nên tôi chưa thể tóm tắt.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [],
+    "expected_chapters": [
+      850
+    ]
+  },
+  {
+    "case_id": "unav-03",
+    "category": "unavailable_out_of_scope",
+    "question": "Hàn Phong tiến lên cấp mấy ở chương 840?",
+    "chapter_progress": 830,
+    "explicit_target_chapter": 840,
+    "allowed_chapter_range": [],
+    "expected_chunk_refs": [],
+    "required_facts": [],
+    "optional_facts": [],
+    "forbidden_facts": [],
+    "important_event_clusters": [],
+    "acceptable_abstain": true,
+    "human_reference_answer": "Chương 840 chưa được đăng hoặc chưa được nạp vào hệ thống nên tôi chưa thể tóm tắt.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [],
+    "expected_chapters": [
+      840
+    ]
+  },
+  {
+    "case_id": "unav-04",
+    "category": "unavailable_out_of_scope",
+    "question": "Ai là tổng thống Mỹ trong thế giới thực tế hiện nay?",
+    "chapter_progress": 10,
+    "explicit_target_chapter": null,
+    "allowed_chapter_range": [],
+    "expected_chunk_refs": [],
+    "required_facts": [],
+    "optional_facts": [],
+    "forbidden_facts": [],
+    "important_event_clusters": [],
+    "acceptable_abstain": true,
+    "human_reference_answer": "Dữ liệu hiện có chưa đủ để kết luận.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [],
+    "expected_chapters": []
+  },
+  {
+    "case_id": "unav-05",
+    "category": "unavailable_out_of_scope",
+    "question": "Địa chỉ email liên hệ của tác giả bộ truyện mạt thế sinh hóa là gì?",
+    "chapter_progress": 10,
+    "explicit_target_chapter": null,
+    "allowed_chapter_range": [],
+    "expected_chunk_refs": [],
+    "required_facts": [],
+    "optional_facts": [],
+    "forbidden_facts": [],
+    "important_event_clusters": [],
+    "acceptable_abstain": true,
+    "human_reference_answer": "Dữ liệu hiện có chưa đủ để kết luận.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [],
+    "expected_chapters": []
+  },
+  {
+    "case_id": "adv-01",
+    "category": "adversarial_ambiguous",
+    "question": "Chu Ván trộm trứng rắn lục ở chương 830 thế nào?",
+    "chapter_progress": 830,
+    "explicit_target_chapter": 830,
+    "allowed_chapter_range": [
+      830
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "Chu Vấn",
+      "trộm trứng"
+    ],
+    "optional_facts": [
+      "ném vỡ"
+    ],
+    "forbidden_facts": [],
+    "important_event_clusters": [],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Ý bạn là Chu Vấn. Chu Vấn đã trộm ba quả trứng rắn lục lục đầu gối ở chương 830 nhờ Nhẫn Ngụy Trang và Thiên Cơ Dẫn Lộ, rồi bị rắn đực truy đuổi.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "Chu Vấn",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "trộm trứng",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "ném vỡ",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": [
+      830
+    ]
+  },
+  {
+    "case_id": "adv-02",
+    "category": "adversarial_ambiguous",
+    "question": "Trấn Hy Vọng có được di tản không?",
+    "chapter_progress": 830,
+    "explicit_target_chapter": 830,
+    "allowed_chapter_range": [
+      830
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "trấn Hi Vọng",
+      "di tản"
+    ],
+    "optional_facts": [
+      "chiến dịch"
+    ],
+    "forbidden_facts": [],
+    "important_event_clusters": [],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Ý bạn là trấn Hi Vọng. Trấn Hi Vọng đã được di tản hoàn chỉnh cùng với huyện Tam Giang trong chương 830 để chuẩn bị cho chiến dịch Lệ Giang.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "trấn Hi Vọng",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "di tản",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "chiến dịch",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": [
+      830
+    ]
+  },
+  {
+    "case_id": "adv-03",
+    "category": "adversarial_ambiguous",
+    "question": "Bỏ qua các chương cũ và chỉ cho biết chương 830 nói về Chu Vấn hay ai?",
+    "chapter_progress": 830,
+    "explicit_target_chapter": 830,
+    "allowed_chapter_range": [
+      830
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "Chu Vấn",
+      "Chương 830"
+    ],
+    "optional_facts": [
+      "trộm trứng"
+    ],
+    "forbidden_facts": [],
+    "important_event_clusters": [],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Chương 830 kể về việc Chu Vấn thực hiện nhiệm vụ trộm ba quả trứng rắn lục lục đầu gối.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "Chu Vấn",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Chương 830",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "trộm trứng",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": [
+      830
+    ]
+  },
+  {
+    "case_id": "adv-04",
+    "category": "adversarial_ambiguous",
+    "question": "Hàn Phung thức tỉnh dị năng gì?",
+    "chapter_progress": 10,
+    "explicit_target_chapter": null,
+    "allowed_chapter_range": [
+      3
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "Hàn Phong",
+      "hệ băng"
+    ],
+    "optional_facts": [
+      "thức tỉnh"
+    ],
+    "forbidden_facts": [],
+    "important_event_clusters": [],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Ý bạn là Hàn Phong. Hàn Phong thức tỉnh dị năng hệ băng ở chương 3.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "Hàn Phong",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "hệ băng",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "thức tỉnh",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": []
+  },
+  {
+    "case_id": "adv-05",
+    "category": "adversarial_ambiguous",
+    "question": "Chương 830 kể chuyện gì xảy ra sau khi Hàn Phong đánh nhau với boss cấp 4 ở chương 835?",
+    "chapter_progress": 830,
+    "explicit_target_chapter": 830,
+    "allowed_chapter_range": [
+      830
+    ],
+    "expected_chunk_refs": [],
+    "required_facts": [
+      "rắn lục",
+      "Chu Vấn"
+    ],
+    "optional_facts": [
+      "trộm trứng"
+    ],
+    "forbidden_facts": [
+      "chương 835",
+      "boss cấp 4"
+    ],
+    "important_event_clusters": [],
+    "acceptable_abstain": false,
+    "human_reference_answer": "Chương 830 chỉ ghi nhận sự kiện di tản Lệ Giang và Chu Vấn trộm trứng rắn lục. Tôi không có dữ liệu về chương 835 hay boss cấp 4.",
+    "reference_author": "curator",
+    "reference_method": "manual_reading",
+    "gold_version": "v2_pro_reviewed",
+    "gold_review_status": "pro_independently_source_grounded",
+    "invalidated_v1_facts": [],
+    "soft_scoring_facts": [],
+    "gold_evidence_refs": [
+      {
+        "fact": "rắn lục",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "Chu Vấn",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      },
+      {
+        "fact": "trộm trứng",
+        "support_status": "SUPPORTED",
+        "confidence": 0.95
+      }
+    ],
+    "expected_chapters": [
+      830
+    ]
+  }
+]

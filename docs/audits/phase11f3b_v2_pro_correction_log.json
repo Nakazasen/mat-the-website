@@ -1,0 +1,258 @@
+[
+  {
+    "case_id": "sum-01",
+    "fact_id": "khất nợ",
+    "change_type": "RESTORE_FALSE_INVALIDATED_FACT",
+    "scoring_impact": "yes",
+    "v1_value": "OPTIONAL",
+    "v2_value": "OPTIONAL"
+  },
+  {
+    "case_id": "sum-07",
+    "fact_id": "hiểm cảnh",
+    "change_type": "RESTORE_FALSE_INVALIDATED_FACT",
+    "scoring_impact": "yes",
+    "v1_value": "REQUIRED",
+    "v2_value": "REQUIRED"
+  },
+  {
+    "case_id": "sum-07",
+    "fact_id": "thây ma cấp 6",
+    "change_type": "REMOVE_CONFIRMED_INVALID_FACT",
+    "scoring_impact": "yes",
+    "v1_value": "OPTIONAL",
+    "v2_value": "REMOVED"
+  },
+  {
+    "case_id": "sum-14",
+    "fact_id": "Thượng Quan Uyển Thanh",
+    "change_type": "REMOVE_CONFIRMED_INVALID_FACT",
+    "scoring_impact": "yes",
+    "v1_value": "OPTIONAL",
+    "v2_value": "REMOVED"
+  },
+  {
+    "case_id": "sum-14",
+    "fact_id": "phương án",
+    "change_type": "REMOVE_CONFIRMED_INVALID_FACT",
+    "scoring_impact": "yes",
+    "v1_value": "OPTIONAL",
+    "v2_value": "REMOVED"
+  },
+  {
+    "case_id": "char-01",
+    "fact_id": "nhân vật chính",
+    "change_type": "RESTORE_FALSE_INVALIDATED_FACT",
+    "scoring_impact": "yes",
+    "v1_value": "REQUIRED",
+    "v2_value": "REQUIRED"
+  },
+  {
+    "case_id": "char-01",
+    "fact_id": "thường dân",
+    "change_type": "RESTORE_FALSE_INVALIDATED_FACT",
+    "scoring_impact": "yes",
+    "v1_value": "REQUIRED",
+    "v2_value": "REQUIRED"
+  },
+  {
+    "case_id": "char-01",
+    "fact_id": "hệ băng",
+    "change_type": "RESTORE_FALSE_INVALIDATED_FACT",
+    "scoring_impact": "yes",
+    "v1_value": "REQUIRED",
+    "v2_value": "REQUIRED"
+  },
+  {
+    "case_id": "char-02",
+    "fact_id": "thư ký",
+    "change_type": "REMOVE_CONFIRMED_INVALID_FACT",
+    "scoring_impact": "yes",
+    "v1_value": "REQUIRED",
+    "v2_value": "REMOVED"
+  },
+  {
+    "case_id": "char-02",
+    "fact_id": "giải cứu",
+    "change_type": "RESTORE_FALSE_INVALIDATED_FACT",
+    "scoring_impact": "yes",
+    "v1_value": "OPTIONAL",
+    "v2_value": "OPTIONAL"
+  },
+  {
+    "case_id": "char-03",
+    "fact_id": "bị kết liễu",
+    "change_type": "RESTORE_FALSE_INVALIDATED_FACT",
+    "scoring_impact": "yes",
+    "v1_value": "OPTIONAL",
+    "v2_value": "OPTIONAL"
+  },
+  {
+    "case_id": "char-05",
+    "fact_id": "bị cắn",
+    "change_type": "RESTORE_FALSE_INVALIDATED_FACT",
+    "scoring_impact": "yes",
+    "v1_value": "REQUIRED",
+    "v2_value": "REQUIRED"
+  },
+  {
+    "case_id": "char-05",
+    "fact_id": "Hồ Hán Thương",
+    "change_type": "REMOVE_CONFIRMED_INVALID_FACT",
+    "scoring_impact": "yes",
+    "v1_value": "REQUIRED",
+    "v2_value": "REMOVED"
+  },
+  {
+    "case_id": "char-05",
+    "fact_id": "Bình An",
+    "change_type": "REMOVE_CONFIRMED_INVALID_FACT",
+    "scoring_impact": "yes",
+    "v1_value": "OPTIONAL",
+    "v2_value": "REMOVED"
+  },
+  {
+    "case_id": "char-07",
+    "fact_id": "Nhà Khí Tượng Học",
+    "change_type": "REMOVE_CONFIRMED_INVALID_FACT",
+    "scoring_impact": "yes",
+    "v1_value": "REQUIRED",
+    "v2_value": "REMOVED"
+  },
+  {
+    "case_id": "char-08",
+    "fact_id": "trộm trứng",
+    "change_type": "RESTORE_FALSE_INVALIDATED_FACT",
+    "scoring_impact": "yes",
+    "v1_value": "REQUIRED",
+    "v2_value": "REQUIRED"
+  },
+  {
+    "case_id": "event-03",
+    "fact_id": "Cổ Chính",
+    "change_type": "REMOVE_CONFIRMED_INVALID_FACT",
+    "scoring_impact": "yes",
+    "v1_value": "REQUIRED",
+    "v2_value": "REMOVED"
+  },
+  {
+    "case_id": "event-03",
+    "fact_id": "level 3",
+    "change_type": "REMOVE_CONFIRMED_INVALID_FACT",
+    "scoring_impact": "yes",
+    "v1_value": "OPTIONAL",
+    "v2_value": "REMOVED"
+  },
+  {
+    "case_id": "event-04",
+    "fact_id": "nhất giai",
+    "change_type": "REMOVE_CONFIRMED_INVALID_FACT",
+    "scoring_impact": "yes",
+    "v1_value": "OPTIONAL",
+    "v2_value": "REMOVED"
+  },
+  {
+    "case_id": "event-07",
+    "fact_id": "băng kiếm",
+    "change_type": "DOWNGRADE_PARTIAL_TO_OPTIONAL",
+    "scoring_impact": "yes",
+    "v1_value": "REQUIRED",
+    "v2_value": "OPTIONAL"
+  },
+  {
+    "case_id": "event-08",
+    "fact_id": "trộm trứng",
+    "change_type": "RESTORE_FALSE_INVALIDATED_FACT",
+    "scoring_impact": "yes",
+    "v1_value": "REQUIRED",
+    "v2_value": "REQUIRED"
+  },
+  {
+    "case_id": "event-08",
+    "fact_id": "noãn thất",
+    "change_type": "DOWNGRADE_AMBIGUOUS_TO_SOFT_ONLY",
+    "scoring_impact": "no",
+    "v1_value": "OPTIONAL",
+    "v2_value": "SOFT_ONLY"
+  },
+  {
+    "case_id": "event-10",
+    "fact_id": "vòng phòng hộ",
+    "change_type": "REMOVE_CONFIRMED_INVALID_FACT",
+    "scoring_impact": "yes",
+    "v1_value": "REQUIRED",
+    "v2_value": "REMOVED"
+  },
+  {
+    "case_id": "event-10",
+    "fact_id": "dọn sạch thảm thực vật",
+    "change_type": "REMOVE_CONFIRMED_INVALID_FACT",
+    "scoring_impact": "yes",
+    "v1_value": "REQUIRED",
+    "v2_value": "REMOVED"
+  },
+  {
+    "case_id": "loc-01",
+    "fact_id": "tận thế",
+    "change_type": "DOWNGRADE_PARTIAL_TO_SOFT_ONLY",
+    "scoring_impact": "yes",
+    "v1_value": "REQUIRED",
+    "v2_value": "SOFT_ONLY"
+  },
+  {
+    "case_id": "loc-01",
+    "fact_id": "nơi làm việc",
+    "change_type": "RESTORE_FALSE_INVALIDATED_FACT",
+    "scoring_impact": "yes",
+    "v1_value": "OPTIONAL",
+    "v2_value": "OPTIONAL"
+  },
+  {
+    "case_id": "loc-04",
+    "fact_id": "căn cứ",
+    "change_type": "REMOVE_CONFIRMED_INVALID_FACT",
+    "scoring_impact": "yes",
+    "v1_value": "REQUIRED",
+    "v2_value": "REMOVED"
+  },
+  {
+    "case_id": "loc-04",
+    "fact_id": "người sống sót",
+    "change_type": "REMOVE_CONFIRMED_INVALID_FACT",
+    "scoring_impact": "yes",
+    "v1_value": "OPTIONAL",
+    "v2_value": "REMOVED"
+  },
+  {
+    "case_id": "adv-01",
+    "fact_id": "trộm trứng",
+    "change_type": "RESTORE_FALSE_INVALIDATED_FACT",
+    "scoring_impact": "yes",
+    "v1_value": "REQUIRED",
+    "v2_value": "REQUIRED"
+  },
+  {
+    "case_id": "adv-03",
+    "fact_id": "Chương 830",
+    "change_type": "RESTORE_FALSE_INVALIDATED_FACT",
+    "scoring_impact": "yes",
+    "v1_value": "REQUIRED",
+    "v2_value": "REQUIRED"
+  },
+  {
+    "case_id": "adv-03",
+    "fact_id": "trộm trứng",
+    "change_type": "RESTORE_FALSE_INVALIDATED_FACT",
+    "scoring_impact": "yes",
+    "v1_value": "OPTIONAL",
+    "v2_value": "OPTIONAL"
+  },
+  {
+    "case_id": "adv-04",
+    "fact_id": "hệ băng",
+    "change_type": "RESTORE_FALSE_INVALIDATED_FACT",
+    "scoring_impact": "yes",
+    "v1_value": "REQUIRED",
+    "v2_value": "REQUIRED"
+  }
+]

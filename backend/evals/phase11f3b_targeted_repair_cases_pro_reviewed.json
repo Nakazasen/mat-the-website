@@ -1,0 +1,86 @@
+[
+  {
+    "case_id": "char-03",
+    "root_cause": "DRAFT_OMITTED_SUPPORTED_FACTS",
+    "source_evidence_refs": [],
+    "desired_repair_layer": "Generator Prompt",
+    "acceptance_requirement": "Must include all required facts"
+  },
+  {
+    "case_id": "char-04",
+    "root_cause": "DRAFT_OMITTED_SUPPORTED_FACTS",
+    "source_evidence_refs": [],
+    "desired_repair_layer": "Generator Prompt",
+    "acceptance_requirement": "Must include all required facts"
+  },
+  {
+    "case_id": "sum-07",
+    "root_cause": "DRAFT_OMITTED_SUPPORTED_FACTS",
+    "source_evidence_refs": [],
+    "desired_repair_layer": "Generator Prompt",
+    "acceptance_requirement": "Must include all required facts"
+  },
+  {
+    "case_id": "sum-08",
+    "root_cause": "DRAFT_OMITTED_SUPPORTED_FACTS",
+    "source_evidence_refs": [],
+    "desired_repair_layer": "Generator Prompt",
+    "acceptance_requirement": "Must include all required facts"
+  },
+  {
+    "case_id": "sum-09",
+    "root_cause": "DRAFT_OMITTED_SUPPORTED_FACTS",
+    "source_evidence_refs": [],
+    "desired_repair_layer": "Generator Prompt",
+    "acceptance_requirement": "Must include all required facts"
+  },
+  {
+    "case_id": "sum-10",
+    "root_cause": "DRAFT_OMITTED_SUPPORTED_FACTS",
+    "source_evidence_refs": [],
+    "desired_repair_layer": "Generator Prompt",
+    "acceptance_requirement": "Must include all required facts"
+  },
+  {
+    "case_id": "sum-05",
+    "root_cause": "DRAFT_UNSUPPORTED_CLAIM",
+    "source_evidence_refs": [],
+    "desired_repair_layer": "Verifier Prompt",
+    "acceptance_requirement": "Must reject unsupported hallucinated claims"
+  },
+  {
+    "case_id": "char-07",
+    "root_cause": "DRAFT_UNSUPPORTED_CLAIM",
+    "source_evidence_refs": [],
+    "desired_repair_layer": "Verifier Prompt",
+    "acceptance_requirement": "Must reject unsupported hallucinated claims"
+  },
+  {
+    "case_id": "sum-01",
+    "root_cause": "VERIFIER_REQUIRED_COMPLETENESS_FALSE_ACCEPT",
+    "source_evidence_refs": [],
+    "desired_repair_layer": "Verifier Prompt",
+    "acceptance_requirement": "Verifier must reject when required core facts are missing"
+  },
+  {
+    "case_id": "sum-11",
+    "root_cause": "VERIFIER_REQUIRED_COMPLETENESS_FALSE_ACCEPT",
+    "source_evidence_refs": [],
+    "desired_repair_layer": "Verifier Prompt",
+    "acceptance_requirement": "Verifier must reject when required core facts are missing"
+  },
+  {
+    "case_id": "event-08",
+    "root_cause": "RETRIEVAL_RIGHT_CHAPTER_WRONG_CHUNKS",
+    "source_evidence_refs": [],
+    "desired_repair_layer": "Retrieval Planner",
+    "acceptance_requirement": "Must ensure intra-chapter coverage of key events"
+  },
+  {
+    "case_id": "char-10",
+    "root_cause": "RETRIEVAL_WRONG_CHAPTER",
+    "source_evidence_refs": [],
+    "desired_repair_layer": "Retrieval Planner",
+    "acceptance_requirement": "Must correctly select expected chapter 800"
+  }
+]
