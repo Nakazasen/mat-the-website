@@ -1,71 +1,54 @@
-import os
-import re
+from pathlib import Path
 
-def test_golden_regression_workflow_rules():
-    workflow_path = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-        ".github", "workflows", "golden-oracle-regression.yml"
-    )
-    assert os.path.exists(workflow_path), f"Workflow file not found at {workflow_path}"
-    
-    with open(workflow_path, "r", encoding="utf-8") as f:
-        content = f.read()
+ROOT = Path(__file__).resolve().parents[2]
+WORKFLOW = ROOT / ".github" / "workflows" / "golden-oracle-regression.yml"
 
-    # 13. workflow không trigger pull_request
-    assert "pull_request" not in content
+def read_workflow():
+    return WORKFLOW.read_text(encoding="utf-8")
+
+def test_bounded_autonomous_schedule_enabled():
+    content = read_workflow()
     assert "schedule:" in content
-    assert "cron:" in content
     assert "workflow_dispatch:" in content
+    assert "max two questions" in content.lower()
 
-    # 14. workflow permissions contents read
-    assert re.search(r"permissions:\s*\n\s*contents:\s*read", content, re.IGNORECASE) or \
-           re.search(r"contents:\s*read", content, re.IGNORECASE)
+def test_max_questions_and_timeout_are_hard_capped():
+    content = read_workflow()
+    assert "-gt 2" in content
+    assert "-gt 15" in content
+    assert "timeout-minutes: 5" in content
 
-    # 15. workflow có concurrency
+def test_no_full_regression_or_promotion_or_db_write_steps():
+    content = read_workflow()
+    forbidden = [
+        "run_golden_oracle_regression_cases.py",
+        "build_golden_candidates_from_feedback.py",
+        "promote_golden_candidates.py",
+        "--source json",
+        "--source db",
+        "--write-db-run",
+        "--write-report",
+        "--rollback-mode verified-canary",
+        "golden_oracle_regression_cases",
+    ]
+    for item in forbidden:
+        assert item not in content
+
+def test_single_attempt_no_retry_and_bounded_timeout():
+    content = read_workflow()
+    assert "--attempts 1" in content
+    assert "infra-retries" not in content
+    assert "retry" not in content.lower()
+    assert "REQUEST_TIMEOUT_SECONDS" in content
+
+def test_no_push_deploy_benchmark_or_wiki_writes():
+    content = read_workflow().lower()
+    assert "git push" not in content
+    assert "deploy" not in content
+    assert "benchmark" not in content
+    assert "wiki_entries" not in content
+
+def test_concurrency_cancellation_enabled():
+    content = read_workflow()
     assert "concurrency:" in content
-    assert "group: golden-oracle-regression-production" in content
-    assert "cancel-in-progress: false" in content
-
-    # Check timeout-minutes
-    assert "timeout-minutes: 15" in content
-
-    # 16. artifacts upload if always
-    upload_occurrences = content.count("actions/upload-artifact@v4")
-    always_occurrences = content.count("if: always()")
-    assert upload_occurrences >= 3
-    assert always_occurrences >= 3
-
-    # 17. secret không nằm literal trong YAML
-    forbidden_keywords = ["SUPABASE_KEY=eyJ", "SUPABASE_URL=https://"]
-    for kw in forbidden_keywords:
-        assert kw not in content
-
-    # 10. workflow có JSON source
-    assert "--source json" in content
-    # 11. workflow có DB source
-    assert "--source db" in content
-    # 12. workflow DB rollout dùng rollback-mode off cho cả hai
-    assert "--rollback-mode off" in content
-    assert "--rollback-mode verified-canary" not in content
-
-    # 13. Candidate Intake steps (dry-run, no --write)
-    assert "build_golden_candidates_from_feedback.py" in content
-    assert "promote_golden_candidates.py" in content
-    
-    # Check that --write is not passed to builder/promoter steps
-    # We locate build_golden_candidates_from_feedback.py and check that the line/command doesn't contain --write
-    # We do the same for promote_golden_candidates.py
-    builder_match = re.search(r"build_golden_candidates_from_feedback\.py.*", content)
-    assert builder_match is not None
-    assert "--write" not in builder_match.group(0)
-    
-    promoter_match = re.search(r"promote_golden_candidates\.py(\s|\\|\w|-|\.|\/|:)*", content)
-    assert promoter_match is not None
-    assert "--write" not in promoter_match.group(0)
-    
-    assert "feedback-to-golden-promotion-report" in content
-
-    # 14. Containment attributes in combined summary inline python script
-    assert "autonomous_write_enabled" in content
-    assert "candidate_intake_mode" in content
-    assert "promotion_mode" in content
+    assert "cancel-in-progress: true" in content

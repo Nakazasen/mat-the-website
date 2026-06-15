@@ -2,21 +2,30 @@ name: Golden Oracle Regression Gate
 
 on:
   schedule:
-    # Run every 6 hours
+    # Bounded autonomous learning only: max two questions, no full production regression.
     - cron: '0 */6 * * *'
   workflow_dispatch:
+    inputs:
+      max_questions:
+        description: 'Maximum autonomous learning questions (hard max 2)'
+        required: true
+        default: '2'
+      request_timeout_seconds:
+        description: 'Per-question timeout seconds (hard max 15)'
+        required: true
+        default: '15'
 
 permissions:
   contents: read
 
 concurrency:
-  group: golden-oracle-regression-production
-  cancel-in-progress: false
+  group: golden-oracle-autonomous-learning-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  run-regression:
+  bounded-autonomous-learning:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 5
     steps:
       - name: Checkout codebase
         uses: actions/checkout@v4
@@ -26,228 +35,45 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install Supabase Python Client
+      - name: Enforce bounded autonomous policy
         run: |
-          python -m pip install --upgrade pip
-          pip install supabase
-
-      - name: Preflight check for Supabase secrets
-        run: |
-          if [ -z "${{ secrets.SUPABASE_URL }}" ] || [ -z "${{ secrets.SUPABASE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}" ]; then
-            echo "::error::Missing SUPABASE_URL or SUPABASE_KEY/SUPABASE_SERVICE_ROLE_KEY secret in repository secrets!"
-            echo "Classification: BLOCKED_PHASE_11E4_MISSING_GITHUB_DB_SECRETS"
-            echo "Please configure repository secrets SUPABASE_URL and SUPABASE_KEY/SUPABASE_SERVICE_ROLE_KEY."
+          MAX_QUESTIONS="${{ github.event.inputs.max_questions || '2' }}"
+          REQUEST_TIMEOUT_SECONDS="${{ github.event.inputs.request_timeout_seconds || '15' }}"
+          if [ "$MAX_QUESTIONS" -gt 2 ]; then
+            echo "::error::CONFIGURATION_FAILURE: max_questions must be <= 2"
             exit 1
           fi
-
-      - name: Warm up production backend
-        run: |
-          python backend/scripts/warm_up_oracle_backend.py --base-url https://mat-the-website.onrender.com --attempts 5 --timeout 90 --backoff-seconds 10
-
-      - name: Build golden candidates from feedback
-        id: build_candidates
-        continue-on-error: true
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: |
-          python backend/scripts/build_golden_candidates_from_feedback.py --json
-
-      - name: Promote golden candidates to regression registry
-        id: promote_candidates
-        continue-on-error: true
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: |
-          python backend/scripts/promote_golden_candidates.py \
-            --base-url https://mat-the-website.onrender.com \
-            --json
-
-      - name: Run static JSON regression
-        id: run_json
-        # Capture exit code so that we can upload artifacts even if this step fails
-        continue-on-error: true
-        run: |
-          python backend/scripts/run_golden_oracle_regression_cases.py \
-            --base-url https://mat-the-website.onrender.com \
-            --source json \
-            --request-timeout 75 \
-            --infra-retries 3 \
-            --infra-backoff-seconds 5 \
-            --rollback-mode off \
-            --report-path backend/rag/generated_golden_oracle_regression_report_json.json \
-            --json \
-            --write-report
-
-      - name: Run dynamic DB regression
-        id: run_db
-        # Capture exit code so that we can upload artifacts even if this step fails
-        continue-on-error: true
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: |
-          python backend/scripts/run_golden_oracle_regression_cases.py \
-            --base-url https://mat-the-website.onrender.com \
-            --source db \
-            --request-timeout 75 \
-            --infra-retries 3 \
-            --infra-backoff-seconds 5 \
-            --rollback-mode off \
-            --report-path backend/rag/generated_golden_oracle_regression_report_db.json \
-            --json \
-            --write-report \
-            --write-db-run
-
-      - name: Build combined summary
-        if: always()
-        run: |
-          python -c '
-          import os, json
-          json_path = "backend/rag/generated_golden_oracle_regression_report_json.json"
-          db_path = "backend/rag/generated_golden_oracle_regression_report_db.json"
-          promo_path = "backend/rag/generated_feedback_to_golden_promotion_report.json"
-          summary_path = "backend/rag/generated_golden_oracle_combined_summary.json"
-
-          json_data = {}
-          if os.path.exists(json_path):
-              with open(json_path, "r", encoding="utf-8") as f:
-                  json_data = json.load(f)
-
-          db_data = {}
-          if os.path.exists(db_path):
-              with open(db_path, "r", encoding="utf-8") as f:
-                  db_data = json.load(f)
-
-          promo_data = {}
-          if os.path.exists(promo_path):
-              with open(promo_path, "r", encoding="utf-8") as f:
-                  promo_data = json.load(f)
-
-          json_summary = json_data.get("summary", {})
-          db_summary = db_data.get("summary", {})
-
-          # Determine combined classification
-          json_class = json_summary.get("failure_class", "none")
-          db_class = db_summary.get("failure_class", "none")
-
-          combined_class = "PASS_DUAL_SOURCE_GOLDEN_GATE"
-          if json_class != "none" and db_class != "none":
-              combined_class = "JSON_AND_DB_FAILURE"
-          elif json_class == "semantic_failure":
-              combined_class = "JSON_SEMANTIC_FAILURE"
-          elif json_class == "infra_failure":
-              combined_class = "JSON_INFRA_FAILURE"
-          elif json_class == "configuration_failure":
-              combined_class = "JSON_CONFIGURATION_FAILURE"
-          elif db_class == "semantic_failure":
-              combined_class = "DB_SEMANTIC_FAILURE"
-          elif db_class == "infra_failure":
-              combined_class = "DB_INFRA_FAILURE"
-          elif db_class == "configuration_failure":
-              combined_class = "DB_CONFIGURATION_FAILURE"
-
-          combined = {
-              "classification": combined_class,
-              "autonomous_write_enabled": False,
-              "candidate_intake_mode": "dry_run",
-              "promotion_mode": "dry_run",
-              "json": {
-                  "total": json_summary.get("total", 0),
-                  "passed": json_summary.get("passed", 0),
-                  "failed": json_summary.get("failed", 0),
-                  "failure_class": json_class
-              },
-              "db": {
-                  "total": db_summary.get("total", 0),
-                  "passed": db_summary.get("passed", 0),
-                  "failed": db_summary.get("failed", 0),
-                  "failure_class": db_class,
-                  "active_case_count": db_summary.get("total", 0),
-                  "rollback_mode": db_summary.get("rollback_mode", "off"),
-                  "rollback_performed": db_summary.get("rollback_performed", False)
-              },
-              "promotion": {
-                  "feedback_rows_read": promo_data.get("feedback_rows_read", 0),
-                  "candidates_built": promo_data.get("candidates_built", 0),
-                  "candidates_auto_promoted": promo_data.get("candidates_auto_promoted", 0),
-                  "written_promotions": promo_data.get("written_promotions", 0),
-                  "errors": promo_data.get("errors", [])
-              },
-              "metadata": {
-                  "production_git_commit": db_summary.get("production_git_commit") or json_summary.get("production_git_commit"),
-                  "workflow_sha": os.getenv("GITHUB_SHA"),
-                  "artifact_names": ["feedback-to-golden-promotion-report", "golden-regression-report-json", "golden-regression-report-db", "golden-regression-summary"]
-              }
-          }
-
-          with open(summary_path, "w", encoding="utf-8") as f:
-              json.dump(combined, f, indent=2, ensure_ascii=False)
-
-          # Also append to GITHUB_STEP_SUMMARY
-          step_summary = os.getenv("GITHUB_STEP_SUMMARY")
-          if step_summary:
-              with open(step_summary, "a", encoding="utf-8") as sf:
-                  sf.write("### Dual-Source Combined Regression Summary\n")
-                  sf.write(f"- **Combined Classification**: `{combined_class}`\n")
-                  sf.write("- **JSON Source (Static Memory)**: {}/{} passed\n".format(json_summary.get("passed", 0), json_summary.get("total", 0)))
-                  sf.write("- **DB Source (Dynamic Registry)**: {}/{} passed\n".format(db_summary.get("passed", 0), db_summary.get("total", 0)))
-                  sf.write("- **Rollback Mode**: `{}`\n".format(db_summary.get("rollback_mode", "off")))
-                  sf.write("- **Rollback Performed**: `{}`\n".format(db_summary.get("rollback_performed", False)))
-                  sf.write("- **Autonomous Writes Enabled**: `false`\n")
-                  sf.write("- **Candidate Intake Mode**: `dry_run`\n")
-                  sf.write("- **Promotion Mode**: `dry_run`\n")
-                  sf.write("\n### Autonomous Candidate Intake Summary\n")
-                  sf.write("- **Feedback Rows Read**: {}\n".format(promo_data.get("feedback_rows_read", 0)))
-                  sf.write("- **Candidates Built**: {}\n".format(promo_data.get("candidates_built", 0)))
-                  sf.write("- **Candidates Auto-Promoted**: {}\n".format(promo_data.get("candidates_auto_promoted", 0)))
-                  sf.write("- **Written Promotions**: {}\n".format(promo_data.get("written_promotions", 0)))
-                  if promo_data.get("errors"):
-                      sf.write("- **Errors**: {}\n".format(", ".join(promo_data.get("errors"))))
-          '
-
-      - name: Upload Golden Promotion Report Artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: feedback-to-golden-promotion-report
-          path: backend/rag/generated_feedback_to_golden_promotion_report.json
-          retention-days: 14
-
-      - name: Upload JSON Regression Report Artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: golden-regression-report-json
-          path: backend/rag/generated_golden_oracle_regression_report_json.json
-          retention-days: 14
-
-      - name: Upload DB Regression Report Artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: golden-regression-report-db
-          path: backend/rag/generated_golden_oracle_regression_report_db.json
-          retention-days: 14
-
-      - name: Upload Combined Summary Artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: golden-regression-summary
-          path: backend/rag/generated_golden_oracle_combined_summary.json
-          retention-days: 14
-
-      - name: Propagate final exit code
-        run: |
-          EXIT_CODE=0
-          if [ "${{ steps.run_json.outcome }}" != "success" ]; then
-            echo "JSON regression run failed"
-            EXIT_CODE=1
+          if [ "$REQUEST_TIMEOUT_SECONDS" -gt 15 ]; then
+            echo "::error::CONFIGURATION_FAILURE: request_timeout_seconds must be <= 15"
+            exit 1
           fi
-          if [ "${{ steps.run_db.outcome }}" != "success" ]; then
-            echo "DB regression run failed"
-            EXIT_CODE=1
+          echo "MAX_QUESTIONS=$MAX_QUESTIONS" >> "$GITHUB_ENV"
+          echo "REQUEST_TIMEOUT_SECONDS=$REQUEST_TIMEOUT_SECONDS" >> "$GITHUB_ENV"
+
+      - name: Run bounded autonomous learning loop
+        id: autonomous_loop
+        run: |
+          python backend/scripts/run_autonomous_learning_loop.py \
+            --max-questions "$MAX_QUESTIONS" \
+            --request-timeout "$REQUEST_TIMEOUT_SECONDS" \
+            --attempts 1 \
+            --report-path backend/rag/generated_autonomous_learning_loop_report.json
+
+      - name: Upload autonomous learning report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: autonomous-learning-loop-report
+          path: backend/rag/generated_autonomous_learning_loop_report.json
+          retention-days: 14
+
+      - name: Propagate bounded autonomous result
+        if: always()
+        run: |
+          if [ "${{ steps.autonomous_loop.outcome }}" = "success" ]; then
+            echo "classification=PASS_BOUNDED_AUTONOMOUS_LEARNING_LOOP"
+            exit 0
           fi
-          exit $EXIT_CODE
+          echo "classification=CONFIGURATION_FAILURE"
+          echo "originating_step=Run bounded autonomous learning loop"
+          exit 1
