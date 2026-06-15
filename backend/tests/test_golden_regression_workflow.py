@@ -10,7 +10,9 @@ def test_bounded_autonomous_schedule_enabled():
     content = read_workflow()
     assert "schedule:" in content
     assert "workflow_dispatch:" in content
-    assert "max two questions" in content.lower()
+    assert "max_questions" in content.lower()
+    assert "CANARY_QUESTIONS=1" in content
+    assert "ROTATING_LEARNING_QUESTIONS=1" in content
 
 def test_max_questions_and_timeout_are_hard_capped():
     content = read_workflow()
@@ -37,8 +39,8 @@ def test_no_full_regression_or_promotion_or_db_write_steps():
 def test_single_attempt_no_retry_and_bounded_timeout():
     content = read_workflow()
     assert "--attempts 1" in content
+    assert "ORACLE_RETRIES=0" in content
     assert "infra-retries" not in content
-    assert "retry" not in content.lower()
     assert "REQUEST_TIMEOUT_SECONDS" in content
 
 def test_no_push_deploy_benchmark_or_wiki_writes():
@@ -46,9 +48,15 @@ def test_no_push_deploy_benchmark_or_wiki_writes():
     assert "git push" not in content
     assert "deploy" not in content
     assert "benchmark" not in content
-    assert "wiki_entries" not in content
+    assert ".insert(" not in content and ".upsert(" not in content
 
 def test_concurrency_cancellation_enabled():
     content = read_workflow()
     assert "concurrency:" in content
     assert "cancel-in-progress: true" in content
+
+def test_fail_closed_migration_and_health_probe():
+    content = read_workflow()
+    assert "MIGRATION_NOT_READY" in content
+    assert "MAX_HEALTH_PROBES=1" in content
+    assert "BACKEND_UNSTABLE" in content

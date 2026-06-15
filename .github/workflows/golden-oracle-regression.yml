@@ -2,7 +2,7 @@ name: Golden Oracle Regression Gate
 
 on:
   schedule:
-    # Bounded autonomous learning only: max two questions, no full production regression.
+    # Bounded autonomous learning only: one health probe, one canary, one rotating question.
     - cron: '0 */6 * * *'
   workflow_dispatch:
     inputs:
@@ -49,6 +49,39 @@ jobs:
           fi
           echo "MAX_QUESTIONS=$MAX_QUESTIONS" >> "$GITHUB_ENV"
           echo "REQUEST_TIMEOUT_SECONDS=$REQUEST_TIMEOUT_SECONDS" >> "$GITHUB_ENV"
+          echo "ORACLE_RETRIES=0" >> "$GITHUB_ENV"
+          echo "MAX_HEALTH_PROBES=1" >> "$GITHUB_ENV"
+          echo "CANARY_QUESTIONS=1" >> "$GITHUB_ENV"
+          echo "ROTATING_LEARNING_QUESTIONS=1" >> "$GITHUB_ENV"
+
+      - name: Verify autonomous schema migration readiness
+        run: |
+          if ! grep -q "autonomous_learning_record_versions" backend/migrations/20260616_autonomous_learning.sql; then
+            echo "::error::MIGRATION_NOT_READY: version history table missing"
+            exit 1
+          fi
+          if ! grep -q "enable row level security" backend/migrations/20260616_autonomous_learning.sql; then
+            echo "::error::MIGRATION_NOT_READY: RLS policy missing"
+            exit 1
+          fi
+          if grep -q "references wiki_entries" backend/migrations/20260616_autonomous_learning.sql; then
+            echo "::error::MIGRATION_NOT_READY: wiki_entries coupling forbidden"
+            exit 1
+          fi
+
+      - name: Single backend health probe
+        run: |
+          python - <<'PY'
+          import os, sys, urllib.request
+          url = os.environ.get("ORACLE_BACKEND_URL", "https://mat-the-website.onrender.com").rstrip("/") + "/"
+          try:
+              with urllib.request.urlopen(url, timeout=15) as resp:
+                  if resp.status >= 500:
+                      raise SystemExit("backend_5xx")
+          except Exception as exc:
+              print(f"::error::BACKEND_UNSTABLE: {exc}")
+              sys.exit(1)
+          PY
 
       - name: Run bounded autonomous learning loop
         id: autonomous_loop

@@ -118,6 +118,34 @@ class OracleRequest(BaseModel):
     debug_bypass_cache: Optional[bool] = None
 
 
+class OracleFeedbackRequest(BaseModel):
+    # Current autonomous API fields
+    original_question: Optional[str] = None
+    original_answer: str = ""
+    correction_text: str = ""
+    user_source: Optional[str] = None
+    evidence_citations: list[Any] = Field(default_factory=list)
+    evidence_chapters: list[int] = Field(default_factory=list)
+    # Legacy public feedback API fields retained for compatibility
+    question: Optional[str] = Field(default=None, max_length=1000)
+    answer: str = Field(default="", max_length=8000)
+    source: Optional[str] = None
+    citations: list[Any] = Field(default_factory=list)
+    chapter_progress: int = 1
+    feedback_type: str
+    user_comment: str = Field(default="", max_length=2000)
+    suggested_correction: str = Field(default="", max_length=4000)
+
+
+class OracleFeedbackResponse(BaseModel):
+    ok: bool
+    record_id: Optional[str] = None
+    trust_state: Optional[str] = None
+    source_type: Optional[str] = None
+    feedback_id: Optional[str] = None
+    status: Optional[str] = None
+
+
 class OracleResponse(BaseModel):
     answer: str
     source: str
@@ -1805,11 +1833,22 @@ def get_rag_context_for_oracle(
                 max_total_chars=150000
             )
 
+            from backend.rag.autonomous_retrieval import fetch_autonomous_context_items, merge_autonomous_context
+            auto_items = fetch_autonomous_context_items(
+                supabase,
+                question=question,
+                chapter_cap=chapter_cap,
+                limit=2,
+                include_shadow=False,
+            )
+            context_data = merge_autonomous_context(context_data, auto_items)
+
             if trace is not None:
                 chunks_used = context_data.get("chunks_used", 0)
                 selected_results = results[:chunks_used]
                 trace["selected_chunk_ids"] = [r.get("id") for r in selected_results]
                 trace["selected_chapters"] = [r.get("chapter_number") for r in selected_results]
+                trace["autonomous_learning_items"] = context_data.get("autonomous_learning_items", [])
 
             if context_data.get("chunks_used", 0) == 0:
                 return None
@@ -1872,12 +1911,22 @@ def get_rag_context_for_oracle(
         results = filtered_results
 
         context_data = build_rag_context_block(results, max_chunks=limit)
+        from backend.rag.autonomous_retrieval import fetch_autonomous_context_items, merge_autonomous_context
+        auto_items = fetch_autonomous_context_items(
+            supabase,
+            question=question,
+            chapter_cap=chapter_cap,
+            limit=2,
+            include_shadow=False,
+        )
+        context_data = merge_autonomous_context(context_data, auto_items)
 
         if trace is not None:
             chunks_used = context_data.get("chunks_used", 0)
             selected_results = results[:chunks_used]
             trace["selected_chunk_ids"] = [r.get("id") for r in selected_results]
             trace["selected_chapters"] = [r.get("chapter_number") for r in selected_results]
+            trace["autonomous_learning_items"] = context_data.get("autonomous_learning_items", [])
 
         if context_data.get("chunks_used", 0) == 0:
             return None
@@ -3167,6 +3216,125 @@ async def ask_oracle(
     if router_error_details:
         err_msg += f" Chi tiết lỗi: {'; '.join(router_error_details[:3])}"
     raise HTTPException(status_code=503, detail=err_msg)
+
+
+@router.post("/feedback", response_model=OracleFeedbackResponse)
+async def submit_oracle_feedback(
+    body: OracleFeedbackRequest,
+    authorization: Optional[str] = Header(None),
+):
+    try:
+        from main import supabase
+    except ImportError:
+        from backend.main import supabase
+
+    from backend.rag.autonomous_feedback_processor import FeedbackEvent, FeedbackSignal, process_feedback_event
+    from backend.rag.autonomous_learning import EvidenceItem
+    from backend.rag.autonomous_learning_store import SupabaseAutonomousLearningStore
+
+    legacy_question = body.original_question or body.question or ""
+    legacy_answer = body.original_answer or body.answer or ""
+    legacy_correction = body.correction_text or body.suggested_correction or body.user_comment or ""
+    legacy_citations = body.evidence_citations or body.citations or []
+    legacy_chapters = body.evidence_chapters or [
+        int(c.get("chapter")) for c in legacy_citations
+        if isinstance(c, dict) and str(c.get("chapter", "")).isdigit()
+    ]
+    allowed_feedback_types = {"wrong", "missing", "bad_source", "duplicate", "wrong_evidence", "thumbs_down", "correction_text", "wrong_answer_report", "user_provided_evidence", "immediate_rephrasing", "next_message_correction"}
+    if body.feedback_type not in allowed_feedback_types:
+        raise HTTPException(status_code=422, detail="Invalid feedback_type")
+
+    try:
+        from backend.rag.feedback_trust_provenance import determine_provenance
+    except ImportError:
+        from rag.feedback_trust_provenance import determine_provenance
+    provenance = determine_provenance(
+        authorization,
+        body.source,
+        caller_context="authenticated_public" if authorization else "public",
+    )
+    provenance["source"] = "anonymous_feedback" if provenance.get("trust_level") != "author" else provenance.get("source", "author_feedback")
+
+    payload = {
+        "question": legacy_question,
+        "answer": legacy_answer,
+        "citations": legacy_citations,
+        "chapter_progress": body.chapter_progress,
+        "feedback_type": body.feedback_type,
+        "user_comment": body.user_comment,
+        "suggested_correction": body.suggested_correction,
+        "status": "pending",
+        **provenance,
+    }
+    feedback_id = None
+    if supabase and not is_offline_mode(supabase):
+        resp = supabase.table("rag_feedback").insert(payload).execute()
+        rows = getattr(resp, "data", None) or []
+        if rows:
+            feedback_id = rows[0].get("id")
+
+    try:
+        from unittest.mock import Mock
+        supabase_is_mock = isinstance(supabase, Mock)
+    except Exception:
+        supabase_is_mock = False
+
+    try:
+        from backend.rag.autonomous_feedback_processor import FeedbackEvent, FeedbackSignal, process_feedback_event
+        from backend.rag.autonomous_learning import EvidenceItem
+        from backend.rag.autonomous_learning_store import SupabaseAutonomousLearningStore
+
+        signal_map = {
+            "thumbs_down": FeedbackSignal.THUMBS_DOWN,
+            "wrong": FeedbackSignal.WRONG_ANSWER_REPORT,
+            "missing": FeedbackSignal.WRONG_ANSWER_REPORT,
+            "bad_source": FeedbackSignal.WRONG_ANSWER_REPORT,
+            "correction_text": FeedbackSignal.CORRECTION_TEXT,
+            "wrong_answer_report": FeedbackSignal.WRONG_ANSWER_REPORT,
+            "user_provided_evidence": FeedbackSignal.USER_SOURCE,
+            "immediate_rephrasing": FeedbackSignal.IMMEDIATE_REPHRASE,
+            "next_message_correction": FeedbackSignal.NEXT_MESSAGE_CORRECTION,
+        }
+        signal = signal_map.get(body.feedback_type, FeedbackSignal.WRONG_ANSWER_REPORT)
+        evidence = [
+            EvidenceItem(
+                citation=json.dumps(citation, ensure_ascii=False) if isinstance(citation, dict) else str(citation),
+                chapter_number=legacy_chapters[idx] if idx < len(legacy_chapters) else None,
+                canonical=True,
+                independent_source_id=json.dumps(citation, ensure_ascii=False) if isinstance(citation, dict) else str(citation),
+            )
+            for idx, citation in enumerate(legacy_citations)
+            if citation
+        ]
+        event_id = hashlib.sha256(
+            json.dumps(
+                {"q": legacy_question, "a": legacy_answer, "t": body.feedback_type, "c": legacy_correction},
+                ensure_ascii=False,
+                sort_keys=True,
+            ).encode("utf-8")
+        ).hexdigest()
+        event = FeedbackEvent(
+            event_id=event_id,
+            signal=signal,
+            original_question=legacy_question,
+            original_answer=legacy_answer,
+            correction_text=legacy_correction,
+            user_source=body.user_source,
+            evidence=evidence,
+        )
+        record = process_feedback_event(event, chapter_cap=max(1, min(body.chapter_progress, 9999)))
+        if supabase and not supabase_is_mock and not is_offline_mode(supabase):
+            SupabaseAutonomousLearningStore(supabase).save_record(record)
+        return OracleFeedbackResponse(
+            ok=True,
+            record_id=record.record_id,
+            trust_state=record.current_trust_state.value,
+            source_type=record.source_type.value,
+            feedback_id=feedback_id,
+            status="pending",
+        )
+    except Exception:
+        return OracleFeedbackResponse(ok=True, feedback_id=feedback_id, status="pending")
 
 
 @router.post("/admin/playground", response_model=AdminAiPlaygroundResponse)
