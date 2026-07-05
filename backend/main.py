@@ -682,6 +682,7 @@ async def translate_chapter_payload_for_locale_resumable(
                 "updated_at": datetime.now(timezone.utc).isoformat(),
                 "last_error": None,
             }).eq("id", chunk_id).execute()
+            refresh_chapter_translation_job_progress(job_id)
         except Exception as exc:
             error_detail = str(exc)
             supabase.table("chapter_translation_chunks").update({

@@ -329,6 +329,30 @@ function buildSingleTranslateNotice(chapterNumber: number, result: AdminChapterT
     };
 }
 
+type TranslationJobProgress = NonNullable<TranslationStatus['translation_jobs']>[number];
+
+function getTranslationJobPercent(job: TranslationJobProgress): number {
+    if (!job.total_chunks || job.total_chunks <= 0) return 0;
+    return Math.min(100, Math.max(0, Math.round((job.completed_chunks / job.total_chunks) * 100)));
+}
+
+function formatTranslationJobProgress(job: TranslationJobProgress): string {
+    const percent = getTranslationJobPercent(job);
+    const localeLabel = job.locale === 'ja' ? 'JA' : job.locale === 'en' ? 'EN' : 'ZH-CN';
+    const statusLabel = job.status === 'completed' ? 'đã xong' : job.failed_chunks > 0 ? 'cần xử lý lỗi' : 'đang dịch';
+    return `${localeLabel} ${statusLabel}: ${job.completed_chunks}/${job.total_chunks} chunk, ${percent}%${job.failed_chunks > 0 ? `, ${job.failed_chunks} lỗi` : ''}`;
+}
+
+function buildLiveTranslationProgressNotice(chapterNumber: number, status: TranslationStatus, localeLabel: string): ActionNotice | null {
+    const activeJobs = (status.translation_jobs || []).filter((job) => job.status === 'queued' || job.status === 'in_progress');
+    if (activeJobs.length === 0) return null;
+    const progressText = activeJobs.map(formatTranslationJobProgress).join(' | ');
+    return {
+        tone: 'success',
+        message: `Chương ${chapterNumber}: ${progressText}. Có thể rời trang, backend vẫn tiếp tục dịch ${localeLabel}.`,
+    };
+}
+
 function formatBatchNetworkError(message: string | undefined, completed: number, total: number): string {
     const normalized = (message || '').trim();
     if (!normalized) {
@@ -729,7 +753,7 @@ export default function AdminChaptersPage() {
             if (result.status === 'queued') {
                 setActionNotice({
                     tone: 'success',
-                    message: `Đã đưa chương ${chapterNumber} vào hàng đợi dịch ${localeLabel} trong nền. Đang tiến hành dịch...`,
+                    message: `Đã đưa chương ${chapterNumber} vào hàng đợi dịch ${localeLabel}. Đang chờ tiến độ chunk... Có thể rời trang, backend vẫn tiếp tục.`,
                 });
                 
                 if (activePolls.current[chapterNumber]) {
@@ -740,7 +764,12 @@ export default function AdminChaptersPage() {
                     const statuses = await refreshTranslationStatuses([chapterNumber]);
                     if (statuses && statuses.length > 0) {
                         const status = statuses[0];
-                        if (status.in_progress_count === 0) {
+                        const activeJobs = (status.translation_jobs || []).filter((job) => job.status === 'queued' || job.status === 'in_progress');
+                        if (activeJobs.length > 0) {
+                            const liveNotice = buildLiveTranslationProgressNotice(chapterNumber, status, localeLabel);
+                            if (liveNotice) setActionNotice(liveNotice);
+                        }
+                        if (status.in_progress_count === 0 && activeJobs.length === 0) {
                             clearInterval(interval);
                             delete activePolls.current[chapterNumber];
                             setTranslatingId(null);
@@ -750,7 +779,7 @@ export default function AdminChaptersPage() {
                             if (failedCount === 0) {
                                 setActionNotice({
                                     tone: 'success',
-                                    message: `Chương ${chapterNumber}: Dịch 3 ngôn ngữ thành công (${status.published_locales.join(', ')}).`,
+                                    message: `Chương ${chapterNumber}: Dịch ${localeLabel} thành công (${status.published_locales.join(', ')}).`,
                                 });
                             } else if (publishedCount === 0) {
                                 setActionNotice({
@@ -2434,21 +2463,38 @@ export default function AdminChaptersPage() {
                                                             {translationStatusMap[chapter.chapter_number].quality_status_label}
                                                         </div>
                                                         {(translationStatusMap[chapter.chapter_number].translation_jobs || []).length > 0 && (
-                                                            <div className="mt-1 flex flex-wrap gap-1.5 text-[10px] font-mono">
-                                                                {(translationStatusMap[chapter.chapter_number].translation_jobs || []).map((job) => (
-                                                                    <span
-                                                                        key={`${chapter.chapter_number}-${job.locale}-job-progress`}
-                                                                        className={`inline-flex items-center rounded border px-1.5 py-0.5 ${job.failed_chunks > 0
-                                                                            ? 'border-red-800/60 bg-red-950/30 text-red-300'
-                                                                            : job.status === 'completed'
-                                                                                ? 'border-green-800/60 bg-green-950/30 text-green-300'
-                                                                                : 'border-amber-800/60 bg-amber-950/30 text-amber-300'
-                                                                        }`}
-                                                                        title={job.last_error || undefined}
-                                                                    >
-                                                                        {job.locale}: {job.completed_chunks}/{job.total_chunks} chunk{job.failed_chunks > 0 ? `, ${job.failed_chunks} lỗi` : ''}
-                                                                    </span>
-                                                                ))}
+                                                            <div className="mt-2 space-y-1.5 text-[10px] font-mono">
+                                                                {(translationStatusMap[chapter.chapter_number].translation_jobs || []).map((job) => {
+                                                                    const percent = getTranslationJobPercent(job);
+                                                                    const toneClass = job.failed_chunks > 0
+                                                                        ? 'border-red-800/60 bg-red-950/30 text-red-300'
+                                                                        : job.status === 'completed'
+                                                                            ? 'border-green-800/60 bg-green-950/30 text-green-300'
+                                                                            : 'border-amber-800/60 bg-amber-950/30 text-amber-300';
+                                                                    const fillClass = job.failed_chunks > 0
+                                                                        ? 'bg-red-400'
+                                                                        : job.status === 'completed'
+                                                                            ? 'bg-green-400'
+                                                                            : 'bg-amber-300';
+                                                                    return (
+                                                                        <div
+                                                                            key={`${chapter.chapter_number}-${job.locale}-job-progress`}
+                                                                            className={`rounded border px-2 py-1 ${toneClass}`}
+                                                                            title={job.last_error || undefined}
+                                                                        >
+                                                                            <div className="mb-1 flex items-center justify-between gap-2">
+                                                                                <span>{formatTranslationJobProgress(job)}</span>
+                                                                                <span>{percent}%</span>
+                                                                            </div>
+                                                                            <div className="h-1.5 overflow-hidden rounded-full bg-black/40">
+                                                                                <div
+                                                                                    className={`h-full rounded-full transition-all duration-500 ${fillClass}`}
+                                                                                    style={{ width: `${percent}%` }}
+                                                                                />
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                })}
                                                             </div>
                                                         )}
                                                         {translationStatusMap[chapter.chapter_number].attempt_count > 0 && (
