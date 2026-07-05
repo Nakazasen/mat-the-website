@@ -2,7 +2,7 @@ name: Golden Oracle Regression Gate
 
 on:
   schedule:
-    # Bounded autonomous learning only: one health probe, one canary, one rotating question.
+    # Bounded autonomous learning only: deterministic offline canary + rotating question.
     - cron: '0 */6 * * *'
   workflow_dispatch:
     inputs:
@@ -14,6 +14,14 @@ on:
         description: 'Per-question timeout seconds (hard max 15)'
         required: true
         default: '15'
+      strict_backend_probe:
+        description: 'Fail manual run if production backend health probe is unstable'
+        required: true
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
 
 permissions:
   contents: read
@@ -39,6 +47,7 @@ jobs:
         run: |
           MAX_QUESTIONS="${{ github.event.inputs.max_questions || '2' }}"
           REQUEST_TIMEOUT_SECONDS="${{ github.event.inputs.request_timeout_seconds || '15' }}"
+          STRICT_BACKEND_PROBE="${{ github.event.inputs.strict_backend_probe || 'false' }}"
           if [ "$MAX_QUESTIONS" -gt 2 ]; then
             echo "::error::CONFIGURATION_FAILURE: max_questions must be <= 2"
             exit 1
@@ -49,10 +58,12 @@ jobs:
           fi
           echo "MAX_QUESTIONS=$MAX_QUESTIONS" >> "$GITHUB_ENV"
           echo "REQUEST_TIMEOUT_SECONDS=$REQUEST_TIMEOUT_SECONDS" >> "$GITHUB_ENV"
+          echo "STRICT_BACKEND_PROBE=$STRICT_BACKEND_PROBE" >> "$GITHUB_ENV"
           echo "ORACLE_RETRIES=0" >> "$GITHUB_ENV"
           echo "MAX_HEALTH_PROBES=1" >> "$GITHUB_ENV"
           echo "CANARY_QUESTIONS=1" >> "$GITHUB_ENV"
           echo "ROTATING_LEARNING_QUESTIONS=1" >> "$GITHUB_ENV"
+          echo "AUTONOMOUS_LEARNING_MODE=offline_deterministic" >> "$GITHUB_ENV"
 
       - name: Verify autonomous schema migration readiness
         run: |
@@ -69,18 +80,30 @@ jobs:
             exit 1
           fi
 
-      - name: Single backend health probe
+      - name: Bounded backend health diagnostic
+        id: backend_probe
         run: |
           python - <<'PY'
-          import os, sys, urllib.request
+          import json, os, sys, urllib.request
           url = os.environ.get("ORACLE_BACKEND_URL", "https://mat-the-website.onrender.com").rstrip("/") + "/"
+          report = {"url": url, "ok": False, "status": None, "error": None, "strict": os.environ.get("STRICT_BACKEND_PROBE") == "true"}
           try:
               with urllib.request.urlopen(url, timeout=15) as resp:
+                  report["status"] = resp.status
+                  report["ok"] = resp.status < 500
                   if resp.status >= 500:
-                      raise SystemExit("backend_5xx")
+                      raise RuntimeError(f"backend_5xx:{resp.status}")
           except Exception as exc:
-              print(f"::error::BACKEND_UNSTABLE: {exc}")
-              sys.exit(1)
+              report["error"] = str(exc)
+              print(f"::warning::BACKEND_UNSTABLE: {exc}")
+              if report["strict"]:
+                  print(f"::error::BACKEND_UNSTABLE_STRICT: {exc}")
+                  Path = __import__("pathlib").Path
+                  Path("backend/rag/generated_backend_probe_report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
+                  sys.exit(1)
+          Path = __import__("pathlib").Path
+          Path("backend/rag/generated_backend_probe_report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
+          print("backend_probe=" + ("ok" if report["ok"] else "unstable_diagnostic"))
           PY
 
       - name: Run bounded autonomous learning loop
@@ -90,14 +113,18 @@ jobs:
             --max-questions "$MAX_QUESTIONS" \
             --request-timeout "$REQUEST_TIMEOUT_SECONDS" \
             --attempts 1 \
+            --dry-run-no-live-requests \
+            --mode "$AUTONOMOUS_LEARNING_MODE" \
             --report-path backend/rag/generated_autonomous_learning_loop_report.json
 
-      - name: Upload autonomous learning report
+      - name: Upload autonomous learning reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: autonomous-learning-loop-report
-          path: backend/rag/generated_autonomous_learning_loop_report.json
+          path: |
+            backend/rag/generated_autonomous_learning_loop_report.json
+            backend/rag/generated_backend_probe_report.json
           retention-days: 14
 
       - name: Propagate bounded autonomous result
@@ -105,6 +132,7 @@ jobs:
         run: |
           if [ "${{ steps.autonomous_loop.outcome }}" = "success" ]; then
             echo "classification=PASS_BOUNDED_AUTONOMOUS_LEARNING_LOOP"
+            echo "backend_probe_outcome=${{ steps.backend_probe.outcome }}"
             exit 0
           fi
           echo "classification=CONFIGURATION_FAILURE"

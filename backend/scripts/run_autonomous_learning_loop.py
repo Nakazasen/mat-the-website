@@ -36,16 +36,23 @@ ROTATING_LEARNING_TASK = {
     "detection": DetectionType.RETRIEVAL_MISS.value,
 }
 
-def enforce_bounds(max_questions: int, request_timeout: int, attempts: int) -> None:
+ALLOWED_MODES = {"offline_deterministic", "bounded_external"}
+
+def enforce_bounds(max_questions: int, request_timeout: int, attempts: int, mode: str) -> None:
     if max_questions > 2:
         raise SystemExit("CONFIGURATION_FAILURE: max_questions must be <= 2")
     if request_timeout > 15:
         raise SystemExit("CONFIGURATION_FAILURE: request_timeout must be <= 15")
     if attempts != 1:
         raise SystemExit("CONFIGURATION_FAILURE: attempts must equal 1")
+    if mode not in ALLOWED_MODES:
+        raise SystemExit(f"CONFIGURATION_FAILURE: mode must be one of {sorted(ALLOWED_MODES)}")
 
-def run_loop(*, max_questions: int, request_timeout: int, attempts: int, dry_run_no_live_requests: bool) -> dict:
-    enforce_bounds(max_questions, request_timeout, attempts)
+def run_loop(*, max_questions: int, request_timeout: int, attempts: int, dry_run_no_live_requests: bool, mode: str) -> dict:
+    enforce_bounds(max_questions, request_timeout, attempts, mode)
+    if mode == "offline_deterministic" and not dry_run_no_live_requests:
+        raise SystemExit("CONFIGURATION_FAILURE: offline_deterministic mode requires --dry-run-no-live-requests")
+
     tasks = [CANARY_TASK, ROTATING_LEARNING_TASK][:max_questions]
     records = []
     for idx, task in enumerate(tasks):
@@ -73,10 +80,13 @@ def run_loop(*, max_questions: int, request_timeout: int, attempts: int, dry_run
     return {
         "classification": "PASS_BOUNDED_AUTONOMOUS_LEARNING_LOOP",
         "run_at": datetime.now(timezone.utc).isoformat(),
+        "mode": mode,
+        "dry_run_no_live_requests": dry_run_no_live_requests,
         "max_questions": max_questions,
         "attempts_per_question": attempts,
         "request_timeout_seconds": request_timeout,
         "live_requests": 0 if dry_run_no_live_requests else "bounded_external_mode",
+        "backend_dependency": "none" if dry_run_no_live_requests else "bounded_optional",
         "questions_attempted": len(tasks),
         "canary_questions": sum(1 for t in tasks if t["kind"] == "canary"),
         "rotating_learning_questions": sum(1 for t in tasks if t["kind"] == "rotating_learning"),
@@ -93,6 +103,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--request-timeout", type=int, default=15)
     parser.add_argument("--attempts", type=int, default=1)
     parser.add_argument("--dry-run-no-live-requests", action="store_true")
+    parser.add_argument("--mode", choices=sorted(ALLOWED_MODES), default="offline_deterministic")
     parser.add_argument("--report-path", default="backend/rag/generated_autonomous_learning_loop_report.json")
     args = parser.parse_args(argv)
     report = run_loop(
@@ -100,11 +111,17 @@ def main(argv: list[str] | None = None) -> int:
         request_timeout=args.request_timeout,
         attempts=args.attempts,
         dry_run_no_live_requests=args.dry_run_no_live_requests,
+        mode=args.mode,
     )
     path = Path(args.report_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
-    print(json.dumps({"classification": report["classification"], "live_requests": report["live_requests"], "questions_attempted": report["questions_attempted"]}, ensure_ascii=False))
+    print(json.dumps({
+        "classification": report["classification"],
+        "mode": report["mode"],
+        "live_requests": report["live_requests"],
+        "questions_attempted": report["questions_attempted"],
+    }, ensure_ascii=False))
     return 0
 
 if __name__ == "__main__":

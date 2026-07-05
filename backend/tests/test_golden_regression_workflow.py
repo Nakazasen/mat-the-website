@@ -13,6 +13,8 @@ def test_bounded_autonomous_schedule_enabled():
     assert "max_questions" in content.lower()
     assert "CANARY_QUESTIONS=1" in content
     assert "ROTATING_LEARNING_QUESTIONS=1" in content
+    assert "AUTONOMOUS_LEARNING_MODE=offline_deterministic" in content
+    assert "--dry-run-no-live-requests" in content
 
 def test_max_questions_and_timeout_are_hard_capped():
     content = read_workflow()
@@ -55,8 +57,13 @@ def test_concurrency_cancellation_enabled():
     assert "concurrency:" in content
     assert "cancel-in-progress: true" in content
 
-def test_fail_closed_migration_and_health_probe():
+def test_fail_closed_migration_and_diagnostic_health_probe():
     content = read_workflow()
     assert "MIGRATION_NOT_READY" in content
     assert "MAX_HEALTH_PROBES=1" in content
     assert "BACKEND_UNSTABLE" in content
+    assert "strict_backend_probe" in content
+    assert "BACKEND_UNSTABLE_STRICT" in content
+    assert "if report[\"strict\"]" in content
+    assert "sys.exit(1)" in content
+    assert "generated_backend_probe_report.json" in content
