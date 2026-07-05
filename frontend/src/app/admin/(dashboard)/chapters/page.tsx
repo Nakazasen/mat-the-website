@@ -84,6 +84,8 @@ interface ChapterTranslationStatus {
         completed_chunks: number;
         failed_chunks: number;
         attempt_count: number;
+        provider?: string | null;
+        model?: string | null;
         last_error?: string | null;
         updated_at?: string | null;
     }>;
@@ -2492,6 +2494,11 @@ export default function AdminChaptersPage() {
                                                                                     style={{ width: `${percent}%` }}
                                                                                 />
                                                                             </div>
+                                                                            {(job.provider || job.model) && (
+                                                                                <div className="mt-1 text-[9px] text-slate-300/80">
+                                                                                    AI: {job.provider || 'unknown'}{job.model ? ` / ${job.model}` : ''}
+                                                                                </div>
+                                                                            )}
                                                                         </div>
                                                                     );
                                                                 })}

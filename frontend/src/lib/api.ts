@@ -507,6 +507,8 @@ export async function getAdminChapterTranslationStatuses(
             completed_chunks: number;
             failed_chunks: number;
             attempt_count: number;
+            provider?: string | null;
+            model?: string | null;
             last_error?: string | null;
             updated_at?: string | null;
         }>;

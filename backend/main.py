@@ -238,6 +238,7 @@ TRANSLATION_CHUNK_RETRY_FANOUT = 2
 VIETNAMESE_TEXT_HINTS = set("ăâêôơưđàáảãạằắẳẵặầấẩẫậèéẻẽẹềếểễệìíỉĩịòóỏõọồốổỗộờớởỡợùúủũụừứửữựỳýỷỹỵĂÂÊÔƠƯĐÀÁẢÃẠẰẮẲẴẶẦẤẨẪẬÈÉẺẼẸỀẾỂỄỆÌÍỈĨỊÒÓỎÕỌỒỐỔỖỘỜỚỞỠỢÙÚỦŨỤỪỨỬỮỰỲÝỶỸỴ")
 TRANSLATION_RATE_LIMIT_STATE: dict[str, float] = {}
 TRANSLATION_RATE_LIMIT_LOCK = asyncio.Lock()
+TRANSLATION_LAST_PROVIDER_META: dict[str, Optional[str]] = {"provider": None, "model": None}
 CHAPTER_TRANSLATION_ALIGNMENT_SUPPORTED: Optional[bool] = None
 T = TypeVar("T")
 
@@ -678,6 +679,8 @@ async def translate_chapter_payload_for_locale_resumable(
                 "status": "completed",
                 "translated_title": translated_title,
                 "translated_text": translated_text,
+                "provider": TRANSLATION_LAST_PROVIDER_META.get("provider"),
+                "model": TRANSLATION_LAST_PROVIDER_META.get("model"),
                 "completed_at": datetime.now(timezone.utc).isoformat(),
                 "updated_at": datetime.now(timezone.utc).isoformat(),
                 "last_error": None,
@@ -1451,6 +1454,8 @@ async def generate_structured_translation_payload(
                 result = await router.route(request, policy=policy)
                 
                 if result.status == "success" and result.text:
+                    TRANSLATION_LAST_PROVIDER_META["provider"] = result.provider
+                    TRANSLATION_LAST_PROVIDER_META["model"] = result.model
                     try:
                         return parser(result.text)
                     except Exception as parse_exc:
@@ -4747,12 +4752,43 @@ async def admin_get_chapter_translation_statuses(
     try:
         translation_job_rows = (
             supabase.table("chapter_translation_jobs")
-            .select("chapter_id, locale, status, total_chunks, completed_chunks, failed_chunks, attempt_count, last_error, updated_at")
+            .select("id, chapter_id, locale, status, total_chunks, completed_chunks, failed_chunks, attempt_count, last_error, updated_at")
             .in_("chapter_id", list(chapter_id_to_number.keys()))
             .execute()
         ).data or []
     except Exception as exc:
         print(f"DEBUG: translation job status unavailable: {exc}")
+
+    latest_provider_by_job: dict[str, dict[str, Any]] = {}
+    job_ids = [row.get("id") for row in translation_job_rows if row.get("id")]
+    if job_ids:
+        try:
+            chunk_rows = (
+                supabase.table("chapter_translation_chunks")
+                .select("job_id, provider, model, status, completed_at, updated_at")
+                .in_("job_id", job_ids)
+                .execute()
+            ).data or []
+            for chunk in chunk_rows:
+                if chunk.get("status") != "completed":
+                    continue
+                job_id = chunk.get("job_id")
+                if not job_id:
+                    continue
+                provider = chunk.get("provider")
+                model = chunk.get("model")
+                if not provider and not model:
+                    continue
+                timestamp = chunk.get("completed_at") or chunk.get("updated_at") or ""
+                current = latest_provider_by_job.get(job_id)
+                if current is None or timestamp >= (current.get("timestamp") or ""):
+                    latest_provider_by_job[job_id] = {
+                        "provider": provider,
+                        "model": model,
+                        "timestamp": timestamp,
+                    }
+        except Exception as exc:
+            print(f"DEBUG: translation chunk provider status unavailable: {exc}")
 
     status_map: dict[int, dict] = {}
     for chapter_number in requested_numbers:
@@ -4833,6 +4869,7 @@ async def admin_get_chapter_translation_statuses(
         chapter_number = chapter_id_to_number.get(job_row.get("chapter_id"))
         if not chapter_number or chapter_number not in status_map:
             continue
+        provider_meta = latest_provider_by_job.get(job_row.get("id"), {})
         status_map[chapter_number]["translation_jobs"].append({
             "locale": job_row.get("locale"),
             "status": job_row.get("status"),
@@ -4840,6 +4877,8 @@ async def admin_get_chapter_translation_statuses(
             "completed_chunks": int(job_row.get("completed_chunks") or 0),
             "failed_chunks": int(job_row.get("failed_chunks") or 0),
             "attempt_count": int(job_row.get("attempt_count") or 0),
+            "provider": provider_meta.get("provider"),
+            "model": provider_meta.get("model"),
             "last_error": job_row.get("last_error"),
             "updated_at": job_row.get("updated_at"),
         })
