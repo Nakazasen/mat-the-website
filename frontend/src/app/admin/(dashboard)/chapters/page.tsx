@@ -63,11 +63,14 @@ interface ChapterTranslationStatus {
     published_locales: string[];
     refined_locales: string[];
     failed_locales: string[];
+    draft_locales: string[];
     in_progress_locales: string[];
     published_count: number;
     refined_count: number;
     can_improve: boolean;
+    can_improve_draft: boolean;
     failed_count: number;
+    draft_count: number;
     in_progress_count: number;
     attempt_count: number;
     last_error?: string | null;
@@ -704,18 +707,19 @@ export default function AdminChaptersPage() {
         }
     };
 
-    const handleTranslate = async (chapterNumber: number) => {
+    const handleTranslate = async (chapterNumber: number, locales?: string[]) => {
         if (!token) return;
         setTranslatingId(chapterNumber);
         setActionNotice(null);
+        const localeLabel = locales && locales.length > 0 ? locales.join(', ') : '3 ngôn ngữ';
         try {
             const freshToken = await resolveAdminToken();
-            const result = await translateAdminChapter(chapterNumber, freshToken);
+            const result = await translateAdminChapter(chapterNumber, freshToken, locales);
             
             if (result.status === 'queued') {
                 setActionNotice({
                     tone: 'success',
-                    message: `Đã đưa chương ${chapterNumber} vào hàng đợi dịch 3 ngôn ngữ trong nền. Đang tiến hành dịch...`,
+                    message: `Đã đưa chương ${chapterNumber} vào hàng đợi dịch ${localeLabel} trong nền. Đang tiến hành dịch...`,
                 });
                 
                 if (activePolls.current[chapterNumber]) {
@@ -2413,7 +2417,8 @@ export default function AdminChaptersPage() {
                                                         <div className="text-[11px] text-gray-500">
                                                             Hoàn thành {translationStatusMap[chapter.chapter_number].published_count}/3
                                                             {translationStatusMap[chapter.chapter_number].in_progress_count > 0 && ` | Đang dịch: ${translationStatusMap[chapter.chapter_number].in_progress_locales.join(', ')}`}
-                                                            {translationStatusMap[chapter.chapter_number].failed_count > 0 && ` | Lỗi: ${translationStatusMap[chapter.chapter_number].failed_locales.join(', ')}`}
+                                                            {translationStatusMap[chapter.chapter_number].draft_count > 0 && ` | Bản nháp cần nâng chất lượng: ${translationStatusMap[chapter.chapter_number].draft_locales.join(', ')}`}
+                                                            {translationStatusMap[chapter.chapter_number].failed_count > 0 && ` | Lỗi: ${translationStatusMap[chapter.chapter_number].failed_locales.filter((locale) => !translationStatusMap[chapter.chapter_number].draft_locales.includes(locale)).join(', ') || 'không còn lỗi trắng'}`}
                                                         </div>
                                                         <div className="text-[11px] text-cyan-300/80">
                                                             {translationStatusMap[chapter.chapter_number].quality_status_label}
@@ -2450,21 +2455,39 @@ export default function AdminChaptersPage() {
                                                             !token
                                                             || improvingId === chapter.chapter_number
                                                             || translatingId === chapter.chapter_number
-                                                            || (translationStatusMap[chapter.chapter_number]?.published_count || 0) === 0
-                                                            || (!forceQualityRefine && !translationStatusMap[chapter.chapter_number]?.can_improve)
+                                                            || ((translationStatusMap[chapter.chapter_number]?.published_count || 0) === 0 && !(translationStatusMap[chapter.chapter_number]?.can_improve_draft))
+                                                            || (!forceQualityRefine && !translationStatusMap[chapter.chapter_number]?.can_improve && !translationStatusMap[chapter.chapter_number]?.can_improve_draft)
                                                         }
                                                         className="flex items-center gap-1.5 px-3 py-1.5 border border-cyan-700/60 hover:border-cyan-500 text-cyan-300 hover:text-cyan-200 disabled:opacity-50 rounded text-xs font-mono transition-all hover:bg-cyan-500/10"
                                                         title={
-                                                            (translationStatusMap[chapter.chapter_number]?.published_count || 0) === 0
-                                                                ? 'Cần có ít nhất một bản dịch đã xuất bản để cải thiện chất lượng'
-                                                                : (!forceQualityRefine && !translationStatusMap[chapter.chapter_number]?.can_improve)
-                                                                    ? 'Chương này đã được nâng chất lượng rồi. Bật ép chạy lại nếu muốn refine lại.'
-                                                                    : 'Cải thiện lại chất lượng bản dịch hiện có'
+                                                            translationStatusMap[chapter.chapter_number]?.can_improve_draft
+                                                                ? 'Có bản nháp cần nâng chất lượng để publish'
+                                                                : (translationStatusMap[chapter.chapter_number]?.published_count || 0) === 0
+                                                                    ? 'Cần có ít nhất một bản dịch đã xuất bản hoặc bản nháp để cải thiện chất lượng'
+                                                                    : (!forceQualityRefine && !translationStatusMap[chapter.chapter_number]?.can_improve)
+                                                                        ? 'Chương này đã được nâng chất lượng rồi. Bật ép chạy lại nếu muốn refine lại.'
+                                                                        : 'Cải thiện lại chất lượng bản dịch hiện có'
                                                         }
                                                     >
                                                         <Wand2 size={10} />
-                                                        {improvingId === chapter.chapter_number ? 'ĐANG REFINE...' : 'NÂNG CHẤT LƯỢNG'}
+                                                        {improvingId === chapter.chapter_number
+                                                            ? 'ĐANG REFINE...'
+                                                            : translationStatusMap[chapter.chapter_number]?.can_improve_draft
+                                                                ? 'NÂNG CHẤT LƯỢNG BẢN NHÁP'
+                                                                : 'NÂNG CHẤT LƯỢNG'}
                                                     </button>
+                                                    {translationStatusMap[chapter.chapter_number]?.draft_locales?.map((locale) => (
+                                                        <button
+                                                            key={`${chapter.chapter_number}-${locale}-retry-draft`}
+                                                            onClick={() => handleTranslate(chapter.chapter_number, [locale])}
+                                                            disabled={!token || translatingId === chapter.chapter_number || improvingId === chapter.chapter_number || isAllProvidersOnCooldown}
+                                                            className="flex items-center gap-1.5 px-3 py-1.5 border border-amber-700/60 hover:border-amber-500 text-amber-300 hover:text-amber-200 disabled:opacity-50 rounded text-xs font-mono transition-all hover:bg-amber-500/10"
+                                                            title={`Dịch lại riêng ngôn ngữ ${locale}, không ảnh hưởng các ngôn ngữ khác`}
+                                                        >
+                                                            <RefreshCw size={10} />
+                                                            DỊCH LẠI {locale}
+                                                        </button>
+                                                    ))}
                                                     <button
                                                         onClick={() => handleOpenQuickImport(chapter.chapter_number)}
                                                         className="flex items-center gap-1.5 px-3 py-1.5 border border-cyan-700/60 hover:border-cyan-500 text-cyan-300 hover:text-cyan-200 rounded text-xs font-mono transition-all hover:bg-cyan-500/10"

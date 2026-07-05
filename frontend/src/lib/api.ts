@@ -317,8 +317,9 @@ export async function resetAdminOracleRateLimit(token: string): Promise<AdminOra
     return payload;
 }
 
-export async function translateAdminChapter(chapterNumber: number, token: string): Promise<AdminChapterTranslateResult> {
-    const res = await fetch(`${API_BASE_URL}/api/admin/chapters/${chapterNumber}/translate`, {
+export async function translateAdminChapter(chapterNumber: number, token: string, locales?: string[]): Promise<AdminChapterTranslateResult> {
+    const localeQuery = locales && locales.length > 0 ? `?locales=${encodeURIComponent(locales.join(","))}` : "";
+    const res = await fetch(`${API_BASE_URL}/api/admin/chapters/${chapterNumber}/translate${localeQuery}`, {
         method: "POST",
         headers: {
             Authorization: `Bearer ${token}`,
@@ -485,11 +486,14 @@ export async function getAdminChapterTranslationStatuses(
         published_locales: string[];
         refined_locales: string[];
         failed_locales: string[];
+        draft_locales: string[];
         in_progress_locales: string[];
         published_count: number;
         refined_count: number;
         can_improve: boolean;
+        can_improve_draft: boolean;
         failed_count: number;
+        draft_count: number;
         in_progress_count: number;
         attempt_count: number;
         last_error?: string | null;

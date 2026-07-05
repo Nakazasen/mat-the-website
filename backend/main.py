@@ -3825,6 +3825,7 @@ async def admin_translate_chapter(
     chapter_number: int,
     background_tasks: BackgroundTasks,
     response: Response,
+    locales: Optional[str] = Query(None, description="Optional comma-separated target locales to translate, e.g. en or zh-CN,ja"),
     authorization: Optional[str] = Header(None),
 ):
     await verify_admin(authorization)
@@ -3843,7 +3844,11 @@ async def admin_translate_chapter(
     content_text = fetch_r2_content(chapter_row["content_url"])
     content_hash = build_content_hash(content_text)
     now_iso = datetime.now(timezone.utc).isoformat()
-    target_locales = list(TRANSLATION_TARGET_LOCALES)
+    target_locales = build_target_translation_locales(
+        [item.strip() for item in (locales or "").split(",") if item.strip()]
+        if locales
+        else list(TRANSLATION_TARGET_LOCALES)
+    )
 
     existing_translation_resp = (
         supabase.table("chapter_translations")
@@ -3956,7 +3961,13 @@ async def admin_improve_chapter_translation_quality(
     skipped_locales: list[str] = []
     for row in (existing_translation_resp.data or []):
         locale = row.get("locale")
-        if not locale or row.get("translation_status") != "published":
+        if not locale:
+            continue
+        has_draft_text = bool(str(row.get("title") or "").strip() or str(row.get("content") or "").strip())
+        if row.get("translation_status") == "failed" and has_draft_text:
+            needed_locales.append(locale)
+            continue
+        if row.get("translation_status") != "published":
             continue
         published_locales.append(locale)
         if force or row.get("translation_source") != "ai_refine":
@@ -3964,16 +3975,16 @@ async def admin_improve_chapter_translation_quality(
         else:
             skipped_locales.append(locale)
 
-    if not published_locales:
+    if not needed_locales:
         return {
-            "message": "No existing published translation found to improve",
+            "message": "No existing published or draft translation found to improve",
             "chapter_number": chapter_number,
             "translated_locales": [],
             "failed_translations": [],
             "skipped_locales": [],
         }
 
-    if not needed_locales:
+    if published_locales and all(locale in skipped_locales for locale in published_locales) and not force:
         return {
             "message": "Chapter translation quality already up to date",
             "chapter_number": chapter_number,
@@ -4481,7 +4492,7 @@ async def admin_get_chapter_translation_statuses(
     chapter_id_to_number = {row["id"]: row["chapter_number"] for row in chapter_rows}
     translation_rows_resp = (
         supabase.table("chapter_translations")
-        .select("chapter_id, locale, translation_status, translation_source, attempt_count, last_error, updated_at")
+        .select("chapter_id, locale, translation_status, translation_source, title, content, attempt_count, last_error, updated_at")
         .in_("chapter_id", list(chapter_id_to_number.keys()))
         .execute()
     )
@@ -4494,11 +4505,14 @@ async def admin_get_chapter_translation_statuses(
             "published_locales": [],
             "refined_locales": [],
             "failed_locales": [],
+            "draft_locales": [],
             "in_progress_locales": [],
             "published_count": 0,
             "refined_count": 0,
             "can_improve": False,
+            "can_improve_draft": False,
             "failed_count": 0,
+            "draft_count": 0,
             "in_progress_count": 0,
             "attempt_count": 0,
             "last_error": None,
@@ -4518,11 +4532,14 @@ async def admin_get_chapter_translation_statuses(
                 "published_locales": [],
                 "refined_locales": [],
                 "failed_locales": [],
+                "draft_locales": [],
                 "in_progress_locales": [],
                 "published_count": 0,
                 "refined_count": 0,
                 "can_improve": False,
+                "can_improve_draft": False,
                 "failed_count": 0,
+                "draft_count": 0,
                 "in_progress_count": 0,
                 "attempt_count": 0,
                 "last_error": None,
@@ -4543,6 +4560,8 @@ async def admin_get_chapter_translation_statuses(
                 target["refined_locales"].append(locale)
         elif row_status == "failed" and locale:
             target["failed_locales"].append(locale)
+            if str(row.get("title") or "").strip() or str(row.get("content") or "").strip():
+                target["draft_locales"].append(locale)
         elif row_status == "in_progress" and locale:
             target["in_progress_locales"].append(locale)
 
@@ -4556,15 +4575,20 @@ async def admin_get_chapter_translation_statuses(
         payload["published_locales"] = sorted(set(payload["published_locales"]))
         payload["refined_locales"] = sorted(set(payload["refined_locales"]))
         payload["failed_locales"] = sorted(set(payload["failed_locales"]))
+        payload["draft_locales"] = sorted(set(payload["draft_locales"]))
         payload["in_progress_locales"] = sorted(set(payload["in_progress_locales"]))
         payload["published_count"] = len(payload["published_locales"])
         payload["refined_count"] = len(payload["refined_locales"])
         payload["failed_count"] = len(payload["failed_locales"])
+        payload["draft_count"] = len(payload["draft_locales"])
         payload["in_progress_count"] = len(payload["in_progress_locales"])
         payload["can_improve"] = any(locale not in payload["refined_locales"] for locale in payload["published_locales"])
+        payload["can_improve_draft"] = payload["draft_count"] > 0
         payload["status_label"] = (
             "Đang dịch"
             if payload["in_progress_count"] > 0
+            else f"Có bản nháp, cần nâng chất lượng ({payload['draft_count']}/3)"
+            if payload["draft_count"] > 0
             else f"Đã hoàn thành {payload['published_count']}/3"
             if payload["published_count"] == 3
             else f"Đã lỗi {payload['attempt_count']} lần"
