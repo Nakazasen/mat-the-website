@@ -500,6 +500,16 @@ export async function getAdminChapterTranslationStatuses(
         last_error_locale?: string | null;
         status_label: string;
         quality_status_label: string;
+        translation_jobs?: Array<{
+            locale: string;
+            status: string;
+            total_chunks: number;
+            completed_chunks: number;
+            failed_chunks: number;
+            attempt_count: number;
+            last_error?: string | null;
+            updated_at?: string | null;
+        }>;
     }>;
 }> {
     const res = await fetch(`${API_BASE_URL}/api/admin/chapters/translation-statuses`, {

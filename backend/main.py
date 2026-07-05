@@ -483,6 +483,238 @@ def chunk_translation_source_text(source_text: str, max_chars: int = TRANSLATION
     return chunks
 
 
+
+
+def translation_resume_tables_available() -> bool:
+    try:
+        jobs_query = supabase.table("chapter_translation_jobs")
+        chunks_query = supabase.table("chapter_translation_chunks")
+        if not hasattr(jobs_query, "update") or not hasattr(chunks_query, "update"):
+            return False
+        jobs_query.select("id").limit(1).execute()
+        chunks_query.select("id").limit(1).execute()
+        return True
+    except Exception as exc:
+        print(f"DEBUG: translation resume tables unavailable, using legacy flow: {exc}")
+        return False
+
+
+def _translation_chunk_rows_from_content(job_id: str, chapter_id: int, locale: str, chunks: list[str]) -> list[dict[str, Any]]:
+    now_iso = datetime.now(timezone.utc).isoformat()
+    return [
+        {
+            "job_id": job_id,
+            "chapter_id": chapter_id,
+            "locale": locale,
+            "chunk_index": index,
+            "source_text": chunk,
+            "source_hash": build_content_hash(chunk),
+            "status": "queued",
+            "attempt_count": 0,
+            "created_at": now_iso,
+            "updated_at": now_iso,
+        }
+        for index, chunk in enumerate(chunks)
+    ]
+
+
+def ensure_chapter_translation_job(chapter_row: dict, locale: str, content_hash: str, source_chunks: list[str]) -> Optional[dict[str, Any]]:
+    now_iso = datetime.now(timezone.utc).isoformat()
+    try:
+        existing = (
+            supabase.table("chapter_translation_jobs")
+            .select("*")
+            .eq("chapter_id", chapter_row["id"])
+            .eq("locale", locale)
+            .eq("source_content_hash", content_hash)
+            .limit(1)
+            .execute()
+        )
+        if existing.data:
+            job = existing.data[0]
+        else:
+            payload = {
+                "chapter_id": chapter_row["id"],
+                "chapter_number": chapter_row["chapter_number"],
+                "locale": locale,
+                "source_locale": DEFAULT_LOCALE,
+                "source_content_hash": content_hash,
+                "status": "queued",
+                "total_chunks": len(source_chunks),
+                "completed_chunks": 0,
+                "failed_chunks": 0,
+                "attempt_count": 0,
+                "created_at": now_iso,
+                "updated_at": now_iso,
+            }
+            created = (
+                supabase.table("chapter_translation_jobs")
+                .upsert(payload, on_conflict="chapter_id,locale,source_content_hash")
+                .execute()
+            )
+            job = (created.data or [payload])[0]
+            if not job.get("id"):
+                refetch = (
+                    supabase.table("chapter_translation_jobs")
+                    .select("*")
+                    .eq("chapter_id", chapter_row["id"])
+                    .eq("locale", locale)
+                    .eq("source_content_hash", content_hash)
+                    .limit(1)
+                    .execute()
+                )
+                job = (refetch.data or [None])[0]
+        if not job or not job.get("id"):
+            return None
+        chunk_resp = (
+            supabase.table("chapter_translation_chunks")
+            .select("id")
+            .eq("job_id", job["id"])
+            .limit(1)
+            .execute()
+        )
+        if not (chunk_resp.data or []):
+            supabase.table("chapter_translation_chunks").upsert(
+                _translation_chunk_rows_from_content(job["id"], chapter_row["id"], locale, source_chunks),
+                on_conflict="job_id,chunk_index",
+            ).execute()
+        return job
+    except Exception as exc:
+        print(f"DEBUG: ensure_chapter_translation_job failed for {locale}: {exc}")
+        return None
+
+
+def refresh_chapter_translation_job_progress(job_id: str, error_detail: Optional[str] = None) -> Optional[dict[str, Any]]:
+    try:
+        rows = (
+            supabase.table("chapter_translation_chunks")
+            .select("status")
+            .eq("job_id", job_id)
+            .execute()
+        ).data or []
+        total = len(rows)
+        completed = sum(1 for row in rows if row.get("status") == "completed")
+        failed = sum(1 for row in rows if row.get("status") == "failed")
+        status_value = "completed" if total and completed == total else "failed" if failed else "in_progress"
+        now_iso = datetime.now(timezone.utc).isoformat()
+        payload = {
+            "status": status_value,
+            "total_chunks": total,
+            "completed_chunks": completed,
+            "failed_chunks": failed,
+            "updated_at": now_iso,
+            "last_error": error_detail,
+        }
+        if status_value == "completed":
+            payload["completed_at"] = now_iso
+        return (supabase.table("chapter_translation_jobs").update(payload).eq("id", job_id).execute().data or [payload])[0]
+    except Exception as exc:
+        print(f"DEBUG: refresh_chapter_translation_job_progress failed: {exc}")
+        return None
+
+
+async def translate_chapter_payload_for_locale_resumable(
+    *,
+    chapter_row: dict,
+    title: str,
+    content: str,
+    target_locale: str,
+    context_label: str,
+    translation_mode: str = "bulk",
+) -> Optional[dict[str, Any]]:
+    content_hash = build_content_hash(content)
+    source_chunks = chunk_translation_source_text(content)
+    job = ensure_chapter_translation_job(chapter_row, target_locale, content_hash, source_chunks)
+    if not job:
+        return None
+    job_id = job["id"]
+    now_iso = datetime.now(timezone.utc).isoformat()
+    supabase.table("chapter_translation_jobs").update({
+        "status": "in_progress",
+        "attempt_count": int(job.get("attempt_count") or 0) + 1,
+        "started_at": job.get("started_at") or now_iso,
+        "updated_at": now_iso,
+        "last_error": None,
+    }).eq("id", job_id).execute()
+    chunk_rows = (
+        supabase.table("chapter_translation_chunks")
+        .select("*")
+        .eq("job_id", job_id)
+        .order("chunk_index")
+        .execute()
+    ).data or []
+    title_value = ""
+    for row in chunk_rows:
+        if row.get("status") == "completed" and row.get("translated_text"):
+            if not title_value and row.get("translated_title"):
+                title_value = str(row.get("translated_title") or "").strip()
+            continue
+        chunk_id = row["id"]
+        chunk_index = int(row.get("chunk_index") or 0)
+        source_text = str(row.get("source_text") or "")
+        try:
+            supabase.table("chapter_translation_chunks").update({
+                "status": "in_progress",
+                "attempt_count": int(row.get("attempt_count") or 0) + 1,
+                "started_at": datetime.now(timezone.utc).isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+                "last_error": None,
+            }).eq("id", chunk_id).execute()
+            payloads = await translate_chapter_payloads_with_ai(
+                title=title,
+                content=source_text,
+                source_locale=DEFAULT_LOCALE,
+                target_locales=[target_locale],
+                context_label=f"{context_label}-chunk-{chunk_index + 1}",
+                translation_mode=translation_mode,
+            )
+            translated = payloads[target_locale]
+            translated_title = str(translated.get("title") or "").strip()
+            translated_text = str(translated.get("content") or "").strip()
+            if not translated_title or not translated_text:
+                raise ValueError(f"Missing translated chunk payload for locale {target_locale}")
+            title_value = title_value or translated_title
+            supabase.table("chapter_translation_chunks").update({
+                "status": "completed",
+                "translated_title": translated_title,
+                "translated_text": translated_text,
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+                "last_error": None,
+            }).eq("id", chunk_id).execute()
+        except Exception as exc:
+            error_detail = str(exc)
+            supabase.table("chapter_translation_chunks").update({
+                "status": "failed",
+                "last_error": error_detail,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }).eq("id", chunk_id).execute()
+            refresh_chapter_translation_job_progress(job_id, error_detail)
+            raise
+    final_rows = (
+        supabase.table("chapter_translation_chunks")
+        .select("*")
+        .eq("job_id", job_id)
+        .order("chunk_index")
+        .execute()
+    ).data or []
+    if any(row.get("status") != "completed" for row in final_rows):
+        refresh_chapter_translation_job_progress(job_id, "Some chunks are not completed")
+        raise ValueError(f"Some translation chunks are not completed for {target_locale}")
+    translated_chunks = [str(row.get("translated_text") or "").strip() for row in final_rows]
+    source_chunks_for_alignment = [str(row.get("source_text") or "").strip() for row in final_rows]
+    translated_content = "\n\n".join(item for item in translated_chunks if item).strip()
+    refresh_chapter_translation_job_progress(job_id)
+    return {
+        "title": title_value or title,
+        "content": translated_content,
+        "sentence_alignment": build_chapter_sentence_alignment(
+            source_text=content,
+            translated_text=translated_content,
+            source_chunks=source_chunks_for_alignment,
+            translated_chunks=translated_chunks,
+        ),
+    }
 def split_failed_translation_chunk_for_retry(source_text: str) -> list[str]:
     """Split one failed translation chunk into smaller retry chunks.
 
@@ -2005,15 +2237,28 @@ async def upsert_chapter_translations(
     pre_translation_failures: dict[str, str] = {}
     for locale in target_locales:
         try:
-            locale_payloads = await translate_chapter_payloads_with_ai(
-                title=title,
-                content=content,
-                source_locale=DEFAULT_LOCALE,
-                target_locales=[locale],
-                context_label=f"chapter-{chapter_row['chapter_number']}-{locale}",
-                translation_mode=translation_mode,
-            )
-            translated_payloads.update(locale_payloads)
+            locale_payload = None
+            if translation_resume_tables_available():
+                locale_payload = await translate_chapter_payload_for_locale_resumable(
+                    chapter_row=chapter_row,
+                    title=title,
+                    content=content,
+                    target_locale=locale,
+                    context_label=f"chapter-{chapter_row['chapter_number']}-{locale}",
+                    translation_mode=translation_mode,
+                )
+            if locale_payload is None:
+                locale_payloads = await translate_chapter_payloads_with_ai(
+                    title=title,
+                    content=content,
+                    source_locale=DEFAULT_LOCALE,
+                    target_locales=[locale],
+                    context_label=f"chapter-{chapter_row['chapter_number']}-{locale}",
+                    translation_mode=translation_mode,
+                )
+                locale_payload = locale_payloads.get(locale)
+            if locale_payload:
+                translated_payloads[locale] = locale_payload
         except HTTPException as exc:
             pre_translation_failures[locale] = str(exc.detail)
         except Exception as exc:
@@ -4497,6 +4742,16 @@ async def admin_get_chapter_translation_statuses(
         .execute()
     )
     translation_rows = translation_rows_resp.data or []
+    translation_job_rows: list[dict[str, Any]] = []
+    try:
+        translation_job_rows = (
+            supabase.table("chapter_translation_jobs")
+            .select("chapter_id, locale, status, total_chunks, completed_chunks, failed_chunks, attempt_count, last_error, updated_at")
+            .in_("chapter_id", list(chapter_id_to_number.keys()))
+            .execute()
+        ).data or []
+    except Exception as exc:
+        print(f"DEBUG: translation job status unavailable: {exc}")
 
     status_map: dict[int, dict] = {}
     for chapter_number in requested_numbers:
@@ -4518,6 +4773,7 @@ async def admin_get_chapter_translation_statuses(
             "last_error": None,
             "last_error_locale": None,
             "last_error_updated_at": None,
+            "translation_jobs": [],
         }
 
     for row in translation_rows:
@@ -4545,6 +4801,7 @@ async def admin_get_chapter_translation_statuses(
                 "last_error": None,
                 "last_error_locale": None,
                 "last_error_updated_at": None,
+                "translation_jobs": [],
             },
         )
         locale = row.get("locale")
@@ -4570,6 +4827,21 @@ async def admin_get_chapter_translation_statuses(
             target["last_error"] = row_error
             target["last_error_locale"] = locale
             target["last_error_updated_at"] = row_updated_at
+
+    for job_row in translation_job_rows:
+        chapter_number = chapter_id_to_number.get(job_row.get("chapter_id"))
+        if not chapter_number or chapter_number not in status_map:
+            continue
+        status_map[chapter_number]["translation_jobs"].append({
+            "locale": job_row.get("locale"),
+            "status": job_row.get("status"),
+            "total_chunks": int(job_row.get("total_chunks") or 0),
+            "completed_chunks": int(job_row.get("completed_chunks") or 0),
+            "failed_chunks": int(job_row.get("failed_chunks") or 0),
+            "attempt_count": int(job_row.get("attempt_count") or 0),
+            "last_error": job_row.get("last_error"),
+            "updated_at": job_row.get("updated_at"),
+        })
 
     for chapter_number, payload in status_map.items():
         payload["published_locales"] = sorted(set(payload["published_locales"]))

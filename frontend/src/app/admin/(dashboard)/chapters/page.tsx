@@ -77,6 +77,16 @@ interface ChapterTranslationStatus {
     last_error_locale?: string | null;
     status_label: string;
     quality_status_label: string;
+    translation_jobs?: Array<{
+        locale: string;
+        status: string;
+        total_chunks: number;
+        completed_chunks: number;
+        failed_chunks: number;
+        attempt_count: number;
+        last_error?: string | null;
+        updated_at?: string | null;
+    }>;
 }
 
 type ActionNotice = {
@@ -2423,6 +2433,24 @@ export default function AdminChaptersPage() {
                                                         <div className="text-[11px] text-cyan-300/80">
                                                             {translationStatusMap[chapter.chapter_number].quality_status_label}
                                                         </div>
+                                                        {(translationStatusMap[chapter.chapter_number].translation_jobs || []).length > 0 && (
+                                                            <div className="mt-1 flex flex-wrap gap-1.5 text-[10px] font-mono">
+                                                                {(translationStatusMap[chapter.chapter_number].translation_jobs || []).map((job) => (
+                                                                    <span
+                                                                        key={`${chapter.chapter_number}-${job.locale}-job-progress`}
+                                                                        className={`inline-flex items-center rounded border px-1.5 py-0.5 ${job.failed_chunks > 0
+                                                                            ? 'border-red-800/60 bg-red-950/30 text-red-300'
+                                                                            : job.status === 'completed'
+                                                                                ? 'border-green-800/60 bg-green-950/30 text-green-300'
+                                                                                : 'border-amber-800/60 bg-amber-950/30 text-amber-300'
+                                                                        }`}
+                                                                        title={job.last_error || undefined}
+                                                                    >
+                                                                        {job.locale}: {job.completed_chunks}/{job.total_chunks} chunk{job.failed_chunks > 0 ? `, ${job.failed_chunks} lỗi` : ''}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        )}
                                                         {translationStatusMap[chapter.chapter_number].attempt_count > 0 && (
                                                             <div className="text-[11px] text-amber-300/90">
                                                                 Đã thử {translationStatusMap[chapter.chapter_number].attempt_count} lần
@@ -2449,6 +2477,18 @@ export default function AdminChaptersPage() {
                                                         <Languages size={10} />
                                                         {translatingId === chapter.chapter_number ? 'ĐANG DỊCH...' : isAllProvidersOnCooldown ? 'COOLDOWN (HẠ NHIỆT)...' : 'DỊCH 3 NGÔN NGỮ'}
                                                     </button>
+                                                    {MANUAL_IMPORT_LOCALES.map((locale) => (
+                                                        <button
+                                                            key={`${chapter.chapter_number}-${locale}-translate-locale`}
+                                                            onClick={() => handleTranslate(chapter.chapter_number, [locale])}
+                                                            disabled={!token || translatingId === chapter.chapter_number || improvingId === chapter.chapter_number || isAllProvidersOnCooldown}
+                                                            className="flex items-center gap-1.5 px-3 py-1.5 border border-purple-700/50 hover:border-purple-500 text-purple-300 hover:text-purple-200 disabled:opacity-50 rounded text-xs font-mono transition-all hover:bg-purple-500/10"
+                                                            title={`Dịch riêng ngôn ngữ ${locale}, không ảnh hưởng các ngôn ngữ khác`}
+                                                        >
+                                                            <Languages size={10} />
+                                                            DỊCH {locale}
+                                                        </button>
+                                                    ))}
                                                     <button
                                                         onClick={() => handleImproveQuality(chapter.chapter_number)}
                                                         disabled={
