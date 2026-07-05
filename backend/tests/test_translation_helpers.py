@@ -337,13 +337,16 @@ async def test_upsert_chapter_translations_failure_upsert_includes_required_text
 
     monkeypatch.setattr(main, "translate_chapter_payloads_with_ai", fake_translate_chapter_payloads_with_ai)
 
-    with pytest.raises(HTTPException):
-        await main.upsert_chapter_translations(
-            chapter_row={"id": 999, "chapter_number": 817, "title": "Thu linh te hai."},
-            title="Thu linh te hai.",
-            content="Noi dung chuong",
-            locales=["en"],
-        )
+    result = await main.upsert_chapter_translations(
+        chapter_row={"id": 999, "chapter_number": 817, "title": "Thu linh te hai."},
+        title="Thu linh te hai.",
+        content="Noi dung chuong",
+        locales=["en"],
+    )
+    assert result["translated_locales"] == []
+    assert result["failed_translations"] == [
+        {"locale": "en", "status_code": 502, "detail": "AI translation is not configured"}
+    ]
 
     failed_payloads = [
         item["payload"]

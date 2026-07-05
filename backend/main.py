@@ -1912,41 +1912,36 @@ async def upsert_chapter_translations(
             on_conflict="chapter_id,locale",
         ).execute()
 
-    try:
-        translated_payloads = await translate_chapter_payloads_with_ai(
-            title=title,
-            content=content,
-            source_locale=DEFAULT_LOCALE,
-            target_locales=target_locales,
-            context_label=f"chapter-{chapter_row['chapter_number']}",
-            translation_mode=translation_mode,
-        )
-    except HTTPException as exc:
+    translated_payloads: dict[str, dict[str, Any]] = {}
+    pre_translation_failures: dict[str, str] = {}
+    for locale in target_locales:
+        try:
+            locale_payloads = await translate_chapter_payloads_with_ai(
+                title=title,
+                content=content,
+                source_locale=DEFAULT_LOCALE,
+                target_locales=[locale],
+                context_label=f"chapter-{chapter_row['chapter_number']}-{locale}",
+                translation_mode=translation_mode,
+            )
+            translated_payloads.update(locale_payloads)
+        except HTTPException as exc:
+            pre_translation_failures[locale] = str(exc.detail)
+        except Exception as exc:
+            pre_translation_failures[locale] = str(exc)
+
+    if pre_translation_failures:
         failure_time = datetime.now(timezone.utc).isoformat()
-        for locale in target_locales:
+        for locale, error_detail in pre_translation_failures.items():
             supabase.table("chapter_translations").upsert(
                 build_failed_translation_row(
                     locale,
                     existing_rows.get(locale),
-                    error_detail=str(exc.detail),
+                    error_detail=error_detail,
                     failure_time=failure_time,
                 ),
                 on_conflict="chapter_id,locale",
             ).execute()
-        raise
-    except Exception as exc:
-        failure_time = datetime.now(timezone.utc).isoformat()
-        for locale in target_locales:
-            supabase.table("chapter_translations").upsert(
-                build_failed_translation_row(
-                    locale,
-                    existing_rows.get(locale),
-                    error_detail=str(exc),
-                    failure_time=failure_time,
-                ),
-                on_conflict="chapter_id,locale",
-            ).execute()
-        raise
 
     translated_locales = []
     failed_translations = []
@@ -1957,7 +1952,7 @@ async def upsert_chapter_translations(
         translated_title = str(locale_payload.get("title") or "").strip()
         translated_content = str(locale_payload.get("content") or "").strip()
         if not translated_title or not translated_content:
-            detail = f"Missing translated chapter payload for locale {locale}"
+            detail = pre_translation_failures.get(locale) or f"Missing translated chapter payload for locale {locale}"
             supabase.table("chapter_translations").upsert(
                 build_failed_translation_row(
                     locale,
