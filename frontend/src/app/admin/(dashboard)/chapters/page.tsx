@@ -329,7 +329,7 @@ function buildSingleTranslateNotice(chapterNumber: number, result: AdminChapterT
     };
 }
 
-type TranslationJobProgress = NonNullable<TranslationStatus['translation_jobs']>[number];
+type TranslationJobProgress = NonNullable<ChapterTranslationStatus['translation_jobs']>[number];
 
 function getTranslationJobPercent(job: TranslationJobProgress): number {
     if (!job.total_chunks || job.total_chunks <= 0) return 0;
@@ -343,7 +343,7 @@ function formatTranslationJobProgress(job: TranslationJobProgress): string {
     return `${localeLabel} ${statusLabel}: ${job.completed_chunks}/${job.total_chunks} chunk, ${percent}%${job.failed_chunks > 0 ? `, ${job.failed_chunks} lỗi` : ''}`;
 }
 
-function buildLiveTranslationProgressNotice(chapterNumber: number, status: TranslationStatus, localeLabel: string): ActionNotice | null {
+function buildLiveTranslationProgressNotice(chapterNumber: number, status: ChapterTranslationStatus, localeLabel: string): ActionNotice | null {
     const activeJobs = (status.translation_jobs || []).filter((job) => job.status === 'queued' || job.status === 'in_progress');
     if (activeJobs.length === 0) return null;
     const progressText = activeJobs.map(formatTranslationJobProgress).join(' | ');
