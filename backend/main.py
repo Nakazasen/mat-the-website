@@ -233,6 +233,8 @@ TRANSLATION_PUBLISH_MAX_SENTENCE_RATIO = 1.5
 TRANSLATION_PUBLISH_MAX_BLOCK_DELTA = 8
 TRANSLATION_PUBLISH_MIN_ALIGNMENT_ENTRIES = 1
 TRANSLATION_REPAIR_MAX_ATTEMPTS = 2
+TRANSLATION_CHUNK_RETRY_MIN_CHARS = 700
+TRANSLATION_CHUNK_RETRY_FANOUT = 2
 VIETNAMESE_TEXT_HINTS = set("ăâêôơưđàáảãạằắẳẵặầấẩẫậèéẻẽẹềếểễệìíỉĩịòóỏõọồốổỗộờớởỡợùúủũụừứửữựỳýỷỹỵĂÂÊÔƠƯĐÀÁẢÃẠẰẮẲẴẶẦẤẨẪẬÈÉẺẼẸỀẾỂỄỆÌÍỈĨỊÒÓỎÕỌỒỐỔỖỘỜỚỞỠỢÙÚỦŨỤỪỨỬỮỰỲÝỶỸỴ")
 TRANSLATION_RATE_LIMIT_STATE: dict[str, float] = {}
 TRANSLATION_RATE_LIMIT_LOCK = asyncio.Lock()
@@ -479,6 +481,22 @@ def chunk_translation_source_text(source_text: str, max_chars: int = TRANSLATION
     if remaining:
         chunks.append(remaining)
     return chunks
+
+
+def split_failed_translation_chunk_for_retry(source_text: str) -> list[str]:
+    """Split one failed translation chunk into smaller retry chunks.
+
+    This keeps retry bounded and avoids infinite recursion: small chunks are
+    returned unchanged so the caller can surface the real provider/parser error.
+    """
+    normalized = (source_text or "").strip()
+    if len(normalized) < TRANSLATION_CHUNK_RETRY_MIN_CHARS:
+        return [normalized]
+    retry_max_chars = max(int(len(normalized) / TRANSLATION_CHUNK_RETRY_FANOUT), 1)
+    if retry_max_chars >= len(normalized):
+        return [normalized]
+    retry_chunks = chunk_translation_source_text(normalized, max_chars=retry_max_chars)
+    return retry_chunks if len(retry_chunks) > 1 else [normalized]
 
 def split_text_into_chunk_count(source_text: str, chunk_count: int) -> list[str]:
     normalized = (source_text or "").replace("\r\n", "\n").replace("\r", "\n").strip()
@@ -1484,6 +1502,83 @@ async def translate_chapter_payload_with_ai(
         "content": translated_content,
     }
 
+
+async def translate_chapter_content_chunk_with_retry(
+    *,
+    title: str,
+    content_chunk: str,
+    source_locale: str,
+    target_locales: list[str],
+    locale_prompt: str,
+    glossary_prompt: str,
+    context_label: str,
+    chunk_index: int,
+    chunk_count: int,
+    response_json_schema: dict,
+    translation_mode: str,
+) -> tuple[dict[str, dict[str, Any]], list[str]]:
+    def build_prompt(chunk_text: str, index: int, count: int) -> str:
+        return build_chapter_multilocale_user_prompt(
+            title=title,
+            content_chunk=chunk_text,
+            source_locale=source_locale,
+            locale_prompt=locale_prompt,
+            glossary_prompt=glossary_prompt,
+            context_label=context_label,
+            chunk_index=index,
+            chunk_count=count,
+            source_paragraph_count=_count_paragraphs_for_translation_prompt(chunk_text),
+            source_sentence_count=_filtered_sentence_count_for_translation_quality(chunk_text),
+        )
+
+    system_instruction = build_chapter_multilocale_system_instruction()
+    parser = lambda raw_text: parse_multilocale_translation_payload(raw_text, target_locales, ["title", "content"])
+
+    try:
+        chunk_payload = await generate_structured_translation_payload(
+            system_instruction=system_instruction,
+            user_prompt=build_prompt(content_chunk, chunk_index, chunk_count),
+            response_json_schema=response_json_schema,
+            parser=parser,
+            translation_mode=translation_mode,
+        )
+        return chunk_payload, [content_chunk]
+    except Exception as first_exc:
+        retry_chunks = split_failed_translation_chunk_for_retry(content_chunk)
+        if len(retry_chunks) <= 1:
+            raise first_exc
+
+        merged_payloads = {
+            locale: {"title": "", "content_parts": []}
+            for locale in target_locales
+        }
+        for retry_index, retry_chunk in enumerate(retry_chunks, start=1):
+            retry_payload = await generate_structured_translation_payload(
+                system_instruction=system_instruction,
+                user_prompt=build_prompt(retry_chunk, retry_index, len(retry_chunks)),
+                response_json_schema=response_json_schema,
+                parser=parser,
+                translation_mode=translation_mode,
+            )
+            for locale in target_locales:
+                locale_payload = retry_payload[locale]
+                translated_title = str(locale_payload.get("title") or "").strip()
+                translated_content = str(locale_payload.get("content") or "").strip()
+                if not translated_title or not translated_content:
+                    raise ValueError(f"Missing retry chapter title/content for locale {locale}")
+                if not merged_payloads[locale]["title"]:
+                    merged_payloads[locale]["title"] = translated_title
+                merged_payloads[locale]["content_parts"].append(translated_content)
+
+        return {
+            locale: {
+                "title": merged_payloads[locale]["title"],
+                "content": "\n\n".join(merged_payloads[locale]["content_parts"]).strip(),
+            }
+            for locale in target_locales
+        }, retry_chunks
+
+
 async def translate_chapter_payloads_with_ai(
     title: str,
     content: str,
@@ -1505,36 +1600,29 @@ async def translate_chapter_payloads_with_ai(
             "content": {"type": "string"},
         },
     )
-    system_instruction = build_chapter_multilocale_system_instruction()
-
     translated_payloads = {
         locale: {"title": "", "content_parts": []}
         for locale in target_locales
     }
     content_chunks = chunk_translation_source_text(content)
+    effective_source_chunks: list[str] = []
 
     try:
         for chunk_index, content_chunk in enumerate(content_chunks, start=1):
-            user_prompt = build_chapter_multilocale_user_prompt(
+            chunk_payload, used_source_chunks = await translate_chapter_content_chunk_with_retry(
                 title=title,
                 content_chunk=content_chunk,
                 source_locale=source_locale,
+                target_locales=target_locales,
                 locale_prompt=locale_prompt,
                 glossary_prompt=glossary_prompt,
                 context_label=context_label,
                 chunk_index=chunk_index,
                 chunk_count=len(content_chunks),
-                source_paragraph_count=_count_paragraphs_for_translation_prompt(content_chunk),
-                source_sentence_count=_filtered_sentence_count_for_translation_quality(content_chunk),
-            )
-
-            chunk_payload = await generate_structured_translation_payload(
-                system_instruction=system_instruction,
-                user_prompt=user_prompt,
                 response_json_schema=schema,
-                parser=lambda raw_text: parse_multilocale_translation_payload(raw_text, target_locales, ["title", "content"]),
                 translation_mode=translation_mode,
             )
+            effective_source_chunks.extend(used_source_chunks)
 
             for locale in target_locales:
                 locale_payload = chunk_payload[locale]
@@ -1589,7 +1677,7 @@ async def translate_chapter_payloads_with_ai(
                 translated_text="\n\n".join(
                     part for part in translated_payloads[locale]["content_parts"] if part
                 ).strip(),
-                source_chunks=content_chunks,
+                source_chunks=effective_source_chunks or content_chunks,
                 translated_chunks=translated_payloads[locale]["content_parts"],
             ),
         }
