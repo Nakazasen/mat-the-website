@@ -883,7 +883,8 @@ def _format_translation_publish_gate_error(locale: str, report: dict[str, Any]) 
         f"block_delta={report.get('block_delta')}; "
         f"alignment_entries={report.get('alignment_entry_count')}; "
         f"locale_mismatch_score={report.get('locale_mismatch_score')}. "
-        "Bản dịch này có nguy cơ làm đối chiếu Gốc VI không ổn định nên chưa được publish."
+        "Bản dịch AI đã được giữ lại dưới dạng bản nháp nhưng chưa publish vì cần nâng chất lượng/đối chiếu Gốc VI. "
+        "Hãy dùng nút nâng chất lượng hoặc dịch lại riêng ngôn ngữ này."
     )
 
 def _build_translation_repair_notes(locale: str, report: dict[str, Any]) -> str:
